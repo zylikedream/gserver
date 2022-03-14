@@ -1,0 +1,16 @@
+[
+  {
+    "id": 1,
+    "name": "大力丸",
+    "max_overlap": 999999,
+    "type": 1,
+    "auto_use": false
+  },
+  {
+    "id": 2,
+    "name": "切糕",
+    "max_overlap": 99,
+    "type": 1,
+    "auto_use": false
+  }
+]
