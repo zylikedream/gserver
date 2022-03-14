@@ -10,20 +10,20 @@ package gameconfig
 
 import "errors"
 
-type Signsign struct {
+type SignsignCheckIn struct {
     Id int32
     Rewards []*ItemItemRC
     Vip int32
     Desc string
 }
 
-const TypeId_Signsign = 1026443086
+const TypeId_SignsignCheckIn = -594089697
 
-func (*Signsign) GetTypeId() int32 {
-    return 1026443086
+func (*SignsignCheckIn) GetTypeId() int32 {
+    return -594089697
 }
 
-func (_v *Signsign)Deserialize(_buf map[string]interface{}) (err error) {
+func (_v *SignsignCheckIn)Deserialize(_buf map[string]interface{}) (err error) {
     { var _ok_ bool; var _tempNum_ float64; if _tempNum_, _ok_ = _buf["id"].(float64); !_ok_ { err = errors.New("id error"); return }; _v.Id = int32(_tempNum_) }
      {
                 var _arr_ []interface{}
@@ -44,8 +44,8 @@ func (_v *Signsign)Deserialize(_buf map[string]interface{}) (err error) {
     return
 }
 
-func DeserializeSignsign(_buf map[string]interface{}) (*Signsign, error) {
-    v := &Signsign{}
+func DeserializeSignsignCheckIn(_buf map[string]interface{}) (*SignsignCheckIn, error) {
+    v := &SignsignCheckIn{}
     if err := v.Deserialize(_buf); err == nil {
         return v, nil
     } else {

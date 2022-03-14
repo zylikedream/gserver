@@ -14,7 +14,7 @@ type Tables struct {
     TbTimeSwitcher *ControllerTbTimeSwitcher
     TbItem *ItemTbItem
     TbBag *ItemTbBag
-    TbSign *SignTbSign
+    TbSignCheckIn *SignTbSignCheckIn
     TbSignPatch *SignTbSignPatch
     TbSignAccum *SignTbSignAccum
 }
@@ -42,10 +42,10 @@ func NewTables(loader JsonLoader) (*Tables, error) {
     if tables.TbBag, err = NewItemTbBag(buf) ; err != nil {
         return nil, err
     }
-    if buf, err = loader("sign_tbsign") ; err != nil {
+    if buf, err = loader("sign_tbsigncheckin") ; err != nil {
         return nil, err
     }
-    if tables.TbSign, err = NewSignTbSign(buf) ; err != nil {
+    if tables.TbSignCheckIn, err = NewSignTbSignCheckIn(buf) ; err != nil {
         return nil, err
     }
     if buf, err = loader("sign_tbsignpatch") ; err != nil {
