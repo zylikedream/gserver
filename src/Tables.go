@@ -12,8 +12,8 @@ type JsonLoader func(string) ([]map[string]interface{}, error)
 
 type Tables struct {
     TbTimeSwitcher *ControllerTbTimeSwitcher
+    TbGlobal *GlobalTbGlobal
     TbItem *ItemTbItem
-    TbBag *ItemTbBag
     TbSignCheckIn *SignTbSignCheckIn
     TbSignPatch *SignTbSignPatch
     TbSignAccum *SignTbSignAccum
@@ -30,16 +30,16 @@ func NewTables(loader JsonLoader) (*Tables, error) {
     if tables.TbTimeSwitcher, err = NewControllerTbTimeSwitcher(buf) ; err != nil {
         return nil, err
     }
+    if buf, err = loader("global_tbglobal") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGlobal, err = NewGlobalTbGlobal(buf) ; err != nil {
+        return nil, err
+    }
     if buf, err = loader("item_tbitem") ; err != nil {
         return nil, err
     }
     if tables.TbItem, err = NewItemTbItem(buf) ; err != nil {
-        return nil, err
-    }
-    if buf, err = loader("item_tbbag") ; err != nil {
-        return nil, err
-    }
-    if tables.TbBag, err = NewItemTbBag(buf) ; err != nil {
         return nil, err
     }
     if buf, err = loader("sign_tbsigncheckin") ; err != nil {

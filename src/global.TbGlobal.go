@@ -11,23 +11,23 @@ package gameconfig
 
 import "errors"
 
-type ItemTbBag struct {
-    _data *ItemBag
+type GlobalTbGlobal struct {
+    _data *GlobalGlobal
 }
 
-func NewItemTbBag(_buf []map[string]interface{}) (*ItemTbBag, error) {
+func NewGlobalTbGlobal(_buf []map[string]interface{}) (*GlobalTbGlobal, error) {
 	if len(_buf) != 1 {
         return nil, errors.New(" size != 1 ")
 	} else {
-		if _v, err2 := DeserializeItemBag(_buf[0]); err2 != nil {
+		if _v, err2 := DeserializeGlobalGlobal(_buf[0]); err2 != nil {
 			return nil, err2
 		} else {
-		    return &ItemTbBag{_data:_v}, nil
+		    return &GlobalTbGlobal{_data:_v}, nil
 		}
 	}
 }
 
-func (table *ItemTbBag) Get() *ItemBag {
+func (table *GlobalTbGlobal) Get() *GlobalGlobal {
     return table._data
 }
 
