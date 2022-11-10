@@ -11,4 +11,5 @@ package gameconfig
 const (
     ItemEItemType_COMMON = 1
     ItemEItemType_EQUIP = 2
+    ItemEItemType_VIRTUAL_CORRENCY = 3
 )

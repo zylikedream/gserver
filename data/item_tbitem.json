@@ -12,5 +12,12 @@
     "max_overlap": 99,
     "type": 1,
     "auto_use": false
+  },
+  {
+    "id": 100001,
+    "name": "金币",
+    "max_overlap": 99999999,
+    "type": 3,
+    "auto_use": false
   }
 ]
