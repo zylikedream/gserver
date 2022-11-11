@@ -15,6 +15,7 @@ type ItemItem struct {
     Name string
     MaxOverlap int32
     Type int32
+    SubType int32
     AutoUse bool
 }
 
@@ -29,6 +30,7 @@ func (_v *ItemItem)Deserialize(_buf map[string]interface{}) (err error) {
     { var _ok_ bool; if _v.Name, _ok_ = _buf["name"].(string); !_ok_ { err = errors.New("name error"); return } }
     { var _ok_ bool; var _tempNum_ float64; if _tempNum_, _ok_ = _buf["max_overlap"].(float64); !_ok_ { err = errors.New("max_overlap error"); return }; _v.MaxOverlap = int32(_tempNum_) }
     { var _ok_ bool; var _tempNum_ float64; if _tempNum_, _ok_ = _buf["type"].(float64); !_ok_ { err = errors.New("type error"); return }; _v.Type = int32(_tempNum_) }
+    { var _ok_ bool; var _tempNum_ float64; if _tempNum_, _ok_ = _buf["sub_type"].(float64); !_ok_ { err = errors.New("sub_type error"); return }; _v.SubType = int32(_tempNum_) }
     { var _ok_ bool; if _v.AutoUse, _ok_ = _buf["auto_use"].(bool); !_ok_ { err = errors.New("auto_use error"); return } }
     return
 }

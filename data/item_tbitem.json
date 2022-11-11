@@ -4,6 +4,7 @@
     "name": "大力丸",
     "max_overlap": 999999,
     "type": 1,
+    "sub_type": 101,
     "auto_use": false
   },
   {
@@ -11,13 +12,15 @@
     "name": "切糕",
     "max_overlap": 99,
     "type": 1,
+    "sub_type": 101,
     "auto_use": false
   },
   {
     "id": 100001,
     "name": "金币",
     "max_overlap": 99999999,
-    "type": 3,
+    "type": 2,
+    "sub_type": 201,
     "auto_use": false
   }
 ]

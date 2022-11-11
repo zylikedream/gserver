@@ -9,6 +9,5 @@
 package gameconfig
 
 const (
-    ItemEItemType_BAG_ITEM = 1
-    ItemEItemType_VIRTUAL_CORRENCY = 2
+    ItemECurrencyType_GOLD = 1
 )
