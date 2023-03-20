@@ -9,6 +9,7 @@
 package gameconfig
 
 const (
-    ItemEItemType_BAG_ITEM = 1
-    ItemEItemType_VIRTUAL_CORRENCY = 2
+    ItemEItemType_COMMON = 1
+    ItemEItemType_EQUIP = 2
+    ItemEItemType_FOOD = 3
 )

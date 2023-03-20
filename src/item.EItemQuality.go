@@ -9,7 +9,8 @@
 package gameconfig
 
 const (
-    ItemEItemSubType_COMMON = 101
-    ItemEItemSubType_EQUIP = 102
-    ItemEItemSubType_GOLD = 201
+    ItemEItemQuality_WHITE = 1
+    ItemEItemQuality_BLUE = 2
+    ItemEItemQuality_PURPLE = 3
+    ItemEItemQuality_GOLD = 4
 )
