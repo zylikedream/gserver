@@ -5,8 +5,7 @@
     "max_overlap": 999999,
     "type": 4,
     "auto_use": false,
-    "quality": 2,
-    "icon": "res://resources/images/item/Item_daliwan.png"
+    "quality": 2
   },
   {
     "id": 2,
@@ -14,8 +13,7 @@
     "max_overlap": 99,
     "type": 4,
     "auto_use": false,
-    "quality": 3,
-    "icon": "res://resources/images/item/Item_qiegao.png"
+    "quality": 3
   },
   {
     "id": 1000001,
@@ -23,7 +21,6 @@
     "max_overlap": 999999,
     "type": 1,
     "auto_use": false,
-    "quality": 1,
-    "icon": "res://resources/images/item/Item_gold.png"
+    "quality": 1
   }
 ]

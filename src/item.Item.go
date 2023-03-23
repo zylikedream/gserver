@@ -17,7 +17,6 @@ type ItemItem struct {
     Type int32
     AutoUse bool
     Quality int32
-    Icon string
 }
 
 const TypeId_ItemItem = 2107285806
@@ -33,7 +32,6 @@ func (_v *ItemItem)Deserialize(_buf map[string]interface{}) (err error) {
     { var _ok_ bool; var _tempNum_ float64; if _tempNum_, _ok_ = _buf["type"].(float64); !_ok_ { err = errors.New("type error"); return }; _v.Type = int32(_tempNum_) }
     { var _ok_ bool; if _v.AutoUse, _ok_ = _buf["auto_use"].(bool); !_ok_ { err = errors.New("auto_use error"); return } }
     { var _ok_ bool; var _tempNum_ float64; if _tempNum_, _ok_ = _buf["quality"].(float64); !_ok_ { err = errors.New("quality error"); return }; _v.Quality = int32(_tempNum_) }
-    { var _ok_ bool; if _v.Icon, _ok_ = _buf["icon"].(string); !_ok_ { err = errors.New("icon error"); return } }
     return
 }
 
