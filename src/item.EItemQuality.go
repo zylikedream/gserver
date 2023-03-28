@@ -10,7 +10,8 @@ package gameconfig
 
 const (
     ItemEItemQuality_WHITE = 1
-    ItemEItemQuality_BLUE = 2
-    ItemEItemQuality_PURPLE = 3
-    ItemEItemQuality_GOLD = 4
+    ItemEItemQuality_GREEN = 2
+    ItemEItemQuality_BLUE = 3
+    ItemEItemQuality_PURPLE = 4
+    ItemEItemQuality_GOLD = 5
 )
