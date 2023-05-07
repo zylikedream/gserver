@@ -1,0 +1,178 @@
+
+syntax = "proto3";
+package galaxy.protocol;
+
+import "role.proto";
+
+message PMahongRuleInfo {
+    int32 play_mode = 1;
+    int32 play_turn = 2; // 局数
+    int32 max_point = 3; // 最大番数
+    int32 self_win_type = 4; // 自摸加底或者加番
+    int32 expose_win_type = 5; // 点杠花点炮或者点杠花自摸
+    int32 max_player = 10; // 最大游戏人数
+    bool hsz_switch = 6; // 是否换三张
+    bool jd_switch = 7; // 是否算将对
+    bool mqzz_switch  = 8; // 是否算门清中张
+    bool tdh_switch = 9; // 是否有天地胡
+}
+
+message ReqMahongCreateRoom {
+    PMahongRuleInfo rule = 1;
+}
+
+message RspMahongCreateRoom {
+	int64 room_id = 1;
+}
+
+
+message ReqMahongJoinRoom {
+    int64 room_id = 1;
+    int32 identify = 2;
+}
+
+message RspMahongJoinRoom {
+    int64 room_id = 1;
+}
+
+message ReqMahongOperate {
+    PMahongCommand cmd = 1;
+}
+
+message RspMahongOperate {
+    PMahongCommand cmd = 1;
+}
+
+message NotfiyMahongGameStart {
+	int32 die_point = 1; // 筛子点数
+	int32 game_count    = 2;     // 游戏局数
+}
+
+message PMahongKongInfo {
+	int32 card     = 1;
+	int32 kong_type = 2;
+}
+
+message PMahongMbrCardInfo {
+	repeated int32 holders = 1; // 手牌
+	repeated int32 pong = 2; // 碰牌
+	repeated PMahongKongInfo kong = 3; // 杠牌
+	int32 draw  = 4; // 摸牌
+	repeated int32 out_card = 5; // 已出的牌
+}
+
+message PMahongTableCardInfo {
+	int32 total = 1; // 总的牌
+    int32 left = 2; // 剩下的牌
+}
+
+message NotifySeatCardInfo {
+    repeated PMahongMbrCardInfo mbr_card = 1;
+    PMahongTableCardInfo table_card = 2;
+}
+
+message PMahongRoomInfo {
+	int64 room_id = 1;
+	PMahongRuleInfo rule = 2;
+	int64 start_time = 3;              
+	repeated PRolePublic mbrs = 4;
+}
+
+message NotifyMahongRoomInfo {
+    PMahongRoomInfo room_info = 1;
+}
+
+message NotifyMahongJoinRoom {
+    int32 seat_index = 1;
+    PRolePublic mbr = 2;
+}
+
+message NotifyMahongDrawCard {
+    int64 role_id = 1;
+    int32 card = 2;
+}
+
+message PMahongOperateData {
+    int32 card = 1;
+}
+
+message PMahongCommand {
+    int32 cmd = 1; // 命令类型
+    PMahongOperateData data = 2;
+}
+
+// 下发某个玩家的操作
+message NotifyMahongOperate {
+    int64 role_id = 1;
+    PMahongCommand cmd = 2;
+}
+
+message PMahongWinInfo {
+    int32 win_card = 1;
+    repeated int32 card_model = 2;
+    int32 win_mode = 3; // 胡牌模式（自摸，天胡，杠上花等）
+    int32 point = 4; // 番数
+    int64 win_time = 5; // 胡牌时间
+}
+
+message PMahongLoseInfo {
+    int32 lose_card = 1;
+    int32 lose_mode = 2; // 放炮模式（杠上炮等）
+    int32 lose_time = 3; // 放炮时间
+}
+
+message PMahongOneGameStat {
+    int64 role_id = 1;
+    PMahongMbrCardInfo card_info = 2;
+    repeated PMahongWinInfo win_info = 3;
+    repeated PMahongLoseInfo lose_info = 4;
+    int32 score = 5; // 得分
+}
+
+message PMahongAllGameStat {
+    int64 role_id = 1;
+	int32 draw_win = 2;// 自摸次数
+	int32 discard_win = 3; // 接炮次数
+	int32 discard_lose = 4; // 点炮次数
+	int32 concealed_kong = 5; // 暗杠次数
+	int32 exposed_kong = 6; // 明杠次数
+	int32 rain_kong = 7; // 下雨次数
+	int32 check_lose = 8; // 查叫次数
+	int32 total_score = 9; // 总得分
+}
+
+message NotfiyMahongAllGameEnd {
+	repeated PMahongAllGameStat stats = 1; // 统计信息
+}
+
+message NotifyMahongOneGameEnd {
+	int32 games  = 1; // 局数
+	repeated PMahongOneGameStat stats = 2;
+}
+
+message NotifyMahongUpdateTurn {
+	int32 turn = 1;
+}
+
+message PMahongDingqueInfo {
+	int64 role_id = 1;
+	int32 dq_suit = 2;
+}
+
+message NotifyMahongDingqueFinish {
+    repeated PMahongDingqueInfo dingque = 1;
+}
+
+message NotifyMahongMbrReady {
+    int64 role_id = 1;
+    bool ready = 2;
+}
+
+// 通知玩家合法的操作
+message NotifyMahongValidCmd {
+    repeated PMahongCommand valid_cmds = 1;
+}
+
+message NotifyMahongDingqueStart {
+	repeated int32 suit = 1;
+}
