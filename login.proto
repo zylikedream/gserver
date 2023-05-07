@@ -1,0 +1,18 @@
+syntax = "proto3";
+package galaxy.protocol;
+
+message ReqGateHandShake{
+   string account = 1;
+}
+
+message RspGateHandShake {
+}
+
+message ReqLogin {
+    string clinet =1;
+}
+
+message RspLogin {
+    bool first_login = 1;
+}
+

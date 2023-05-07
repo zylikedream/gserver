@@ -1,0 +1,9 @@
+syntax = "proto3";
+package galaxy.protocol;
+
+message PRolePublic {
+    string role_id= 1;  
+    string name = 2;
+    string head = 3;
+    int64  CreateTime = 4;
+}

@@ -1,0 +1,29 @@
+syntax = "proto3";
+package galaxy.protocol;
+
+message ReqBasicSetName {
+    string name = 1;
+}
+
+message RspBasicSetName {
+    string name = 1;
+}
+
+message ReqBasicInfo {
+    
+}
+
+message RspBasicInfo {
+    string name = 1;
+    int32 create_tm = 2; // 创角时间
+    string head = 3;
+}
+
+message ReqBasicSetHead {
+    string head = 1;
+}
+
+message RspBasicSetHead {
+    string head = 1;
+}
+
