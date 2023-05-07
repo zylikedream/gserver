@@ -1,0 +1,40 @@
+syntax = "proto3";
+package galaxy.protocol;
+
+message ReqBagInfo{
+}
+
+message RspBagInfo{
+    repeated PItemInfo items = 1;
+    repeated PCurrencyInfo currencys = 2;
+}
+
+message PItemInfo{
+    int32 prop_id = 1;
+    int64 num = 2;
+}
+
+message PCurrencyInfo{
+    int32 id = 1;
+    int64 num = 2;
+}
+
+message NotifyItemUpdate{
+    repeated PItemUpdate items = 1;
+}
+
+message PItemUpdate{
+    int32 prop_id = 1;
+    int64 pre_num = 2;
+    int64 num = 3;
+}
+
+message NotifyCurrencyUpdate{
+    repeated PCurrencyUpdate currencys = 1;
+}
+
+message PCurrencyUpdate{
+    int32 id = 1;
+    int64 pre_num = 2;
+    int64 num = 3;
+}
