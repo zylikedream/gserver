@@ -54,11 +54,12 @@ message PMahongKongInfo {
 }
 
 message PMahongMbrCardInfo {
-	repeated int32 holders = 1; // 手牌
-	repeated int32 pong = 2; // 碰牌
-	repeated PMahongKongInfo kong = 3; // 杠牌
-	int32 draw  = 4; // 摸牌
-	repeated int32 out_card = 5; // 已出的牌
+    string role_id = 1;
+	repeated int32 holders = 2; // 手牌
+	repeated int32 pong = 3; // 碰牌
+	repeated PMahongKongInfo kong = 4; // 杠牌
+	int32 draw  = 5; // 摸牌
+	repeated int32 out_card = 6; // 已出的牌
 }
 
 message PMahongTableCardInfo {
@@ -66,7 +67,7 @@ message PMahongTableCardInfo {
     int32 left = 2; // 剩下的牌
 }
 
-message NotifySeatCardInfo {
+message NotifyMahongSeatCardInfo {
     repeated PMahongMbrCardInfo mbr_card = 1;
     PMahongTableCardInfo table_card = 2;
 }
@@ -88,22 +89,19 @@ message NotifyMahongJoinRoom {
 }
 
 message NotifyMahongDrawCard {
-    int64 role_id = 1;
+    string role_id = 1;
     int32 card = 2;
 }
 
-message PMahongOperateData {
-    int32 card = 1;
-}
 
 message PMahongCommand {
     int32 cmd = 1; // 命令类型
-    PMahongOperateData data = 2;
+    int32 card = 2;
 }
 
 // 下发某个玩家的操作
 message NotifyMahongOperate {
-    int64 role_id = 1;
+    string role_id = 1;
     PMahongCommand cmd = 2;
 }
 
@@ -121,16 +119,16 @@ message PMahongLoseInfo {
     int32 lose_time = 3; // 放炮时间
 }
 
-message PMahongOneGameStat {
-    int64 role_id = 1;
+message PMahongGameStat {
+    string role_id = 1;
     PMahongMbrCardInfo card_info = 2;
     repeated PMahongWinInfo win_info = 3;
     repeated PMahongLoseInfo lose_info = 4;
     int32 score = 5; // 得分
 }
 
-message PMahongAllGameStat {
-    int64 role_id = 1;
+message PMahongRoomStat {
+    string role_id = 1;
 	int32 draw_win = 2;// 自摸次数
 	int32 discard_win = 3; // 接炮次数
 	int32 discard_lose = 4; // 点炮次数
@@ -141,21 +139,21 @@ message PMahongAllGameStat {
 	int32 total_score = 9; // 总得分
 }
 
-message NotfiyMahongAllGameEnd {
-	repeated PMahongAllGameStat stats = 1; // 统计信息
+message NotfiyMahongRoomEnd {
+	repeated PMahongRoomStat stats = 1; // 统计信息
 }
 
-message NotifyMahongOneGameEnd {
+message NotifyMahongGameEnd {
 	int32 games  = 1; // 局数
-	repeated PMahongOneGameStat stats = 2;
+	repeated PMahongGameStat stats = 2;
 }
 
-message NotifyMahongUpdateTurn {
-	int32 turn = 1;
+message NotifyMahongTurnSeat {
+	optional int32 turn = 1;
 }
 
 message PMahongDingqueInfo {
-	int64 role_id = 1;
+	string role_id = 1;
 	int32 dq_suit = 2;
 }
 
@@ -164,7 +162,7 @@ message NotifyMahongDingqueFinish {
 }
 
 message NotifyMahongMbrReady {
-    int64 role_id = 1;
+    string role_id = 1;
     bool ready = 2;
 }
 
