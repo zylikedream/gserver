@@ -96,7 +96,7 @@ message NotifyMahongDrawCard {
 
 message PMahongCommand {
     int32 cmd = 1; // 命令类型
-    int32 card = 2;
+    int32 val = 2;
 }
 
 // 下发某个玩家的操作
