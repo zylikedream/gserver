@@ -5,16 +5,11 @@ package galaxy.protocol;
 import "role.proto";
 
 message PMahongRuleInfo {
-    int32 play_mode = 1;
-    int32 play_turn = 2; // 局数
-    int32 max_point = 3; // 最大番数
-    int32 self_win_type = 4; // 自摸加底或者加番
-    int32 expose_win_type = 5; // 点杠花点炮或者点杠花自摸
-    int32 max_player = 10; // 最大游戏人数
-    bool hsz_switch = 6; // 是否换三张
-    bool jd_switch = 7; // 是否算将对
-    bool mqzz_switch  = 8; // 是否算门清中张
-    bool tdh_switch = 9; // 是否有天地胡
+    int32 game_mode = 1; // 游戏模式
+    int32 play_mode = 2; // 血战或者血流
+    int32 play_turn = 3; // 局数
+    int32 max_fan = 4; // 最大番数
+    int32 max_player = 5; // 游戏人数
 }
 
 message ReqMahongCreateRoom {
@@ -109,14 +104,14 @@ message PMahongWinInfo {
     int32 win_card = 1;
     repeated int32 card_model = 2;
     int32 win_mode = 3; // 胡牌模式（自摸，天胡，杠上花等）
-    int32 point = 4; // 番数
+    int32 fan = 4; // 番数
     int64 win_time = 5; // 胡牌时间
 }
 
 message PMahongLoseInfo {
     int32 lose_card = 1;
     int32 lose_mode = 2; // 放炮模式（杠上炮等）
-    int32 lose_time = 3; // 放炮时间
+    int64 lose_time = 3; // 放炮时间
 }
 
 message PMahongGameStat {
