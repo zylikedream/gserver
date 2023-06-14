@@ -6,10 +6,9 @@ import "role.proto";
 
 message PMahongRuleInfo {
     int32 game_mode = 1; // 游戏模式
-    int32 play_mode = 2; // 血战或者血流
-    int32 play_turn = 3; // 局数
-    int32 max_fan = 4; // 最大番数
-    int32 max_player = 5; // 游戏人数
+    int32 play_turn = 2; // 局数
+    int32 max_fan = 3; // 最大番数
+    int32 max_player = 4; // 游戏人数
 }
 
 message ReqMahongCreateRoom {
