@@ -65,11 +65,17 @@ message NotifyMahongSeatCardInfo {
     PMahongTableCardInfo table_card = 2;
 }
 
+message PMahongMemberInfo{
+	PRolePublic info = 1;
+    int32 seat_index = 2;
+    int32 identify = 3;
+}
+
 message PMahongRoomInfo {
 	int64 room_id = 1;
 	PMahongRuleInfo rule = 2;
 	int64 start_time = 3;              
-	repeated PRolePublic mbrs = 4;
+	repeated PMahongMemberInfo mbrs = 4;
 }
 
 message NotifyMahongRoomInfo {
@@ -77,8 +83,7 @@ message NotifyMahongRoomInfo {
 }
 
 message NotifyMahongJoinRoom {
-    int32 seat_index = 1;
-    PRolePublic mbr = 2;
+    PMahongMemberInfo mbr = 1;
 }
 
 message NotifyMahongDrawCard {
