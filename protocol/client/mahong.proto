@@ -68,7 +68,7 @@ message NotifyMahongSeatCardInfo {
 message PMahongMemberInfo{
 	PRolePublic info = 1;
     int32 seat_index = 2;
-    int32 identify = 3;
+    repeated int32 identify = 3;
 }
 
 message PMahongRoomInfo {
