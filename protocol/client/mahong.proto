@@ -31,6 +31,9 @@ message ReqMahongOperate {
     PMahongCommand cmd = 1;
 }
 
+message ReqMahongPass {
+}
+
 message ReqMahongSetReady {
     int32 ready = 1;
 }
