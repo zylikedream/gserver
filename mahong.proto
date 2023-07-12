@@ -172,5 +172,10 @@ message NotifyMahongMbrReady {
 
 // 通知玩家合法的操作
 message NotifyMahongValidCmd {
-    repeated PMahongCommand cmds = 1;
+    repeated PMahongValidCommand cmds = 1;
+}
+
+message PMahongValidCommand {
+    int32 cmd = 1; // 命令类型
+    repeated int32 vals = 2;
 }
