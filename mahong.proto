@@ -173,6 +173,7 @@ message NotifyMahongMbrReady {
 // 通知玩家合法的操作
 message NotifyMahongValidCmd {
     repeated PMahongValidCommand cmds = 1;
+    int64 timeout = 2;
 }
 
 message PMahongValidCommand {
