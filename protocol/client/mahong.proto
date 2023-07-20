@@ -153,7 +153,7 @@ message NotifyMahongGameEnd {
 }
 
 message NotifyMahongTurnSeat {
-	optional int32 turn = 1;
+	int32 turn = 1;
 }
 
 message PMahongDingqueInfo {
@@ -173,10 +173,13 @@ message NotifyMahongMbrReady {
 // 通知玩家合法的操作
 message NotifyMahongValidCmd {
     repeated PMahongValidCommand cmds = 1;
-    int64 timeout = 2;
 }
 
 message PMahongValidCommand {
     int32 cmd = 1; // 命令类型
     repeated int32 vals = 2;
+}
+
+message NotifyMahongTimeout {
+    int64 timeout = 1;
 }
