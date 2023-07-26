@@ -75,6 +75,7 @@ message PMahongMemberInfo{
 	PRolePublic info = 1;
     int32 seat_index = 2;
     repeated int32 identify = 3;
+    bool is_ready = 4;
 }
 
 message PMahongRoomInfo {
