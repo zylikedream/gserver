@@ -133,11 +133,9 @@ message PMahongRoomStat {
 	int32 draw_win = 2;// 自摸次数
 	int32 discard_win = 3; // 接炮次数
 	int32 discard_lose = 4; // 点炮次数
-	int32 concealed_kong = 5; // 暗杠次数
-	int32 exposed_kong = 6; // 明杠次数
-	int32 rain_kong = 7; // 下雨次数
-	int32 check_lose = 8; // 查叫次数
-	int32 total_score = 9; // 总得分
+	int32 check_lose = 5; // 查叫次数
+	int32 total_score = 6; // 总得分
+    repeated PMahongKongInfo kongs = 7;
 }
 
 message NotfiyMahongRoomEnd {
