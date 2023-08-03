@@ -28,19 +28,20 @@ message RspMahongJoinRoom {
 }
 
 message ReqMahongOperate {
-    PMahongCommand cmd = 1;
+    int32 cmd = 1; // 命令类型
+    int32 val = 2;
 }
 
-message ReqMahongPass {
+message RspMahongOperate {
+    int32 cmd = 1; // 命令类型
+    int32 val = 2;
 }
 
 message ReqMahongSetReady {
     int32 ready = 1;
 }
 
-message RspMahongOperate {
-    PMahongCommand cmd = 1;
-}
+
 
 message NotfiyMahongGameStart {
 	int32 die_point = 1; // 筛子点数
@@ -98,6 +99,7 @@ message PMahongCommand {
     int32 cmd = 1; // 命令类型
     int32 val = 2;
     string source = 3;
+    string data = 4;
 }
 
 // 下发某个玩家的操作
