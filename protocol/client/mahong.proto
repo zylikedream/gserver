@@ -32,16 +32,9 @@ message ReqMahongOperate {
     int32 val = 2;
 }
 
-message RspMahongOperate {
-    int32 cmd = 1; // 命令类型
-    int32 val = 2;
-}
-
 message ReqMahongSetReady {
     int32 ready = 1;
 }
-
-
 
 message NotfiyMahongGameStart {
 	int32 die_point = 1; // 筛子点数
@@ -115,8 +108,8 @@ message NotifyMahongOperateRevert {
 
 message PMahongWinInfo {
     int32 win_card = 1;
-    repeated int32 card_model = 2;
-    int32 win_mode = 3; // 胡牌模式（自摸，天胡，杠上花等）
+    repeated int32 card_models = 2;
+    int32 win_model = 3; // 胡牌模式（自摸，天胡，杠上花等）
     int32 fan = 4; // 番数
     int64 win_time = 5; // 胡牌时间
 }
