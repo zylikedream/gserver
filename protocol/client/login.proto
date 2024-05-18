@@ -1,18 +1,21 @@
 syntax = "proto3";
-package galaxy.protocol;
+option go_package="./pb;pb";
+package pb;
 
-message ReqGateHandShake{
-   string account = 1;
+message ReqHandShake{
+   string account_uid = 1;
 }
 
-message RspGateHandShake {
+message RspHandShake{
+   string account_uid = 1;
 }
 
-message ReqLogin {
-    string clinet =1;
+message ReqAccountLogin {
+    string account_uid = 1;
+    string clinet =2;
 }
 
-message RspLogin {
+message RspAccountLogin {
     bool first_login = 1;
 }
 
