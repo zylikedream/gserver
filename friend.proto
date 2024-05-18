@@ -1,5 +1,6 @@
 syntax = "proto3";
-package galaxy.protocol;
+option go_package="./pb;pb";
+package pb;
 
 import "role.proto";
 
