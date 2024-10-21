@@ -1,6 +1,6 @@
 syntax = "proto3";
-option go_package="./pb;pb";
-package pb;
+
+package galaxy.protocol;
 
 message ReqHandShake{
    string account_uid = 1;
@@ -8,6 +8,7 @@ message ReqHandShake{
 
 message RspHandShake{
    string account_uid = 1;
+   string role_uid = 2;
 }
 
 message ReqAccountLogin {
