@@ -1,6 +1,5 @@
 syntax = "proto3";
-option go_package="./pb;pb";
-package pb;
+package galaxy.protocol;
 
 message Ack{
     int32 code = 1;
