@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"time"
 
 	"ergo.services/ergo/gen"
 )
@@ -48,55 +47,4 @@ type ActorBehavior interface {
 
 	// Terminate 终止处理
 	OnTerminate(reason error)
-}
-
-// ActorSystem Actor系统接口
-type IActorSystem interface {
-	// Spawn 创建Actor
-	SpawnRegister(name string, actor ActorBehavior, options gen.ProcessOptions, args ...any) (PID, error)
-
-	// Spawn 创建Actor
-	Spawn(actor ActorBehavior, options gen.ProcessOptions, args ...any) (PID, error)
-
-	// Send 异步发送消息
-	Send(pid PID, message any) error
-
-	// Kill 终止Actor
-	StopActor(pid PID) error
-
-	// NodeName 获取节点名称
-	NodeName() string
-}
-
-// MessageType 消息类型常量
-type MessageType string
-
-const (
-	TypeActorCreated MessageType = "actor.created"
-	TypeActorKilled  MessageType = "actor.killed"
-	TypeCallTimeout  MessageType = "call.timeout"
-)
-
-// SystemMessage 系统消息
-type SystemMessage struct {
-	BaseMessage
-	Data any
-}
-
-// NewSystemMessage 创建系统消息
-func NewSystemMessage(msgType MessageType, data any) SystemMessage {
-	return SystemMessage{
-		BaseMessage: BaseMessage{Type: string(msgType)},
-		Data:        data,
-	}
-}
-
-// CallOptions 同步调用选项
-type CallOptions struct {
-	Timeout time.Duration
-}
-
-// DefaultCallOptions 默认调用选项
-var DefaultCallOptions = CallOptions{
-	Timeout: 5 * time.Second,
 }

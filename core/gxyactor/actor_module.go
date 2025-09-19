@@ -11,25 +11,33 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 )
 
-// ActorSystem 基础Actor模块
-type ActorSystem struct {
+// actorSystem 基础Actor模块
+type actorSystem struct {
 	gxymodule.Module
 	node     gen.Node
 	nodeName gen.Atom
 	cookie   string
 }
 
+var actorSys *actorSystem
+
+// ActorSystem 获取基础Actor模块
+func ActorSystem() *actorSystem {
+	return actorSys
+}
+
 // NewActorSystem创建基础Actor模块
-func NewActorSystem(nodeName gen.Atom, cookie string) *ActorSystem {
-	return &ActorSystem{
+func NewActorSystem(nodeName gen.Atom, cookie string) *actorSystem {
+	actorSys = &actorSystem{
 		Module:   gxymodule.Module{},
 		nodeName: nodeName,
 		cookie:   cookie,
 	}
+	return actorSys
 }
 
 // OnInit Actor模块初始化 - 启动节点
-func (a *ActorSystem) OnInit(ctx context.Context) error {
+func (a *actorSystem) OnStart(ctx context.Context) error {
 	if err := a.Module.OnInit(ctx); err != nil {
 		return err
 	}
@@ -52,7 +60,7 @@ func (a *ActorSystem) OnInit(ctx context.Context) error {
 }
 
 // OnStop 停止Actor模块 - 停止节点
-func (a *ActorSystem) OnStop(ctx context.Context) error {
+func (a *actorSystem) OnStop(ctx context.Context) error {
 	if a.node != nil {
 		// 停止节点
 		a.node.Stop()
@@ -62,7 +70,7 @@ func (a *ActorSystem) OnStop(ctx context.Context) error {
 }
 
 // SpawnRegister创建新的Actor
-func (a *ActorSystem) SpawnRegister(name string, factory gen.ProcessFactory, options gen.ProcessOptions, args ...any) (gen.PID, error) {
+func (a *actorSystem) SpawnRegister(name string, factory gen.ProcessFactory, options gen.ProcessOptions, args ...any) (gen.PID, error) {
 	if a.node == nil {
 		return gen.PID{}, fmt.Errorf("node not initialized")
 	}
@@ -75,7 +83,7 @@ func (a *ActorSystem) SpawnRegister(name string, factory gen.ProcessFactory, opt
 	return pid, nil
 }
 
-func (a *ActorSystem) Spawn(factory gen.ProcessFactory, options gen.ProcessOptions, args ...any) (gen.PID, error) {
+func (a *actorSystem) Spawn(factory gen.ProcessFactory, options gen.ProcessOptions, args ...any) (gen.PID, error) {
 	if a.node == nil {
 		return gen.PID{}, fmt.Errorf("node not initialized")
 	}
@@ -89,7 +97,7 @@ func (a *ActorSystem) Spawn(factory gen.ProcessFactory, options gen.ProcessOptio
 }
 
 // Send 发送消息（异步）
-func (a *ActorSystem) Send(pid gen.PID, message any) error {
+func (a *actorSystem) Send(pid gen.PID, message any) error {
 	if a.node == nil {
 		return fmt.Errorf("node not initialized")
 	}
@@ -98,16 +106,16 @@ func (a *ActorSystem) Send(pid gen.PID, message any) error {
 }
 
 // GetNode 获取节点实例
-func (a *ActorSystem) GetNode() gen.Node {
+func (a *actorSystem) GetNode() gen.Node {
 	return a.node
 }
 
 // GetNodeName 获取节点名称
-func (a *ActorSystem) GetNodeName() string {
+func (a *actorSystem) GetNodeName() string {
 	return string(a.nodeName)
 }
 
-func (a *ActorSystem) StopActor(pid gen.PID) error {
+func (a *actorSystem) StopActor(pid gen.PID) error {
 	if a.node == nil {
 		return fmt.Errorf("node not initialized")
 	}
