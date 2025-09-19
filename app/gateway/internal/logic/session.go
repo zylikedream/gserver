@@ -10,8 +10,11 @@ import (
 	"gserver/core/gxynet/message"
 
 	"ergo.services/ergo/act"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
+)
+
+const (
+	SESSION_MSG_STOP = "stop"
 )
 
 // SessionState 会话状态
@@ -64,30 +67,13 @@ func (s *Session) Init(args ...any) error {
 // OnHandleMessage 处理异步消息
 func (s *Session) HandleMessage(from gxyactor.PID, msg any) error {
 	s.updateLastActive()
-	switch msg := msg.(type) {
-	case *ClientMessage:
-		return s.handleClientMessage(msg)
-	case *NetworkMessage:
-		return s.handleNetworkMessage(msg)
-	case *SystemMessage:
-		return s.handleSystemMessage(msg)
-	default:
-		return fmt.Errorf("unknown message type: %T", msg)
-	}
+	return nil
 }
 
 // OnHandleCall 处理同步调用
 func (s *Session) HandleCall(from gxyactor.PID, ref gxyactor.Ref, request any) (any, error) {
 	s.updateLastActive()
-	switch req := request.(type) {
-	case *GetSessionInfoRequest:
-		return s.sessionInfo, nil
-	case *KickSessionRequest:
-		s.handleKick(req.Reason)
-		return &KickSessionResponse{Success: true}, nil
-	default:
-		return nil, fmt.Errorf("unknown request type: %T", request)
-	}
+	return nil, nil
 }
 
 // OnTerminate 终止处理
@@ -98,120 +84,6 @@ func (s *Session) Terminate(reason error) {
 	if s.endpoint != nil {
 		s.endpoint.Conn().Close()
 	}
-}
-
-// handleClientMessage 处理客户端消息
-func (s *Session) handleClientMessage(msg *ClientMessage) error {
-	glog.Debugf(context.Background(), "Session %s received client message: %s", s.connID, msg.Type)
-
-	switch msg.Type {
-	case MsgTypeLogin:
-		return s.handleLogin(msg.Data)
-	case MsgTypeHeartbeat:
-		return s.handleHeartbeat()
-	case MsgTypeGameMessage:
-		return s.handleGameMessage(msg.Data)
-	default:
-		return fmt.Errorf("unknown client message type: %s", msg.Type)
-	}
-}
-
-// handleNetworkMessage 处理网络消息（从网络层收到的消息）
-func (s *Session) handleNetworkMessage(msg *NetworkMessage) error {
-	// 转发给客户端
-	return s.sendToClient(msg.Data)
-}
-
-// handleSystemMessage 处理系统消息
-func (s *Session) handleSystemMessage(msg *SystemMessage) error {
-	switch msg.Type {
-	case SysMsgKick:
-		s.handleKick(msg.Data.(string))
-	case SysMsgStop:
-		return gerror.New(msg.Data.(string))
-	case SysMsgHeartbeat:
-		// 心跳响应
-		return s.sendHeartbeatResponse()
-	default:
-		return fmt.Errorf("unknown system message type: %s", msg.Type)
-	}
-	return nil
-}
-
-// handleLogin 处理登录消息
-func (s *Session) handleLogin(data any) error {
-	if s.state != StateHandshaking && s.state != StateConnected {
-		return fmt.Errorf("invalid state for login: %v", s.state)
-	}
-
-	loginReq, ok := data.(*LoginRequest)
-	if !ok {
-		return fmt.Errorf("invalid login request data")
-	}
-
-	glog.Infof(context.Background(), "Session %s login request: PlayerID=%s", s.connID, loginReq.PlayerID)
-
-	// 进入认证阶段
-	s.state = StateAuthenticating
-	s.sessionInfo.PlayerID = loginReq.PlayerID
-
-	// TODO: 这里实现认证逻辑
-	// 1. 验证token
-	// 2. 检查重复登录
-	// 3. 获取玩家数据
-	// 4. 设置认证状态
-
-	// 模拟认证成功
-	s.SetPlayerID(loginReq.PlayerID)
-
-	// 发送登录响应给客户端
-	return s.sendToClient(&LoginResponse{
-		Success:  true,
-		PlayerID: loginReq.PlayerID,
-		Message:  "Login successful",
-	})
-}
-
-// handleHeartbeat 处理心跳
-func (s *Session) handleHeartbeat() error {
-	glog.Debugf(context.Background(), "Session %s heartbeat", s.connID)
-	return s.sendHeartbeatResponse()
-}
-
-// handleGameMessage 处理游戏消息
-func (s *Session) handleGameMessage(data any) error {
-	if s.state != StateAuthenticated {
-		return fmt.Errorf("session not authenticated")
-	}
-
-	glog.Debugf(context.Background(), "Session %s game message: %T", s.connID, data)
-
-	// TODO: 这里实现游戏消息处理逻辑
-	// 1. 验证消息格式
-	// 2. 权限检查
-	// 3. 转发到游戏服（后续实现）
-	// 4. 返回响应给客户端
-
-	// 模拟处理成功
-	return s.sendToClient(&GameMessageResponse{
-		Success: true,
-		Message: "Message processed",
-	})
-}
-
-// handleKick 处理踢出
-func (s *Session) handleKick(reason string) {
-	glog.Infof(context.Background(), "Session %s kicked: %s", s.connID, reason)
-
-	// 发送踢出消息给客户端
-	s.sendToClient(&KickNotify{
-		Reason: reason,
-	})
-
-	// 延迟关闭连接，让客户端有时间处理踢出消息
-	time.AfterFunc(2*time.Second, func() {
-		s.Terminate(fmt.Errorf("kicked: %s", reason))
-	})
 }
 
 // sendToClient 发送消息给客户端
@@ -226,13 +98,6 @@ func (s *Session) sendToClient(data any) error {
 	}
 
 	return s.endpoint.SendMsg(msg)
-}
-
-// sendHeartbeatResponse 发送心跳响应
-func (s *Session) sendHeartbeatResponse() error {
-	return s.sendToClient(&HeartbeatResponse{
-		Timestamp: time.Now().Unix(),
-	})
 }
 
 // updateLastActive 更新最后活跃时间

@@ -5,7 +5,7 @@
 	addr = ":10086"
 
 [message]
-	codec = "protobuf" # 消息类型
+	codec = "json" # 消息类型
 
 [processor]
 	packet = "ltpv" # 解包的解码器

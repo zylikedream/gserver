@@ -2,7 +2,6 @@ package logic
 
 import (
 	"gserver/core/gxynet/message"
-	"time"
 )
 
 var codec message.IMessageCodec
@@ -13,6 +12,7 @@ func init() {
 
 // 消息类型定义
 type (
+
 	// ClientMessage 客户端消息
 	ClientMessage struct {
 		Type string      `json:"type"` // 消息类型
@@ -85,10 +85,6 @@ const (
 	MsgTypeHeartbeat   = "heartbeat"
 	MsgTypeGameMessage = "game_message"
 	MsgTypeError       = "error"
-
-	SysMsgKick      = "kick"
-	SysMsgHeartbeat = "heartbeat"
-	SysMsgStop      = "stop"
 )
 
 // 错误码定义
@@ -102,116 +98,14 @@ const (
 	ErrCodeDuplicateLogin   = 1006
 )
 
-// Helper函数
+type ActorMessage struct {
+	MsgType string `json:"msg_type"` // 消息类型
+	Data    any    `json:"data"`     // 消息数据
+}
 
-// CreateErrorResponse 创建错误响应
-func CreateErrorResponse(code int, message string) *ErrorResponse {
-	return &ErrorResponse{
-		Code:    code,
-		Message: message,
+func NewActorMessage(msgType string, data any) *ActorMessage {
+	return &ActorMessage{
+		MsgType: msgType,
+		Data:    data,
 	}
-}
-
-// CreateLoginResponse 创建登录响应
-func CreateLoginResponse(success bool, playerID string, message string) *LoginResponse {
-	return &LoginResponse{
-		Success:  success,
-		PlayerID: playerID,
-		Message:  message,
-	}
-}
-
-// CreateHeartbeatResponse 创建心跳响应
-func CreateHeartbeatResponse() *HeartbeatResponse {
-	return &HeartbeatResponse{
-		Timestamp: time.Now().Unix(),
-	}
-}
-
-// CreateGameMessageResponse 创建游戏消息响应
-func CreateGameMessageResponse(success bool, message string) *GameMessageResponse {
-	return &GameMessageResponse{
-		Success: success,
-		Message: message,
-	}
-}
-
-// CreateKickNotify 创建踢出通知
-func CreateKickNotify(reason string) *KickNotify {
-	return &KickNotify{
-		Reason: reason,
-	}
-}
-
-// CreateKickSessionResponse 创建踢出会话响应
-func CreateKickSessionResponse(success bool) *KickSessionResponse {
-	return &KickSessionResponse{
-		Success: success,
-	}
-}
-
-// CreateClientMessage 创建客户端消息
-func CreateClientMessage(msgType string, data interface{}) *ClientMessage {
-	return &ClientMessage{
-		Type: msgType,
-		Data: data,
-	}
-}
-
-// CreateSystemMessage 创建系统消息
-func CreateSystemMessage(msgType string, data interface{}) *SystemMessage {
-	return &SystemMessage{
-		Type: msgType,
-		Data: data,
-	}
-}
-
-// CreateNetworkMessage 创建网络消息
-func CreateNetworkMessage(data []byte) *NetworkMessage {
-	return &NetworkMessage{
-		Data: data,
-	}
-}
-
-// 消息编解码器配置
-func GetMessageCodec() string {
-	return "protobuf" // 与gate.net.toml保持一致
-}
-
-// 消息创建辅助函数
-func NewClientMessage(msgType string, data interface{}) (*message.Message, error) {
-	return message.NewMessage(CreateClientMessage(msgType, data), nil)
-}
-
-func NewSystemMessage(msgType string, data interface{}) *message.Message {
-	msg, _ := message.NewMessage(CreateSystemMessage(msgType, data), codec)
-	return msg
-}
-
-func NewNetworkMessage(data []byte) (*message.Message, error) {
-	return message.NewMessage(CreateNetworkMessage(data), nil)
-}
-
-func NewErrorResponse(code int, msg string) (*message.Message, error) {
-	return message.NewMessage(CreateErrorResponse(code, msg), nil)
-}
-
-func NewLoginResponse(success bool, playerID string, msg string) (*message.Message, error) {
-	return message.NewMessage(CreateLoginResponse(success, playerID, msg), nil)
-}
-
-func NewHeartbeatResponse() (*message.Message, error) {
-	return message.NewMessage(CreateHeartbeatResponse(), nil)
-}
-
-func NewGameMessageResponse(success bool, msg string) (*message.Message, error) {
-	return message.NewMessage(CreateGameMessageResponse(success, msg), nil)
-}
-
-func NewKickNotify(reason string) (*message.Message, error) {
-	return message.NewMessage(CreateKickNotify(reason), nil)
-}
-
-func NewKickSessionResponse(success bool) (*message.Message, error) {
-	return message.NewMessage(CreateKickSessionResponse(success), nil)
 }

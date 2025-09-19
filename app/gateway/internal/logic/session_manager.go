@@ -11,6 +11,11 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 )
 
+const (
+	SESSIONMGR_MSG_CREATE_SESSION = "create_session"
+	SESSIONMGR_MSG_STOP_SESSION   = "stop_session"
+)
+
 // sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
 type sessionManager struct {
 	gxymodule.Module
@@ -21,7 +26,11 @@ type sessionSupervisor struct {
 	act.Supervisor
 }
 
-var sessionMgr *sessionSupervisor
+var sessionMgr *sessionManager
+
+func SessionManager() *sessionManager {
+	return sessionMgr
+}
 
 // NewSessionManager 创建会话管理器
 func NewSessionManager() *sessionManager {
@@ -32,16 +41,17 @@ func NewSessionManager() *sessionManager {
 		glog.Fatalf(context.Background(), "create session manager failed, err: %v", err)
 		return nil
 	}
-	sessmgr := &sessionManager{
+	sessionMgr = &sessionManager{
 		actor: pid,
 	}
-	return sessmgr
+	return sessionMgr
 }
 
 // Init Supervisor初始化
 func (ss *sessionSupervisor) Init(args ...any) (act.SupervisorSpec, error) {
 	spec := act.SupervisorSpec{
-		Type: act.SupervisorTypeSimpleOneForOne,
+		Type:              act.SupervisorTypeSimpleOneForOne,
+		EnableHandleChild: true,
 	}
 	spec.Children = []act.SupervisorChildSpec{
 		{
@@ -55,41 +65,43 @@ func (ss *sessionSupervisor) Init(args ...any) (act.SupervisorSpec, error) {
 }
 
 func (ss *sessionSupervisor) HandleMessage(from gen.PID, msg any) error {
-	return nil
+	var err error
+	switch msg := msg.(type) {
+	case *ActorMessage:
+		switch msg.MsgType {
+		case SESSIONMGR_MSG_CREATE_SESSION:
+			err = ss.createSession(msg.Data.(endpoint.Endpoint))
+		case SESSIONMGR_MSG_STOP_SESSION:
+			err = ss.stopSession(msg.Data.(endpoint.Endpoint), msg.Data.(string))
+		}
+	}
+	if err != nil {
+		glog.Errorf(context.Background(), "create session failed, err: %v", err)
+	}
+	return err
 }
 
 func (ss *sessionSupervisor) HandleCall(ctx context.Context, msg any) error {
 	return nil
 }
 
-func (ss *sessionSupervisor) HandleM() string {
-	return "session_supervisor"
-}
-
 // CreateSession 创建Session Actor（通过Supervisor自动管理）
-func (ss *sessionSupervisor) CreateSession(ep endpoint.Endpoint) error {
-	connID := ep.Conn().RemoteAddr().String()
-	// 使用Supervisor的StartChild创建并监控Session
-	err := ss.StartChild(gen.Atom(connID), connID, ep)
-	return err
+func (ss *sessionSupervisor) createSession(ep endpoint.Endpoint) error {
+	return ss.StartChild("session", ep)
 }
 
-func (ss *sessionSupervisor) StopSession(ep endpoint.Endpoint, reason string) error {
+func (ss *sessionSupervisor) stopSession(ep endpoint.Endpoint, reason string) error {
 	connID := ep.Conn().RemoteAddr().String()
-	// 使用Supervisor的StopChild停止并删除Session
-	return ss.Send(gen.Atom(connID), NewSystemMessage(SysMsgStop, reason))
+	return ss.Send(gen.Atom(connID), NewActorMessage(SESSION_MSG_STOP, reason))
 }
 
 // CreateSession 创建Session Actor（通过Supervisor自动管理）
 func (sm *sessionManager) CreateSession(ep endpoint.Endpoint) error {
-	connID := ep.Conn().RemoteAddr().String()
 	// 使用Supervisor的StartChild创建并监控Session
-	gxyactor.ActorSystem().Send(sm.actor)
+	err := gxyactor.ActorSystem().Send(sm.actor, NewActorMessage(SESSIONMGR_MSG_CREATE_SESSION, ep))
 	return err
 }
 
 func (sm *sessionManager) StopSession(ep endpoint.Endpoint, reason string) error {
-	connID := ep.Conn().RemoteAddr().String()
-	// 使用Supervisor的StopChild停止并删除Session
-	return ss.Send(gen.Atom(connID), NewSystemMessage(SysMsgStop, reason))
+	return gxyactor.ActorSystem().Send(sm.actor, NewActorMessage(SESSIONMGR_MSG_STOP_SESSION, ep))
 }
