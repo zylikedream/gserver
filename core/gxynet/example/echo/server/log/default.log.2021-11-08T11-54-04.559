@@ -1,0 +1,367 @@
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:20:05+08:00","msg":"conn open, addr=127.0.0.1:46664"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:20:05+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:21:30+08:00","msg":"conn open, addr=127.0.0.1:46686"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:21:30+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:21:30+08:00","msg":"conn close, addr=127.0.0.1:46686"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:21:38+08:00","msg":"conn open, addr=127.0.0.1:46690"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:21:38+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:21:38+08:00","msg":"conn close, addr=127.0.0.1:46690"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:24:29+08:00","msg":"conn open, addr=127.0.0.1:46744"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:24:29+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:24:29+08:00","msg":"conn close, addr=127.0.0.1:46744"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:26:33+08:00","msg":"conn open, addr=127.0.0.1:46776"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:26:33+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:26:33+08:00","msg":"conn close, addr=127.0.0.1:46776"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:28:33+08:00","msg":"conn open, addr=127.0.0.1:46820"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:28:33+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:28:33+08:00","msg":"conn close, addr=127.0.0.1:46820"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:29:31+08:00","msg":"conn open, addr=127.0.0.1:46834"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:29:31+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:29:31+08:00","msg":"conn close, addr=127.0.0.1:46834"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:31:00+08:00","msg":"conn open, addr=127.0.0.1:46854"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-04T17:31:00+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-04T17:31:00+08:00","msg":"conn close, addr=127.0.0.1:46854"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:52:39+08:00","msg":"conn open, addr=127.0.0.1:34762"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T15:52:39+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:52:39+08:00","msg":"conn close, addr=127.0.0.1:34762"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:53:58+08:00","msg":"conn open, addr=127.0.0.1:34804"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T15:53:58+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:53:58+08:00","msg":"conn close, addr=127.0.0.1:34804"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:59:54+08:00","msg":"conn open, addr=127.0.0.1:34908"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T15:59:54+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:59:54+08:00","msg":"conn close, addr=127.0.0.1:34908"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:29:38+08:00","msg":"conn open, addr=127.0.0.1:35274"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:29:38+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:29:38+08:00","msg":"conn close, addr=127.0.0.1:35274"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:13+08:00","msg":"conn open, addr=127.0.0.1:35322"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:32:13+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:13+08:00","msg":"conn close, addr=127.0.0.1:35322"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:34+08:00","msg":"conn open, addr=127.0.0.1:35328"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:32:34+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:34+08:00","msg":"conn close, addr=127.0.0.1:35328"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:42:36+08:00","msg":"conn open, addr=127.0.0.1:35500"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:42:36+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:42:36+08:00","msg":"conn close, addr=127.0.0.1:35500"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:45:31+08:00","msg":"conn open, addr=127.0.0.1:35538"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:45:31+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:45:31+08:00","msg":"conn close, addr=127.0.0.1:35538"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:48:11+08:00","msg":"conn open, addr=127.0.0.1:35590"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:48:11+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:48:11+08:00","msg":"conn close, addr=127.0.0.1:35590"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:53:46+08:00","msg":"conn open, addr=127.0.0.1:35678"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:53:46+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:53:46+08:00","msg":"conn close, addr=127.0.0.1:35678"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:54:39+08:00","msg":"conn open, addr=127.0.0.1:35692"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:54:39+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:54:39+08:00","msg":"conn close, addr=127.0.0.1:35692"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:54:52+08:00","msg":"conn open, addr=127.0.0.1:35696"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:54:52+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:54:52+08:00","msg":"conn close, addr=127.0.0.1:35696"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:55:47+08:00","msg":"conn open, addr=127.0.0.1:35708"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:55:47+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:55:47+08:00","msg":"conn close, addr=127.0.0.1:35708"}
+{"level":"info","ts":"2021-11-05T10:56:31.3494753+08:00","msg":"conn open, addr=127.0.0.1:35724"}
+{"level":"error","ts":"2021-11-05T10:56:31.3496598+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:56:31.3497682+08:00","msg":"conn close, addr=127.0.0.1:35724"}
+{"level":"info","ts":"2021-11-05T11:09:43.1388288+08:00","msg":"conn open, addr=127.0.0.1:35938"}
+{"level":"info","ts":"2021-11-05T11:38:16.3764892+08:00","msg":"conn open, addr=127.0.0.1:36402"}
+{"level":"error","ts":"2021-11-05T11:38:20.9291216+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T11:38:20.9292933+08:00","msg":"conn close, addr=127.0.0.1:36402"}
+{"level":"info","ts":"2021-11-05T11:38:26.6330049+08:00","msg":"conn open, addr=127.0.0.1:36406"}
+{"level":"info","ts":"2021-11-05T11:43:21.8124537+08:00","msg":"conn open, addr=127.0.0.1:36484"}
+{"level":"info","ts":"2021-11-05T11:51:05.9607393+08:00","msg":"conn open, addr=127.0.0.1:36600"}
+{"level":"info","ts":"2021-11-05T11:59:16.3264515+08:00","msg":"conn open, addr=127.0.0.1:36736"}
+{"level":"info","ts":"2021-11-05T12:00:33.6832155+08:00","msg":"conn open, addr=127.0.0.1:36754"}
+{"level":"error","ts":"2021-11-05T12:01:19.7476981+08:00","msg":"tcpsession","recv error":"unexpect size [105 116 13 10 13 10 13 10 4 255 244 255 253 6 8 13 10 13 10 13 10 255 244 255 253 6 13 10 113 117 105 116 13 10](30065)"}
+{"level":"info","ts":"2021-11-05T12:01:19.7478722+08:00","msg":"conn close, addr=127.0.0.1:36754"}
+{"level":"info","ts":"2021-11-05T12:01:50.3908989+08:00","msg":"conn open, addr=127.0.0.1:36778"}
+{"level":"info","ts":"2021-11-05T12:02:00.267753+08:00","msg":"conn open, addr=127.0.0.1:36786"}
+{"level":"error","ts":"2021-11-05T12:02:07.983536+08:00","msg":"tcpsession","recv error":"unexpect size 4(30065)"}
+{"level":"info","ts":"2021-11-05T12:02:07.983738+08:00","msg":"conn close, addr=127.0.0.1:36786"}
+{"level":"info","ts":"2021-11-05T12:05:41.6223692+08:00","msg":"conn open, addr=127.0.0.1:36846"}
+{"level":"error","ts":"2021-11-05T12:06:28.7815122+08:00","msg":"tcpsession","recv error":"unexpect size 8(30065)"}
+{"level":"info","ts":"2021-11-05T12:06:28.7817999+08:00","msg":"conn close, addr=127.0.0.1:36846"}
+{"level":"info","ts":"2021-11-05T12:06:34.8584369+08:00","msg":"conn open, addr=127.0.0.1:36866"}
+{"level":"info","ts":"2021-11-05T13:44:20.6243437+08:00","msg":"conn open, addr=127.0.0.1:38404"}
+{"level":"error","ts":"2021-11-05T13:44:22.8046038+08:00","msg":"tcpsession","recv error":"packet size too big, 26991(0)"}
+{"level":"info","ts":"2021-11-05T13:44:22.8048904+08:00","msg":"conn close, addr=127.0.0.1:38404"}
+{"level":"info","ts":"2021-11-05T13:45:41.0839332+08:00","msg":"conn open, addr=127.0.0.1:38422"}
+{"level":"error","ts":"2021-11-05T13:45:41.0841541+08:00","msg":"tcpsession","recv error":"packet size too big, 6912(0)"}
+{"level":"info","ts":"2021-11-05T13:45:41.0843084+08:00","msg":"conn close, addr=127.0.0.1:38422"}
+{"level":"info","ts":"2021-11-05T13:47:01.8239743+08:00","msg":"conn open, addr=127.0.0.1:38446"}
+{"level":"info","ts":"2021-11-05T13:49:22.5632913+08:00","msg":"conn open, addr=127.0.0.1:38490"}
+{"level":"error","ts":"2021-11-05T13:50:47.3158033+08:00","msg":"tcpsession","recv error":"unexpect size 372(6912)"}
+{"level":"info","ts":"2021-11-05T13:50:47.3159962+08:00","msg":"conn close, addr=127.0.0.1:38490"}
+{"level":"info","ts":"2021-11-05T13:50:51.5602479+08:00","msg":"conn open, addr=127.0.0.1:38512"}
+{"level":"error","ts":"2021-11-05T13:52:05.6449908+08:00","msg":"tcpsession","recv error":"unexpect size 240(6912)"}
+{"level":"info","ts":"2021-11-05T13:52:05.645226+08:00","msg":"conn close, addr=127.0.0.1:38512"}
+{"level":"info","ts":"2021-11-05T13:52:09.7800283+08:00","msg":"conn open, addr=127.0.0.1:38544"}
+{"level":"error","ts":"2021-11-05T13:52:13.8354993+08:00","msg":"tcpsession","recv error":"unexpect size 20(6912)"}
+{"level":"info","ts":"2021-11-05T13:52:13.8356639+08:00","msg":"conn close, addr=127.0.0.1:38544"}
+{"level":"info","ts":"2021-11-05T13:53:44.9656232+08:00","msg":"conn open, addr=127.0.0.1:38568"}
+{"level":"error","ts":"2021-11-05T13:54:47.526265+08:00","msg":"tcpsession","recv error":"unexpect size 152(6912)"}
+{"level":"info","ts":"2021-11-05T13:54:47.5265387+08:00","msg":"conn close, addr=127.0.0.1:38568"}
+{"level":"info","ts":"2021-11-05T14:16:08.9208937+08:00","msg":"conn open, addr=127.0.0.1:38920"}
+{"level":"error","ts":"2021-11-05T14:16:15.0632556+08:00","msg":"tcpsession","recv error":"unexpect size 42(6912)"}
+{"level":"info","ts":"2021-11-05T14:16:15.0634539+08:00","msg":"conn close, addr=127.0.0.1:38920"}
+{"level":"info","ts":"2021-11-05T14:16:33.8095746+08:00","msg":"conn open, addr=127.0.0.1:38932"}
+{"level":"info","ts":"2021-11-05T14:17:40.5794034+08:00","msg":"conn open, addr=127.0.0.1:38960"}
+{"level":"info","ts":"2021-11-05T14:17:40.579711+08:00","msg":"recv message:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a560}"}
+{"level":"info","ts":"2021-11-05T14:17:40.5797572+08:00","msg":"recv echo req:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a560}"}
+{"level":"info","ts":"2021-11-05T14:17:45.5842652+08:00","msg":"recv message:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a690}"}
+{"level":"info","ts":"2021-11-05T14:17:45.5843479+08:00","msg":"recv echo req:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a690}"}
+{"level":"info","ts":"2021-11-05T14:17:50.5888723+08:00","msg":"recv message:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a6b0}"}
+{"level":"info","ts":"2021-11-05T14:17:50.5889877+08:00","msg":"recv echo req:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a6b0}"}
+{"level":"info","ts":"2021-11-05T14:17:55.5935693+08:00","msg":"recv message:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a6e0}"}
+{"level":"info","ts":"2021-11-05T14:17:55.5936444+08:00","msg":"recv echo req:&{2676492059 0 [123 34 109 115 103 34 58 34 104 101 108 108 111 32 48 34 125] 0xc00013a6e0}"}
+{"level":"error","ts":"2021-11-05T14:18:00.1943409+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T14:18:00.1944958+08:00","msg":"conn close, addr=127.0.0.1:38960"}
+{"level":"info","ts":"2021-11-05T14:18:47.2292864+08:00","msg":"conn open, addr=127.0.0.1:38976"}
+{"level":"info","ts":"2021-11-05T14:18:47.2299284+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T14:18:52.2325687+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T14:18:57.2370746+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T14:19:02.2415244+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T14:22:07.0787011+08:00","msg":"conn open, addr=127.0.0.1:39032"}
+{"level":"info","ts":"2021-11-05T14:22:07.0792682+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T14:22:12.0807339+08:00","msg":"recv echo req:&{hello 1}"}
+{"level":"info","ts":"2021-11-05T14:22:17.0825832+08:00","msg":"recv echo req:&{hello 2}"}
+{"level":"info","ts":"2021-11-05T14:22:22.082772+08:00","msg":"recv echo req:&{hello 3}"}
+{"level":"info","ts":"2021-11-05T14:22:27.0840652+08:00","msg":"recv echo req:&{hello 4}"}
+{"level":"info","ts":"2021-11-05T14:22:32.0886267+08:00","msg":"recv echo req:&{hello 5}"}
+{"level":"error","ts":"2021-11-05T14:22:34.1222338+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T14:22:34.122409+08:00","msg":"conn close, addr=127.0.0.1:39032"}
+{"level":"info","ts":"2021-11-05T15:54:18.1506916+08:00","msg":"conn open, addr=127.0.0.1:40624"}
+{"level":"info","ts":"2021-11-05T15:54:18.1514669+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T15:54:23.156189+08:00","msg":"recv echo req:&{hello 1}"}
+{"level":"error","ts":"2021-11-05T15:54:24.8893862+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T15:54:24.8895907+08:00","msg":"conn close, addr=127.0.0.1:40624"}
+{"level":"info","ts":"2021-11-05T16:34:35.1199661+08:00","msg":"conn open, addr=127.0.0.1:41306"}
+{"level":"info","ts":"2021-11-05T16:40:05.9299228+08:00","msg":"conn open, addr=127.0.0.1:41408"}
+{"level":"info","ts":"2021-11-05T16:42:21.8273975+08:00","msg":"conn open, addr=127.0.0.1:41454"}
+{"level":"info","ts":"2021-11-05T16:51:17.0339831+08:00","msg":"conn open, addr=127.0.0.1:41590"}
+{"level":"info","ts":"2021-11-05T16:52:58.1055645+08:00","msg":"conn open, addr=127.0.0.1:41628"}
+{"level":"info","ts":"2021-11-05T17:14:22.7933899+08:00","msg":"conn open, addr=127.0.0.1:41960"}
+{"level":"info","ts":"2021-11-05T17:17:18.2211632+08:00","msg":"conn open, addr=127.0.0.1:42016"}
+{"level":"error","ts":"2021-11-05T17:17:43.7597435+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T17:17:43.7599927+08:00","msg":"conn close, addr=127.0.0.1:42016"}
+{"level":"info","ts":"2021-11-05T17:20:03.3707915+08:00","msg":"conn open, addr=127.0.0.1:42058"}
+{"level":"info","ts":"2021-11-05T17:21:38.6809957+08:00","msg":"conn open, addr=127.0.0.1:42086"}
+{"level":"info","ts":"2021-11-05T17:22:28.3457244+08:00","msg":"conn open, addr=127.0.0.1:42112"}
+{"level":"info","ts":"2021-11-05T17:32:48.8681656+08:00","msg":"conn open, addr=127.0.0.1:42272"}
+{"level":"info","ts":"2021-11-05T17:32:48.8685757+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"error","ts":"2021-11-05T17:35:37.9307493+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T17:35:37.9309854+08:00","msg":"conn close, addr=127.0.0.1:42272"}
+{"level":"info","ts":"2021-11-05T17:35:46.1680504+08:00","msg":"conn open, addr=127.0.0.1:42312"}
+{"level":"info","ts":"2021-11-05T17:35:46.1685761+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T17:35:51.1732027+08:00","msg":"recv echo req:&{hello 1}"}
+{"level":"info","ts":"2021-11-05T17:35:56.1778447+08:00","msg":"recv echo req:&{hello 2}"}
+{"level":"info","ts":"2021-11-05T17:36:01.1823856+08:00","msg":"recv echo req:&{hello 3}"}
+{"level":"info","ts":"2021-11-05T17:36:06.1869873+08:00","msg":"recv echo req:&{hello 4}"}
+{"level":"info","ts":"2021-11-05T17:36:11.1916545+08:00","msg":"recv echo req:&{hello 5}"}
+{"level":"info","ts":"2021-11-05T17:36:16.1962924+08:00","msg":"recv echo req:&{hello 6}"}
+{"level":"info","ts":"2021-11-05T17:36:21.2008759+08:00","msg":"recv echo req:&{hello 7}"}
+{"level":"info","ts":"2021-11-05T17:36:26.2054588+08:00","msg":"recv echo req:&{hello 8}"}
+{"level":"info","ts":"2021-11-05T17:36:31.2100712+08:00","msg":"recv echo req:&{hello 9}"}
+{"level":"info","ts":"2021-11-05T17:36:36.2146333+08:00","msg":"recv echo req:&{hello 10}"}
+{"level":"info","ts":"2021-11-05T17:36:41.2193398+08:00","msg":"recv echo req:&{hello 11}"}
+{"level":"info","ts":"2021-11-05T17:36:46.2239459+08:00","msg":"recv echo req:&{hello 12}"}
+{"level":"info","ts":"2021-11-05T17:36:51.2286093+08:00","msg":"recv echo req:&{hello 13}"}
+{"level":"info","ts":"2021-11-05T17:36:56.2332738+08:00","msg":"recv echo req:&{hello 14}"}
+{"level":"info","ts":"2021-11-05T17:37:01.2379728+08:00","msg":"recv echo req:&{hello 15}"}
+{"level":"info","ts":"2021-11-05T17:37:06.2426299+08:00","msg":"recv echo req:&{hello 16}"}
+{"level":"info","ts":"2021-11-05T17:37:11.2472477+08:00","msg":"recv echo req:&{hello 17}"}
+{"level":"info","ts":"2021-11-05T17:37:16.2519601+08:00","msg":"recv echo req:&{hello 18}"}
+{"level":"info","ts":"2021-11-05T17:37:21.2565982+08:00","msg":"recv echo req:&{hello 19}"}
+{"level":"info","ts":"2021-11-05T17:37:26.2612454+08:00","msg":"recv echo req:&{hello 20}"}
+{"level":"info","ts":"2021-11-05T17:37:31.2627175+08:00","msg":"recv echo req:&{hello 21}"}
+{"level":"info","ts":"2021-11-05T17:37:36.2673616+08:00","msg":"recv echo req:&{hello 22}"}
+{"level":"info","ts":"2021-11-05T17:37:41.2719607+08:00","msg":"recv echo req:&{hello 23}"}
+{"level":"info","ts":"2021-11-05T17:37:46.2724964+08:00","msg":"recv echo req:&{hello 24}"}
+{"level":"info","ts":"2021-11-05T17:37:51.2737014+08:00","msg":"recv echo req:&{hello 25}"}
+{"level":"info","ts":"2021-11-05T17:37:56.2782518+08:00","msg":"recv echo req:&{hello 26}"}
+{"level":"info","ts":"2021-11-05T17:38:01.2828495+08:00","msg":"recv echo req:&{hello 27}"}
+{"level":"info","ts":"2021-11-05T17:38:06.2875125+08:00","msg":"recv echo req:&{hello 28}"}
+{"level":"info","ts":"2021-11-05T17:38:11.2921681+08:00","msg":"recv echo req:&{hello 29}"}
+{"level":"info","ts":"2021-11-05T17:38:16.2933059+08:00","msg":"recv echo req:&{hello 30}"}
+{"level":"info","ts":"2021-11-05T17:38:21.2978563+08:00","msg":"recv echo req:&{hello 31}"}
+{"level":"info","ts":"2021-11-05T17:38:26.3025578+08:00","msg":"recv echo req:&{hello 32}"}
+{"level":"info","ts":"2021-11-05T17:38:31.3071206+08:00","msg":"recv echo req:&{hello 33}"}
+{"level":"info","ts":"2021-11-05T17:38:36.3117007+08:00","msg":"recv echo req:&{hello 34}"}
+{"level":"info","ts":"2021-11-05T17:38:41.3126174+08:00","msg":"recv echo req:&{hello 35}"}
+{"level":"info","ts":"2021-11-05T17:38:46.317302+08:00","msg":"recv echo req:&{hello 36}"}
+{"level":"info","ts":"2021-11-05T17:38:51.3218592+08:00","msg":"recv echo req:&{hello 37}"}
+{"level":"info","ts":"2021-11-05T17:38:56.3263657+08:00","msg":"recv echo req:&{hello 38}"}
+{"level":"info","ts":"2021-11-05T17:39:01.3309126+08:00","msg":"recv echo req:&{hello 39}"}
+{"level":"info","ts":"2021-11-05T17:39:06.3326466+08:00","msg":"recv echo req:&{hello 40}"}
+{"level":"info","ts":"2021-11-05T17:39:11.3373245+08:00","msg":"recv echo req:&{hello 41}"}
+{"level":"info","ts":"2021-11-05T17:39:16.3418692+08:00","msg":"recv echo req:&{hello 42}"}
+{"level":"info","ts":"2021-11-05T17:39:21.3446395+08:00","msg":"recv echo req:&{hello 43}"}
+{"level":"info","ts":"2021-11-05T17:39:26.3480827+08:00","msg":"recv echo req:&{hello 44}"}
+{"level":"info","ts":"2021-11-05T17:39:31.3515194+08:00","msg":"recv echo req:&{hello 45}"}
+{"level":"info","ts":"2021-11-05T17:39:36.3560244+08:00","msg":"recv echo req:&{hello 46}"}
+{"level":"info","ts":"2021-11-05T17:39:41.3605205+08:00","msg":"recv echo req:&{hello 47}"}
+{"level":"info","ts":"2021-11-05T17:39:46.3607672+08:00","msg":"recv echo req:&{hello 48}"}
+{"level":"info","ts":"2021-11-05T17:39:51.3654127+08:00","msg":"recv echo req:&{hello 49}"}
+{"level":"info","ts":"2021-11-05T17:39:56.3698951+08:00","msg":"recv echo req:&{hello 50}"}
+{"level":"info","ts":"2021-11-05T17:40:01.3743918+08:00","msg":"recv echo req:&{hello 51}"}
+{"level":"info","ts":"2021-11-05T17:40:06.3789872+08:00","msg":"recv echo req:&{hello 52}"}
+{"level":"info","ts":"2021-11-05T17:40:11.3835385+08:00","msg":"recv echo req:&{hello 53}"}
+{"level":"info","ts":"2021-11-05T17:40:16.3880911+08:00","msg":"recv echo req:&{hello 54}"}
+{"level":"info","ts":"2021-11-05T17:40:21.3926831+08:00","msg":"recv echo req:&{hello 55}"}
+{"level":"info","ts":"2021-11-05T17:40:26.3972704+08:00","msg":"recv echo req:&{hello 56}"}
+{"level":"info","ts":"2021-11-05T17:40:31.4018488+08:00","msg":"recv echo req:&{hello 57}"}
+{"level":"info","ts":"2021-11-05T17:40:36.4064128+08:00","msg":"recv echo req:&{hello 58}"}
+{"level":"info","ts":"2021-11-05T17:40:41.4109451+08:00","msg":"recv echo req:&{hello 59}"}
+{"level":"info","ts":"2021-11-05T17:40:46.4155333+08:00","msg":"recv echo req:&{hello 60}"}
+{"level":"info","ts":"2021-11-05T17:40:51.4200748+08:00","msg":"recv echo req:&{hello 61}"}
+{"level":"info","ts":"2021-11-05T17:40:56.4246802+08:00","msg":"recv echo req:&{hello 62}"}
+{"level":"info","ts":"2021-11-05T17:41:01.429326+08:00","msg":"recv echo req:&{hello 63}"}
+{"level":"info","ts":"2021-11-05T17:41:06.433809+08:00","msg":"recv echo req:&{hello 64}"}
+{"level":"info","ts":"2021-11-05T17:41:11.4383402+08:00","msg":"recv echo req:&{hello 65}"}
+{"level":"info","ts":"2021-11-05T17:41:16.4429633+08:00","msg":"recv echo req:&{hello 66}"}
+{"level":"info","ts":"2021-11-05T17:41:21.447564+08:00","msg":"recv echo req:&{hello 67}"}
+{"level":"info","ts":"2021-11-05T17:41:26.4521556+08:00","msg":"recv echo req:&{hello 68}"}
+{"level":"info","ts":"2021-11-05T17:41:31.4568554+08:00","msg":"recv echo req:&{hello 69}"}
+{"level":"info","ts":"2021-11-05T17:41:36.4615018+08:00","msg":"recv echo req:&{hello 70}"}
+{"level":"info","ts":"2021-11-05T17:41:41.466083+08:00","msg":"recv echo req:&{hello 71}"}
+{"level":"info","ts":"2021-11-05T17:41:46.4707035+08:00","msg":"recv echo req:&{hello 72}"}
+{"level":"info","ts":"2021-11-05T17:41:51.4752421+08:00","msg":"recv echo req:&{hello 73}"}
+{"level":"info","ts":"2021-11-05T17:41:56.47969+08:00","msg":"recv echo req:&{hello 74}"}
+{"level":"info","ts":"2021-11-05T17:42:01.4841668+08:00","msg":"recv echo req:&{hello 75}"}
+{"level":"info","ts":"2021-11-05T17:42:06.4849331+08:00","msg":"recv echo req:&{hello 76}"}
+{"level":"info","ts":"2021-11-05T17:42:11.4894933+08:00","msg":"recv echo req:&{hello 77}"}
+{"level":"info","ts":"2021-11-05T17:42:16.4940333+08:00","msg":"recv echo req:&{hello 78}"}
+{"level":"info","ts":"2021-11-05T17:42:21.4986391+08:00","msg":"recv echo req:&{hello 79}"}
+{"level":"info","ts":"2021-11-05T17:42:26.5032383+08:00","msg":"recv echo req:&{hello 80}"}
+{"level":"info","ts":"2021-11-05T17:42:31.5078199+08:00","msg":"recv echo req:&{hello 81}"}
+{"level":"info","ts":"2021-11-05T17:42:36.5124245+08:00","msg":"recv echo req:&{hello 82}"}
+{"level":"info","ts":"2021-11-05T17:42:41.5171754+08:00","msg":"recv echo req:&{hello 83}"}
+{"level":"info","ts":"2021-11-05T17:42:46.5218624+08:00","msg":"recv echo req:&{hello 84}"}
+{"level":"info","ts":"2021-11-05T17:42:51.5264442+08:00","msg":"recv echo req:&{hello 85}"}
+{"level":"info","ts":"2021-11-05T17:42:56.5310376+08:00","msg":"recv echo req:&{hello 86}"}
+{"level":"info","ts":"2021-11-05T17:43:01.5355803+08:00","msg":"recv echo req:&{hello 87}"}
+{"level":"info","ts":"2021-11-05T17:43:06.540196+08:00","msg":"recv echo req:&{hello 88}"}
+{"level":"info","ts":"2021-11-05T17:43:11.5425649+08:00","msg":"recv echo req:&{hello 89}"}
+{"level":"info","ts":"2021-11-05T17:43:16.5471157+08:00","msg":"recv echo req:&{hello 90}"}
+{"level":"info","ts":"2021-11-05T17:43:21.5516198+08:00","msg":"recv echo req:&{hello 91}"}
+{"level":"info","ts":"2021-11-05T17:43:26.5526487+08:00","msg":"recv echo req:&{hello 92}"}
+{"level":"info","ts":"2021-11-05T17:43:31.5536991+08:00","msg":"recv echo req:&{hello 93}"}
+{"level":"info","ts":"2021-11-05T17:43:36.5571677+08:00","msg":"recv echo req:&{hello 94}"}
+{"level":"info","ts":"2021-11-05T17:43:41.5573752+08:00","msg":"recv echo req:&{hello 95}"}
+{"level":"info","ts":"2021-11-05T17:43:46.5619318+08:00","msg":"recv echo req:&{hello 96}"}
+{"level":"info","ts":"2021-11-05T17:43:51.5625729+08:00","msg":"recv echo req:&{hello 97}"}
+{"level":"info","ts":"2021-11-05T17:43:56.5629052+08:00","msg":"recv echo req:&{hello 98}"}
+{"level":"info","ts":"2021-11-05T17:44:01.5674348+08:00","msg":"recv echo req:&{hello 99}"}
+{"level":"info","ts":"2021-11-05T17:44:06.571929+08:00","msg":"recv echo req:&{hello 100}"}
+{"level":"info","ts":"2021-11-05T17:44:11.5765374+08:00","msg":"recv echo req:&{hello 101}"}
+{"level":"info","ts":"2021-11-05T17:44:16.5810539+08:00","msg":"recv echo req:&{hello 102}"}
+{"level":"info","ts":"2021-11-05T17:44:21.5826357+08:00","msg":"recv echo req:&{hello 103}"}
+{"level":"info","ts":"2021-11-05T17:44:26.5872576+08:00","msg":"recv echo req:&{hello 104}"}
+{"level":"info","ts":"2021-11-05T17:44:31.5917768+08:00","msg":"recv echo req:&{hello 105}"}
+{"level":"info","ts":"2021-11-05T17:44:36.5963463+08:00","msg":"recv echo req:&{hello 106}"}
+{"level":"info","ts":"2021-11-05T17:44:41.6009078+08:00","msg":"recv echo req:&{hello 107}"}
+{"level":"info","ts":"2021-11-05T17:44:46.6055564+08:00","msg":"recv echo req:&{hello 108}"}
+{"level":"info","ts":"2021-11-05T17:44:51.6101552+08:00","msg":"recv echo req:&{hello 109}"}
+{"level":"info","ts":"2021-11-05T17:44:56.6147457+08:00","msg":"recv echo req:&{hello 110}"}
+{"level":"info","ts":"2021-11-05T17:45:01.6194595+08:00","msg":"recv echo req:&{hello 111}"}
+{"level":"info","ts":"2021-11-05T17:45:06.6241643+08:00","msg":"recv echo req:&{hello 112}"}
+{"level":"info","ts":"2021-11-05T17:45:11.6286992+08:00","msg":"recv echo req:&{hello 113}"}
+{"level":"info","ts":"2021-11-05T17:45:16.6332983+08:00","msg":"recv echo req:&{hello 114}"}
+{"level":"info","ts":"2021-11-05T17:45:21.6365958+08:00","msg":"recv echo req:&{hello 115}"}
+{"level":"info","ts":"2021-11-05T17:45:26.6411781+08:00","msg":"recv echo req:&{hello 116}"}
+{"level":"info","ts":"2021-11-05T17:45:31.6413359+08:00","msg":"recv echo req:&{hello 117}"}
+{"level":"info","ts":"2021-11-05T17:45:36.6416192+08:00","msg":"recv echo req:&{hello 118}"}
+{"level":"info","ts":"2021-11-05T17:45:41.6461356+08:00","msg":"recv echo req:&{hello 119}"}
+{"level":"info","ts":"2021-11-05T17:45:46.6507049+08:00","msg":"recv echo req:&{hello 120}"}
+{"level":"info","ts":"2021-11-05T17:45:51.6553543+08:00","msg":"recv echo req:&{hello 121}"}
+{"level":"info","ts":"2021-11-05T17:45:56.6556599+08:00","msg":"recv echo req:&{hello 122}"}
+{"level":"info","ts":"2021-11-05T17:46:01.6598348+08:00","msg":"recv echo req:&{hello 123}"}
+{"level":"info","ts":"2021-11-05T17:46:06.6644539+08:00","msg":"recv echo req:&{hello 124}"}
+{"level":"info","ts":"2021-11-05T17:46:11.6691567+08:00","msg":"recv echo req:&{hello 125}"}
+{"level":"info","ts":"2021-11-05T17:46:16.6694123+08:00","msg":"recv echo req:&{hello 126}"}
+{"level":"info","ts":"2021-11-05T17:46:21.6739509+08:00","msg":"recv echo req:&{hello 127}"}
+{"level":"info","ts":"2021-11-05T17:46:26.6741764+08:00","msg":"recv echo req:&{hello 128}"}
+{"level":"info","ts":"2021-11-05T17:46:31.6758844+08:00","msg":"recv echo req:&{hello 129}"}
+{"level":"info","ts":"2021-11-05T17:46:36.6805189+08:00","msg":"recv echo req:&{hello 130}"}
+{"level":"info","ts":"2021-11-05T17:46:41.6850015+08:00","msg":"recv echo req:&{hello 131}"}
+{"level":"info","ts":"2021-11-05T17:46:46.6873124+08:00","msg":"recv echo req:&{hello 132}"}
+{"level":"info","ts":"2021-11-05T17:46:51.691955+08:00","msg":"recv echo req:&{hello 133}"}
+{"level":"info","ts":"2021-11-05T17:46:56.6965896+08:00","msg":"recv echo req:&{hello 134}"}
+{"level":"info","ts":"2021-11-05T17:47:01.7011317+08:00","msg":"recv echo req:&{hello 135}"}
+{"level":"info","ts":"2021-11-05T17:47:06.7013057+08:00","msg":"recv echo req:&{hello 136}"}
+{"level":"info","ts":"2021-11-05T17:47:11.7059716+08:00","msg":"recv echo req:&{hello 137}"}
+{"level":"info","ts":"2021-11-05T17:47:16.7106377+08:00","msg":"recv echo req:&{hello 138}"}
+{"level":"info","ts":"2021-11-05T17:47:21.7153061+08:00","msg":"recv echo req:&{hello 139}"}
+{"level":"info","ts":"2021-11-05T17:47:26.7198488+08:00","msg":"recv echo req:&{hello 140}"}
+{"level":"info","ts":"2021-11-05T17:47:31.7200919+08:00","msg":"recv echo req:&{hello 141}"}
+{"level":"info","ts":"2021-11-05T17:47:36.7247695+08:00","msg":"recv echo req:&{hello 142}"}
+{"level":"info","ts":"2021-11-05T17:47:41.7293411+08:00","msg":"recv echo req:&{hello 143}"}
+{"level":"info","ts":"2021-11-05T17:47:46.7325687+08:00","msg":"recv echo req:&{hello 144}"}
+{"level":"info","ts":"2021-11-05T17:47:51.7371736+08:00","msg":"recv echo req:&{hello 145}"}
+{"level":"info","ts":"2021-11-05T17:47:56.7418063+08:00","msg":"recv echo req:&{hello 146}"}
+{"level":"info","ts":"2021-11-05T17:48:01.7463594+08:00","msg":"recv echo req:&{hello 147}"}
+{"level":"info","ts":"2021-11-05T17:48:06.7508594+08:00","msg":"recv echo req:&{hello 148}"}
+{"level":"info","ts":"2021-11-05T17:48:11.7554937+08:00","msg":"recv echo req:&{hello 149}"}
+{"level":"info","ts":"2021-11-05T17:48:16.7601303+08:00","msg":"recv echo req:&{hello 150}"}
+{"level":"info","ts":"2021-11-05T17:48:21.7646743+08:00","msg":"recv echo req:&{hello 151}"}
+{"level":"info","ts":"2021-11-05T17:48:26.7692468+08:00","msg":"recv echo req:&{hello 152}"}
+{"level":"info","ts":"2021-11-05T17:48:31.7725874+08:00","msg":"recv echo req:&{hello 153}"}
+{"level":"info","ts":"2021-11-05T17:48:36.773768+08:00","msg":"recv echo req:&{hello 154}"}
+{"level":"info","ts":"2021-11-05T17:48:41.7784492+08:00","msg":"recv echo req:&{hello 155}"}
+{"level":"info","ts":"2021-11-05T17:48:46.7829811+08:00","msg":"recv echo req:&{hello 156}"}
+{"level":"info","ts":"2021-11-05T17:48:51.7875181+08:00","msg":"recv echo req:&{hello 157}"}
+{"level":"info","ts":"2021-11-05T17:48:56.7921106+08:00","msg":"recv echo req:&{hello 158}"}
+{"level":"info","ts":"2021-11-05T17:49:01.7967422+08:00","msg":"recv echo req:&{hello 159}"}
+{"level":"info","ts":"2021-11-05T17:49:06.8013331+08:00","msg":"recv echo req:&{hello 160}"}
+{"level":"info","ts":"2021-11-05T17:49:11.8025774+08:00","msg":"recv echo req:&{hello 161}"}
+{"level":"info","ts":"2021-11-05T17:49:16.8072434+08:00","msg":"recv echo req:&{hello 162}"}
+{"level":"info","ts":"2021-11-05T17:49:21.8119659+08:00","msg":"recv echo req:&{hello 163}"}
+{"level":"info","ts":"2021-11-05T17:49:26.8165236+08:00","msg":"recv echo req:&{hello 164}"}
+{"level":"info","ts":"2021-11-05T17:49:31.8210352+08:00","msg":"recv echo req:&{hello 165}"}
+{"level":"info","ts":"2021-11-05T17:49:36.8256479+08:00","msg":"recv echo req:&{hello 166}"}
+{"level":"info","ts":"2021-11-05T17:49:41.8301848+08:00","msg":"recv echo req:&{hello 167}"}
+{"level":"info","ts":"2021-11-05T17:49:46.8347022+08:00","msg":"recv echo req:&{hello 168}"}
+{"level":"info","ts":"2021-11-05T17:49:51.8392217+08:00","msg":"recv echo req:&{hello 169}"}
+{"level":"info","ts":"2021-11-05T17:49:56.8437091+08:00","msg":"recv echo req:&{hello 170}"}
+{"level":"info","ts":"2021-11-05T17:50:01.8482621+08:00","msg":"recv echo req:&{hello 171}"}
+{"level":"info","ts":"2021-11-05T17:50:06.8528383+08:00","msg":"recv echo req:&{hello 172}"}
+{"level":"info","ts":"2021-11-05T17:50:11.8574168+08:00","msg":"recv echo req:&{hello 173}"}
+{"level":"info","ts":"2021-11-05T17:50:16.8621672+08:00","msg":"recv echo req:&{hello 174}"}
+{"level":"info","ts":"2021-11-05T17:50:24.7017679+08:00","msg":"conn open, addr=127.0.0.1:42546"}
+{"level":"info","ts":"2021-11-05T17:50:24.7021154+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"error","ts":"2021-11-05T17:50:27.3730524+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T17:50:27.3732484+08:00","msg":"conn close, addr=127.0.0.1:42546"}
+{"level":"info","ts":"2021-11-05T18:04:03.1423625+08:00","msg":"conn open, addr=127.0.0.1:42762"}
+{"level":"info","ts":"2021-11-05T18:04:03.1426257+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T18:04:18.5506638+08:00","msg":"conn open, addr=127.0.0.1:42768"}
+{"level":"info","ts":"2021-11-05T18:04:18.5512202+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"error","ts":"2021-11-05T18:04:22.111138+08:00","msg":"tcpsession close","error":"EOF"}
+{"level":"info","ts":"2021-11-05T18:04:22.1113694+08:00","msg":"conn close, addr=127.0.0.1:42768"}
+{"level":"info","ts":"2021-11-05T18:11:09.032021+08:00","msg":"conn open, addr=127.0.0.1:42876"}
+{"level":"info","ts":"2021-11-05T18:11:09.0329285+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"error","ts":"2021-11-05T18:11:10.12614+08:00","msg":"tcpsession close","error":"recv error: EOF","errorVerbose":"EOF\nrecv error\ngithub.com/zylikedream/galaxy/core/gxynet/conn.(*TcpSession).recvLoop\n\t/home/zhangyi/workspace/galaxy/components/gxynet/conn/tcpsession.go:70\nruntime.goexit\n\t/usr/local/go/src/runtime/asm_amd64.s:1371"}
+{"level":"info","ts":"2021-11-05T18:11:10.1264345+08:00","msg":"conn close, addr=127.0.0.1:42876"}
+{"level":"info","ts":"2021-11-05T18:11:37.0641307+08:00","msg":"conn open, addr=127.0.0.1:42888"}
+{"level":"info","ts":"2021-11-05T18:11:37.0647075+08:00","msg":"recv echo req:&{hello 0}"}
+{"level":"info","ts":"2021-11-05T18:15:31.5589365+08:00","msg":"conn open, addr=127.0.0.1:42948"}
+{"level":"error","ts":"2021-11-05T18:15:34.1255394+08:00","msg":"tcpsession close","error":"recv error: packet too big, 24943(0)","errorVerbose":"packet too big, 24943(0)\nrecv error\ngithub.com/zylikedream/galaxy/core/gxynet/conn.(*TcpSession).recvLoop\n\t/home/zhangyi/workspace/galaxy/components/gxynet/conn/tcpsession.go:70\nruntime.goexit\n\t/usr/local/go/src/runtime/asm_amd64.s:1371"}
+{"level":"info","ts":"2021-11-05T18:15:34.1258584+08:00","msg":"conn close, addr=127.0.0.1:42948"}
+{"level":"info","ts":"2021-11-05T18:16:17.9856546+08:00","msg":"conn open, addr=127.0.0.1:42964"}
+{"level":"error","ts":"2021-11-05T18:16:33.4684857+08:00","msg":"tcpsession close","error":"recv error: EOF","errorVerbose":"EOF\nrecv error\ngithub.com/zylikedream/galaxy/core/gxynet/conn.(*TcpSession).recvLoop\n\t/home/zhangyi/workspace/galaxy/components/gxynet/conn/tcpsession.go:70\nruntime.goexit\n\t/usr/local/go/src/runtime/asm_amd64.s:1371"}
+{"level":"info","ts":"2021-11-05T18:16:33.4687613+08:00","msg":"conn close, addr=127.0.0.1:42964"}
+{"level":"info","ts":"2021-11-05T18:16:47.3987574+08:00","msg":"conn open, addr=127.0.0.1:42974"}
+{"level":"error","ts":"2021-11-05T18:17:03.9140018+08:00","msg":"tcpsession close","error":"recv error: EOF","errorVerbose":"EOF\nrecv error\ngithub.com/zylikedream/galaxy/core/gxynet/conn.(*TcpSession).recvLoop\n\t/home/zhangyi/workspace/galaxy/components/gxynet/conn/tcpsession.go:70\nruntime.goexit\n\t/usr/local/go/src/runtime/asm_amd64.s:1371"}
+{"level":"info","ts":"2021-11-05T18:17:03.9143754+08:00","msg":"conn close, addr=127.0.0.1:42974"}
+{"level":"info","ts":"2021-11-05T18:18:20.951284+08:00","msg":"conn open, addr=127.0.0.1:43008"}
+{"level":"info","ts":"2021-11-05T18:18:23.8668443+08:00","msg":"packet size 28521"}
+{"level":"info","ts":"2021-11-05T18:18:42.3650032+08:00","msg":"packet size 28521"}
+{"level":"info","ts":"2021-11-05T18:18:50.5626951+08:00","msg":"packet size 28521"}
+{"level":"info","ts":"2021-11-05T18:18:55.1174747+08:00","msg":"packet size 28521"}
+{"level":"info","ts":"2021-11-05T18:18:58.1597709+08:00","msg":"packet size 28521"}
+{"level":"info","ts":"2021-11-05T18:19:30.7871416+08:00","msg":"packet size 28521"}
+{"level":"info","ts":"2021-11-05T18:19:30.9442809+08:00","msg":"packet size 28521"}
+{"level":"info","ts":"2021-11-05T18:19:38.9029285+08:00","msg":"conn open, addr=127.0.0.1:43028"}
+{"level":"info","ts":"2021-11-05T18:19:41.645835+08:00","msg":"packet size 31354, data size:[122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 122 13 10]"}
+{"level":"info","ts":"2021-11-05T18:21:29.3839098+08:00","msg":"conn open, addr=127.0.0.1:43056"}
+{"level":"info","ts":"2021-11-05T18:21:39.3896119+08:00","msg":"packet size 31354, data size:60"}
+{"level":"info","ts":"2021-11-05T18:21:48.8125002+08:00","msg":"packet size 31354, data size:265"}

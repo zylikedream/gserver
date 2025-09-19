@@ -1,0 +1,55 @@
+{"level":"info","ts":"2021-11-08T11:54:04.559232+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-08T11:54:04.5600246+08:00","msg":"packet size 22, data size:22"}
+{"level":"info","ts":"2021-11-08T11:54:04.5601681+08:00","msg":"recv message:msg:\"hello 0\""}
+{"level":"info","ts":"2021-11-08T11:54:09.5646903+08:00","msg":"packet size 22, data size:22"}
+{"level":"info","ts":"2021-11-08T11:54:09.5647436+08:00","msg":"recv message:msg:\"hello 1\""}
+{"level":"info","ts":"2021-11-08T11:54:14.569425+08:00","msg":"packet size 22, data size:22"}
+{"level":"info","ts":"2021-11-08T11:54:14.5695076+08:00","msg":"recv message:msg:\"hello 2\""}
+{"level":"info","ts":"2021-11-08T11:54:19.5740462+08:00","msg":"packet size 22, data size:22"}
+{"level":"info","ts":"2021-11-08T11:54:19.5741243+08:00","msg":"recv message:msg:\"hello 3\""}
+{"level":"info","ts":"2021-11-08T11:54:24.578601+08:00","msg":"packet size 22, data size:22"}
+{"level":"info","ts":"2021-11-08T11:54:24.5786687+08:00","msg":"recv message:msg:\"hello 4\""}
+{"level":"info","ts":"2021-11-08T11:54:29.5827251+08:00","msg":"packet size 22, data size:22"}
+{"level":"info","ts":"2021-11-08T11:54:29.5828004+08:00","msg":"recv message:msg:\"hello 5\""}
+{"level":"info","ts":"2021-11-08T11:55:29.8952133+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-08T11:55:29.8962917+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-08T11:55:29.8964447+08:00","msg":"recv message:msg:\"hello 0\""}
+{"level":"info","ts":"2021-11-08T11:55:34.9000051+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-08T11:55:34.9000853+08:00","msg":"recv message:msg:\"hello 1\""}
+{"level":"info","ts":"2021-11-08T11:55:46.5891742+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-08T11:55:46.5902796+08:00","msg":"tcpsession close","error":"recv error: EOF","errorVerbose":"EOF\nrecv error\ngithub.com/zylikedream/galaxy/core/gxynet/conn.(*TcpSession).recvLoop\n\t/home/zhangyi/workspace/galaxy/components/gxynet/conn/tcpsession.go:70\nruntime.goexit\n\t/usr/local/go/src/runtime/asm_amd64.s:1371"}
+{"level":"info","ts":"2021-11-08T11:55:46.5904352+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-08T11:55:51.5945173+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-08T11:56:08.3780368+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-08T11:56:08.3787709+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-08T11:56:08.3789136+08:00","msg":"recv message:msg:\"hello 0\""}
+{"level":"info","ts":"2021-11-08T11:56:13.382776+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-08T11:56:13.3828718+08:00","msg":"recv message:msg:\"hello 1\""}
+{"level":"error","ts":"2021-11-10T15:11:32.836947+08:00","msg":"gxynet","new failed":{"error":"no node for type:tcp_connector"}}
+{"level":"info","ts":"2021-11-10T15:13:34.7564142+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-10T15:13:34.7570721+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-10T15:13:34.7572037+08:00","msg":"recv message:msg:\"hello 0\""}
+{"level":"info","ts":"2021-11-10T15:13:52.4710345+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-10T15:13:52.4724806+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-10T15:13:52.4726096+08:00","msg":"recv message:msg:\"hello 0\""}
+{"level":"info","ts":"2021-11-10T15:13:57.4761794+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-10T15:13:57.4762443+08:00","msg":"recv message:msg:\"hello 1\""}
+{"level":"info","ts":"2021-11-10T15:14:02.4807105+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-10T15:14:02.4807805+08:00","msg":"recv message:msg:\"hello 2\""}
+{"level":"info","ts":"2021-11-10T15:14:07.4852743+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-10T15:14:07.4853393+08:00","msg":"recv message:msg:\"hello 3\""}
+{"level":"error","ts":"2021-11-10T15:14:09.7492937+08:00","msg":"tcpsession close","error":"recv error: EOF","errorVerbose":"EOF\nrecv error\ngithub.com/zylikedream/galaxy/core/gxynet/conn.(*TcpSession).recvLoop\n\t/home/zhangyi/workspace/galaxy/core/gxynet/conn/tcpsession.go:70\nruntime.goexit\n\t/usr/local/go/src/runtime/asm_amd64.s:1371"}
+{"level":"info","ts":"2021-11-10T15:14:09.7495886+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-10T15:14:12.4873674+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-11T11:55:09.3617873+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-11T11:55:09.3626614+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-11T11:55:09.3628259+08:00","msg":"recv message:msg:\"hello 0\""}
+{"level":"info","ts":"2021-11-11T11:55:14.3629641+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-11T11:55:14.3630698+08:00","msg":"recv message:msg:\"hello 1\""}
+{"level":"info","ts":"2021-11-11T11:55:19.363809+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-11T11:55:19.3638809+08:00","msg":"recv message:msg:\"hello 2\""}
+{"level":"info","ts":"2021-11-11T11:55:24.3685211+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-11T11:55:24.3686404+08:00","msg":"recv message:msg:\"hello 3\""}
+{"level":"info","ts":"2021-11-11T12:04:02.0326708+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-11T12:04:02.0336997+08:00","msg":"packet size 14, data size:14"}
+{"level":"info","ts":"2021-11-11T12:04:02.0338923+08:00","msg":"recv message:msg:\"hello 0\""}

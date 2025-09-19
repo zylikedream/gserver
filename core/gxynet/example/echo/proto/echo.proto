@@ -1,0 +1,12 @@
+syntax = "proto3";  //指定版本，必须要写（proto3、proto2）  
+package proto;
+
+//message是固定的。UserInfo是类名，可以随意指定，符合规范即可
+message chat_req {
+	string msg = 1;
+}
+
+message chat_ack {
+	int32 code = 1;
+	string msg = 2;
+}

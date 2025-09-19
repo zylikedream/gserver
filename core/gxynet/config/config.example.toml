@@ -1,0 +1,25 @@
+[gxynet]
+	peer = "tcp_server" # 网络节点名字
+	log_config = "config/log.toml" # 日志配置，如果没有那么久使用默认日志
+
+[peer.tcp_server]
+	addr = ":19001"
+
+[processor]
+	packet = "ltiv" # 解包的解码器
+	message = "json" # 消息类型
+
+
+[packet.ltiv] # 解码配置
+	size_length = 2 #包大小字段的长度
+	type_length = 1 # 类型字段的长度
+	id_length = 2 # 消息id长度
+	byte_order = "little" # 字节序
+	max_size = 3145728 # 3M
+
+[packet.ltpv] # 解码配置
+	size_length = 2 #包大小字段的长度
+	type_length = 1 # 类型字段的长度
+	path_length = 2 # 消息id长度
+	byte_order = "little" # 字节序
+	max_size = 3145728 # 3M

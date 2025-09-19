@@ -1,0 +1,307 @@
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:52:39+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:53:58+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T15:53:58+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:53:58+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:59:54+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T15:59:54+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T15:59:54+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T15:59:54+08:00","msg":"send error","error":"conn closed"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:29:38+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:29:38+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:29:38+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:29:43+08:00","msg":"send error","error":"conn closed"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:13+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:32:13+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:13+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:32:18+08:00","msg":"send error","error":"conn closed"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:34+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:32:34+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[32minfo\u001b[0m","ts":"2021-11-05T10:32:34+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"\u001b[31merror\u001b[0m","ts":"2021-11-05T10:32:39+08:00","msg":"send error","error":"conn closed"}
+{"level":"\u001b[34mINFO\u001b[0m","ts":"2021-11-05T10:42:36+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"\u001b[31mERROR\u001b[0m","ts":"2021-11-05T10:42:36+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"\u001b[34mINFO\u001b[0m","ts":"2021-11-05T10:42:36+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"\u001b[31mERROR\u001b[0m","ts":"2021-11-05T10:42:36+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T10:45:31+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:45:31+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:45:31+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T10:48:11+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:48:11+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:48:11+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:48:16+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T10:53:46+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:53:46+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:53:46+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:53:51+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T10:54:39+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:54:39+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:54:39+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:54:44+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T10:54:52+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:54:52+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:54:52+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:54:57+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T10:55:47.7345431+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:55:47.7348057+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:55:47.7350184+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:55:52.7390169+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T10:56:31.3490938+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:56:31.3492998+08:00","msg":"tcpsession","msg":"recv loop break","error":"EOF"}
+{"level":"info","ts":"2021-11-05T10:56:31.349493+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T10:56:36.3523921+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T13:45:41.0837688+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T13:45:41.0843443+08:00","msg":"tcpsession","recv error":"read tcp 127.0.0.1:38422->127.0.0.1:29001: read: connection reset by peer"}
+{"level":"info","ts":"2021-11-05T13:45:41.0846051+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T13:45:46.0887252+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T13:47:01.8238382+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T13:48:00.0330779+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T13:48:00.0332742+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T13:48:01.868163+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T13:49:22.5631473+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T13:50:51.5601197+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T13:52:09.7799298+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T13:53:44.9654268+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T14:16:08.9207331+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T14:16:33.8093795+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T14:16:33.8133036+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T14:16:33.8134941+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T14:16:38.8145032+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T14:17:40.5792107+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T14:18:47.2291747+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T14:19:05.5304853+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T14:19:05.5307175+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T14:22:07.0785968+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T14:22:07.0795318+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"info","ts":"2021-11-05T14:22:12.080916+08:00","msg":"recv message:&{0 hello 1}"}
+{"level":"info","ts":"2021-11-05T14:22:17.0828199+08:00","msg":"recv message:&{0 hello 2}"}
+{"level":"info","ts":"2021-11-05T14:22:22.083025+08:00","msg":"recv message:&{0 hello 3}"}
+{"level":"info","ts":"2021-11-05T14:22:27.084289+08:00","msg":"recv message:&{0 hello 4}"}
+{"level":"info","ts":"2021-11-05T14:22:32.0889315+08:00","msg":"recv message:&{0 hello 5}"}
+{"level":"info","ts":"2021-11-05T15:54:18.1505788+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T15:54:18.1517768+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"info","ts":"2021-11-05T15:54:23.1565171+08:00","msg":"recv message:&{0 hello 1}"}
+{"level":"info","ts":"2021-11-05T16:34:35.1198089+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T16:38:22.7532093+08:00","msg":"gxynet","start failed":{"error":"dial tcp 127.0.0.1:29001: connect: connection refused"}}
+{"level":"info","ts":"2021-11-05T16:40:05.9297497+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T16:40:40.9513817+08:00","msg":"tcpsession","msg":"send loop break","error":"write tcp 127.0.0.1:41408->127.0.0.1:29001: write: connection reset by peer"}
+{"level":"info","ts":"2021-11-05T16:40:40.9517045+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T16:42:21.8272014+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T16:43:41.8789153+08:00","msg":"tcpsession","msg":"send loop break","error":"write tcp 127.0.0.1:41454->127.0.0.1:29001: write: connection reset by peer"}
+{"level":"info","ts":"2021-11-05T16:43:41.879054+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T16:51:11.1069979+08:00","msg":"gxynet","start failed":{"error":"dial tcp 127.0.0.1:29001: connect: connection refused"}}
+{"level":"info","ts":"2021-11-05T16:51:17.0338565+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T16:51:22.0380294+08:00","msg":"tcpsession","msg":"send loop break","error":"write tcp 127.0.0.1:41590->127.0.0.1:29001: write: connection reset by peer"}
+{"level":"info","ts":"2021-11-05T16:51:22.0381523+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T16:51:27.0421234+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T16:52:58.105365+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T17:14:22.793273+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T17:17:18.2210537+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T17:20:03.3705887+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T17:21:27.9382941+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T17:21:27.9385271+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T17:21:28.4170557+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T17:21:38.6808289+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T17:21:58.5324619+08:00","msg":"tcpsession","recv error":"read tcp 127.0.0.1:42086->127.0.0.1:29001: read: connection reset by peer"}
+{"level":"info","ts":"2021-11-05T17:21:58.5326313+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T17:21:58.6940033+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T17:22:28.345554+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T17:23:25.7864474+08:00","msg":"tcpsession","recv error":"read tcp 127.0.0.1:42112->127.0.0.1:29001: read: connection reset by peer"}
+{"level":"info","ts":"2021-11-05T17:23:25.7865568+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T17:23:28.392428+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T17:32:48.8680399+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T17:32:48.8688642+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"info","ts":"2021-11-05T17:35:46.1678961+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T17:35:46.1688458+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"info","ts":"2021-11-05T17:35:51.1734985+08:00","msg":"recv message:&{0 hello 1}"}
+{"level":"info","ts":"2021-11-05T17:35:56.1780771+08:00","msg":"recv message:&{0 hello 2}"}
+{"level":"info","ts":"2021-11-05T17:36:01.1826291+08:00","msg":"recv message:&{0 hello 3}"}
+{"level":"info","ts":"2021-11-05T17:36:06.1871888+08:00","msg":"recv message:&{0 hello 4}"}
+{"level":"info","ts":"2021-11-05T17:36:11.1919085+08:00","msg":"recv message:&{0 hello 5}"}
+{"level":"info","ts":"2021-11-05T17:36:16.1965531+08:00","msg":"recv message:&{0 hello 6}"}
+{"level":"info","ts":"2021-11-05T17:36:21.2011436+08:00","msg":"recv message:&{0 hello 7}"}
+{"level":"info","ts":"2021-11-05T17:36:26.2056868+08:00","msg":"recv message:&{0 hello 8}"}
+{"level":"info","ts":"2021-11-05T17:36:31.2102799+08:00","msg":"recv message:&{0 hello 9}"}
+{"level":"info","ts":"2021-11-05T17:36:36.214965+08:00","msg":"recv message:&{0 hello 10}"}
+{"level":"info","ts":"2021-11-05T17:36:41.2195552+08:00","msg":"recv message:&{0 hello 11}"}
+{"level":"info","ts":"2021-11-05T17:36:46.2242109+08:00","msg":"recv message:&{0 hello 12}"}
+{"level":"info","ts":"2021-11-05T17:36:51.228902+08:00","msg":"recv message:&{0 hello 13}"}
+{"level":"info","ts":"2021-11-05T17:36:56.2335529+08:00","msg":"recv message:&{0 hello 14}"}
+{"level":"info","ts":"2021-11-05T17:37:01.2382579+08:00","msg":"recv message:&{0 hello 15}"}
+{"level":"info","ts":"2021-11-05T17:37:06.2428568+08:00","msg":"recv message:&{0 hello 16}"}
+{"level":"info","ts":"2021-11-05T17:37:11.2475507+08:00","msg":"recv message:&{0 hello 17}"}
+{"level":"info","ts":"2021-11-05T17:37:16.2522199+08:00","msg":"recv message:&{0 hello 18}"}
+{"level":"info","ts":"2021-11-05T17:37:21.2568292+08:00","msg":"recv message:&{0 hello 19}"}
+{"level":"info","ts":"2021-11-05T17:37:26.2615432+08:00","msg":"recv message:&{0 hello 20}"}
+{"level":"info","ts":"2021-11-05T17:37:31.2629903+08:00","msg":"recv message:&{0 hello 21}"}
+{"level":"info","ts":"2021-11-05T17:37:36.2675969+08:00","msg":"recv message:&{0 hello 22}"}
+{"level":"info","ts":"2021-11-05T17:37:41.2722469+08:00","msg":"recv message:&{0 hello 23}"}
+{"level":"info","ts":"2021-11-05T17:37:46.2727154+08:00","msg":"recv message:&{0 hello 24}"}
+{"level":"info","ts":"2021-11-05T17:37:51.2738845+08:00","msg":"recv message:&{0 hello 25}"}
+{"level":"info","ts":"2021-11-05T17:37:56.2784934+08:00","msg":"recv message:&{0 hello 26}"}
+{"level":"info","ts":"2021-11-05T17:38:01.2830848+08:00","msg":"recv message:&{0 hello 27}"}
+{"level":"info","ts":"2021-11-05T17:38:06.2878239+08:00","msg":"recv message:&{0 hello 28}"}
+{"level":"info","ts":"2021-11-05T17:38:11.2924373+08:00","msg":"recv message:&{0 hello 29}"}
+{"level":"info","ts":"2021-11-05T17:38:16.2934994+08:00","msg":"recv message:&{0 hello 30}"}
+{"level":"info","ts":"2021-11-05T17:38:21.2981496+08:00","msg":"recv message:&{0 hello 31}"}
+{"level":"info","ts":"2021-11-05T17:38:26.30279+08:00","msg":"recv message:&{0 hello 32}"}
+{"level":"info","ts":"2021-11-05T17:38:31.3073454+08:00","msg":"recv message:&{0 hello 33}"}
+{"level":"info","ts":"2021-11-05T17:38:36.3119071+08:00","msg":"recv message:&{0 hello 34}"}
+{"level":"info","ts":"2021-11-05T17:38:41.3128904+08:00","msg":"recv message:&{0 hello 35}"}
+{"level":"info","ts":"2021-11-05T17:38:46.3175354+08:00","msg":"recv message:&{0 hello 36}"}
+{"level":"info","ts":"2021-11-05T17:38:51.3220825+08:00","msg":"recv message:&{0 hello 37}"}
+{"level":"info","ts":"2021-11-05T17:38:56.3265752+08:00","msg":"recv message:&{0 hello 38}"}
+{"level":"info","ts":"2021-11-05T17:39:01.3311306+08:00","msg":"recv message:&{0 hello 39}"}
+{"level":"info","ts":"2021-11-05T17:39:06.3329437+08:00","msg":"recv message:&{0 hello 40}"}
+{"level":"info","ts":"2021-11-05T17:39:11.337556+08:00","msg":"recv message:&{0 hello 41}"}
+{"level":"info","ts":"2021-11-05T17:39:16.3421047+08:00","msg":"recv message:&{0 hello 42}"}
+{"level":"info","ts":"2021-11-05T17:39:21.34484+08:00","msg":"recv message:&{0 hello 43}"}
+{"level":"info","ts":"2021-11-05T17:39:26.3482843+08:00","msg":"recv message:&{0 hello 44}"}
+{"level":"info","ts":"2021-11-05T17:39:31.351709+08:00","msg":"recv message:&{0 hello 45}"}
+{"level":"info","ts":"2021-11-05T17:39:36.3562192+08:00","msg":"recv message:&{0 hello 46}"}
+{"level":"info","ts":"2021-11-05T17:39:41.3607361+08:00","msg":"recv message:&{0 hello 47}"}
+{"level":"info","ts":"2021-11-05T17:39:46.3610442+08:00","msg":"recv message:&{0 hello 48}"}
+{"level":"info","ts":"2021-11-05T17:39:51.3656071+08:00","msg":"recv message:&{0 hello 49}"}
+{"level":"info","ts":"2021-11-05T17:39:56.3700715+08:00","msg":"recv message:&{0 hello 50}"}
+{"level":"info","ts":"2021-11-05T17:40:01.3745902+08:00","msg":"recv message:&{0 hello 51}"}
+{"level":"info","ts":"2021-11-05T17:40:06.3791955+08:00","msg":"recv message:&{0 hello 52}"}
+{"level":"info","ts":"2021-11-05T17:40:11.3837979+08:00","msg":"recv message:&{0 hello 53}"}
+{"level":"info","ts":"2021-11-05T17:40:16.3882989+08:00","msg":"recv message:&{0 hello 54}"}
+{"level":"info","ts":"2021-11-05T17:40:21.3929252+08:00","msg":"recv message:&{0 hello 55}"}
+{"level":"info","ts":"2021-11-05T17:40:26.3974851+08:00","msg":"recv message:&{0 hello 56}"}
+{"level":"info","ts":"2021-11-05T17:40:31.4020686+08:00","msg":"recv message:&{0 hello 57}"}
+{"level":"info","ts":"2021-11-05T17:40:36.4066276+08:00","msg":"recv message:&{0 hello 58}"}
+{"level":"info","ts":"2021-11-05T17:40:41.4111735+08:00","msg":"recv message:&{0 hello 59}"}
+{"level":"info","ts":"2021-11-05T17:40:46.415735+08:00","msg":"recv message:&{0 hello 60}"}
+{"level":"info","ts":"2021-11-05T17:40:51.4202914+08:00","msg":"recv message:&{0 hello 61}"}
+{"level":"info","ts":"2021-11-05T17:40:56.4249023+08:00","msg":"recv message:&{0 hello 62}"}
+{"level":"info","ts":"2021-11-05T17:41:01.4295262+08:00","msg":"recv message:&{0 hello 63}"}
+{"level":"info","ts":"2021-11-05T17:41:06.4340173+08:00","msg":"recv message:&{0 hello 64}"}
+{"level":"info","ts":"2021-11-05T17:41:11.4385379+08:00","msg":"recv message:&{0 hello 65}"}
+{"level":"info","ts":"2021-11-05T17:41:16.4432504+08:00","msg":"recv message:&{0 hello 66}"}
+{"level":"info","ts":"2021-11-05T17:41:21.4477632+08:00","msg":"recv message:&{0 hello 67}"}
+{"level":"info","ts":"2021-11-05T17:41:26.4524446+08:00","msg":"recv message:&{0 hello 68}"}
+{"level":"info","ts":"2021-11-05T17:41:31.4571151+08:00","msg":"recv message:&{0 hello 69}"}
+{"level":"info","ts":"2021-11-05T17:41:36.461717+08:00","msg":"recv message:&{0 hello 70}"}
+{"level":"info","ts":"2021-11-05T17:41:41.4663621+08:00","msg":"recv message:&{0 hello 71}"}
+{"level":"info","ts":"2021-11-05T17:41:46.470932+08:00","msg":"recv message:&{0 hello 72}"}
+{"level":"info","ts":"2021-11-05T17:41:51.4754044+08:00","msg":"recv message:&{0 hello 73}"}
+{"level":"info","ts":"2021-11-05T17:41:56.4798766+08:00","msg":"recv message:&{0 hello 74}"}
+{"level":"info","ts":"2021-11-05T17:42:01.4843819+08:00","msg":"recv message:&{0 hello 75}"}
+{"level":"info","ts":"2021-11-05T17:42:06.4851457+08:00","msg":"recv message:&{0 hello 76}"}
+{"level":"info","ts":"2021-11-05T17:42:11.4897018+08:00","msg":"recv message:&{0 hello 77}"}
+{"level":"info","ts":"2021-11-05T17:42:16.4942404+08:00","msg":"recv message:&{0 hello 78}"}
+{"level":"info","ts":"2021-11-05T17:42:21.4989137+08:00","msg":"recv message:&{0 hello 79}"}
+{"level":"info","ts":"2021-11-05T17:42:26.5034739+08:00","msg":"recv message:&{0 hello 80}"}
+{"level":"info","ts":"2021-11-05T17:42:31.5080686+08:00","msg":"recv message:&{0 hello 81}"}
+{"level":"info","ts":"2021-11-05T17:42:36.512599+08:00","msg":"recv message:&{0 hello 82}"}
+{"level":"info","ts":"2021-11-05T17:42:41.5174783+08:00","msg":"recv message:&{0 hello 83}"}
+{"level":"info","ts":"2021-11-05T17:42:46.5220828+08:00","msg":"recv message:&{0 hello 84}"}
+{"level":"info","ts":"2021-11-05T17:42:51.5267058+08:00","msg":"recv message:&{0 hello 85}"}
+{"level":"info","ts":"2021-11-05T17:42:56.5312216+08:00","msg":"recv message:&{0 hello 86}"}
+{"level":"info","ts":"2021-11-05T17:43:01.5358548+08:00","msg":"recv message:&{0 hello 87}"}
+{"level":"info","ts":"2021-11-05T17:43:06.540385+08:00","msg":"recv message:&{0 hello 88}"}
+{"level":"info","ts":"2021-11-05T17:43:11.5428078+08:00","msg":"recv message:&{0 hello 89}"}
+{"level":"info","ts":"2021-11-05T17:43:16.5472929+08:00","msg":"recv message:&{0 hello 90}"}
+{"level":"info","ts":"2021-11-05T17:43:21.5518546+08:00","msg":"recv message:&{0 hello 91}"}
+{"level":"info","ts":"2021-11-05T17:43:26.5528984+08:00","msg":"recv message:&{0 hello 92}"}
+{"level":"info","ts":"2021-11-05T17:43:31.5538984+08:00","msg":"recv message:&{0 hello 93}"}
+{"level":"info","ts":"2021-11-05T17:43:36.5573637+08:00","msg":"recv message:&{0 hello 94}"}
+{"level":"info","ts":"2021-11-05T17:43:41.5576139+08:00","msg":"recv message:&{0 hello 95}"}
+{"level":"info","ts":"2021-11-05T17:43:46.5622092+08:00","msg":"recv message:&{0 hello 96}"}
+{"level":"info","ts":"2021-11-05T17:43:51.5627872+08:00","msg":"recv message:&{0 hello 97}"}
+{"level":"info","ts":"2021-11-05T17:43:56.5631055+08:00","msg":"recv message:&{0 hello 98}"}
+{"level":"info","ts":"2021-11-05T17:44:01.5676118+08:00","msg":"recv message:&{0 hello 99}"}
+{"level":"info","ts":"2021-11-05T17:44:06.5721452+08:00","msg":"recv message:&{0 hello 100}"}
+{"level":"info","ts":"2021-11-05T17:44:11.5767464+08:00","msg":"recv message:&{0 hello 101}"}
+{"level":"info","ts":"2021-11-05T17:44:16.5812485+08:00","msg":"recv message:&{0 hello 102}"}
+{"level":"info","ts":"2021-11-05T17:44:21.582927+08:00","msg":"recv message:&{0 hello 103}"}
+{"level":"info","ts":"2021-11-05T17:44:26.5874447+08:00","msg":"recv message:&{0 hello 104}"}
+{"level":"info","ts":"2021-11-05T17:44:31.5919641+08:00","msg":"recv message:&{0 hello 105}"}
+{"level":"info","ts":"2021-11-05T17:44:36.5965458+08:00","msg":"recv message:&{0 hello 106}"}
+{"level":"info","ts":"2021-11-05T17:44:41.6011605+08:00","msg":"recv message:&{0 hello 107}"}
+{"level":"info","ts":"2021-11-05T17:44:46.6058298+08:00","msg":"recv message:&{0 hello 108}"}
+{"level":"info","ts":"2021-11-05T17:44:51.6103728+08:00","msg":"recv message:&{0 hello 109}"}
+{"level":"info","ts":"2021-11-05T17:44:56.6149956+08:00","msg":"recv message:&{0 hello 110}"}
+{"level":"info","ts":"2021-11-05T17:45:01.6197313+08:00","msg":"recv message:&{0 hello 111}"}
+{"level":"info","ts":"2021-11-05T17:45:06.6243865+08:00","msg":"recv message:&{0 hello 112}"}
+{"level":"info","ts":"2021-11-05T17:45:11.6289068+08:00","msg":"recv message:&{0 hello 113}"}
+{"level":"info","ts":"2021-11-05T17:45:16.6335515+08:00","msg":"recv message:&{0 hello 114}"}
+{"level":"info","ts":"2021-11-05T17:45:21.6368446+08:00","msg":"recv message:&{0 hello 115}"}
+{"level":"info","ts":"2021-11-05T17:45:26.6413776+08:00","msg":"recv message:&{0 hello 116}"}
+{"level":"info","ts":"2021-11-05T17:45:31.6415396+08:00","msg":"recv message:&{0 hello 117}"}
+{"level":"info","ts":"2021-11-05T17:45:36.6417989+08:00","msg":"recv message:&{0 hello 118}"}
+{"level":"info","ts":"2021-11-05T17:45:41.646364+08:00","msg":"recv message:&{0 hello 119}"}
+{"level":"info","ts":"2021-11-05T17:45:46.6509101+08:00","msg":"recv message:&{0 hello 120}"}
+{"level":"info","ts":"2021-11-05T17:45:51.6555974+08:00","msg":"recv message:&{0 hello 121}"}
+{"level":"info","ts":"2021-11-05T17:45:56.6563404+08:00","msg":"recv message:&{0 hello 122}"}
+{"level":"info","ts":"2021-11-05T17:46:01.6600531+08:00","msg":"recv message:&{0 hello 123}"}
+{"level":"info","ts":"2021-11-05T17:46:06.6647408+08:00","msg":"recv message:&{0 hello 124}"}
+{"level":"info","ts":"2021-11-05T17:46:11.6694041+08:00","msg":"recv message:&{0 hello 125}"}
+{"level":"info","ts":"2021-11-05T17:46:16.6696412+08:00","msg":"recv message:&{0 hello 126}"}
+{"level":"info","ts":"2021-11-05T17:46:21.674159+08:00","msg":"recv message:&{0 hello 127}"}
+{"level":"info","ts":"2021-11-05T17:46:26.6743895+08:00","msg":"recv message:&{0 hello 128}"}
+{"level":"info","ts":"2021-11-05T17:46:31.6761888+08:00","msg":"recv message:&{0 hello 129}"}
+{"level":"info","ts":"2021-11-05T17:46:36.6807206+08:00","msg":"recv message:&{0 hello 130}"}
+{"level":"info","ts":"2021-11-05T17:46:41.6852386+08:00","msg":"recv message:&{0 hello 131}"}
+{"level":"info","ts":"2021-11-05T17:46:46.6875333+08:00","msg":"recv message:&{0 hello 132}"}
+{"level":"info","ts":"2021-11-05T17:46:51.6922081+08:00","msg":"recv message:&{0 hello 133}"}
+{"level":"info","ts":"2021-11-05T17:46:56.6968182+08:00","msg":"recv message:&{0 hello 134}"}
+{"level":"info","ts":"2021-11-05T17:47:01.7012974+08:00","msg":"recv message:&{0 hello 135}"}
+{"level":"info","ts":"2021-11-05T17:47:06.7015084+08:00","msg":"recv message:&{0 hello 136}"}
+{"level":"info","ts":"2021-11-05T17:47:11.7062469+08:00","msg":"recv message:&{0 hello 137}"}
+{"level":"info","ts":"2021-11-05T17:47:16.7108942+08:00","msg":"recv message:&{0 hello 138}"}
+{"level":"info","ts":"2021-11-05T17:47:21.7155515+08:00","msg":"recv message:&{0 hello 139}"}
+{"level":"info","ts":"2021-11-05T17:47:26.7200554+08:00","msg":"recv message:&{0 hello 140}"}
+{"level":"info","ts":"2021-11-05T17:47:31.7203668+08:00","msg":"recv message:&{0 hello 141}"}
+{"level":"info","ts":"2021-11-05T17:47:36.7250181+08:00","msg":"recv message:&{0 hello 142}"}
+{"level":"info","ts":"2021-11-05T17:47:41.7295466+08:00","msg":"recv message:&{0 hello 143}"}
+{"level":"info","ts":"2021-11-05T17:47:46.7327784+08:00","msg":"recv message:&{0 hello 144}"}
+{"level":"info","ts":"2021-11-05T17:47:51.7374311+08:00","msg":"recv message:&{0 hello 145}"}
+{"level":"info","ts":"2021-11-05T17:47:56.7420348+08:00","msg":"recv message:&{0 hello 146}"}
+{"level":"info","ts":"2021-11-05T17:48:01.7465467+08:00","msg":"recv message:&{0 hello 147}"}
+{"level":"info","ts":"2021-11-05T17:48:06.7510775+08:00","msg":"recv message:&{0 hello 148}"}
+{"level":"info","ts":"2021-11-05T17:48:11.7557585+08:00","msg":"recv message:&{0 hello 149}"}
+{"level":"info","ts":"2021-11-05T17:48:16.7603513+08:00","msg":"recv message:&{0 hello 150}"}
+{"level":"info","ts":"2021-11-05T17:48:21.7648985+08:00","msg":"recv message:&{0 hello 151}"}
+{"level":"info","ts":"2021-11-05T17:48:26.7694637+08:00","msg":"recv message:&{0 hello 152}"}
+{"level":"info","ts":"2021-11-05T17:48:31.7728543+08:00","msg":"recv message:&{0 hello 153}"}
+{"level":"info","ts":"2021-11-05T17:48:36.7741418+08:00","msg":"recv message:&{0 hello 154}"}
+{"level":"info","ts":"2021-11-05T17:48:41.7786751+08:00","msg":"recv message:&{0 hello 155}"}
+{"level":"info","ts":"2021-11-05T17:48:46.7831918+08:00","msg":"recv message:&{0 hello 156}"}
+{"level":"info","ts":"2021-11-05T17:48:51.7877238+08:00","msg":"recv message:&{0 hello 157}"}
+{"level":"info","ts":"2021-11-05T17:48:56.7923756+08:00","msg":"recv message:&{0 hello 158}"}
+{"level":"info","ts":"2021-11-05T17:49:01.7969845+08:00","msg":"recv message:&{0 hello 159}"}
+{"level":"info","ts":"2021-11-05T17:49:06.8015844+08:00","msg":"recv message:&{0 hello 160}"}
+{"level":"info","ts":"2021-11-05T17:49:11.8028387+08:00","msg":"recv message:&{0 hello 161}"}
+{"level":"info","ts":"2021-11-05T17:49:16.8075415+08:00","msg":"recv message:&{0 hello 162}"}
+{"level":"info","ts":"2021-11-05T17:49:21.8122063+08:00","msg":"recv message:&{0 hello 163}"}
+{"level":"info","ts":"2021-11-05T17:49:26.8167083+08:00","msg":"recv message:&{0 hello 164}"}
+{"level":"info","ts":"2021-11-05T17:49:31.8212818+08:00","msg":"recv message:&{0 hello 165}"}
+{"level":"info","ts":"2021-11-05T17:49:36.8258728+08:00","msg":"recv message:&{0 hello 166}"}
+{"level":"info","ts":"2021-11-05T17:49:41.8303873+08:00","msg":"recv message:&{0 hello 167}"}
+{"level":"info","ts":"2021-11-05T17:49:46.8349084+08:00","msg":"recv message:&{0 hello 168}"}
+{"level":"info","ts":"2021-11-05T17:49:51.8394107+08:00","msg":"recv message:&{0 hello 169}"}
+{"level":"info","ts":"2021-11-05T17:49:56.843907+08:00","msg":"recv message:&{0 hello 170}"}
+{"level":"info","ts":"2021-11-05T17:50:01.8485051+08:00","msg":"recv message:&{0 hello 171}"}
+{"level":"info","ts":"2021-11-05T17:50:06.8530865+08:00","msg":"recv message:&{0 hello 172}"}
+{"level":"info","ts":"2021-11-05T17:50:11.8576821+08:00","msg":"recv message:&{0 hello 173}"}
+{"level":"info","ts":"2021-11-05T17:50:16.8624913+08:00","msg":"recv message:&{0 hello 174}"}
+{"level":"error","ts":"2021-11-05T17:50:17.3940611+08:00","msg":"tcpsession","recv error":"EOF"}
+{"level":"info","ts":"2021-11-05T17:50:17.3942011+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T17:50:21.8657198+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T17:50:24.7015984+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T17:50:24.7024745+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"info","ts":"2021-11-05T18:04:03.1422797+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T18:04:03.1429218+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"error","ts":"2021-11-05T18:04:05.413008+08:00","msg":"tcpsession close","error":"EOF"}
+{"level":"info","ts":"2021-11-05T18:04:05.4131991+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T18:04:08.1449897+08:00","msg":"send error","error":"conn closed"}
+{"level":"info","ts":"2021-11-05T18:04:18.5505679+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T18:04:18.5514865+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"info","ts":"2021-11-05T18:11:09.0319423+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T18:11:09.0333009+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"info","ts":"2021-11-05T18:11:37.0641115+08:00","msg":"conn open, addr=127.0.0.1:29001"}
+{"level":"info","ts":"2021-11-05T18:11:37.0649554+08:00","msg":"recv message:&{0 hello 0}"}
+{"level":"error","ts":"2021-11-05T18:11:41.2942112+08:00","msg":"tcpsession close","error":"recv error: EOF","errorVerbose":"EOF\nrecv error\ngithub.com/zylikedream/galaxy/core/gxynet/conn.(*TcpSession).recvLoop\n\t/home/zhangyi/workspace/galaxy/components/gxynet/conn/tcpsession.go:70\nruntime.goexit\n\t/usr/local/go/src/runtime/asm_amd64.s:1371"}
+{"level":"info","ts":"2021-11-05T18:11:41.2944369+08:00","msg":"conn close, addr=127.0.0.1:29001"}
+{"level":"error","ts":"2021-11-05T18:11:42.0653839+08:00","msg":"send error","error":"conn closed"}

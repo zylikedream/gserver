@@ -1,0 +1,5 @@
+[topic]
+    topic_prefix = "non-persistent://galaxy"
+[app]
+    app_id = "1"
+    app_type = "gateway"
