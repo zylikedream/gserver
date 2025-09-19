@@ -1,4 +1,4 @@
-package gxyapp
+package gxynode
 
 import (
 	"context"
@@ -12,29 +12,29 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 )
 
-type Node struct {
+type node struct {
 	rootModule gxymodule.Module
 	AppID      string `toml:"app_id"`
 	AppType    string `toml:"app_type"`
 }
 
-var node *Node
+var n *node
 
-func App() *Node {
-	return node
+func Node() *node {
+	return n
 }
 
-func InitApp(config string) *Node {
-	node = &Node{}
+func InitNode(config string) *node {
+	n = &node{}
 	cfg := gcfg.Instance(config)
 	ctx := context.Background()
-	node.AppID = cfg.MustGet(ctx, "app.app_id").String()
-	node.AppType = cfg.MustGet(ctx, "app.app_type").String()
-	node.LoadModule(gxyactor.NewActorSystem(gen.Atom(node.AppID), ""))
-	return node
+	n.AppID = cfg.MustGet(ctx, "app.app_id").String()
+	n.AppType = cfg.MustGet(ctx, "app.app_type").String()
+	n.LoadModule(gxyactor.NewActorSystem(gen.Atom(n.AppID), ""))
+	return n
 }
 
-func (a *Node) Start(ctx context.Context) error {
+func (a *node) Start(ctx context.Context) error {
 	for _, mod := range a.rootModule.Modules() {
 		// actorSys := gxyactor.ActorSystem().GetNode().ApplicationLoad()
 		if err := mod.BaseModule().Start(ctx); err != nil {
@@ -44,7 +44,7 @@ func (a *Node) Start(ctx context.Context) error {
 	return nil
 }
 
-func (a *Node) Stop(ctx context.Context) error {
+func (a *node) Stop(ctx context.Context) error {
 	for _, mod := range a.rootModule.Modules() {
 		if err := mod.BaseModule().Stop(ctx); err != nil {
 			return err
@@ -53,14 +53,14 @@ func (a *Node) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (a *Node) Node() string {
+func (a *node) Node() string {
 	if a == nil {
 		return "default.0"
 	}
 	return fmt.Sprintf("%s.%s", a.AppType, a.AppID)
 }
 
-func (a *Node) LoadModule(mod gxymodule.IModule) {
+func (a *node) LoadModule(mod gxymodule.IModule) {
 	if err := a.rootModule.AddModule(context.Background(), mod); err != nil {
 		glog.Fatalf(context.Background(), "add module %v err: %s", mod.GetName(), err)
 	}

@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+var codec message.IMessageCodec
+
+func init() {
+	codec, _ = message.NewMessageCodec(message.MESSAGE_JSON)
+}
+
 // 消息类型定义
 type (
 	// ClientMessage 客户端消息
@@ -82,6 +88,7 @@ const (
 
 	SysMsgKick      = "kick"
 	SysMsgHeartbeat = "heartbeat"
+	SysMsgStop      = "stop"
 )
 
 // 错误码定义
@@ -143,26 +150,6 @@ func CreateKickSessionResponse(success bool) *KickSessionResponse {
 	}
 }
 
-// IsValidClientMessageType 检查是否是有效的客户端消息类型
-func IsValidClientMessageType(msgType string) bool {
-	switch msgType {
-	case MsgTypeLogin, MsgTypeHeartbeat, MsgTypeGameMessage:
-		return true
-	default:
-		return false
-	}
-}
-
-// IsValidSystemMessageType 检查是否是有效的系统消息类型
-func IsValidSystemMessageType(msgType string) bool {
-	switch msgType {
-	case SysMsgKick, SysMsgHeartbeat:
-		return true
-	default:
-		return false
-	}
-}
-
 // CreateClientMessage 创建客户端消息
 func CreateClientMessage(msgType string, data interface{}) *ClientMessage {
 	return &ClientMessage{
@@ -196,8 +183,9 @@ func NewClientMessage(msgType string, data interface{}) (*message.Message, error
 	return message.NewMessage(CreateClientMessage(msgType, data), nil)
 }
 
-func NewSystemMessage(msgType string, data interface{}) (*message.Message, error) {
-	return message.NewMessage(CreateSystemMessage(msgType, data), nil)
+func NewSystemMessage(msgType string, data interface{}) *message.Message {
+	msg, _ := message.NewMessage(CreateSystemMessage(msgType, data), codec)
+	return msg
 }
 
 func NewNetworkMessage(data []byte) (*message.Message, error) {

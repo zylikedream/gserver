@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"gserver/core/gxyapp"
+	"gserver/core/gxynode"
 
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/os/gproc"
@@ -17,7 +17,7 @@ func main() {
 		Usage: "main",
 		Brief: "start http server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
-			return gxyapp.App().Start(ctx)
+			return gxynode.Node().Start(ctx)
 		},
 	}
 	gate.Run(ctx)
@@ -28,5 +28,5 @@ func main() {
 
 func OnMainClose(s os.Signal) {
 	ctx := context.Background()
-	gxyapp.App().Stop(ctx)
+	gxynode.Node().Stop(ctx)
 }

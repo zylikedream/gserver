@@ -6,7 +6,7 @@ import (
 
 type EventHandler interface {
 	OnOpen(Endpoint) error
-	OnClose(Endpoint)
+	OnClose(Endpoint, error)
 	OnError(Endpoint, error)
 	OnMessage(Endpoint, *message.Message) error
 }
@@ -18,7 +18,7 @@ func (e *BaseEventHandler) OnOpen(Endpoint) error {
 	return nil
 }
 
-func (e *BaseEventHandler) OnClose(Endpoint) {
+func (e *BaseEventHandler) OnClose(Endpoint, error) {
 }
 
 func (e *BaseEventHandler) OnError(Endpoint, error) {

@@ -104,7 +104,7 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 
 func (t *TcpServer) OnClose(c gnet.Conn, err error) gnet.Action {
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
-	t.Handler.OnClose(endPoint)
+	t.Handler.OnClose(endPoint, err)
 	glog.Errorf(ctx, "conn close %s, error %s", c.RemoteAddr().String(), err.Error())
 	return gnet.None
 }

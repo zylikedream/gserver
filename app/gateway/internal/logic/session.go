@@ -9,6 +9,8 @@ import (
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 
+	"ergo.services/ergo/act"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -33,7 +35,7 @@ type SessionInfo struct {
 
 // Session 会话Actor，继承自ActorBase
 type Session struct {
-	gxyactor.ActorBase
+	act.Actor
 	connID      string            // 连接ID
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
@@ -41,23 +43,18 @@ type Session struct {
 }
 
 // NewSession 创建会话
-func NewSession(connID string, endpoint endpoint.Endpoint) *Session {
-	now := time.Now()
-	session := &Session{
-		connID:   connID,
-		endpoint: endpoint,
-		state:    StateConnected,
-		sessionInfo: &SessionInfo{
-			ConnectTime: now,
-			LastActive:  now,
-		},
-	}
-
-	return session
-}
-
 // OnInit Actor初始化
-func (s *Session) OnInit(args ...any) error {
+func (s *Session) Init(args ...any) error {
+	if len(args) < 2 {
+		return fmt.Errorf("session init args error, expect connID and endpoint, got %d", len(args))
+	}
+	s.connID = args[0].(string)
+	s.endpoint = args[1].(endpoint.Endpoint)
+	s.state = StateConnected
+	s.sessionInfo = &SessionInfo{
+		ConnectTime: time.Now(),
+		LastActive:  time.Now(),
+	}
 	glog.Infof(context.Background(), "Session initialized: %s, remote: %s", s.connID, s.endpoint.Conn().RemoteAddr())
 
 	// 可以在这里进行初始化，如启动心跳等
@@ -65,26 +62,23 @@ func (s *Session) OnInit(args ...any) error {
 }
 
 // OnHandleMessage 处理异步消息
-func (s *Session) OnHandleMessage(from gxyactor.PID, msg any) error {
+func (s *Session) HandleMessage(from gxyactor.PID, msg any) error {
 	s.updateLastActive()
-
-	switch m := msg.(type) {
+	switch msg := msg.(type) {
 	case *ClientMessage:
-		return s.handleClientMessage(m)
+		return s.handleClientMessage(msg)
 	case *NetworkMessage:
-		return s.handleNetworkMessage(m)
+		return s.handleNetworkMessage(msg)
 	case *SystemMessage:
-		return s.handleSystemMessage(m)
+		return s.handleSystemMessage(msg)
 	default:
-		glog.Warningf(context.Background(), "Unknown message type from %v: %T", from, msg)
-		return nil
+		return fmt.Errorf("unknown message type: %T", msg)
 	}
 }
 
 // OnHandleCall 处理同步调用
-func (s *Session) OnHandleCall(from gxyactor.PID, ref gxyactor.Ref, request any) (any, error) {
+func (s *Session) HandleCall(from gxyactor.PID, ref gxyactor.Ref, request any) (any, error) {
 	s.updateLastActive()
-
 	switch req := request.(type) {
 	case *GetSessionInfoRequest:
 		return s.sessionInfo, nil
@@ -97,7 +91,7 @@ func (s *Session) OnHandleCall(from gxyactor.PID, ref gxyactor.Ref, request any)
 }
 
 // OnTerminate 终止处理
-func (s *Session) OnTerminate(reason error) {
+func (s *Session) Terminate(reason error) {
 	glog.Infof(context.Background(), "Session terminating: %s, reason: %v", s.connID, reason)
 
 	// 关闭网络连接
@@ -133,6 +127,8 @@ func (s *Session) handleSystemMessage(msg *SystemMessage) error {
 	switch msg.Type {
 	case SysMsgKick:
 		s.handleKick(msg.Data.(string))
+	case SysMsgStop:
+		return gerror.New(msg.Data.(string))
 	case SysMsgHeartbeat:
 		// 心跳响应
 		return s.sendHeartbeatResponse()
@@ -214,7 +210,7 @@ func (s *Session) handleKick(reason string) {
 
 	// 延迟关闭连接，让客户端有时间处理踢出消息
 	time.AfterFunc(2*time.Second, func() {
-		s.OnTerminate(fmt.Errorf("kicked: %s", reason))
+		s.Terminate(fmt.Errorf("kicked: %s", reason))
 	})
 }
 

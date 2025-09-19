@@ -1,8 +1,12 @@
 package logic
 
 import (
+	"context"
+
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
+
+	"github.com/gogf/gf/v2/os/glog"
 )
 
 type GateHandler struct {
@@ -13,9 +17,29 @@ func NewGateHandler() *GateHandler {
 	return &GateHandler{}
 }
 
-func (es *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) error {
+func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
+	connID := ep.Conn().RemoteAddr().String()
+	glog.Debugf(context.Background(), "New connection: %s", connID)
+
+	// 通过SessionManager创建Session Actor
+	sessionMgr := SessionManager()
+	err := sessionMgr.CreateSession(ep)
+	if err != nil {
+		glog.Errorf(context.Background(), "Failed to create session for %s: %v", connID, err)
+		ep.Conn().Close()
+	}
 	return nil
 }
 
-func (es *GateHandler) OnClose(ep endpoint.Endpoint) {
+func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) error {
+	// 消息将直接由Session Actor处理
+	return nil
+}
+
+func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
+	connID := ep.Conn().RemoteAddr().String()
+	glog.Debugf(context.Background(), "Connection closed: %s", connID)
+	// 从SessionManager中删除Session Actor
+	sessionMgr := SessionManager()
+	sessionMgr.StopSession(ep, err.Error())
 }
