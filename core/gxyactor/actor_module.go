@@ -8,6 +8,7 @@ import (
 
 	"ergo.services/ergo"
 	"ergo.services/ergo/gen"
+	"ergo.services/registrar/etcd"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -41,11 +42,20 @@ func (a *actorSystem) OnStart(ctx context.Context) error {
 	if err := a.Module.OnInit(ctx); err != nil {
 		return err
 	}
+	registrarOptions := etcd.Options{
+		Endpoints: []string{"localhost:2379"},
+		Cluster:   "production",
+	}
+	regist, err := etcd.Create(registrarOptions)
+	if err != nil {
+		return err
+	}
 	// v3.1.0 API：StartNode(name gen.Atom, options gen.NodeOptions)
 	// Cookie 在 NetworkOptions.Cookie 中设置
 	nodeOptions := gen.NodeOptions{
 		Network: gen.NetworkOptions{
-			Cookie: a.cookie,
+			Cookie:    a.cookie,
+			Registrar: regist,
 		},
 	}
 
@@ -108,6 +118,10 @@ func (a *actorSystem) Send(pid gen.PID, message any) error {
 // GetNode 获取节点实例
 func (a *actorSystem) GetNode() gen.Node {
 	return a.node
+}
+
+func (a *actorSystem) GetRemoteNode(name string) (gen.RemoteNode, error) {
+	return a.node.Network().GetNode(gen.Atom(name))
 }
 
 // GetNodeName 获取节点名称

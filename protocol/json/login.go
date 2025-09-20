@@ -1,4 +1,4 @@
-package proto
+package gxyproto
 
 type ReqHandShake struct {
 	AccountUid string `json:"account_uid"`

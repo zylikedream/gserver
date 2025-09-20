@@ -2,19 +2,25 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
+	"gserver/core/gxyservice"
+	gxyproto "gserver/protocol/json"
+	"gserver/service"
 
 	"ergo.services/ergo/act"
+	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
 const (
-	SESSION_MSG_STOP = "stop"
+	SESSION_MSG_STOP   = "stop"
+	SESSION_MSG_CLIENT = "client" // 客户端消息
 )
 
 // SessionState 会话状态
@@ -31,9 +37,11 @@ const (
 
 // SessionInfo 会话信息
 type SessionInfo struct {
-	PlayerID    string    // 玩家ID（认证后才有）
+	AccountUid  string    // 账号ID
+	RoleID      string    // 玩家ID（认证后才有）
 	ConnectTime time.Time // 连接时间
 	LastActive  time.Time // 最后活跃时间
+	RolePid     *gen.PID
 }
 
 // Session 会话Actor，继承自ActorBase
@@ -53,6 +61,7 @@ func (s *Session) Init(args ...any) error {
 	}
 	s.connID = args[0].(string)
 	s.endpoint = args[1].(endpoint.Endpoint)
+	s.endpoint.SetData(s.PID())
 	s.state = StateConnected
 	s.sessionInfo = &SessionInfo{
 		ConnectTime: time.Now(),
@@ -65,8 +74,25 @@ func (s *Session) Init(args ...any) error {
 }
 
 // OnHandleMessage 处理异步消息
-func (s *Session) HandleMessage(from gxyactor.PID, msg any) error {
+func (s *Session) HandleMessage(from gxyactor.PID, rawMsg any) error {
 	s.updateLastActive()
+	msg := rawMsg.(message.Message)
+	switch msg.Type {
+	case message.MESSGE_TYPE_FIRST_PACKET:
+		firstPacket := gxyproto.ReqHandShake{}
+		if err := json.Unmarshal(msg.Payload, &firstPacket); err != nil {
+			glog.Errorf(context.Background(), "unmarshal first packet error, connID: %s, err: %v", s.connID, err)
+			return err
+		}
+		s.sessionInfo.AccountUid = firstPacket.AccountUid
+		gameNode := gxyservice.ServiceModule().GetServiceNode(service.ROLE_SERVICE, gxyservice.RoundRobinSelector())
+		if gameNode.Node == "" {
+			glog.Errorf(context.Background(), "no node for role, connID: %s", s.connID)
+			return fmt.Errorf("no node for role")
+		}
+
+	}
+
 	return nil
 }
 
@@ -87,7 +113,7 @@ func (s *Session) Terminate(reason error) {
 }
 
 // sendToClient 发送消息给客户端
-func (s *Session) sendToClient(data any) error {
+func (s *Session) SendToClient(data any) error {
 	if s.endpoint == nil {
 		return fmt.Errorf("endpoint is nil")
 	}
@@ -115,7 +141,7 @@ func (s *Session) GetConnectionID() string {
 // GetPlayerID 获取玩家ID
 func (s *Session) GetPlayerID() string {
 	if s.sessionInfo != nil {
-		return s.sessionInfo.PlayerID
+		return s.sessionInfo.RoleID
 	}
 	return ""
 }
@@ -133,7 +159,7 @@ func (s *Session) SetState(state SessionState) {
 // SetPlayerID 设置玩家ID（认证成功后调用）
 func (s *Session) SetPlayerID(playerID string) {
 	if s.sessionInfo != nil {
-		s.sessionInfo.PlayerID = playerID
+		s.sessionInfo.RoleID = playerID
 	}
 	s.state = StateAuthenticated
 	glog.Infof(context.Background(), "Session %s authenticated: PlayerID=%s", s.connID, playerID)
@@ -146,5 +172,5 @@ func (s *Session) GetSessionInfo() *SessionInfo {
 
 // IsAuthenticated 是否已认证
 func (s *Session) IsAuthenticated() bool {
-	return s.state == StateAuthenticated && s.sessionInfo.PlayerID != ""
+	return s.state == StateAuthenticated && s.sessionInfo.RoleID != ""
 }

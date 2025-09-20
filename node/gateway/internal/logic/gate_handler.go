@@ -3,9 +3,11 @@ package logic
 import (
 	"context"
 
+	"gserver/core/gxyactor"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 
+	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -32,14 +34,17 @@ func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
 }
 
 func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) error {
+	sessPid, ok := ep.GetData().(gen.PID)
+	if !ok {
+		glog.Errorf(context.Background(), "Failed to get session from endpoint data")
+		return nil
+	}
+	gxyactor.ActorSystem().Send(sessPid, NewActorMessage(SESSION_MSG_CLIENT, *msg))
 	// 消息将直接由Session Actor处理
 	return nil
 }
 
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
-	connID := ep.Conn().RemoteAddr().String()
-	glog.Debugf(context.Background(), "Connection closed: %s", connID)
-	// 从SessionManager中删除Session Actor
 	sessionMgr := SessionManager()
-	sessionMgr.StopSession(ep, err.Error())
+	sessionMgr.StopSession(ep, err)
 }
