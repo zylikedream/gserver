@@ -1,5 +1,4 @@
 [topic]
     topic_prefix = "non-persistent://galaxy"
-[app]
-    app_id = "1"
-    app_type = "gateway"
+[node]
+    node_name = "gate@127.0.0.1"

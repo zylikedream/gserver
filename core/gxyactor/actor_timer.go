@@ -45,22 +45,22 @@ func NewActorTimer(pid gen.PID) *ActorTimer {
 
 func (s *ActorTimer) AddTick(ctx context.Context, tick *Tick, fun callbackFunc) {
 	s.timer.AddSingleton(ctx, tick.Tick, func(ctx context.Context) {
-		ActorSystem().Send(s.pid, &TimerMsg{
+		ActorSystem().Send(s.pid, NewActorMessage(MsgTimer, TimerMsg{
 			Name: tick.Name,
 			Fun:  fun,
 			Time: time.Now(),
-		})
+		}))
 	})
 }
 
 func (s *ActorTimer) AddCron(ctx context.Context, cron *Cron, fun callbackFunc) {
 	s.cron.AddSingleton(ctx, cron.Pattern, func(ctx context.Context) {
 		s.SetCronTm(time.Now())
-		ActorSystem().Send(s.pid, &TimerMsg{
+		ActorSystem().Send(s.pid, NewActorMessage(MsgTimer, TimerMsg{
 			Name: cron.Name,
 			Fun:  fun,
 			Time: time.Now(),
-		})
+		}))
 	})
 	s.cronSchedulers[cron.Name] = &CronInstance{cron: cron, fun: fun}
 }

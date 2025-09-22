@@ -2,7 +2,6 @@ package gxynode
 
 import (
 	"context"
-	"fmt"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxymodule"
@@ -14,8 +13,7 @@ import (
 
 type node struct {
 	rootModule gxymodule.Module
-	AppID      string `toml:"app_id"`
-	AppType    string `toml:"app_type"`
+	nodeName   string `toml:"node_name"`
 }
 
 var n *node
@@ -28,9 +26,8 @@ func InitNode(config string) *node {
 	n = &node{}
 	cfg := gcfg.Instance(config)
 	ctx := context.Background()
-	n.AppID = cfg.MustGet(ctx, "app.app_id").String()
-	n.AppType = cfg.MustGet(ctx, "app.app_type").String()
-	n.LoadModule(gxyactor.NewActorSystem(gen.Atom(n.AppID), ""))
+	n.nodeName = cfg.MustGet(ctx, "node.node_name").String()
+	n.LoadModule(gxyactor.NewActorSystem(gen.Atom(n.nodeName), ""))
 	return n
 }
 
@@ -51,13 +48,6 @@ func (a *node) Stop(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-func (a *node) Node() string {
-	if a == nil {
-		return "default.0"
-	}
-	return fmt.Sprintf("%s.%s", a.AppType, a.AppID)
 }
 
 func (a *node) LoadModule(mod gxymodule.IModule) {

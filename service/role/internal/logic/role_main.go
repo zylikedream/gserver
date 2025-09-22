@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxylocator"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
+	"gserver/core/gxynet/message"
 	"gserver/util"
 	"time"
 
@@ -17,6 +18,10 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+const (
+	ROLE_MSG_INIT = "init_role"
 )
 
 type RoleMainOption struct {
@@ -32,15 +37,17 @@ type RoleMain struct {
 	Bag   *RoleBag
 	Basic *RoleBasic
 
-	timer    *gxyactor.ActorTimer
-	modsHash map[string]uint64
-	locator  *gxylocator.Locator
+	timer      *gxyactor.ActorTimer
+	modsHash   map[string]uint64
+	locator    *gxylocator.Locator
+	msgHandler *util.MsgHandler
 }
 
 func NewRoleMain(opt RoleMainOption) *RoleMain {
 	return &RoleMain{
-		modsHash: map[string]uint64{},
-		locator:  opt.Locator,
+		modsHash:   map[string]uint64{},
+		locator:    opt.Locator,
+		msgHandler: util.NewMsgHandler(),
 	}
 }
 
@@ -63,21 +70,42 @@ func (r *RoleMain) Init(args ...any) error {
 	r.Basic = NewRoleBasic()
 	r.AddModule(ctx, r.Basic)
 
-	r.Send(r.PID(), "init_role")
+	r.Send(r.PID(), gxyactor.NewActorMessage(ROLE_MSG_INIT, ""))
 	return nil
 }
 
-func (r *RoleMain) HandleMessage(from gen.PID, msg any) error {
-	switch m := msg.(type) {
-	case string:
-		if m != "init_role" {
-			err := r.initRole()
-			if err != nil {
-				return err
-			}
+func (r *RoleMain) OnHandleMessage(from gen.PID, msg gxyactor.ActorMessage) error {
+	switch msg.Name {
+	case "init_role":
+		if err := r.initRole(); err != nil {
+			return err
 		}
-	case *gxyactor.TimerMsg:
-		m.Fun(context.Background(), m.Time)
+	case gxyactor.MsgTimer:
+		data, ok := msg.Data.(*gxyactor.TimerMsg)
+		if !ok {
+			glog.Errorf(context.Background(), "unknown message data type: %T", msg.Data)
+			return nil
+		}
+		data.Fun(context.Background(), data.Time)
+	case gxyactor.MsgClient:
+		data, ok := msg.Data.(message.Message)
+		if !ok {
+			glog.Errorf(context.Background(), "unknown message data type: %T", msg.Data)
+			return nil
+		}
+		meta := r.msgHandler.GetMethodMeta(data.Path)
+		if meta == nil {
+			glog.Errorf(context.Background(), "unknown method meta, roleID: %d, method: %s", r.RoleID, data.Path)
+			return nil
+		}
+		req, err := r.msgHandler.(meta, data.Payload)
+		if err != nil {
+			glog.Errorf(context.Background(), "decode msg failed, roleID: %d, method: %s, err: %v", r.RoleID, data.Path, err)
+			break
+		}
+		err = r.doCall(ctx, msg.Method, req, msg.Meta)
+	default:
+		glog.Errorf(context.Background(), "unknown message type: %s", msg.Name)
 	}
 	return nil
 }
@@ -92,6 +120,10 @@ func (r *RoleMain) initRole() error {
 	}, func(ctx context.Context, tm time.Time) {
 		r.save(ctx, false)
 	})
+	r.msgHandler.AddHandler(r)
+	for _, mod := range r.Modules() {
+		r.msgHandler.AddHandler(mod)
+	}
 	return nil
 }
 

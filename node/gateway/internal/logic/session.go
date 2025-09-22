@@ -73,44 +73,46 @@ func (s *Session) Init(args ...any) error {
 }
 
 // OnHandleMessage 处理异步消息
-func (s *Session) HandleMessage(from gxyactor.PID, rawMsg any) error {
+func (s *Session) OnHandleMessage(from gxyactor.PID, rawmsg gxyactor.ActorMessage) error {
 	s.updateLastActive()
-	msg := rawMsg.(message.Message)
-	switch msg.Type {
-	case message.MESSGE_TYPE_FIRST_PACKET:
-		firstPacket := pb.ReqHandShake{}
-		if err := json.Unmarshal(msg.Payload, &firstPacket); err != nil {
-			glog.Errorf(context.Background(), "unmarshal first packet error, connID: %s, err: %v", s.connID, err)
-			return err
-		}
-		s.sessionInfo.AccountUid = firstPacket.AccountUid
-		roleID, err := role.RoleService().GetRoleIDByAccount(firstPacket.AccountUid)
-		if err != nil {
-			glog.Errorf(context.Background(), "get role id error, connID: %s, err: %v", s.connID, err)
-			return err
-		}
-		rolePid, err := role.RoleService().SpawnRole(roleID)
-		if err != nil {
-			glog.Errorf(context.Background(), "get role pid error, connID: %s, err: %v", s.connID, err)
-			return err
-		}
-		s.sessionInfo.RolePid = rolePid
-		s.Monitor(rolePid)
-	case message.MESSAGE_TYPE_DATA_PACKET:
-		rolePid := s.sessionInfo.RolePid
-		if rolePid.Node == "" {
-			glog.Errorf(context.Background(), "role pid is nil, connID: %s", s.connID)
-			return fmt.Errorf("role pid is nil")
+	switch rawmsg.Name {
+	case gxyactor.MsgClient:
+		msg, _ := rawmsg.Data.(message.Message)
+		switch msg.Type {
+		case message.MESSGE_TYPE_FIRST_PACKET:
+			firstPacket := pb.ReqHandShake{}
+			if err := json.Unmarshal(msg.Payload, &firstPacket); err != nil {
+				glog.Errorf(context.Background(), "unmarshal first packet error, connID: %s, err: %v", s.connID, err)
+				return err
+			}
+			s.sessionInfo.AccountUid = firstPacket.AccountUid
+			roleID, err := role.RoleService().GetRoleIDByAccount(firstPacket.AccountUid)
+			if err != nil {
+				glog.Errorf(context.Background(), "get role id error, connID: %s, err: %v", s.connID, err)
+				return err
+			}
+			rolePid, err := role.RoleService().SpawnRole(roleID)
+			if err != nil {
+				glog.Errorf(context.Background(), "get role pid error, connID: %s, err: %v", s.connID, err)
+				return err
+			}
+			s.sessionInfo.RolePid = rolePid
+			s.Monitor(rolePid)
+		case message.MESSAGE_TYPE_DATA_PACKET:
+			rolePid := s.sessionInfo.RolePid
+			if rolePid.Node == "" {
+				glog.Errorf(context.Background(), "role pid is nil, connID: %s", s.connID)
+				return fmt.Errorf("role pid is nil")
+			}
+			// 转发消息给角色actor
+			if err := s.Send(rolePid, rawmsg); err != nil {
+				glog.Errorf(context.Background(), "send message to role error, roleID: %s, err: %v", s.sessionInfo.RoleID, err)
+				return err
+			}
 		}
 	}
 
 	return nil
-}
-
-// OnHandleCall 处理同步调用
-func (s *Session) HandleCall(from gxyactor.PID, ref gxyactor.Ref, request any) (any, error) {
-	s.updateLastActive()
-	return nil, nil
 }
 
 // OnTerminate 终止处理

@@ -15,7 +15,7 @@ const (
 	SESSIONMGR_MSG_STOP_SESSION   = "stop_session"
 )
 
-type sessionmgr_msg_stop struct {
+type sessionmgrMsgStop struct {
 	Ep     endpoint.Endpoint
 	Reason error
 }
@@ -72,26 +72,22 @@ func (ss *sessionSupervisor) Init(args ...any) (act.SupervisorSpec, error) {
 	return spec, nil
 }
 
-func (ss *sessionSupervisor) HandleMessage(from gen.PID, msg any) error {
+func (ss *sessionSupervisor) OnHandleMessage(from gen.PID, msg gxyactor.ActorMessage) error {
 	var err error
-	switch msg := msg.(type) {
-	case *ActorMessage:
-		switch msg.MsgType {
-		case SESSIONMGR_MSG_CREATE_SESSION:
-			err = ss.createSession(msg.Data.(endpoint.Endpoint))
-		case SESSIONMGR_MSG_STOP_SESSION:
-			stopMsg := msg.Data.(sessionmgr_msg_stop)
-			err = ss.stopSession(stopMsg.Ep, stopMsg.Reason)
-		}
+	switch msg.Name {
+	case SESSIONMGR_MSG_CREATE_SESSION:
+		err = ss.createSession(msg.Data.(endpoint.Endpoint))
+	case SESSIONMGR_MSG_STOP_SESSION:
+		stopMsg := msg.Data.(sessionmgrMsgStop)
+		err = ss.stopSession(stopMsg.Ep, stopMsg.Reason)
+	default:
+		glog.Errorf(context.Background(), "unknown message type: %s", msg.Name)
 	}
+
 	if err != nil {
 		glog.Errorf(context.Background(), "create session failed, err: %v", err)
 	}
 	return err
-}
-
-func (ss *sessionSupervisor) HandleCall(ctx context.Context, msg any) error {
-	return nil
 }
 
 // CreateSession 创建Session Actor（通过Supervisor自动管理）
@@ -111,13 +107,13 @@ func (ss *sessionSupervisor) stopSession(ep endpoint.Endpoint, reason error) err
 // CreateSession 创建Session Actor（通过Supervisor自动管理）
 func (sm *sessionManager) CreateSession(ep endpoint.Endpoint) error {
 	// 使用Supervisor的StartChild创建并监控Session
-	err := gxyactor.ActorSystem().Send(sm.sup, NewActorMessage(SESSIONMGR_MSG_CREATE_SESSION, ep))
+	err := gxyactor.ActorSystem().Send(sm.sup, gxyactor.NewActorMessage(SESSIONMGR_MSG_CREATE_SESSION, ep))
 	return err
 }
 
 func (sm *sessionManager) StopSession(ep endpoint.Endpoint, reason error) error {
-	return gxyactor.ActorSystem().Send(sm.sup, NewActorMessage(SESSIONMGR_MSG_STOP_SESSION,
-		sessionmgr_msg_stop{
+	return gxyactor.ActorSystem().Send(sm.sup, gxyactor.NewActorMessage(SESSIONMGR_MSG_STOP_SESSION,
+		sessionmgrMsgStop{
 			Ep:     ep,
 			Reason: reason,
 		}))

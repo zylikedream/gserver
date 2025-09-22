@@ -1,5 +1,4 @@
 [server]
 	open_time = "2022-2-10 9:00:00"
-[app]
-	app_id = "1000"
-	app_type = "game"
+[node]
+    node_name = "game@127.0.0.1"
