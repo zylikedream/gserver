@@ -9,6 +9,7 @@ import (
 	"ergo.services/ergo"
 	"ergo.services/ergo/gen"
 	"ergo.services/registrar/etcd"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -61,7 +62,7 @@ func (a *actorSystem) OnInit(ctx context.Context) error {
 
 	node, err := ergo.StartNode(a.nodeName, nodeOptions)
 	if err != nil {
-		return fmt.Errorf("failed to start ergo node %s: %w", a.nodeName, err)
+		return gerror.Newf("failed to start ergo node %s: %w", a.nodeName, err)
 	}
 
 	a.node = node
