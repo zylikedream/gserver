@@ -9,9 +9,8 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
-	"gserver/core/gxyservice"
-	gxyproto "gserver/protocol/json"
-	"gserver/service"
+	"gserver/protocol/pb"
+	"gserver/service/role"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
@@ -79,33 +78,30 @@ func (s *Session) HandleMessage(from gxyactor.PID, rawMsg any) error {
 	msg := rawMsg.(message.Message)
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
-		firstPacket := gxyproto.ReqHandShake{}
+		firstPacket := pb.ReqHandShake{}
 		if err := json.Unmarshal(msg.Payload, &firstPacket); err != nil {
 			glog.Errorf(context.Background(), "unmarshal first packet error, connID: %s, err: %v", s.connID, err)
 			return err
 		}
 		s.sessionInfo.AccountUid = firstPacket.AccountUid
-		roleNode := gxyservice.ServiceModule().GetServiceNode(service.ROLE_SERVICE, gxyservice.RoundRobinSelector())
-		if roleNode.Node == "" {
-			glog.Errorf(context.Background(), "no node for role, connID: %s", s.connID)
-			return fmt.Errorf("no node for role")
-		}
-		remoteNode, err := gxyactor.ActorSystem().GetRemoteNode(roleNode.Node)
+		roleID, err := role.RoleService().GetRoleIDByAccount(firstPacket.AccountUid)
 		if err != nil {
-			glog.Errorf(context.Background(), "get node error, connID: %s, err: %v", s.connID, err)
-			return fmt.Errorf("get node error: %w", err)
+			glog.Errorf(context.Background(), "get role id error, connID: %s, err: %v", s.connID, err)
+			return err
 		}
-
-		rolePid, err := remoteNode.Spawn(gen.Atom(service.ROLE_SERVICE), gen.ProcessOptions{LinkParent: true})
+		rolePid, err := role.RoleService().SpawnRole(roleID)
 		if err != nil {
-			glog.Errorf(context.Background(), "spawn role error, connID: %s, err: %v", s.connID, err)
-			return fmt.Errorf("spawn role error: %w", err)
+			glog.Errorf(context.Background(), "get role pid error, connID: %s, err: %v", s.connID, err)
+			return err
 		}
 		s.sessionInfo.RolePid = rolePid
 		s.Monitor(rolePid)
 	case message.MESSAGE_TYPE_DATA_PACKET:
 		rolePid := s.sessionInfo.RolePid
-
+		if rolePid.Node == "" {
+			glog.Errorf(context.Background(), "role pid is nil, connID: %s", s.connID)
+			return fmt.Errorf("role pid is nil")
+		}
 	}
 
 	return nil

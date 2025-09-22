@@ -1,0 +1,9 @@
+[mongo]
+	addr = "mongodb://root:test@localhost:27017/admin"
+	database = "galaxy"
+	pool_size = {min = 0, max = 20}
+	connect_timeout = "5s"
+[redis]
+	addr = "localhost:6379"
+	db = 1
+	dial_timeout = "5s"

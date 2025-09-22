@@ -1,6 +1,7 @@
 package gxyservice
 
 import (
+	"context"
 	"gserver/core/gxyactor"
 	"gserver/core/gxymodule"
 
@@ -36,7 +37,7 @@ func (s *serviceModule) LoadService(service IService) {
 	s.Services = append(s.Services, service)
 }
 
-func (s *serviceModule) OnStart() {
+func (s *serviceModule) OnStart(ctx context.Context) error {
 	node := gxyactor.ActorSystem().GetNode()
 	reg, _ := node.Network().Registrar()
 	for _, s := range s.Services {
@@ -46,6 +47,7 @@ func (s *serviceModule) OnStart() {
 			Node: gen.Atom(node.Name()),
 		})
 	}
+	return nil
 }
 
 func (s *serviceModule) GetServiceNode(service string, selector ServiceSelector) ServiceNode {

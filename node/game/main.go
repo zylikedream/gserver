@@ -4,9 +4,11 @@ import (
 	"context"
 	"os"
 
-	"gserver/core/gxynet"
+	"gserver/core/gxymongo"
 	"gserver/core/gxynode"
-	"gserver/node/gateway/internal/logic"
+	"gserver/core/gxyredis"
+	"gserver/core/gxyservice"
+	"gserver/service/role"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -15,9 +17,13 @@ import (
 )
 
 func Init() {
-	node := gxynode.InitNode("config/gate.toml")
-	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("gate.toml")
-	node.LoadModule(gxynet.NewNetwork("config/gate.net.toml", logic.NewGateHandler()))
+	node := gxynode.InitNode("config/game.toml")
+	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/game.toml")
+	node.LoadModule(gxyredis.NewRedisClient("config/game.db.toml"))
+	node.LoadModule(gxymongo.NewMongoClient("config/game.db.toml"))
+	svc := gxyservice.NewService()
+	node.LoadModule(svc)
+	svc.LoadService(role.RoleService())
 }
 
 func main() {

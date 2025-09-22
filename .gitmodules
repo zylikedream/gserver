@@ -1,0 +1,6 @@
+[submodule "protocol"]
+	path = protocol
+	url = git@gitee.com:zylikedream/mahong-protocol.git
+[submodule "gameconfig"]
+	path = gameconfig
+	url = git@gitee.com:zylikedream/config_server_go.git

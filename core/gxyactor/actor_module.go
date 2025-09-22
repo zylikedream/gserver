@@ -38,7 +38,7 @@ func NewActorSystem(nodeName gen.Atom, cookie string) *actorSystem {
 }
 
 // OnInit Actor模块初始化 - 启动节点
-func (a *actorSystem) OnStart(ctx context.Context) error {
+func (a *actorSystem) OnInit(ctx context.Context) error {
 	if err := a.Module.OnInit(ctx); err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func (a *actorSystem) Spawn(factory gen.ProcessFactory, options gen.ProcessOptio
 }
 
 // Send 发送消息（异步）
-func (a *actorSystem) Send(pid gen.PID, message any) error {
+func (a *actorSystem) Send(pid any, message any) error {
 	if a.node == nil {
 		return fmt.Errorf("node not initialized")
 	}

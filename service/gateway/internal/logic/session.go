@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,12 +9,13 @@ import (
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 	"gserver/core/gxyservice"
-	gxyproto "gserver/protocol/json"
+	"gserver/protocol/pb"
 	"gserver/service"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/os/glog"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -79,8 +79,8 @@ func (s *Session) HandleMessage(from gxyactor.PID, rawMsg any) error {
 	msg := rawMsg.(message.Message)
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
-		firstPacket := gxyproto.ReqHandShake{}
-		if err := json.Unmarshal(msg.Payload, &firstPacket); err != nil {
+		firstPacket := &pb.ReqHandShake{}
+		if err := proto.Unmarshal(msg.Payload, firstPacket); err != nil {
 			glog.Errorf(context.Background(), "unmarshal first packet error, connID: %s, err: %v", s.connID, err)
 			return err
 		}

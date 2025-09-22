@@ -62,6 +62,6 @@ func (a *node) Node() string {
 
 func (a *node) LoadModule(mod gxymodule.IModule) {
 	if err := a.rootModule.AddModule(context.Background(), mod); err != nil {
-		glog.Fatalf(context.Background(), "add module %v err: %s", mod.GetName(), err)
+		glog.Fatalf(context.Background(), "add module %v err: %+v", mod.GetName(), err)
 	}
 }
