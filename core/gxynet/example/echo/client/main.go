@@ -11,7 +11,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"gserver/core/gxynet/endpoint"
@@ -23,11 +22,13 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 )
 
-var wg sync.WaitGroup
 var ctx = context.Background()
 
 func main() {
 	EchoClient()
+}
+
+func init() {
 }
 
 type EchoEventHandler struct {
@@ -36,7 +37,7 @@ type EchoEventHandler struct {
 
 func (e *EchoEventHandler) OnOpen(conn endpoint.Endpoint) error {
 	glog.Infof(ctx, "conn open, addr=%s", conn.Conn().RemoteAddr())
-	// go run(conn)
+	go run(conn)
 	return nil
 }
 
@@ -60,13 +61,17 @@ func run(sess endpoint.Endpoint) {
 		msg := &proto.EchoReq{
 			Msg: fmt.Sprintf("hello %d", i),
 		}
-		if err := sess.SendMsg(msg); err != nil {
+		if err := SendMsg(sess, msg); err != nil {
 			glog.Error(ctx, "send error", zap.Error(err))
 			break
 		}
 		i++
 		time.Sleep(time.Second * 5)
 	}
+}
+
+func SendMsg(ep endpoint.Endpoint, msg any) error {
+	return ep.SendMsg(msg)
 }
 
 func EchoClient() {

@@ -10,15 +10,16 @@ import (
 
 func init() {
 	// codec, _ = message.NewMessageCodec(message.MESSAGE_PROTOBUF)
-	edf.RegisterTypeOf(&message.Message{})
-	edf.RegisterTypeOf(&ActorMessage{})
+	edf.RegisterTypeOf(message.Message{})
+	edf.RegisterTypeOf(ActorMessage{})
 }
 
 // 消息类型常量
 const (
-	MsgSystem = "system"
-	MsgClient = "client"
-	MsgTimer  = "timer"
+	MsgSystem    = "system"
+	MsgClientReq = "clientReq"
+	MsgServerRsp = "serverRsp"
+	MsgTimer     = "timer"
 )
 
 type ActorMessage struct {

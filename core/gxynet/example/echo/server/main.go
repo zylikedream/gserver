@@ -8,10 +8,19 @@ import (
 	"gserver/core/gxynet/message"
 
 	"github.com/gogf/gf/v2/os/glog"
+	"go.uber.org/zap"
 	protobuf "google.golang.org/protobuf/proto"
 )
 
 var ctx = context.Background()
+
+func init() {
+	var err error
+	if err != nil {
+		glog.Fatalf(ctx, "NewMessageCodec failed", zap.Namespace("new failed"), zap.Error(err))
+		return
+	}
+}
 
 func main() {
 	EchoServer()
@@ -41,8 +50,12 @@ func (e *EchoEventHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message)
 		Code: 0,
 		Msg:  req.Msg,
 	}
-	ep.SendMsg(rsp)
+	SendMsg(ep, rsp)
 	return nil
+}
+
+func SendMsg(ep endpoint.Endpoint, msg any) error {
+	return ep.SendMsg(msg)
 }
 
 func EchoServer() {

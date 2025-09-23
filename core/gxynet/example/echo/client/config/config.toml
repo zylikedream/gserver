@@ -6,7 +6,6 @@
 
 [processor]
 	packet = "ltiv" # 解包的解码器
-	message = "protobuf" # 消息类型
 
 
 [packet.ltiv] # 解码配置

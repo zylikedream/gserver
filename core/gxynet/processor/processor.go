@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 
+	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"
 	"gserver/core/gxynet/packet"
 	"gserver/util"
@@ -19,11 +20,12 @@ type Processor interface {
 
 type processorConfig struct {
 	PacketCodecType  string `toml:"packet"`
-	MessageCodecType string `toml:"message"`
+	MessageCodecType string `toml:"codec"`
 }
 
 type processor struct {
 	pktCodec packet.PacketCodec
+	msgCodec codec.IMessageCodec
 	conf     *processorConfig
 }
 
@@ -39,6 +41,10 @@ func NewProcessor(c *gcfg.Config) (Processor, error) {
 	if err != nil {
 		return nil, err
 	}
+	proc.msgCodec, err = codec.NewMessageCodec(conf.MessageCodecType)
+	if err != nil {
+		return nil, err
+	}
 	return proc, nil
 }
 
@@ -47,10 +53,25 @@ func (p *processor) Decode(data []byte) (uint64, *message.Message, error) {
 	if err == packet.ErrPkgBodyNotEnough || err == packet.ErrPkgHeadNotEnough { // 数据不足够，不算错误
 		return 0, nil, nil
 	}
+	msg.Msg = codec.MessageMetaByID(msg.Path).NewInstance()
+	if err = p.msgCodec.Decode(msg.Msg, msg.Payload); err != nil {
+		return 0, nil, err
+	}
+	// 清空payload，避免占用内存
+	msg.Payload = []byte{}
 	return pkgLen, msg, err
 }
 
 func (p *processor) Encode(msg *message.Message) ([]byte, error) {
+	if len(msg.Payload) == 0 {
+		msg.Path = codec.MessageMetaByMsg(msg.Msg).ID
+		msg.Type = message.MESSAGE_TYPE_DATA_PACKET
+		var err error
+		msg.Payload, err = p.msgCodec.Encode(msg.Msg)
+		if err != nil {
+			return nil, err
+		}
+	}
 	data, err := p.pktCodec.Encode(msg)
 	if err != nil {
 		return nil, err

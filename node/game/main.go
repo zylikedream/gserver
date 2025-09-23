@@ -7,7 +7,6 @@ import (
 	"gserver/core/gxymongo"
 	"gserver/core/gxynode"
 	"gserver/core/gxyredis"
-	"gserver/core/gxyservice"
 	"gserver/service/role"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -21,9 +20,7 @@ func Init() {
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/game.toml")
 	node.LoadModule(gxyredis.NewRedisClient("config/game.db.toml"))
 	node.LoadModule(gxymongo.NewMongoClient("config/game.db.toml"))
-	svc := gxyservice.NewService()
-	node.LoadModule(svc)
-	svc.LoadService(role.RoleService())
+	node.LoadService(role.RoleService())
 }
 
 func main() {

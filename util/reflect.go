@@ -161,7 +161,7 @@ func (m *MsgHandler) AddHandler(handler any) {
 	}
 }
 
-func (m *MsgHandler) Call(ctx context.Context, methodName string, msg any) (interface{}, error) {
+func (m *MsgHandler) CallWithMsg(ctx context.Context, methodName string, msg any) (interface{}, error) {
 	method, ok := m.methodMap[methodName]
 	if !ok {
 		return nil, gerror.Newf("no method handler (%s)", methodName)

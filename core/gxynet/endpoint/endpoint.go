@@ -10,14 +10,11 @@ package endpoint
 
 import (
 	"net"
-
-	"gserver/core/gxynet/message"
 )
 
 type Endpoint interface {
-	SendData(data []byte, path string, opts ...message.MessageOptionFunc) error
-	SendMsg(msg any, opts ...message.MessageOptionFunc) error
-	SendRaw(msg *message.Message, opts ...message.MessageOptionFunc) error
+	SendData(data []byte, path string) error
+	SendMsg(msg any) error
 	Conn() net.Conn
 	GetData() interface{}
 	SetData(interface{})

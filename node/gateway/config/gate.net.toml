@@ -4,11 +4,10 @@
 [peer.tcp_server]
 	addr = ":10086"
 
-[message]
-	codec = "json" # 消息类型
 
 [processor]
 	packet = "ltpv" # 解包的解码器
+	codec = "json" # 消息类型
 
 [packet.ltpv] # 解码配置
 	size_length = 2 #包大小字段的长度

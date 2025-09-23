@@ -4,9 +4,8 @@ import (
 	"context"
 	"os"
 
-	"gserver/core/gxynet"
 	"gserver/core/gxynode"
-	"gserver/node/gateway/internal/logic"
+	"gserver/service/gateway"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -17,7 +16,8 @@ import (
 func Init() {
 	node := gxynode.InitNode("config/gate.toml")
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("gate.toml")
-	node.LoadModule(gxynet.NewNetwork("config/gate.net.toml", logic.NewGateHandler()))
+	node.LoadService(gateway.GateService())
+	// node.LoadModule(gxynet.NewNetwork("config/gate.net.toml", gateway.NewGateHandler()))
 }
 
 func main() {

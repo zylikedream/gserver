@@ -7,17 +7,21 @@ import (
 	"gserver/core/gxylocator"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
+	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"
+	"gserver/service/role/roleconsts"
 	"gserver/util"
 	"time"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -39,23 +43,25 @@ type RoleMain struct {
 
 	timer      *gxyactor.ActorTimer
 	modsHash   map[string]uint64
-	locator    *gxylocator.Locator
 	msgHandler *util.MsgHandler
+	reason     string
+
+	opt     RoleMainOption
+	session gen.PID
 }
 
 func NewRoleMain(opt RoleMainOption) *RoleMain {
 	return &RoleMain{
 		modsHash:   map[string]uint64{},
-		locator:    opt.Locator,
 		msgHandler: util.NewMsgHandler(),
+		opt:        opt,
 	}
 }
 
 func (r *RoleMain) Init(args ...any) error {
-	RoleID, ok := args[0].(int64)
-	if !ok {
-		return fmt.Errorf("args[0] is not string")
-	}
+	Reason, _ := args[0].(string)
+	RoleID, _ := args[1].(int64)
+	r.reason = Reason
 	r.RoleID = RoleID
 	if err := r.registerRole(RoleID); err != nil {
 		return err
@@ -76,7 +82,7 @@ func (r *RoleMain) Init(args ...any) error {
 
 func (r *RoleMain) OnHandleMessage(from gen.PID, msg gxyactor.ActorMessage) error {
 	switch msg.Name {
-	case "init_role":
+	case ROLE_MSG_INIT:
 		if err := r.initRole(); err != nil {
 			return err
 		}
@@ -87,23 +93,36 @@ func (r *RoleMain) OnHandleMessage(from gen.PID, msg gxyactor.ActorMessage) erro
 			return nil
 		}
 		data.Fun(context.Background(), data.Time)
-	case gxyactor.MsgClient:
-		data, ok := msg.Data.(message.Message)
+	case gxyactor.MsgClientReq:
+		if r.session != from {
+			glog.Errorf(context.Background(), "unknown message data from, session: %v, from: %v", r.session, from)
+			return nil
+		}
+		req, ok := msg.Data.(message.Message)
 		if !ok {
 			glog.Errorf(context.Background(), "unknown message data type: %T", msg.Data)
 			return nil
 		}
-		meta := r.msgHandler.GetMethodMeta(data.Path)
+		methodName := req.Path
+		meta := r.msgHandler.GetMethodMeta(methodName)
 		if meta == nil {
-			glog.Errorf(context.Background(), "unknown method meta, roleID: %d, method: %s", r.RoleID, data.Path)
+			return gerror.Newf("no method meta (%s)", methodName)
+		}
+		rsp, err := r.msgHandler.CallWithMsg(context.Background(), methodName, req.Msg)
+		if err != nil {
+			glog.Errorf(context.Background(), "handle call error, roleID: %d, method: %s, err: %v", r.RoleID, req.Path, err)
 			return nil
 		}
-		req, err := r.msgHandler.(meta, data.Payload)
-		if err != nil {
-			glog.Errorf(context.Background(), "decode msg failed, roleID: %d, method: %s, err: %v", r.RoleID, data.Path, err)
-			break
+		if rsp == nil {
+			return nil
 		}
-		err = r.doCall(ctx, msg.Method, req, msg.Meta)
+		if r, ok := rsp.(proto.Message); ok {
+			rsp = codec.NewProtoMessageWrapper(r)
+		}
+		if err := r.Send(from, gxyactor.NewActorMessage(gxyactor.MsgServerRsp, rsp)); err != nil {
+			return err
+		}
+		return nil
 	default:
 		glog.Errorf(context.Background(), "unknown message type: %s", msg.Name)
 	}
@@ -123,6 +142,9 @@ func (r *RoleMain) initRole() error {
 	r.msgHandler.AddHandler(r)
 	for _, mod := range r.Modules() {
 		r.msgHandler.AddHandler(mod)
+	}
+	if r.reason == roleconsts.ROLE_SPAWN_REASON_FRIST_PACKET {
+		r.session = r.Parent()
 	}
 	return nil
 }
@@ -179,10 +201,10 @@ func (r *RoleMain) Terminate(reason error) {
 }
 
 func (r *RoleMain) registerRole(roleID int64) error {
-	return r.locator.Register(context.Background(), fmt.Sprintf("%d", roleID),
+	return r.opt.Locator.Register(context.Background(), fmt.Sprintf("%d", roleID),
 		gxyactor.ActorSystem().GetNodeName())
 }
 
 func (r *RoleMain) unRegisterRole(roleID int64) error {
-	return r.locator.Unregister(context.Background(), fmt.Sprintf("%d", roleID))
+	return r.opt.Locator.Unregister(context.Background(), fmt.Sprintf("%d", roleID))
 }

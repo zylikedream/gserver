@@ -41,6 +41,13 @@ func (s *serviceModule) OnStart(ctx context.Context) error {
 	node := gxyactor.ActorSystem().GetNode()
 	reg, _ := node.Network().Registrar()
 	for _, s := range s.Services {
+		if err := s.OnStart(ctx); err != nil {
+			return err
+		}
+		worker := s.Worker()
+		if worker == nil {
+			continue
+		}
 		node.Network().EnableSpawn(gen.Atom(s.Name()), gen.ProcessFactory(s.Worker()))
 		reg.RegisterApplicationRoute(gen.ApplicationRoute{
 			Name: gen.Atom(string(s.Name())),

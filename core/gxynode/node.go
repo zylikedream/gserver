@@ -5,6 +5,7 @@ import (
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxymodule"
+	"gserver/core/gxyservice"
 
 	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -27,7 +28,9 @@ func InitNode(config string) *node {
 	cfg := gcfg.Instance(config)
 	ctx := context.Background()
 	n.nodeName = cfg.MustGet(ctx, "node.node_name").String()
+	svc := gxyservice.NewService()
 	n.LoadModule(gxyactor.NewActorSystem(gen.Atom(n.nodeName), ""))
+	n.LoadModule(svc)
 	return n
 }
 
@@ -54,4 +57,8 @@ func (a *node) LoadModule(mod gxymodule.IModule) {
 	if err := a.rootModule.AddModule(context.Background(), mod); err != nil {
 		glog.Fatalf(context.Background(), "add module %v err: %+v", mod.GetName(), err)
 	}
+}
+
+func (a *node) LoadService(svc gxyservice.IService) {
+	gxyservice.ServiceModule().LoadService(svc)
 }

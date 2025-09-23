@@ -50,7 +50,7 @@ func (a *actorSystem) OnInit(ctx context.Context) error {
 	}
 	regist, err := etcd.Create(registrarOptions)
 	if err != nil {
-		return err
+		return gerror.Wrap(err, "failed to create etcd registrar")
 	}
 	// v3.1.0 API：StartNode(name gen.Atom, options gen.NodeOptions)
 	// Cookie 在 NetworkOptions.Cookie 中设置

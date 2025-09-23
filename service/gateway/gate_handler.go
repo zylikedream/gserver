@@ -1,4 +1,4 @@
-package logic
+package gateway
 
 import (
 	"context"
@@ -24,12 +24,13 @@ func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
 	glog.Debugf(context.Background(), "New connection: %s", connID)
 
 	// 通过SessionManager创建Session Actor
-	sessionMgr := SessionManager()
-	err := sessionMgr.CreateSession(ep)
+	sessPid, err := GateService().SpawnSession(ep)
 	if err != nil {
 		glog.Errorf(context.Background(), "Failed to create session for %s: %v", connID, err)
 		ep.Conn().Close()
 	}
+	ep.SetData(sessPid)
+	glog.Debugf(context.Background(), "Session Actor created with PID: %v", sessPid)
 	return nil
 }
 
@@ -39,12 +40,14 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 		glog.Errorf(context.Background(), "Failed to get session from endpoint data")
 		return nil
 	}
-	gxyactor.ActorSystem().Send(sessPid, gxyactor.NewActorMessage(gxyactor.MsgClient, *msg))
+	gxyactor.ActorSystem().Send(sessPid, gxyactor.NewActorMessage(gxyactor.MsgClientReq, *msg))
 	// 消息将直接由Session Actor处理
 	return nil
 }
 
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
-	sessionMgr := SessionManager()
-	sessionMgr.StopSession(ep, err)
+	sessPid, ok := ep.GetData().(gen.PID)
+	if ok {
+		GateService().StopSession(sessPid)
+	}
 }

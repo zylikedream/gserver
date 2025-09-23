@@ -37,14 +37,18 @@ func (t *TcpEndpoint) DecodeMsg(data []byte) (*message.Message, int, error) {
 	return msg, int(pkgLen), nil
 }
 
-func (t *TcpEndpoint) SendData(data []byte, path string, opts ...message.MessageOptionFunc) error {
-	msg, err := message.NewMessageRaw(data, path, opts...)
-	if err != nil {
-		return err
-	}
-	return t.SendRaw(msg)
+func (t *TcpEndpoint) SendData(data []byte, path string) error {
+	msg := message.NewMessage(data, path)
+	return t.sendRaw(msg)
 }
-func (t *TcpEndpoint) SendRaw(msg *message.Message, opts ...message.MessageOptionFunc) error {
+
+func (t *TcpEndpoint) SendMsg(msg any) error {
+	return t.sendRaw(&message.Message{
+		Msg: msg,
+	})
+}
+
+func (t *TcpEndpoint) sendRaw(msg *message.Message) error {
 	payload, err := t.proc.Encode(msg)
 	if err != nil {
 		return err
@@ -53,14 +57,6 @@ func (t *TcpEndpoint) SendRaw(msg *message.Message, opts ...message.MessageOptio
 		return err
 	}
 	return nil
-}
-
-func (t *TcpEndpoint) SendMsg(msg any, opts ...message.MessageOptionFunc) error {
-	message, err := message.NewNetMessage(msg, opts...)
-	if err != nil {
-		return err
-	}
-	return t.SendRaw(message)
 }
 
 func (t *TcpEndpoint) Close(ctx context.Context, err error) {

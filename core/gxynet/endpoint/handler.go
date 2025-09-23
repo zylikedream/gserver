@@ -1,8 +1,6 @@
 package endpoint
 
-import (
-	"gserver/core/gxynet/message"
-)
+import "gserver/core/gxynet/message"
 
 type EventHandler interface {
 	OnOpen(Endpoint) error

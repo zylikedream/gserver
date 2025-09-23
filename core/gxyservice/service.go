@@ -1,10 +1,15 @@
 package gxyservice
 
-import "ergo.services/ergo/gen"
+import (
+	"gserver/core/gxymodule"
+
+	"ergo.services/ergo/gen"
+)
 
 type WorkerCreator func() gen.ProcessBehavior
 
 type IService interface {
+	gxymodule.IModule
 	Name() string
 	Worker() WorkerCreator
 }
