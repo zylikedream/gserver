@@ -9,7 +9,6 @@ import (
 	"gserver/core/gxymongo"
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"
-	"gserver/service/role/roleconsts"
 	"gserver/util"
 	"time"
 
@@ -142,9 +141,6 @@ func (r *RoleMain) initRole() error {
 	r.msgHandler.AddHandler(r)
 	for _, mod := range r.Modules() {
 		r.msgHandler.AddHandler(mod)
-	}
-	if r.reason == roleconsts.ROLE_SPAWN_REASON_FRIST_PACKET {
-		r.session = r.Parent()
 	}
 	return nil
 }

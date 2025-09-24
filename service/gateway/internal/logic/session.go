@@ -11,7 +11,6 @@ import (
 	"gserver/core/gxynet/message"
 	"gserver/protocol/pb"
 	"gserver/service/role"
-	"gserver/service/role/roleconsts"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
@@ -38,7 +37,7 @@ type SessionInfo struct {
 	RoleID      string    // 玩家ID（认证后才有）
 	ConnectTime time.Time // 连接时间
 	LastActive  time.Time // 最后活跃时间
-	RolePid     gen.PID
+	RolePrgID   gen.ProcessID
 }
 
 // Session 会话Actor，继承自ActorBase
@@ -91,22 +90,22 @@ func (s *Session) OnHandleMessage(from gxyactor.PID, rawmsg gxyactor.ActorMessag
 				glog.Errorf(context.Background(), "get role id error, err: %v", err)
 				return err
 			}
-			rolePid, err := role.RoleService().SpawnRole(roleID, roleconsts.ROLE_SPAWN_REASON_FRIST_PACKET)
+			rolePrgID, err := role.RoleService().StartRole(roleID)
 			if err != nil {
 				glog.Errorf(context.Background(), "get role pid error, err: %v", err)
 				return err
 			}
-			s.sessionInfo.RolePid = rolePid
-			s.Monitor(rolePid)
+			s.sessionInfo.RolePrgID = rolePrgID
+			s.Monitor(rolePrgID)
 			s.state = StateAuthenticated
 		case message.MESSAGE_TYPE_DATA_PACKET:
-			rolePid := s.sessionInfo.RolePid
-			if rolePid.Node == "" {
+			rolePrgID := s.sessionInfo.RolePrgID
+			if rolePrgID.Node == "" {
 				glog.Error(context.Background(), "role pid is nil")
 				return fmt.Errorf("role pid is nil")
 			}
 			// 转发消息给角色actor
-			if err := s.Send(rolePid, rawmsg); err != nil {
+			if err := s.Send(rolePrgID, rawmsg); err != nil {
 				glog.Errorf(context.Background(), "send message to role error, roleID: %s, err: %v", s.sessionInfo.RoleID, err)
 				return err
 			}
