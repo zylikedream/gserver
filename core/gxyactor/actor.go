@@ -7,7 +7,6 @@ import (
 	"gserver/core/gxymodule"
 
 	"ergo.services/ergo"
-	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"ergo.services/registrar/etcd"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -87,31 +86,22 @@ func (a *actorSystem) SpawnRegister(name string, factory gen.ProcessFactory, opt
 		return gen.PID{}, fmt.Errorf("node not initialized")
 	}
 
-	pid, err := a.node.SpawnRegister(gen.Atom(name), wrapFactory(factory), options, args)
+	pid, err := a.node.SpawnRegister(gen.Atom(name), factory, options, args...)
 	if err != nil {
-		return gen.PID{}, fmt.Errorf("failed to spawn actor %s: %w", name, err)
+		return gen.PID{}, gerror.Wrap(err, "failed to spawn actor")
 	}
 
 	return pid, nil
 }
 
-func wrapFactory(factory gen.ProcessFactory) gen.ProcessFactory {
-	return func() gen.ProcessBehavior {
-		base := factory().(*ActorBase)
-		base.msgBehavior = base
-		base.callBehavior = base
-		return base
-	}
-}
-
 func (a *actorSystem) Spawn(factory gen.ProcessFactory, options gen.ProcessOptions, args ...any) (gen.PID, error) {
 	if a.node == nil {
-		return gen.PID{}, fmt.Errorf("node not initialized")
+		return gen.PID{}, gerror.New("node not initialized")
 	}
 
-	pid, err := a.node.Spawn(wrapFactory(factory), options, args)
+	pid, err := a.node.Spawn(factory, options, args...)
 	if err != nil {
-		return gen.PID{}, fmt.Errorf("failed to spawn actor : %w", err)
+		return gen.PID{}, gerror.Wrap(err, "failed to spawn actor ")
 	}
 
 	return pid, nil
@@ -147,31 +137,4 @@ func (a *actorSystem) StopActor(pid gen.PID) error {
 	}
 
 	return a.node.Kill(pid)
-}
-
-type ActorBaseMessageBehavior interface {
-	OnHandleMessage(from gen.PID, msg ActorMessage) (any, error)
-}
-type ActorBaseCallBehavior interface {
-	OnHandleCall(from gen.PID, msg ActorMessage) (any, error)
-}
-
-type ActorBase struct {
-	msgBehavior  ActorBaseMessageBehavior
-	callBehavior ActorBaseCallBehavior
-	act.Actor
-}
-
-func (a *ActorBase) HandleMessage(from gen.PID, msg any) (any, error) {
-	return a.msgBehavior.OnHandleMessage(from, msg.(ActorMessage))
-}
-
-func (a *ActorBase) HandleCall(from gen.PID, msg any) (any, error) {
-	return a.callBehavior.OnHandleCall(from, msg.(ActorMessage))
-}
-func (a *ActorBase) OnHandleMessage(from gen.PID, msg ActorMessage) (any, error) {
-	return nil, nil
-}
-func (a *ActorBase) OnHandleCall(from gen.PID, msg ActorMessage) (any, error) {
-	return nil, nil
 }

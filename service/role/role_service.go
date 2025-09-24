@@ -6,14 +6,18 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxylocator"
 	"gserver/core/gxymodule"
+	"gserver/core/gxymongo"
 	"gserver/core/gxyservice"
 	"gserver/service"
 	"gserver/service/role/internal/logic"
+	"gserver/util/uid"
 	"time"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/os/glog"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type roleService struct {
@@ -21,16 +25,18 @@ type roleService struct {
 	roleNodeLocator *gxylocator.Locator
 }
 
-var roleServiceInstance *roleService
-
-func init() {
-	roleServiceInstance = newRoleService()
+type RoleAccount struct {
+	Account string `bson:"account"`
+	RoleID  int64  `bson:"role_id"`
 }
 
-func newRoleService() *roleService {
-	return &roleService{
+var roleServiceInstance *roleService
+
+func NewRoleService() *roleService {
+	roleServiceInstance = &roleService{
 		roleNodeLocator: gxylocator.NewNodeLocator("role", 30*time.Second),
 	}
+	return roleServiceInstance
 }
 
 func RoleService() *roleService {
@@ -75,7 +81,32 @@ func (s *roleService) spawnRole(roleID int64) (gen.PID, error) {
 }
 
 func (s *roleService) GetRoleIDByAccount(account string) (int64, error) {
-	return 0, nil
+	roleAccount := &RoleAccount{
+		Account: account,
+	}
+	err := gxymongo.Client().FindOne(context.Background(), &roleAccount, "role_account", bson.M{"account": account})
+	if err != nil && err != mongo.ErrNoDocuments {
+		return 0, err
+	} else {
+		roleID, err := s.genRoleID()
+		if err != nil {
+			return 0, err
+		}
+		if _, err := gxymongo.Client().InsertOne(context.Background(), "role_account", roleAccount); err != nil {
+			return 0, err
+		}
+		roleAccount.RoleID = roleID
+	}
+	return roleAccount.RoleID, nil
+}
+
+func (s *roleService) genRoleID() (int64, error) {
+	var offset int64 = 100000
+	uid, err := uid.UidGen().GenAutoIncID("role")
+	if err != nil {
+		return 0, err
+	}
+	return uid + offset, nil
 }
 
 func (s *roleService) StartRole(roleID int64) (gen.ProcessID, error) {

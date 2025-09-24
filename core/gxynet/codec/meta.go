@@ -11,14 +11,14 @@ import (
 
 var (
 	// 消息元信息与消息名称，消息ID和消息类型的关联关系
-	metaByFullName = map[string]*MessageMeta{}
-	metaByID       = map[string]*MessageMeta{}
+	metaByName = map[string]*MessageMeta{}
+	metaByID   = map[string]*MessageMeta{}
 )
 
 type MessageMeta struct {
-	ID       string
-	FullName string
-	Type     reflect.Type
+	ID   string
+	Name string
+	Type reflect.Type
 }
 
 func fullName(t reflect.Type) string {
@@ -56,12 +56,12 @@ func RegisterMessageMeta(ID string, msg any) *MessageMeta {
 	if meta.Type.Kind() == reflect.Ptr {
 		meta.Type = meta.Type.Elem()
 	}
-	meta.FullName = fullName(meta.Type)
+	meta.Name = meta.Type.Name()
 
-	if _, ok := metaByFullName[meta.FullName]; ok {
-		panic(fmt.Sprintf("Duplicate message meta register by fullname: %s", meta.FullName))
+	if _, ok := metaByName[meta.Name]; ok {
+		panic(fmt.Sprintf("Duplicate message meta register by fullname: %s", meta.Name))
 	} else {
-		metaByFullName[meta.FullName] = meta
+		metaByName[meta.Name] = meta
 	}
 
 	if meta.ID == "" {
@@ -77,49 +77,6 @@ func RegisterMessageMeta(ID string, msg any) *MessageMeta {
 	return meta
 }
 
-// func parseProtoFiles(protoPath string) []string {
-// 	var ctx = context.Background()
-// 	dir, _ := os.Getwd()
-// 	glog.Info(ctx, "curdir = ", dir)
-// 	pbfiles, err := os.ReadDir(protoPath)
-// 	if err != nil {
-// 		glog.Errorf(ctx, "read dir %s failed:%s", protoPath, err)
-// 		return nil
-// 	}
-// 	pbFiles := []string{}
-// 	for _, f := range pbfiles {
-// 		if f.IsDir() {
-// 			continue
-// 		}
-// 		if strings.HasSuffix(f.Name(), ".proto") {
-// 			pbFiles = append(pbFiles, f.Name())
-// 		}
-// 	}
-// 	return pbFiles
-// }
-
-// func RegisterProtoFiles(protoPath string) error {
-// 	files := parseProtoFiles(protoPath)
-// 	for _, pbName := range files {
-// 		file, err := protoregistry.GlobalFiles.FindFileByPath(pbName)
-// 		if err != nil {
-// 			fmt.Printf("find pb error:%s filename:%s\n", err, pbName)
-// 			continue
-// 		}
-// 		msgs := file.Messages()
-// 		for i := 0; i < msgs.Len(); i++ {
-// 			msg := msgs.Get(i)
-// 			msgType, err := protoregistry.GlobalTypes.FindMessageByName(msg.FullName())
-// 			if err != nil {
-// 				return err
-// 			}
-// 			pbMsg := msgType.New().Interface()
-// 			RegisterMessageMeta(string(msg.Name()), pbMsg)
-// 		}
-// 	}
-// 	return nil
-// }
-
 func MessageMetaByID(id string) *MessageMeta {
 	if v, ok := metaByID[id]; ok {
 		return v
@@ -129,7 +86,7 @@ func MessageMetaByID(id string) *MessageMeta {
 }
 
 func MessageMetaByName(name string) *MessageMeta {
-	if v, ok := metaByFullName[name]; ok {
+	if v, ok := metaByName[name]; ok {
 		return v
 	}
 

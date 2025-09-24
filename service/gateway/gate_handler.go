@@ -26,8 +26,9 @@ func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
 	// 通过SessionManager创建Session Actor
 	sessPid, err := GateService().SpawnSession(ep)
 	if err != nil {
-		glog.Errorf(context.Background(), "Failed to create session for %s: %v", connID, err)
+		glog.Errorf(context.Background(), "Failed to create session for %s: %+v", connID, err)
 		ep.Conn().Close()
+		return err
 	}
 	ep.SetData(sessPid)
 	glog.Debugf(context.Background(), "Session Actor created with PID: %v", sessPid)

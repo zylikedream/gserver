@@ -12,8 +12,8 @@ import (
 	"gserver/protocol/pb"
 	"gserver/service/role"
 
-	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -42,7 +42,7 @@ type SessionInfo struct {
 
 // Session 会话Actor，继承自ActorBase
 type Session struct {
-	act.Actor
+	gxyactor.ActorBase
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
 	sessionInfo *SessionInfo      // 会话信息
@@ -56,9 +56,13 @@ func NewSession() *Session {
 // OnInit Actor初始化
 func (s *Session) Init(args ...any) error {
 	if len(args) < 1 {
-		return fmt.Errorf("session init args error, expect connID and endpoint, got %d", len(args))
+		return gerror.Newf("session init args error, expect connID and endpoint, got %d", len(args))
 	}
-	s.endpoint = args[0].(endpoint.Endpoint)
+	var ok bool
+	s.endpoint, ok = args[0].(endpoint.Endpoint)
+	if !ok {
+		return gerror.Newf("args not endpoint, got %T", args[0])
+	}
 	s.endpoint.SetData(s.PID())
 	s.state = StateConnected
 	s.sessionInfo = &SessionInfo{

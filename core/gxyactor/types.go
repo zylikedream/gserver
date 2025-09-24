@@ -1,8 +1,7 @@
 package gxyactor
 
 import (
-	"context"
-
+	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 )
 
@@ -12,27 +11,6 @@ type (
 	Ref  = gen.Ref  // 引用（用于同步调用）
 	Atom = gen.Atom // 原子（节点名称等）
 )
-
-// Message 消息接口
-type Message interface {
-	GetType() string
-}
-
-// BaseMessage 基础消息
-type BaseMessage struct {
-	Type string
-}
-
-func (m BaseMessage) GetType() string {
-	return m.Type
-}
-
-// ActorContext Actor上下文
-type ActorContext struct {
-	Context context.Context
-	Self    PID
-	From    PID
-}
 
 // ActorBehavior Actor行为接口（完全抽象，依赖ergo基础类型但隐藏实现）
 type ActorBehavior interface {
@@ -47,4 +25,39 @@ type ActorBehavior interface {
 
 	// Terminate 终止处理
 	OnTerminate(reason error)
+}
+
+type ActorBaseMessageBehavior interface {
+	OnHandleMessage(from gen.PID, msg ActorMessage) error
+}
+type ActorBaseCallBehavior interface {
+	OnHandleCall(from gen.PID, msg ActorMessage) (any, error)
+}
+
+type ActorBase struct {
+	act.Actor
+	msgBehavior  ActorBaseMessageBehavior
+	callBehavior ActorBaseCallBehavior
+}
+
+func (a *ActorBase) ProcessInit(process gen.Process, args ...any) (err error) {
+	a.msgBehavior, _ = process.Behavior().(ActorBaseMessageBehavior)
+	a.callBehavior, _ = process.Behavior().(ActorBaseCallBehavior)
+	return a.Actor.ProcessInit(process, args...)
+}
+
+func (a *ActorBase) HandleMessage(from gen.PID, msg any) error {
+	return a.msgBehavior.OnHandleMessage(from, msg.(ActorMessage))
+}
+
+func (a *ActorBase) HandleCall(from gen.PID, ref gen.Ref, msg any) (any, error) {
+	return a.callBehavior.OnHandleCall(from, msg.(ActorMessage))
+}
+
+func (a *ActorBase) OnHandleMessage(from gen.PID, msg ActorMessage) error {
+	return nil
+}
+
+func (a *ActorBase) OnHandleCall(from gen.PID, msg ActorMessage) (any, error) {
+	return nil, nil
 }

@@ -16,7 +16,7 @@ import (
 func Init() {
 	node := gxynode.InitNode("config/gate.toml")
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("gate.toml")
-	node.LoadService(gateway.GateService())
+	node.LoadService(gateway.NewGateService())
 	// node.LoadModule(gxynet.NewNetwork("config/gate.net.toml", gateway.NewGateHandler()))
 }
 

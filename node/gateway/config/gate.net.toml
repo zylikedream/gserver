@@ -12,6 +12,6 @@
 [packet.ltpv] # 解码配置
 	size_length = 2 #包大小字段的长度
 	type_length = 1 # 类型字段的长度
-	path_length = 2 # 消息id长度
+	path_length = 1 # 消息id长度
 	byte_order = "little" # 字节序
 	max_size = 3145728 # 3M

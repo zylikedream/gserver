@@ -11,7 +11,6 @@ import (
 	"gserver/util"
 	"time"
 
-	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
@@ -31,7 +30,7 @@ type RoleMainOption struct {
 
 type RoleMain struct {
 	gxymodule.Module
-	act.Actor
+	gxyactor.ActorBase
 	RoleID int64
 
 	Sign  *RoleSign

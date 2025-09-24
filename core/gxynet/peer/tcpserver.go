@@ -85,7 +85,7 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	for {
 		msg, len, err := endPoint.DecodeMsg(data)
 		if err != nil {
-			glog.Errorf(context.Background(), "decode msg failed:%s, raw data:%v", err.Error(), data)
+			glog.Errorf(context.Background(), "decode msg failed:%+v, raw data:%v", err, data)
 			return gnet.Close
 		}
 
@@ -105,6 +105,6 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 func (t *TcpServer) OnClose(c gnet.Conn, err error) gnet.Action {
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
 	t.Handler.OnClose(endPoint, err)
-	glog.Errorf(ctx, "conn close %s, error %s", c.RemoteAddr().String(), err.Error())
+	glog.Errorf(ctx, "conn close %s, error %+v", c.RemoteAddr().String(), err)
 	return gnet.None
 }

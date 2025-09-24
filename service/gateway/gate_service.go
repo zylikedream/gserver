@@ -23,7 +23,7 @@ var gate *gateService
 
 func NewGateService() *gateService {
 	gate = &gateService{
-		network: gxynet.NewNetwork("config/gate.net.toml", nil),
+		network: gxynet.NewNetwork("config/gate.net.toml", NewGateHandler()),
 	}
 	return gate
 }
