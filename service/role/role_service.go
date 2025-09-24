@@ -55,6 +55,10 @@ func (s *roleService) Worker() gxyservice.WorkerCreator {
 	}
 }
 
+func (s *roleService) IsRemote() bool {
+	return true
+}
+
 func (s *roleService) spawnRole(roleID int64) (gen.PID, error) {
 	roleNode := gxyservice.ServiceModule().GetServiceNode(service.ROLE_SERVICE, gxyservice.RoundRobinSelector())
 	if roleNode.Node == "" {
@@ -78,6 +82,11 @@ func (s *roleService) spawnRole(roleID int64) (gen.PID, error) {
 		return gen.PID{}, fmt.Errorf("spawn role error: %w", err)
 	}
 	return rolePid, nil
+}
+
+func (s *roleService) OnStart(ctx context.Context) error {
+
+	return nil
 }
 
 func (s *roleService) GetRoleIDByAccount(account string) (int64, error) {

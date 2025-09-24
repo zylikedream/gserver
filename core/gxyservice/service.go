@@ -12,4 +12,5 @@ type IService interface {
 	gxymodule.IModule
 	Name() string
 	Worker() WorkerCreator
+	IsRemote() bool
 }

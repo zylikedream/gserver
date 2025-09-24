@@ -44,8 +44,7 @@ func (s *serviceModule) OnStart(ctx context.Context) error {
 		if err := s.OnStart(ctx); err != nil {
 			return err
 		}
-		worker := s.Worker()
-		if worker == nil {
+		if !s.IsRemote() {
 			continue
 		}
 		node.Network().EnableSpawn(gen.Atom(s.Name()), gen.ProcessFactory(s.Worker()))

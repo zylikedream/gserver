@@ -36,18 +36,22 @@ func (s *gateService) Name() string {
 	return service.GATE_SERVICE
 }
 
+func (s *gateService) IsRemote() bool {
+	return false
+}
+
 func (s *gateService) OnStart(ctx context.Context) error {
 	return s.network.Start(ctx)
 }
 
 func (s *gateService) Worker() gxyservice.WorkerCreator {
-	return nil
+	return func() gen.ProcessBehavior {
+		return logic.NewSession()
+	}
 }
 
 func (s *gateService) SpawnSession(ep endpoint.Endpoint) (gen.PID, error) {
-	return gxyactor.ActorSystem().Spawn(func() gen.ProcessBehavior {
-		return logic.NewSession()
-	}, gen.ProcessOptions{}, ep)
+	return gxyactor.ActorSystem().Spawn(gen.ProcessFactory(s.Worker()), gen.ProcessOptions{}, ep)
 }
 
 func (s *gateService) StopSession(pid gen.PID) error {
