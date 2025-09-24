@@ -132,6 +132,7 @@ func (a *actorSystem) GetNode() gen.Node {
 }
 
 func (a *actorSystem) GetRemoteNode(name string) (gen.RemoteNode, error) {
+
 	return a.node.Network().GetNode(gen.Atom(name))
 }
 

@@ -55,7 +55,12 @@ func (s *roleService) spawnRole(roleID int64) (gen.PID, error) {
 		glog.Errorf(context.Background(), "no node for role, roleID: %d", roleID)
 		return gen.PID{}, fmt.Errorf("no node for role")
 	}
-	remoteNode, err := gxyactor.ActorSystem().GetRemoteNode(roleNode.Node)
+	actorSys := gxyactor.ActorSystem()
+	if roleNode.Node == actorSys.GetNodeName() {
+		return actorSys.SpawnRegister(s.GetRegName(roleID), gen.ProcessFactory(s.Worker()),
+			gen.ProcessOptions{}, roleID)
+	}
+	remoteNode, err := actorSys.GetRemoteNode(roleNode.Node)
 	if err != nil {
 		glog.Errorf(context.Background(), "get node error, roleID: %d, err: %v", roleID, err)
 		return gen.PID{}, fmt.Errorf("get node error: %w", err)

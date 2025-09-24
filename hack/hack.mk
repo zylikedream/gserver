@@ -72,7 +72,7 @@ pb: cli.install
 	@proto_dir=protocol; \
 	for file in `ls $$proto_dir/*.proto`; do \
     	echo "Generating $$file"; \
-    	protoc --proto_path=$$proto_dir/ -I $$proto_dir/ --go_out=$$proto_dir/ $$file; \
+    	protoc --proto_path=$$proto_dir/ -I $$proto_dir/ --go_out=$$proto_dir/ --go-binary_out=$$proto_dir/ $$file; \
     done;
 
 # Generate protobuf files for database tables.

@@ -7,7 +7,6 @@ import (
 	"gserver/core/gxylocator"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
-	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"
 	"gserver/util"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -114,9 +112,6 @@ func (r *RoleMain) OnHandleMessage(from gen.PID, msg gxyactor.ActorMessage) erro
 		}
 		if rsp == nil {
 			return nil
-		}
-		if r, ok := rsp.(proto.Message); ok {
-			rsp = codec.NewProtoMessageWrapper(r)
 		}
 		if err := r.Send(from, gxyactor.NewActorMessage(gxyactor.MsgServerRsp, rsp)); err != nil {
 			return err
