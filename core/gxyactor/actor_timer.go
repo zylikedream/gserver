@@ -2,9 +2,9 @@ package gxyactor
 
 import (
 	"context"
+	"gserver/protocol/pb"
 	"time"
 
-	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/os/gcron"
 	"github.com/gogf/gf/v2/os/gtimer"
 	"github.com/robfig/cron/v3"
@@ -25,17 +25,13 @@ type ActorTimer struct {
 	timer          *gtimer.Timer
 	cron           *gcron.Cron
 	CronTm         time.Time `bson:"cron_tm"`
-	pid            gen.PID
+	funcs          map[string]callbackFunc
+	pid            PID
 }
 
-type TimerMsg struct {
-	Name string
-	Fun  callbackFunc
-	Time time.Time
-}
-
-func NewActorTimer(pid gen.PID) *ActorTimer {
+func NewActorTimer(pid PID) *ActorTimer {
 	return &ActorTimer{
+		funcs:          map[string]callbackFunc{},
 		cronSchedulers: map[string]*CronInstance{},
 		timer:          gtimer.New(),
 		cron:           gcron.New(),
@@ -44,23 +40,29 @@ func NewActorTimer(pid gen.PID) *ActorTimer {
 }
 
 func (s *ActorTimer) AddTick(ctx context.Context, tick *Tick, fun callbackFunc) {
+	s.funcs[tick.Name] = fun
 	s.timer.AddSingleton(ctx, tick.Tick, func(ctx context.Context) {
-		ActorSystem().Send(s.pid, NewActorMessage(MsgTimer, TimerMsg{
+		ActorSystem().Send(s.pid, &pb.ActorTimerMsg{
 			Name: tick.Name,
-			Fun:  fun,
-			Time: time.Now(),
-		}))
+			Time: time.Now().Unix(),
+		})
 	})
 }
 
+func (s *ActorTimer) Active(ctx context.Context, msg pb.ActorTimerMsg) {
+	if fun, ok := s.funcs[msg.Name]; ok {
+		fun(ctx, time.Unix(msg.Time, 0))
+	}
+}
+
 func (s *ActorTimer) AddCron(ctx context.Context, cron *Cron, fun callbackFunc) {
+	s.funcs[cron.Name] = fun
 	s.cron.AddSingleton(ctx, cron.Pattern, func(ctx context.Context) {
 		s.SetCronTm(time.Now())
-		ActorSystem().Send(s.pid, NewActorMessage(MsgTimer, TimerMsg{
+		ActorSystem().Send(s.pid, &pb.ActorTimerMsg{
 			Name: cron.Name,
-			Fun:  fun,
-			Time: time.Now(),
-		}))
+			Time: s.CronTm.Unix(),
+		})
 	})
 	s.cronSchedulers[cron.Name] = &CronInstance{cron: cron, fun: fun}
 }

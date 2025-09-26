@@ -1,10 +1,15 @@
-package gxyservice
+package gxyregistery
 
 import (
 	"math/rand"
 
 	"github.com/gogf/gf/v2/container/gmap"
 )
+
+type ServiceNode struct {
+	Name string
+	Node string
+}
 
 type ServiceSelector interface {
 	Select(service string, nodes []ServiceNode) ServiceNode

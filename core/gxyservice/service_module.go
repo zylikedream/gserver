@@ -4,17 +4,12 @@ import (
 	"context"
 	"gserver/core/gxyactor"
 	"gserver/core/gxymodule"
-
-	"ergo.services/ergo/gen"
+	"gserver/core/gxyregistery"
 )
-
-type ServiceNode struct {
-	Name string
-	Node string
-}
 
 type serviceModule struct {
 	gxymodule.Module
+	registry gxyregistery.IRegistery
 	Services []IService
 }
 
@@ -37,39 +32,41 @@ func (s *serviceModule) LoadService(service IService) {
 	s.Services = append(s.Services, service)
 }
 
-func (s *serviceModule) OnStart(ctx context.Context) error {
-	node := gxyactor.ActorSystem().GetNode()
-	reg, _ := node.Network().Registrar()
-	for _, s := range s.Services {
-		if err := s.OnStart(ctx); err != nil {
-			return err
-		}
-		if !s.IsRemote() {
-			continue
-		}
-		node.Network().EnableSpawn(gen.Atom(s.Name()), gen.ProcessFactory(s.Worker()))
-		reg.RegisterApplicationRoute(gen.ApplicationRoute{
-			Name: gen.Atom(string(s.Name())),
-			Node: gen.Atom(node.Name()),
-		})
+func (s *serviceModule) OnInit(ctx context.Context) error {
+	var err error
+	if err = s.Module.OnInit(ctx); err != nil {
+		return err
+	}
+	s.registry, err = gxyregistery.NewRegistery(gxyregistery.REGISTERY_TYPE_ETCD, "../config/service.toml")
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-func (s *serviceModule) GetServiceNode(service string, selector ServiceSelector) ServiceNode {
-	node := gxyactor.ActorSystem().GetNode()
-	reg, _ := node.Network().Registrar()
-	resolver := reg.Resolver()
-	routes, err := resolver.ResolveApplication(gen.Atom(string(service)))
+func (s *serviceModule) OnStart(ctx context.Context) error {
+	system := gxyactor.ActorSystem().GetActorSystem()
+	for _, svc := range s.Services {
+		if err := svc.OnStart(ctx); err != nil {
+			return err
+		}
+		if !svc.IsRemote() {
+			continue
+		}
+		system.Register(ctx, svc.Worker())
+
+		if err := s.registry.Register(ctx, svc.Name(), system.Host()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *serviceModule) GetServiceNode(service string, selector gxyregistery.ServiceSelector) gxyregistery.ServiceNode {
+	nodes, err := s.registry.Search(context.Background(), service)
 	if err != nil {
-		return ServiceNode{}
+		return gxyregistery.ServiceNode{}
 	}
-	serviceNodes := make([]ServiceNode, 0)
-	for _, route := range routes {
-		serviceNodes = append(serviceNodes, ServiceNode{
-			Name: service,
-			Node: route.Node.String(),
-		})
-	}
-	return selector.Select(service, serviceNodes)
+
+	return selector.Select(service, nodes)
 }

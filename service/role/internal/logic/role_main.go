@@ -30,7 +30,6 @@ type RoleMainOption struct {
 
 type RoleMain struct {
 	gxymodule.Module
-	gxyactor.ActorBase
 	RoleID int64
 
 	Sign  *RoleSign
@@ -76,7 +75,7 @@ func (r *RoleMain) Init(args ...any) error {
 	return nil
 }
 
-func (r *RoleMain) OnHandleMessage(from gen.PID, msg gxyactor.ActorMessage) error {
+func (r *RoleMain) Recive(ctx *actor.ReciveContext) error {
 	switch msg.Name {
 	case ROLE_MSG_INIT:
 		if err := r.initRole(); err != nil {
@@ -181,7 +180,7 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 	return nil
 }
 
-func (r *RoleMain) Terminate(reason error) {
+func (r *RoleMain) PostStart(reason error) {
 	if err := r.unRegisterRole(r.RoleID); err != nil {
 		glog.Errorf(context.Background(), "unregister role failed: %s", err)
 	}

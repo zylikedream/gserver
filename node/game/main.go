@@ -18,9 +18,9 @@ import (
 func Init() {
 	node := gxynode.InitNode("config/game.toml")
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/game.toml")
-	node.LoadModule(gxyredis.NewRedisClient("config/game.db.toml"))
-	node.LoadModule(gxymongo.NewMongoClient("config/game.db.toml"))
-	node.LoadService(role.NewRoleService())
+	node.LoadModule(gxyredis.NewRedisClient("../config/db.toml"))
+	node.LoadModule(gxymongo.NewMongoClient("../config/db.toml"))
+	node.LoadService(role.NewRoleServiceHelper())
 }
 
 func main() {

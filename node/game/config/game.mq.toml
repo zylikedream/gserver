@@ -1,5 +1,0 @@
-[mq]
-    pubsub = "pulsar"
-[pubsub.pulsar]
-    addr = "pulsar://localhost:6650"
-
