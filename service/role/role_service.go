@@ -67,7 +67,7 @@ func (s *roleService) spawnRole(roleID int64) (gen.PID, error) {
 	}
 	actorSys := gxyactor.ActorSystem()
 	if roleNode.Node == actorSys.GetNodeName() {
-		return actorSys.SpawnRegister(s.GetRegName(roleID), gen.ProcessFactory(s.Worker()),
+		return actorSys.SpawnRegister(GetRegName(roleID), gen.ProcessFactory(s.Worker()),
 			gen.ProcessOptions{}, roleID)
 	}
 	remoteNode, err := actorSys.GetRemoteNode(roleNode.Node)
@@ -132,12 +132,12 @@ func (s *roleService) StartRole(roleID int64) (gen.ProcessID, error) {
 		}
 		processID = gen.ProcessID{
 			Node: rolePid.Node,
-			Name: gen.Atom(s.GetRegName(roleID)),
+			Name: gen.Atom(GetRegName(roleID)),
 		}
 	} else {
 		processID = gen.ProcessID{
 			Node: gen.Atom(node),
-			Name: gen.Atom(s.GetRegName(roleID)),
+			Name: gen.Atom(GetRegName(roleID)),
 		}
 	}
 	return processID, nil
@@ -156,6 +156,6 @@ func (s *roleService) CallRole(act act.Actor, roleID int64, msg any) (any, error
 
 }
 
-func (s *roleService) GetRegName(roleID int64) string {
+func GetRegName(roleID int64) string {
 	return fmt.Sprintf("%s_%d", "role", roleID)
 }
