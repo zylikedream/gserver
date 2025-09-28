@@ -2,11 +2,13 @@ package tests
 
 import (
 	"gserver/core/gxyactor"
+	"gserver/protocol/pb"
 	"testing"
 
 	"ergo.services/ergo"
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
+	"ergo.services/ergo/net/edf"
 )
 
 type TestSession struct {
@@ -51,4 +53,11 @@ func TestSpawn_SpawnSession(t *testing.T) {
 		return
 	}
 	t.Logf("SpawnSession() pid = %v", pid)
+}
+
+func TestRegister_proto(t *testing.T) {
+	err := edf.RegisterTypeOf(&pb.Ack{})
+	t.Logf("------------- register pointer ack %s", err)
+	err = edf.RegisterTypeOf(pb.Ack{})
+	t.Logf("------------- register ack %s", err)
 }
