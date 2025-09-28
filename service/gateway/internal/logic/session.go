@@ -42,7 +42,6 @@ type SessionInfo struct {
 
 // Session 会话Actor，继承自ActorBase
 type Session struct {
-	gxyactor.ActorBase
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
 	sessionInfo *SessionInfo      // 会话信息

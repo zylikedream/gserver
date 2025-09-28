@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"gserver/protocol/pb"
 	"time"
 
 	"github.com/gogf/gf/v2/os/gcron"
@@ -42,14 +41,14 @@ func NewActorTimer(pid PID) *ActorTimer {
 func (s *ActorTimer) AddTick(ctx context.Context, tick *Tick, fun callbackFunc) {
 	s.funcs[tick.Name] = fun
 	s.timer.AddSingleton(ctx, tick.Tick, func(ctx context.Context) {
-		ActorSystem().Send(s.pid, &pb.ActorTimerMsg{
+		ActorSystem().Send(s.pid, &ActorTimerMsg{
 			Name: tick.Name,
 			Time: time.Now().Unix(),
 		})
 	})
 }
 
-func (s *ActorTimer) Active(ctx context.Context, msg pb.ActorTimerMsg) {
+func (s *ActorTimer) Active(ctx context.Context, msg *ActorTimerMsg) {
 	if fun, ok := s.funcs[msg.Name]; ok {
 		fun(ctx, time.Unix(msg.Time, 0))
 	}
@@ -59,7 +58,7 @@ func (s *ActorTimer) AddCron(ctx context.Context, cron *Cron, fun callbackFunc) 
 	s.funcs[cron.Name] = fun
 	s.cron.AddSingleton(ctx, cron.Pattern, func(ctx context.Context) {
 		s.SetCronTm(time.Now())
-		ActorSystem().Send(s.pid, &pb.ActorTimerMsg{
+		ActorSystem().Send(s.pid, &ActorTimerMsg{
 			Name: cron.Name,
 			Time: s.CronTm.Unix(),
 		})

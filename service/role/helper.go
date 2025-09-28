@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"gserver/core/gxyactor"
-	"gserver/core/gxylocator"
 	"gserver/core/gxymongo"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"
@@ -22,7 +21,6 @@ import (
 )
 
 type roleServiceHelper struct {
-	roleNodeLocator *gxylocator.Locator
 }
 
 type RoleAccount struct {
@@ -33,9 +31,7 @@ type RoleAccount struct {
 var helper *roleServiceHelper
 
 func NewRoleServiceHelper() *roleServiceHelper {
-	helper = &roleServiceHelper{
-		roleNodeLocator: gxylocator.NewNodeLocator("role", 30*time.Second),
-	}
+	helper = &roleServiceHelper{}
 	return helper
 }
 

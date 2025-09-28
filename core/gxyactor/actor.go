@@ -3,26 +3,29 @@ package gxyactor
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
+	"gserver/core/gxylocator"
 	"gserver/core/gxymodule"
-	"gserver/core/gxyregistery"
 
+	"github.com/asynkron/protoactor-go/actor"
+	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
-	"github.com/tochemey/goakt/v3/actor"
-	"github.com/tochemey/goakt/v3/address"
-	"github.com/tochemey/goakt/v3/remote"
-	"google.golang.org/protobuf/proto"
 )
 
-const systemName = "gserver"
 const defaultHostPort = 10410
+const sytemName = "gxyactor"
 
 // actorSystem 基础Actor模块
 type actorSystem struct {
 	gxymodule.Module
-	system   actor.ActorSystem
-	nodeName string
+	system       *actor.ActorSystem
+	remote       *remote.Remote
+	nodeName     string
+	host         string
+	actorLocator *gxylocator.Locator
 }
 
 var actorSys *actorSystem
@@ -34,8 +37,18 @@ func ActorSystem() *actorSystem {
 
 // NewActorSystem创建基础Actor模块
 func NewActorSystem(nodeName string) *actorSystem {
+	// split host from nodeName(name@host)
+	host := nodeName
+	if idx := strings.Index(nodeName, "@"); idx > 0 {
+		host = nodeName[idx+1:]
+	}
+	if host == "" {
+		panic("invalid nodename, should like 'node@ip'")
+	}
 	actorSys = &actorSystem{
-		nodeName: nodeName,
+		nodeName:     nodeName,
+		host:         host,
+		actorLocator: gxylocator.NewLocator(sytemName, 30*time.Second),
 	}
 	return actorSys
 }
@@ -46,37 +59,42 @@ func (a *actorSystem) OnInit(ctx context.Context) error {
 	if err = a.Module.OnInit(ctx); err != nil {
 		return err
 	}
-	a.system, err = actor.NewActorSystem(systemName, actor.WithRemote(remote.NewConfig(
-		a.nodeName,
-		defaultHostPort,
-	)))
-	if err != nil {
-		return err
-	}
+	a.system = actor.NewActorSystem()
+	config := remote.Configure(a.host, defaultHostPort)
+	a.remote = remote.NewRemote(a.system, config)
+	a.remote.Start()
 	return nil
 }
 
-func (a *actorSystem) GetActorSystem() actor.ActorSystem {
+func (a *actorSystem) GetActorSystem() *actor.ActorSystem {
 	return a.system
+}
+
+func (a *actorSystem) RegisterKind(name string, prod func() actor.Actor) {
+	a.remote.Register(name, actor.PropsFromProducer(prod))
+}
+
+func (a *actorSystem) RegisterActor(name string, prod func() actor.Actor) {
+	a.remote.Register(name, actor.PropsFromProducer(prod))
 }
 
 // OnStop 停止Actor模块 - 停止节点
 func (a *actorSystem) OnStop(ctx context.Context) error {
 	if a.system != nil {
 		// 停止节点
-		a.system.Stop(ctx)
-		glog.Infof(ctx, "Ergo node stopped: %s", a.nodeName)
+		a.system.Shutdown()
+		glog.Infof(ctx, "node stopped: %s", a.nodeName)
 	}
 	return a.Module.OnStop(ctx)
 }
 
 // SpawnRegister创建新的Actor
-func (a *actorSystem) Spawn(name string, actor actor.Actor, options ...actor.SpawnOption) (PID, error) {
+func (a *actorSystem) SpawnNamed(name string, prod func() actor.Actor) (PID, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
-	ctx := context.Background()
-	pid, err := a.system.Spawn(ctx, name, actor, options...)
+	props := actor.PropsFromProducer(prod)
+	pid, err := a.system.Root.SpawnNamed(props, name)
 	if err != nil {
 		return nil, gerror.Wrap(err, "failed to spawn actor")
 	}
@@ -84,16 +102,31 @@ func (a *actorSystem) Spawn(name string, actor actor.Actor, options ...actor.Spa
 	return pid, nil
 }
 
+func (a *actorSystem) Spawn(prod func() actor.Actor) (pid PID, err error) {
+	if a.system == nil {
+		return nil, fmt.Errorf("node not initialized")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			glog.Errorf(context.Background(), "actor spawn panicked: %v", r)
+			err = gerror.New("spawn error")
+		}
+	}()
+	props := actor.PropsFromProducer(prod)
+	pid = a.system.Root.Spawn(props)
+	return
+}
+
 // Send 发送消息（异步）
-func (a *actorSystem) Send(pid PID, message proto.Message) error {
+func (a *actorSystem) Send(pid PID, message any) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
 
-	return actor.Tell(context.Background(), pid, message)
+	a.system.Root.Send(pid, message)
+	return nil
 }
 
-// GetNodeName 获取节点名称
 func (a *actorSystem) GetNodeName() string {
 	return string(a.nodeName)
 }
@@ -102,10 +135,10 @@ func (a *actorSystem) StopActor(pid PID) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
-	err := a.system.Kill(context.Background(), pid.Name())
-	return err
+	a.system.Root.Stop(pid)
+	return nil
 }
 
-func (a *actorSystem) GetAddress(node gxyregistery.ServiceNode) *address.Address {
-	return address.New(node.Name, systemName, node.Node, defaultHostPort)
+func (a *actorSystem) Host() string {
+	return a.host
 }

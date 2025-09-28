@@ -45,7 +45,7 @@ func (s *serviceModule) OnInit(ctx context.Context) error {
 }
 
 func (s *serviceModule) OnStart(ctx context.Context) error {
-	system := gxyactor.ActorSystem().GetActorSystem()
+	system := gxyactor.ActorSystem()
 	for _, svc := range s.Services {
 		if err := svc.OnStart(ctx); err != nil {
 			return err
@@ -53,7 +53,7 @@ func (s *serviceModule) OnStart(ctx context.Context) error {
 		if !svc.IsRemote() {
 			continue
 		}
-		system.Register(ctx, svc.Worker())
+		system.Register(s.GetName(), svc.Worker)
 
 		if err := s.registry.Register(ctx, svc.Name(), system.Host()); err != nil {
 			return err

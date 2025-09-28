@@ -4,7 +4,7 @@ import (
 	"gserver/core/gxymodule"
 
 	"ergo.services/ergo/gen"
-	"github.com/tochemey/goakt/v3/actor"
+	"github.com/asynkron/protoactor-go/actor"
 )
 
 type WorkerCreator func() gen.ProcessBehavior
