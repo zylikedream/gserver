@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"gserver/core/gxylocator"
 	"gserver/core/gxymodule"
+	"gserver/protocol/pb"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
@@ -18,14 +18,19 @@ import (
 const defaultHostPort = 10410
 const sytemName = "gxyactor"
 
+type IService interface {
+	actor.Actor
+	Name() string
+}
+
 // actorSystem 基础Actor模块
 type actorSystem struct {
 	gxymodule.Module
-	system       *actor.ActorSystem
-	remote       *remote.Remote
-	nodeName     string
-	host         string
-	actorLocator *gxylocator.Locator
+	system   *actor.ActorSystem
+	remote   *remote.Remote
+	nodeName string
+	host     string
+	grainMgr *grainManager
 }
 
 var actorSys *actorSystem
@@ -46,10 +51,10 @@ func NewActorSystem(nodeName string) *actorSystem {
 		panic("invalid nodename, should like 'node@ip'")
 	}
 	actorSys = &actorSystem{
-		nodeName:     nodeName,
-		host:         host,
-		actorLocator: gxylocator.NewLocator(sytemName, 30*time.Second),
+		nodeName: nodeName,
+		host:     fmt.Sprintf("%s:%d", host, defaultHostPort),
 	}
+
 	return actorSys
 }
 
@@ -63,6 +68,16 @@ func (a *actorSystem) OnInit(ctx context.Context) error {
 	config := remote.Configure(a.host, defaultHostPort)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
+	a.grainMgr = NewGrainManager(a)
+	return nil
+}
+
+func (a *actorSystem) OnStart(ctx context.Context) error {
+	var err error
+	if err = a.Module.OnStart(ctx); err != nil {
+		return err
+	}
+	// 启动服务
 	return nil
 }
 
@@ -70,12 +85,8 @@ func (a *actorSystem) GetActorSystem() *actor.ActorSystem {
 	return a.system
 }
 
-func (a *actorSystem) RegisterKind(name string, prod func() actor.Actor) {
-	a.remote.Register(name, actor.PropsFromProducer(prod))
-}
-
-func (a *actorSystem) RegisterActor(name string, prod func() actor.Actor) {
-	a.remote.Register(name, actor.PropsFromProducer(prod))
+func (a *actorSystem) RegisterGrain(name string, prod func() actor.Actor) error {
+	return a.grainMgr.RegisterGrain(name, prod)
 }
 
 // OnStop 停止Actor模块 - 停止节点
@@ -127,6 +138,22 @@ func (a *actorSystem) Send(pid PID, message any) error {
 	return nil
 }
 
+func (a *actorSystem) Call(pid PID, message any) (any, error) {
+	if a.system == nil {
+		return nil, fmt.Errorf("node not initialized")
+	}
+
+	future := a.system.Root.RequestFuture(pid, message, 5*time.Second)
+	res, err := future.Result()
+	if err != nil {
+		return nil, err
+	}
+	if err, ok := res.(*pb.ActorError); ok {
+		return nil, gerror.New(err.Reason)
+	}
+	return res, nil
+}
+
 func (a *actorSystem) GetNodeName() string {
 	return string(a.nodeName)
 }
@@ -141,4 +168,12 @@ func (a *actorSystem) StopActor(pid PID) error {
 
 func (a *actorSystem) Host() string {
 	return a.host
+}
+
+func (a *actorSystem) GetGrain(kind string, id string, spawn ...bool) (PID, error) {
+	spawnFlag := true
+	if len(spawn) > 0 {
+		spawnFlag = spawn[0]
+	}
+	return a.grainMgr.getGrain(kind, id, spawnFlag)
 }

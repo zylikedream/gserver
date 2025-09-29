@@ -70,12 +70,15 @@ func (l *Locator) RegisterNode(ctx context.Context, key string, node string) err
 func (l *Locator) Register(ctx context.Context, t string, key string, node string) error {
 	redisCli := gxyredis.GetRedis()
 	redisKey := l.formatKey(t, key)
-	err := redisCli.SetEX(ctx, redisKey, node, int64(l.conf.ExpireTime.Seconds()))
+	succ, err := redisCli.SetNX(ctx, redisKey, node)
 	if err != nil {
 		return gerror.Wrap(err, "Failed to register key in Redis")
 	}
+	if !succ {
+		return gerror.New("Key already registered")
+	}
+	redisCli.Expire(ctx, redisKey, int64(l.conf.ExpireTime.Seconds()))
 
-	glog.Debug(ctx, "Registered key-node mapping", "key", key, "node", node)
 	return nil
 }
 

@@ -20,7 +20,7 @@ func Init() {
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/game.toml")
 	node.LoadModule(gxyredis.NewRedisClient("../config/db.toml"))
 	node.LoadModule(gxymongo.NewMongoClient("../config/db.toml"))
-	node.LoadService(role.NewRoleServiceHelper())
+	node.LoadService(role.NewRoleService())
 }
 
 func main() {

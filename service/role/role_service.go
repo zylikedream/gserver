@@ -2,43 +2,28 @@ package role
 
 import (
 	"gserver/core/gxyactor"
-	"gserver/core/gxylocator"
-	"gserver/core/gxymodule"
-	"gserver/protocol/pb"
 	"gserver/service/role/internal/logic"
 
-	"github.com/tochemey/goakt/v3/actor"
+	"github.com/asynkron/protoactor-go/actor"
 )
 
 type roleService struct {
-	gxymodule.Module
-	roleNodeLocator *gxylocator.Locator
 }
 
-func (r *roleService) PreStart(ctx *actor.Context) error {
-	return nil
+func (r *roleService) Name() string {
+	return "role"
 }
 
-func (r *roleService) PostStart(ctx *actor.Context) error {
-	return nil
-}
-
-func (r *roleService) Recieve(ctx *actor.ReceiveContext) {
-	switch ctx.Message().(type) {
-	case *pb.SpawnRole:
-		// 处理Started消息
+func (r *roleService) Receive(ctx actor.Context) {
+	switch msg := ctx.Message().(type) {
+	case *actor.Started:
+		r.Init(ctx)
+	default:
 	}
 }
 
-const (
-	RoleServiceName = "role_service"
-)
-
-func Name() string {
-	return RoleServiceName
-}
-
-func (r *roleService) newRoleActor(ctx *actor.ReceiveContext, RoleID int64) gxyactor.PID {
-	self := ctx.Self()
-	self.SpawnChild(ctx.Context(), GetRegName(RoleID), logic.NewRoleMain())
+func (r *roleService) Init(ctx actor.Context) {
+	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() actor.Actor {
+		return logic.NewRoleMain()
+	})
 }

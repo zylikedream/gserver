@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"gserver/core/gxyactor"
-	"gserver/core/gxylocator"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
 	"gserver/core/gxynet/message"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"ergo.services/ergo/gen"
+	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/pkg/errors"
@@ -23,10 +23,6 @@ import (
 const (
 	ROLE_MSG_INIT = "init_role"
 )
-
-type RoleMainOption struct {
-	Locator *gxylocator.Locator
-}
 
 type RoleMain struct {
 	gxymodule.Module
@@ -41,21 +37,17 @@ type RoleMain struct {
 	msgHandler *util.MsgHandler
 	reason     string
 
-	opt     RoleMainOption
 	session gen.PID
 }
 
-func NewRoleMain(opt RoleMainOption) *RoleMain {
+func NewRoleMain() *RoleMain {
 	return &RoleMain{
 		modsHash:   map[string]uint64{},
 		msgHandler: util.NewMsgHandler(),
-		opt:        opt,
 	}
 }
 
-func (r *RoleMain) Init(args ...any) error {
-	Reason, _ := args[0].(string)
-	RoleID, _ := args[1].(int64)
+func (r *RoleMain) Init() error {
 	r.reason = Reason
 	r.RoleID = RoleID
 	if err := r.registerRole(RoleID); err != nil {
@@ -75,7 +67,7 @@ func (r *RoleMain) Init(args ...any) error {
 	return nil
 }
 
-func (r *RoleMain) Recive(ctx *actor.ReciveContext) error {
+func (r *RoleMain) Recive(ctx actor.Context) error {
 	switch msg.Name {
 	case ROLE_MSG_INIT:
 		if err := r.initRole(); err != nil {
