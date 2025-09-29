@@ -1,0 +1,15 @@
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+message ActorInit {
+}
+
+message ActorTimerMsg {
+    string name = 1;     
+    int64 time = 3;
+}
+
+message ActorError {
+    string reason = 1;
+}
