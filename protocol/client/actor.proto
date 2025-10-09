@@ -1,9 +1,7 @@
 syntax = "proto3";
 option go_package="./pb;pb";
 package galaxy.protocol;
-
-message ActorInit {
-}
+import "google/protobuf/any.proto";
 
 message ActorTimerMsg {
     string name = 1;     
@@ -12,4 +10,12 @@ message ActorTimerMsg {
 
 message ActorError {
     string reason = 1;
+}
+
+message ClientMsg {
+    google.protobuf.Any msg = 1;
+}
+
+message ServerMsg {
+    google.protobuf.Any msg = 1;
 }
