@@ -35,6 +35,7 @@ type RoleMain struct {
 	pid        gxyactor.PID
 
 	session gxyactor.PID
+	actx    actor.Context
 }
 
 func NewRoleMain() *RoleMain {
@@ -67,7 +68,7 @@ func (r *RoleMain) Init(actx actor.Context) error {
 	return nil
 }
 
-func (r *RoleMain) Recive(ctx actor.Context) {
+func (r *RoleMain) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
 		if err := r.Init(ctx); err != nil {
@@ -76,30 +77,31 @@ func (r *RoleMain) Recive(ctx actor.Context) {
 		}
 	case *gxyactor.ActorTimerMsg:
 		r.timer.Active(context.Background(), msg)
-	case *pb.ReqHandShake:
-		r.session = ctx.Sender()
 	case *pb.ClientMsg:
 		pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
 		if err != nil {
 			glog.Errorf(context.Background(), "unmarshal req error, roleID: %d, err: %v", r.RoleID, err)
 			return
 		}
-		rsp, err := r.msgHandler.CallWithMsg(context.Background(), pbmsg)
+		r.actx = ctx
+		var rsp proto.Message
+		result, err := r.msgHandler.CallWithMsg(context.Background(), pbmsg)
 		if err != nil {
 			glog.Errorf(context.Background(), "handle call error, roleID: %d, args: %v, err: %v", r.RoleID, pbmsg, err)
-			return
-		}
-		if rsp == nil {
-			return
+			rsp = &pb.Ack{
+				Code:   1,
+				Path:   msg.Path,
+				Reason: err.Error(),
+			}
+		} else if result != nil {
+			rsp1, ok := result.(proto.Message)
+			if ok {
+				rsp = rsp1
+			}
 		}
 
-		pbRsp, ok := rsp.(proto.Message)
-		if !ok {
-			glog.Errorf(context.Background(), "rsp is not proto.Message, roleID: %d, rsp: %v", r.RoleID, rsp)
-			return
-		}
 		if ctx.Sender() != nil {
-			svrMsg, err := r.newServerMsg(pbRsp)
+			svrMsg, err := r.newServerMsg(rsp)
 			if err != nil {
 				glog.Errorf(context.Background(), "send server msg error, roleID: %d, err: %v", r.RoleID, err)
 				return
@@ -198,4 +200,18 @@ func (r *RoleMain) SendClient(msg proto.Message) {
 		return
 	}
 	gxyactor.ActorSystem().Send(r.session, svrMsg)
+}
+
+func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (*pb.RspAccountLogin, error) {
+	r.session = r.actx.Sender()
+	firstLogin := false
+	now := time.Now()
+	if r.Basic.CreateTm.IsZero() {
+		r.Basic.CreateTm = now
+		firstLogin = true
+	}
+	r.Basic.LoginTm = now
+	return &pb.RspAccountLogin{
+		FirstLogin: firstLogin,
+	}, nil
 }

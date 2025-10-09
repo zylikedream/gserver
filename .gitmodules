@@ -1,10 +1,10 @@
 [submodule "protocol"]
-	branch = main
+	branch = master
 	path = protocol
 	url = git@gitee.com:zylikedream/mahong-protocol.git
 	ignore = all
 [submodule "gameconfig"]
-	branch = main
+	branch = master
 	path = gameconfig
 	url = git@gitee.com:zylikedream/config_server_go.git
 	ignore = all

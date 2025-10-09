@@ -33,10 +33,11 @@ func (r *roleService) Name() string {
 	return "role"
 }
 
-func (r *roleService) OnInit(ctx context.Context) {
+func (r *roleService) OnInit(ctx context.Context) error {
 	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() actor.Actor {
 		return logic.NewRoleMain()
 	})
+	return nil
 }
 
 func (s *roleService) GetRoleIDByAccount(account string) (int64, error) {
@@ -74,4 +75,9 @@ func (s *roleService) GetRole(roleID int64) (gxyactor.PID, error) {
 		return nil, err
 	}
 	return pid, nil
+}
+
+type RoleAccount struct {
+	Account string `bson:"account"`
+	RoleID  int64  `bson:"roleID"`
 }

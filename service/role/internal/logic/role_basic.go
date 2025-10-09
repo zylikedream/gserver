@@ -9,18 +9,14 @@ import (
 
 type RoleBasic struct {
 	RoleModule
-	RoleName   string    `bson:"role_name"`
-	LoginTm    time.Time `bson:"login_tm"`
-	CreateTm   time.Time `bson:"create_tm"`   // 创角时间
-	RegisterTm time.Time `bson:"register_tm"` // 注册时间
-	VipLv      int       `bson:"vip_lv"`
+	RoleName string    `bson:"role_name"`
+	LoginTm  time.Time `bson:"login_tm"`
+	CreateTm time.Time `bson:"create_tm"` // 创角时间
+	VipLv    int       `bson:"vip_lv"`
 }
 
 func NewRoleBasic() *RoleBasic {
-	return &RoleBasic{
-		CreateTm:   time.Now(),
-		RegisterTm: time.Now(),
-	}
+	return &RoleBasic{}
 }
 
 func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName) (*pb.RspBasicSetName, error) {

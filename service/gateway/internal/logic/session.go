@@ -113,7 +113,13 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 
 		ctx.Watch(rolePid)
 		s.state = StateAuthenticated
-		ctx.Send(s.sessionInfo.RolePid, firstPacket)
+		if err := s.endpoint.SendMsg(&pb.RspHandShake{
+			AccountUid: firstPacket.AccountUid,
+			RoleId:     roleID,
+		}); err != nil {
+			glog.Errorf(context.Background(), "send rsp error, err: %v", err)
+			return err
+		}
 	case message.MESSAGE_TYPE_DATA_PACKET:
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
@@ -121,7 +127,9 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 			glog.Errorf(context.Background(), "msg is not pb.RemoteReqMsg, msg: %v", msg)
 			return nil
 		}
-		req := &pb.ClientMsg{}
+		req := &pb.ClientMsg{
+			Path: msg.Path,
+		}
 		if err := anypb.MarshalFrom(req.Msg, pbmsg, proto.MarshalOptions{}); err != nil {
 			glog.Errorf(context.Background(), "marshal req error, err: %v", err)
 			return err
