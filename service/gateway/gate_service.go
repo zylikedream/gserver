@@ -6,11 +6,10 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxynet"
 	"gserver/core/gxynet/endpoint"
-	"gserver/core/gxyservice"
 	"gserver/service"
 	"gserver/service/gateway/internal/logic"
 
-	"ergo.services/ergo/gen"
+	"github.com/asynkron/protoactor-go/actor"
 )
 
 // sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
@@ -44,16 +43,12 @@ func (s *gateService) OnStart(ctx context.Context) error {
 	return s.network.Start(ctx)
 }
 
-func (s *gateService) Worker() gxyservice.WorkerCreator {
-	return func() gen.ProcessBehavior {
-		return logic.NewSession()
-	}
+func (s *gateService) SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
+	return gxyactor.ActorSystem().Spawn(func() actor.Actor {
+		return logic.NewSession(ep)
+	})
 }
 
-func (s *gateService) SpawnSession(ep endpoint.Endpoint) (gen.PID, error) {
-	return gxyactor.ActorSystem().Spawn(gen.ProcessFactory(s.Worker()), gen.ProcessOptions{}, ep)
-}
-
-func (s *gateService) StopSession(pid gen.PID) error {
+func (s *gateService) StopSession(pid gxyactor.PID) error {
 	return gxyactor.ActorSystem().StopActor(pid)
 }

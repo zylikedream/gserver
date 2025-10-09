@@ -157,20 +157,20 @@ func (m *MsgHandler) AddHandler(handler any) {
 			handler: handler,
 		}
 
-		m.methodMap[meta.Method.Name] = msgMethod
+		m.methodMap[meta.ArgType.Name()] = msgMethod
 	}
 }
 
-func (m *MsgHandler) CallWithMsg(ctx context.Context, methodName string, msg any) (interface{}, error) {
-	method, ok := m.methodMap[methodName]
+func (m *MsgHandler) CallWithMsg(ctx context.Context, msg any) (any, error) {
+	method, ok := m.methodMap[reflect.TypeOf(msg).Name()]
 	if !ok {
-		return nil, gerror.Newf("no method handler (%s)", methodName)
+		return nil, gerror.Newf("no method handler (%s)", reflect.TypeOf(msg).Name())
 	}
 	return method.meta.Call(ctx, method.handler, msg)
 }
 
-func (m *MsgHandler) GetMethodMeta(methodName string) *MethodMeta {
-	method, ok := m.methodMap[methodName]
+func (m *MsgHandler) GetMethodMeta(msg any) *MethodMeta {
+	method, ok := m.methodMap[reflect.TypeOf(msg).Name()]
 	if !ok {
 		return nil
 	}

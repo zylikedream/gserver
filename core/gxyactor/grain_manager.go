@@ -35,6 +35,13 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			})
 			return
 		}
+		_, ok = a.manager.sys.system.ProcessRegistry.GetLocal(msg.Name)
+		if ok {
+			ctx.Respond(&remote.ActorPidResponse{
+				Pid: actor.NewPID(a.manager.sys.nodeName, msg.Name),
+			})
+			return
+		}
 		pid, err := a.manager.sys.system.Root.SpawnNamed(ginfo.Props, msg.Name)
 		if err != nil {
 			ctx.Respond(&pb.ActorError{
@@ -92,7 +99,7 @@ func (g *grainManager) RegisterGrain(kind string, props actor.Producer) error {
 		Kind:  kind,
 		Props: newProps,
 	}
-	g.sys.remote.Register(kind, newProps)
+	// g.sys.remote.Register(kind, newProps)
 	pid, err := g.sys.system.Root.SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
 			return &grainActivator{kind: kind, manager: g}

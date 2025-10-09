@@ -104,6 +104,7 @@ func (a *actorSystem) SpawnNamed(name string, prod func() actor.Actor) (PID, err
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
+	actor.WithOnInit()
 	props := actor.PropsFromProducer(prod)
 	pid, err := a.system.Root.SpawnNamed(props, name)
 	if err != nil {
@@ -133,7 +134,6 @@ func (a *actorSystem) Send(pid PID, message any) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
-
 	a.system.Root.Send(pid, message)
 	return nil
 }
