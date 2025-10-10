@@ -8,12 +8,12 @@ message ReqHandShake{
 
 message RspHandShake{
    string account_uid = 1;
-   string role_uid = 2;
+   int64 role_id = 2;
 }
 
 message ReqAccountLogin {
     string account_uid = 1;
-    string clinet =2;
+    string client =2;
 }
 
 message RspAccountLogin {
