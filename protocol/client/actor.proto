@@ -13,7 +13,8 @@ message ActorError {
 }
 
 message ClientMsg {
-    google.protobuf.Any msg = 1;
+    string path = 1;
+    google.protobuf.Any msg = 2;
 }
 
 message ServerMsg {
