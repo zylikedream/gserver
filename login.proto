@@ -20,3 +20,5 @@ message RspAccountLogin {
     bool first_login = 1;
 }
 
+message ReqAccountLogout {
+}
