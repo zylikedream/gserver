@@ -38,7 +38,15 @@ func (s *gateService) OnInit(ctx context.Context) error {
 }
 
 func (s *gateService) OnStart(ctx context.Context) error {
-	return s.network.Start(ctx)
+	if err := s.network.Start(ctx); err != nil {
+		return err
+	}
+	// 启动会话管理器
+	_, err := gxyactor.ActorSystem().SpawnNamed(logic.SessionMgrName, logic.NewSessionMgr)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *gateService) SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {

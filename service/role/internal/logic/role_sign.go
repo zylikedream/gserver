@@ -23,8 +23,7 @@ import (
 
 // --------------------proto handlers start-------------
 type RoleSign struct {
-	RoleModule
-	RoleID         int64     `bson:"role_id"`
+	RoleModule     `bson:"inline"`
 	DrawTime       time.Time `bson:"sign_time"`        // 当日领取签到奖励
 	SignDay        int       `bson:"sign_day"`         // 当月签到天数
 	AccumDrawStage []int     `bson:"accum_draw_stage"` // 累积奖励阶段
@@ -88,7 +87,7 @@ func (s *RoleSign) getSignReward(from int, to int) []*gameconfig.ItemItemRC {
 }
 
 // 补签
-func (s *RoleSign) SignPatch(ctx context.Context, req *pb.ReqSignPatch) (*pb.RspSignPatch, error) {
+func (s *RoleSign) ReqSignPatch(ctx context.Context, req *pb.ReqSignPatch) (*pb.RspSignPatch, error) {
 	maxDay := getMaxSignDay()
 	if req.PatchTimes <= 0 {
 		return nil, errors.New("param unvalid")

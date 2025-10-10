@@ -12,6 +12,7 @@ type IRoleModule interface {
 
 type RoleModule struct {
 	gxymodule.Module `bson:"-"`
+	RoleID           int64     `bson:"role_id"`
 	Role             *RoleMain `bson:"-" hash:"-"`
 }
 
@@ -21,5 +22,6 @@ func (r *RoleModule) GetRole() *RoleMain {
 
 func (r *RoleModule) AfterInit(ctx context.Context) error {
 	r.Role = r.GetParent().(*RoleMain)
+	r.RoleID = r.Role.RoleID
 	return nil
 }

@@ -33,6 +33,7 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 	case *actor.Started:
 		a.timer = NewActorTimer(ctx.Self())
 		a.timer.AddTick(context.Background(), &Tick{
+			Name: "update_register",
 			Tick: 10 * time.Second,
 		}, a.UpdateRegister)
 	case *ActorTimerMsg:

@@ -19,18 +19,24 @@ type CronInstance struct {
 	fun  callbackFunc
 }
 
+type TimerInfo struct {
+	callbackFunc callbackFunc
+	name         string
+	entry        *gtimer.Entry
+}
+
 type ActorTimer struct {
 	cronSchedulers map[string]*CronInstance
 	timer          *gtimer.Timer
 	cron           *gcron.Cron
 	CronTm         time.Time `bson:"cron_tm"`
-	funcs          map[string]callbackFunc
+	timerInfos     map[string]TimerInfo
 	pid            PID
 }
 
 func NewActorTimer(pid PID) *ActorTimer {
 	return &ActorTimer{
-		funcs:          map[string]callbackFunc{},
+		timerInfos:     map[string]TimerInfo{},
 		cronSchedulers: map[string]*CronInstance{},
 		timer:          gtimer.New(),
 		cron:           gcron.New(),
@@ -39,23 +45,40 @@ func NewActorTimer(pid PID) *ActorTimer {
 }
 
 func (s *ActorTimer) AddTick(ctx context.Context, tick *Tick, fun callbackFunc) {
-	s.funcs[tick.Name] = fun
-	s.timer.AddSingleton(ctx, tick.Tick, func(ctx context.Context) {
+	entry := s.timer.AddSingleton(ctx, tick.Tick, func(ctx context.Context) {
 		ActorSystem().Send(s.pid, &ActorTimerMsg{
 			Name: tick.Name,
 			Time: time.Now().Unix(),
 		})
 	})
+	s.timerInfos[tick.Name] = TimerInfo{
+		callbackFunc: fun,
+		name:         tick.Name,
+		entry:        entry,
+	}
+}
+
+func (s *ActorTimer) AddOnce(ctx context.Context, once *Once, fun callbackFunc) {
+	entry := s.timer.AddOnce(ctx, once.EndTime, func(ctx context.Context) {
+		ActorSystem().Send(s.pid, &ActorTimerMsg{
+			Name: once.Name,
+			Time: time.Now().Unix(),
+		})
+	})
+	s.timerInfos[once.Name] = TimerInfo{
+		callbackFunc: fun,
+		name:         once.Name,
+		entry:        entry,
+	}
 }
 
 func (s *ActorTimer) Active(ctx context.Context, msg *ActorTimerMsg) {
-	if fun, ok := s.funcs[msg.Name]; ok {
-		fun(ctx, time.Unix(msg.Time, 0))
+	if info, ok := s.timerInfos[msg.Name]; ok {
+		info.callbackFunc(ctx, time.Unix(msg.Time, 0))
 	}
 }
 
 func (s *ActorTimer) AddCron(ctx context.Context, cron *Cron, fun callbackFunc) {
-	s.funcs[cron.Name] = fun
 	s.cron.AddSingleton(ctx, cron.Pattern, func(ctx context.Context) {
 		s.SetCronTm(time.Now())
 		ActorSystem().Send(s.pid, &ActorTimerMsg{
@@ -87,4 +110,11 @@ func (s *ActorTimer) GetCronTm() time.Time {
 
 func (s *ActorTimer) SetCronTm(tm time.Time) {
 	s.CronTm = tm
+}
+
+func (s *ActorTimer) Cancel(name string) {
+	if info, ok := s.timerInfos[name]; ok {
+		info.entry.Stop()
+		delete(s.timerInfos, name)
+	}
 }

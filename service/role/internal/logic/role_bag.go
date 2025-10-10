@@ -58,10 +58,9 @@ func (it *bagItem) update(propID int, Num uint64, Grid uint64) *ItemChange {
 }
 
 type RoleBag struct {
-	RoleModule
-	RoleID  int64           `bson:"role_id"`
-	Items   map[int]bagItem `bson:"items"`
-	GridUse int             `bson:"grid_use"`
+	RoleModule `bson:"inline"`
+	Items      map[int]bagItem `bson:"items"`
+	GridUse    int             `bson:"grid_use"`
 }
 
 func NewRoleBag() *RoleBag {

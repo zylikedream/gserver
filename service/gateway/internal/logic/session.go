@@ -44,6 +44,7 @@ type Session struct {
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
 	sessionInfo *SessionInfo      // 会话信息
+	actx        actor.Context     // 会话上下文
 }
 
 func NewSession(ep endpoint.Endpoint) *Session {
@@ -53,13 +54,14 @@ func NewSession(ep endpoint.Endpoint) *Session {
 }
 
 func (s *Session) Receive(ctx actor.Context) {
+	s.actx = ctx
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
 		if err := s.Init(); err != nil {
 			glog.Errorf(context.Background(), "init session error, err: %v", err)
 		}
 	case *actor.Stopped:
-		s.Terminate("normal")
+		s.Stop("normal")
 	case *message.Message:
 		if err := s.OnHandleClientMessage(ctx, msg); err != nil {
 			glog.Errorf(context.Background(), "handle client message error, err: %v", err)
@@ -68,9 +70,10 @@ func (s *Session) Receive(ctx actor.Context) {
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
 			glog.Errorf(context.Background(), "handle server message error, err: %v", err)
 		}
-	case *actor.DeadLetterResponse:
-		if msg.Target == s.sessionInfo.RolePid {
-			s.Terminate("dead letter")
+	case *actor.Terminated:
+		if msg.Who == s.sessionInfo.RolePid {
+			s.sessionInfo.RolePid = nil
+			s.Stop("role terminated")
 		}
 	}
 }
@@ -118,6 +121,8 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 			glog.Errorf(context.Background(), "send rsp error, err: %v", err)
 			return err
 		}
+		// 添加会话到会话管理器
+		AddSession(roleID, ctx.Self())
 	case message.MESSAGE_TYPE_DATA_PACKET:
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
@@ -154,13 +159,16 @@ func (s *Session) OnHandleServerMessage(ctx actor.Context, msg *pb.ServerMsg) er
 }
 
 // OnTerminate 终止处理
-func (s *Session) Terminate(reason string) {
+func (s *Session) Stop(reason string) {
 	glog.Infof(context.Background(), "Session terminating: reason: %v", reason)
 
 	s.state = StateDisconnected
 	// 关闭网络连接
 	if s.endpoint != nil {
 		s.endpoint.Conn().Close()
+	}
+	if s.sessionInfo.RolePid != nil {
+		s.actx.Send(s.sessionInfo.RolePid, &pb.ReqAccountLogout{})
 	}
 }
 
