@@ -9,6 +9,7 @@ import (
 	"gserver/core/gxynet/message"
 	"gserver/protocol/pb"
 	"gserver/service/role"
+	"gserver/util"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/os/glog"
@@ -70,6 +71,8 @@ func (s *Session) Receive(ctx actor.Context) {
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
 			glog.Errorf(context.Background(), "handle server message error, err: %v", err)
 		}
+	case *pb.ActorStop:
+		s.Stop(msg.Reason)
 	case *actor.Terminated:
 		if msg.Who == s.sessionInfo.RolePid {
 			s.sessionInfo.RolePid = nil
@@ -130,17 +133,25 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 			glog.Errorf(context.Background(), "msg is not pb.RemoteReqMsg, msg: %v", msg)
 			return nil
 		}
-		req := &pb.ClientMsg{
-			Path: msg.Path,
-			Msg:  &anypb.Any{},
-		}
-		if err := anypb.MarshalFrom(req.Msg, pbmsg, proto.MarshalOptions{}); err != nil {
-			glog.Errorf(context.Background(), "marshal req error, err: %v", err)
+		if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
+			glog.Errorf(context.Background(), "send data msg error, err: %v", err)
 			return err
 		}
-		ctx.RequestWithCustomSender(s.sessionInfo.RolePid, req, ctx.Self())
 	}
 
+	return nil
+}
+
+func (s *Session) SendDataMsg(msg proto.Message, path string) error {
+	req := &pb.ClientMsg{
+		Path: path,
+		Msg:  &anypb.Any{},
+	}
+	if err := anypb.MarshalFrom(req.Msg, msg, proto.MarshalOptions{}); err != nil {
+		glog.Errorf(context.Background(), "marshal req error, err: %v", err)
+		return err
+	}
+	s.actx.RequestWithCustomSender(s.sessionInfo.RolePid, req, s.actx.Self())
 	return nil
 }
 
@@ -160,7 +171,10 @@ func (s *Session) OnHandleServerMessage(ctx actor.Context, msg *pb.ServerMsg) er
 
 // OnTerminate 终止处理
 func (s *Session) Stop(reason string) {
-	glog.Infof(context.Background(), "Session terminating: reason: %v", reason)
+	if s.state == StateDisconnected {
+		return
+	}
+	glog.Infof(context.Background(), "Session terminating: reason: %v, role_pid: %v", reason, s.sessionInfo.RolePid)
 
 	s.state = StateDisconnected
 	// 关闭网络连接
@@ -168,7 +182,8 @@ func (s *Session) Stop(reason string) {
 		s.endpoint.Conn().Close()
 	}
 	if s.sessionInfo.RolePid != nil {
-		s.actx.Send(s.sessionInfo.RolePid, &pb.ReqAccountLogout{})
+		msg := &pb.ReqAccountLogout{}
+		s.SendDataMsg(msg, util.GetObjectName(msg))
 	}
 }
 

@@ -55,3 +55,16 @@ func (r *gxyRedis) OnInit(ctx context.Context) error {
 	}
 	return nil
 }
+
+func (r *gxyRedis) OnStart(ctx context.Context) error {
+	// 创建一个带有超时的上下文，这里设置为5秒超时
+	// 可以根据需要调整超时时间长度
+	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel() // 确保在函数结束时取消上下文
+
+	if _, err := r.Do(timeoutCtx, "PING"); err != nil {
+		return err
+	}
+	glog.Infof(ctx, "[module]redis start success: %s", r.conf.Addr)
+	return nil
+}

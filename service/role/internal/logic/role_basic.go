@@ -12,7 +12,7 @@ type RoleBasic struct {
 	RoleName   string    `bson:"role_name"`
 	Head       string    `bson:"head"`
 	LoginTm    time.Time `bson:"login_tm"`
-	LogoutTm   time.Time `bson:"login_tm"`
+	LogoutTm   time.Time `bson:"logout_tm"`
 	CreateTm   time.Time `bson:"create_tm"` // 创角时间
 	VipLv      int       `bson:"vip_lv"`
 }

@@ -73,11 +73,15 @@ func (m *Module) AddModule(ctx context.Context, mod IModule) error {
 }
 
 func (m *Module) Start(ctx context.Context) error {
-	m.self.OnStart(ctx)
+	if err := m.self.OnStart(ctx); err != nil {
+		return err
+	}
 	//启动子孙
 	for _, child := range m.childs {
 		mod := child.BaseModule()
-		mod.Start(ctx)
+		if err := mod.Start(ctx); err != nil {
+			return err
+		}
 	}
 	return nil
 }

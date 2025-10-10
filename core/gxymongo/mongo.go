@@ -8,6 +8,7 @@ import (
 
 	"gserver/util"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/glog"
@@ -68,11 +69,21 @@ func (m *mongoClient) OnInit(ctx context.Context) error {
 	m.client = client
 	return nil
 }
-
 func (m *mongoClient) OnStart(ctx context.Context) error {
-	if err := m.client.Ping(ctx, readpref.Primary()); err != nil {
-		return err
+	// 创建一个带超时的context
+	// 这里可以使用配置中的连接超时时间，或自定义一个超时时间
+	pingTimeout := m.conf.ConnectTimeout
+	if pingTimeout <= 0 {
+		pingTimeout = 3 * time.Second // 默认5秒超时
 	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
+	defer cancel() // 确保在函数结束时取消context
+
+	if err := m.client.Ping(pingCtx, readpref.Primary()); err != nil {
+		return gerror.Wrapf(err, "mongo client ping error: %s", m.conf.Addr)
+	}
+	glog.Infof(ctx, "[module]mongo start success: %s", m.conf.Addr)
 	return nil
 }
 

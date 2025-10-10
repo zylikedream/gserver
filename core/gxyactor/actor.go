@@ -204,3 +204,7 @@ func loggerFactory(system *actor.ActorSystem) *slog.Logger {
 	})).With("lib", "Proto.Actor").
 		With("system", system.ID)
 }
+
+func PidEqual(a, b PID) bool {
+	return a.Id == b.Id && a.Address == b.Address
+}

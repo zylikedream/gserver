@@ -13,6 +13,7 @@ import (
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -115,7 +116,7 @@ func (r *RoleMain) Receive(ctx actor.Context) {
 			}
 		}
 
-		if ctx.Sender() != nil {
+		if ctx.Sender() != nil && rsp != nil {
 			svrMsg, err := r.newServerMsg(rsp)
 			if err != nil {
 				glog.Errorf(context.Background(), "send server msg error, roleID: %d, err: %v", r.RoleID, err)
@@ -162,14 +163,15 @@ func (r *RoleMain) initRoleModules() error {
 	ctx := context.Background()
 	created := false
 	for _, mod := range r.Modules() {
-		if err := gxymongo.Client().FindOne(ctx, mod, mod.GetName(), bson.M{"role_id": roleID}); err != nil {
+		colName := gstr.CaseSnake(mod.GetName())
+		if err := gxymongo.Client().FindOne(ctx, mod, colName, bson.M{"role_id": roleID}); err != nil {
 			if err != mongo.ErrNoDocuments {
 				return err
 			} else {
 				created = true
 			}
 		}
-		r.modsHash[mod.GetName()] = util.GetObjectHash(mod)
+		r.modsHash[colName] = util.GetObjectHash(mod)
 	}
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
@@ -193,17 +195,17 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 	var errStr string
 	client := gxymongo.Client()
 	for _, mod := range r.Modules() {
-		modName := mod.GetName()
+		colName := gstr.CaseSnake(mod.GetName())
 		modHash := util.GetObjectHash(mod)
-		if modHash == r.modsHash[modName] && !force {
+		if modHash == r.modsHash[colName] && !force {
 			continue
 		}
-		if _, err := client.ReplaceOne(ctx, modName, bson.M{"role_id": r.RoleID},
+		if _, err := client.ReplaceOne(ctx, colName, bson.M{"role_id": r.RoleID},
 			mod, options.Replace().SetUpsert(true)); err != nil {
-			errStr += fmt.Sprintf("save mod %s failed: %s", modName, err)
+			errStr += fmt.Sprintf("save mod %s failed: %s", colName, err)
 			continue
 		}
-		r.modsHash[modName] = modHash
+		r.modsHash[colName] = modHash
 	}
 	if errStr != "" {
 		return errors.New(errStr)
@@ -226,8 +228,11 @@ func (r *RoleMain) SendClient(msg proto.Message) {
 }
 
 func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (*pb.RspAccountLogin, error) {
-	if r.session != nil { // 表示重复登录
-		return nil, errors.New("duplicate login")
+	if r.session != nil && !gxyactor.PidEqual(r.session, r.actx.Sender()) { // 表示重复登录
+		// 断开旧连接
+		r.actx.Send(r.session, &pb.ActorStop{
+			Reason: "duplicate login",
+		})
 	}
 	r.session = r.actx.Sender()
 	firstLogin := false
@@ -237,13 +242,21 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 		firstLogin = true
 	}
 	r.Basic.LoginTm = now
+	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
+		glog.Infof(ctx, "role reconnect, roleID: %d", r.RoleID)
+	}
 	r.timer.Cancel(SignleAliveOnce.Name)
 	return &pb.RspAccountLogin{
 		FirstLogin: firstLogin,
 	}, nil
 }
 
-func (r *RoleMain) ReqAccountLogout(ctx context.Context) error {
+func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogout) error {
+	sender := r.actx.Sender()
+	if !gxyactor.PidEqual(sender, r.session) {
+		return nil
+	}
+	r.session = nil
 	r.Basic.LogoutTm = time.Now()
 	r.save(ctx, false)
 	r.timer.AddOnce(context.Background(), SignleAliveOnce, func(ctx context.Context, _ time.Time) {
