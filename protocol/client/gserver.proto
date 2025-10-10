@@ -25,3 +25,7 @@ message ActorActive {
     string kind = 1;
     string id = 2;
 }
+
+message ActorStop {
+    string reason = 1;
+}
