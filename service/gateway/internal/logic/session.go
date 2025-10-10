@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"gserver/core/gxyactor"
@@ -56,7 +55,9 @@ func NewSession(ep endpoint.Endpoint) *Session {
 func (s *Session) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
-		s.Init()
+		if err := s.Init(); err != nil {
+			glog.Errorf(context.Background(), "init session error, err: %v", err)
+		}
 	case *actor.Stopped:
 		s.Terminate("normal")
 	case *message.Message:
@@ -93,13 +94,9 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 	s.updateLastActive()
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
-		firstPacket := &pb.ReqHandShake{}
-		if err := json.Unmarshal(msg.Payload, firstPacket); err != nil {
-			glog.Errorf(context.Background(), "unmarshal first packet error, err: %v", err)
-			return err
-		}
-		s.sessionInfo.AccountUid = firstPacket.AccountUid
-		roleID, err := role.RoleService().GetRoleIDByAccount(firstPacket.AccountUid)
+		firstpacket := msg.Msg.(*pb.ReqHandShake)
+		s.sessionInfo.AccountUid = firstpacket.AccountUid
+		roleID, err := role.RoleService().GetRoleIDByAccount(firstpacket.AccountUid)
 		if err != nil {
 			glog.Errorf(context.Background(), "get role id error, err: %v", err)
 			return err
@@ -113,10 +110,11 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 
 		ctx.Watch(rolePid)
 		s.state = StateAuthenticated
-		if err := s.endpoint.SendMsg(&pb.RspHandShake{
-			AccountUid: firstPacket.AccountUid,
+		rsp := &pb.RspHandShake{
+			AccountUid: firstpacket.AccountUid,
 			RoleId:     roleID,
-		}); err != nil {
+		}
+		if err := s.endpoint.SendMsg(rsp); err != nil {
 			glog.Errorf(context.Background(), "send rsp error, err: %v", err)
 			return err
 		}
@@ -129,13 +127,13 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 		}
 		req := &pb.ClientMsg{
 			Path: msg.Path,
+			Msg:  &anypb.Any{},
 		}
 		if err := anypb.MarshalFrom(req.Msg, pbmsg, proto.MarshalOptions{}); err != nil {
 			glog.Errorf(context.Background(), "marshal req error, err: %v", err)
 			return err
 		}
-
-		ctx.Send(s.sessionInfo.RolePid, req)
+		ctx.RequestWithCustomSender(s.sessionInfo.RolePid, req, ctx.Self())
 	}
 
 	return nil

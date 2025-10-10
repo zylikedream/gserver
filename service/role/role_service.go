@@ -18,22 +18,21 @@ type roleService struct {
 	gxymodule.Module
 }
 
-var roleSvc *roleService
+var roleSvc = newRoleService()
 
 func RoleService() *roleService {
 	return roleSvc
 }
 
-func NewRoleService() *roleService {
-	roleSvc = &roleService{}
-	return roleSvc
+func newRoleService() *roleService {
+	return &roleService{}
 }
 
 func (r *roleService) Name() string {
 	return "role"
 }
 
-func (r *roleService) OnInit(ctx context.Context) error {
+func (r *roleService) OnStart(ctx context.Context) error {
 	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() actor.Actor {
 		return logic.NewRoleMain()
 	})
@@ -47,15 +46,15 @@ func (s *roleService) GetRoleIDByAccount(account string) (int64, error) {
 	err := gxymongo.Client().FindOne(context.Background(), &roleAccount, "role_account", bson.M{"account": account})
 	if err != nil && err != mongo.ErrNoDocuments {
 		return 0, err
-	} else {
+	} else if err == mongo.ErrNoDocuments {
 		roleID, err := s.genRoleID()
 		if err != nil {
 			return 0, err
 		}
+		roleAccount.RoleID = roleID
 		if _, err := gxymongo.Client().InsertOne(context.Background(), "role_account", roleAccount); err != nil {
 			return 0, err
 		}
-		roleAccount.RoleID = roleID
 	}
 	return roleAccount.RoleID, nil
 }

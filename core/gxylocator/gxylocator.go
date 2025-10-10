@@ -17,8 +17,7 @@ const (
 
 // locatorConfig 定义定位器的配置结构
 type locatorConfig struct {
-	RedisKeyPrefix string        `toml:"redis_key_prefix"` // Redis 键前缀
-	ExpireTime     time.Duration `toml:"expire_time"`      // 缓存过期时间
+	RedisKeyPrefix string `toml:"redis_key_prefix"` // Redis 键前缀
 }
 
 // Locator 是定位器模块的实现
@@ -27,11 +26,10 @@ type Locator struct {
 }
 
 // NewLocator 创建并初始化一个新的定位器实例
-func NewLocator(prefix string, timeout time.Duration) *Locator {
+func NewLocator(prefix string) *Locator {
 	l := &Locator{
 		conf: &locatorConfig{
 			RedisKeyPrefix: prefix,
-			ExpireTime:     timeout,
 		},
 	}
 	return l
@@ -62,12 +60,12 @@ func (l *Locator) Locate(ctx context.Context, t string, key string) (string, err
 	return result.String(), nil
 }
 
-func (l *Locator) RegisterNode(ctx context.Context, key string, node string) error {
-	return l.Register(ctx, LocatorTypeNode, key, node)
+func (l *Locator) RegisterNode(ctx context.Context, key string, node string, expireTime time.Duration) error {
+	return l.Register(ctx, LocatorTypeNode, key, node, expireTime)
 }
 
 // Register 注册键和节点的映射关系
-func (l *Locator) Register(ctx context.Context, t string, key string, node string) error {
+func (l *Locator) Register(ctx context.Context, t string, key string, node string, expireTime time.Duration) error {
 	redisCli := gxyredis.GetRedis()
 	redisKey := l.formatKey(t, key)
 	succ, err := redisCli.SetNX(ctx, redisKey, node)
@@ -77,7 +75,7 @@ func (l *Locator) Register(ctx context.Context, t string, key string, node strin
 	if !succ {
 		return gerror.New("Key already registered")
 	}
-	redisCli.Expire(ctx, redisKey, int64(l.conf.ExpireTime.Seconds()))
+	redisCli.Expire(ctx, redisKey, int64(expireTime.Seconds()))
 
 	return nil
 }

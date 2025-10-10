@@ -11,14 +11,15 @@ type IRoleModule interface {
 }
 
 type RoleModule struct {
-	gxymodule.Module
-	Role *RoleMain
+	gxymodule.Module `bson:"-"`
+	Role             *RoleMain `bson:"-" hash:"-"`
 }
 
 func (r *RoleModule) GetRole() *RoleMain {
-	return r.GetParent().(*RoleMain)
+	return r.Role
 }
 
 func (r *RoleModule) AfterInit(ctx context.Context) error {
+	r.Role = r.GetParent().(*RoleMain)
 	return nil
 }

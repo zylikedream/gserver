@@ -1,12 +1,6 @@
 package codec
 
 import (
-	"context"
-	"encoding"
-	"reflect"
-
-	"ergo.services/ergo/net/edf"
-	"github.com/gogf/gf/v2/os/glog"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
@@ -57,23 +51,12 @@ func init() {
 				}
 			}
 			for _, msgDesc := range append(simpleMgs, nestedMgs...) {
-				glog.Infof(context.Background(), "RegisterMessageOf %s", msgDesc.FullName())
 				msgType, err := protoregistry.GlobalTypes.FindMessageByName(msgDesc.FullName())
 				if err != nil {
 					continue
 				}
 				msgIns := msgType.New().Interface()
 				RegisterMessageMeta(string(msgDesc.Name()), msgIns)
-
-				// 不再直接对原始消息类型调用edf.RegisterTypeOf，而是使用包装器
-				// 但是仍然需要注册一个示例，以便EDF可以识别这种类型
-				// 我们可以使用包装器的类型进行注册
-				elem := reflect.ValueOf(msgIns).Elem().Interface()
-				_, ok := msgIns.(encoding.BinaryMarshaler)
-				glog.Infof(context.Background(), "%s is binary mshaler %s", msgDesc.Name(), ok)
-				if err = edf.RegisterTypeOf(elem); err != nil {
-					glog.Infof(context.Background(), "RegisterTypeOf for %s failed: %v", msgDesc.Name(), err)
-				}
 			}
 		}
 		return true

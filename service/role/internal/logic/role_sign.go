@@ -24,6 +24,7 @@ import (
 // --------------------proto handlers start-------------
 type RoleSign struct {
 	RoleModule
+	RoleID         int64     `bson:"role_id"`
 	DrawTime       time.Time `bson:"sign_time"`        // 当日领取签到奖励
 	SignDay        int       `bson:"sign_day"`         // 当月签到天数
 	AccumDrawStage []int     `bson:"accum_draw_stage"` // 累积奖励阶段

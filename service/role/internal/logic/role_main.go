@@ -39,10 +39,12 @@ type RoleMain struct {
 }
 
 func NewRoleMain() *RoleMain {
-	return &RoleMain{
+	r := &RoleMain{
 		modsHash:   map[string]uint64{},
-		msgHandler: util.NewMsgHandler(),
+		msgHandler: util.NewMsgHandler("Req"),
 	}
+	r.SetSelf(r)
+	return r
 }
 
 func (r *RoleMain) Init(actx actor.Context) error {
@@ -114,7 +116,9 @@ func (r *RoleMain) Receive(ctx actor.Context) {
 }
 
 func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
-	rspMsg := &pb.ServerMsg{}
+	rspMsg := &pb.ServerMsg{
+		Msg: &anypb.Any{},
+	}
 	if err := anypb.MarshalFrom(rspMsg.Msg, msg, proto.MarshalOptions{}); err != nil {
 		return nil, err
 	}
@@ -143,7 +147,7 @@ func (r *RoleMain) initRoleModules() error {
 	ctx := context.Background()
 	created := false
 	for _, mod := range r.Modules() {
-		if err := gxymongo.Client().FindOne(ctx, roleID, mod.GetName(), mod); err != nil {
+		if err := gxymongo.Client().FindOne(ctx, mod, mod.GetName(), bson.M{"role_id": roleID}); err != nil {
 			if err != mongo.ErrNoDocuments {
 				return err
 			} else {
@@ -175,7 +179,7 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 		if modHash == r.modsHash[modName] && !force {
 			continue
 		}
-		if _, err := client.ReplaceOne(ctx, modName, bson.M{"_id": r.RoleID},
+		if _, err := client.ReplaceOne(ctx, modName, bson.M{"role_id": r.RoleID},
 			mod, options.Replace().SetUpsert(true)); err != nil {
 			errStr += fmt.Sprintf("save mod %s failed: %s", modName, err)
 			continue

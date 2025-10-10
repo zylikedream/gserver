@@ -16,6 +16,7 @@ const (
 type IRegistery interface {
 	Register(ctx context.Context, name string, host string) error
 	Search(ctx context.Context, name string) ([]ServiceNode, error)
+	UnRegister(ctx context.Context, name string, host string) error
 }
 
 type registery struct {
@@ -51,6 +52,19 @@ func (r *registery) Register(ctx context.Context, name string, host string) erro
 		return err
 	}
 	_, err = r.Registry.Register(ctx, svc)
+	return err
+}
+
+func (r *registery) UnRegister(ctx context.Context, name string, host string) error {
+	sv, _ := gjson.Marshal(map[string]string{
+		"name": name,
+		"host": host,
+	})
+	svc, err := gsvc.NewServiceWithKV(fmt.Sprintf("%s/%s", r.getPrefix(name), host), string(sv))
+	if err != nil {
+		return err
+	}
+	err = r.Registry.Deregister(ctx, svc)
 	return err
 }
 

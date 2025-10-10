@@ -10,6 +10,7 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
+	"github.com/gookit/goutil/reflects"
 	"github.com/pkg/errors"
 	"github.com/smallnest/rpcx/share"
 )
@@ -93,7 +94,7 @@ func GetSuitableMethods(typ reflect.Type, methodPrefix string) []*MethodMeta {
 		if !gstr.HasPrefix(method.Name, methodPrefix) {
 			continue
 		}
-		meta := &MethodMeta{Method: method, ArgType: argType}
+		meta := &MethodMeta{Method: method, ArgType: reflects.TypeReal(argType)}
 		// method needs one error out
 		if mtype.NumOut() == 1 {
 			if returnType := mtype.Out(0); returnType != typeOfError {
@@ -162,9 +163,10 @@ func (m *MsgHandler) AddHandler(handler any) {
 }
 
 func (m *MsgHandler) CallWithMsg(ctx context.Context, msg any) (any, error) {
-	method, ok := m.methodMap[reflect.TypeOf(msg).Name()]
+	msgName := GetObjectName(msg)
+	method, ok := m.methodMap[msgName]
 	if !ok {
-		return nil, gerror.Newf("no method handler (%s)", reflect.TypeOf(msg).Name())
+		return nil, gerror.Newf("no method handler (%s)", msgName)
 	}
 	return method.meta.Call(ctx, method.handler, msg)
 }

@@ -18,13 +18,10 @@ type gateService struct {
 	network *gxynet.Network
 }
 
-var gate *gateService
+var gate = newGateService()
 
-func NewGateService() *gateService {
-	gate = &gateService{
-		network: gxynet.NewNetwork("config/gate.net.toml", NewGateHandler()),
-	}
-	return gate
+func newGateService() *gateService {
+	return &gateService{}
 }
 
 func GateService() *gateService {
@@ -35,8 +32,9 @@ func (s *gateService) Name() string {
 	return service.GATE_SERVICE
 }
 
-func (s *gateService) IsRemote() bool {
-	return false
+func (s *gateService) OnInit(ctx context.Context) error {
+	s.network = gxynet.NewNetwork("config/gate.net.toml", NewGateHandler())
+	return nil
 }
 
 func (s *gateService) OnStart(ctx context.Context) error {

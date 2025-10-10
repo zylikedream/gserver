@@ -9,6 +9,7 @@ import (
 
 type RoleBasic struct {
 	RoleModule
+	RoleID   int64     `bson:"role_id"`
 	RoleName string    `bson:"role_name"`
 	LoginTm  time.Time `bson:"login_tm"`
 	CreateTm time.Time `bson:"create_tm"` // 创角时间

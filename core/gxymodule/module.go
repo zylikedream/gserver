@@ -28,6 +28,10 @@ func (m *Module) Self() IModule {
 	return m.self
 }
 
+func (m *Module) SetSelf(self IModule) {
+	m.self = self
+}
+
 func (m *Module) GetID() string {
 	return m.GetName()
 }
@@ -49,7 +53,7 @@ func (m *Module) OnStop(ctx context.Context) error {
 }
 
 func (m *Module) GetModule(id string) IModule {
-	mod, _ := m.childs[id]
+	mod := m.childs[id]
 	return mod
 }
 

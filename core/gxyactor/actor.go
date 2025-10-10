@@ -3,6 +3,7 @@ package gxyactor
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -13,10 +14,8 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/lmittmann/tint"
 )
-
-const defaultHostPort = 10410
-const sytemName = "gxyactor"
 
 type IService interface {
 	actor.Actor
@@ -43,7 +42,7 @@ func ActorSystem() *actorSystem {
 // NewActorSystem创建基础Actor模块
 func NewActorSystem(nodeName string) *actorSystem {
 	// split host from nodeName(name@host)
-	host := nodeName
+	host := ""
 	if idx := strings.Index(nodeName, "@"); idx > 0 {
 		host = nodeName[idx+1:]
 	}
@@ -52,7 +51,7 @@ func NewActorSystem(nodeName string) *actorSystem {
 	}
 	actorSys = &actorSystem{
 		nodeName: nodeName,
-		host:     fmt.Sprintf("%s:%d", host, defaultHostPort),
+		host:     host,
 	}
 
 	return actorSys
@@ -64,19 +63,22 @@ func (a *actorSystem) OnInit(ctx context.Context) error {
 	if err = a.Module.OnInit(ctx); err != nil {
 		return err
 	}
-	a.system = actor.NewActorSystem()
-	config := remote.Configure(a.host, defaultHostPort)
+	a.system = actor.NewActorSystem(actor.WithLoggerFactory(loggerFactory))
+	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
 	a.grainMgr = NewGrainManager(a)
+	if err := a.grainMgr.Init(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (a *actorSystem) OnStart(ctx context.Context) error {
-	var err error
-	if err = a.Module.OnStart(ctx); err != nil {
+	if err := a.Module.OnStart(ctx); err != nil {
 		return err
 	}
+
 	// 启动服务
 	return nil
 }
@@ -96,6 +98,7 @@ func (a *actorSystem) OnStop(ctx context.Context) error {
 		a.system.Shutdown()
 		glog.Infof(ctx, "node stopped: %s", a.nodeName)
 	}
+	a.grainMgr.Stop(ctx)
 	return a.Module.OnStop(ctx)
 }
 
@@ -105,7 +108,7 @@ func (a *actorSystem) SpawnNamed(name string, prod func() actor.Actor) (PID, err
 		return nil, fmt.Errorf("node not initialized")
 	}
 	actor.WithOnInit()
-	props := actor.PropsFromProducer(prod)
+	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
 	pid, err := a.system.Root.SpawnNamed(props, name)
 	if err != nil {
 		return nil, gerror.Wrap(err, "failed to spawn actor")
@@ -124,7 +127,7 @@ func (a *actorSystem) Spawn(prod func() actor.Actor) (pid PID, err error) {
 			err = gerror.New("spawn error")
 		}
 	}()
-	props := actor.PropsFromProducer(prod)
+	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
 	pid = a.system.Root.Spawn(props)
 	return
 }
@@ -170,10 +173,34 @@ func (a *actorSystem) Host() string {
 	return a.host
 }
 
+func (a *actorSystem) Address() string {
+	return a.system.Address()
+}
+
 func (a *actorSystem) GetGrain(kind string, id string, spawn ...bool) (PID, error) {
 	spawnFlag := true
 	if len(spawn) > 0 {
 		spawnFlag = spawn[0]
 	}
 	return a.grainMgr.getGrain(kind, id, spawnFlag)
+}
+
+func newSupervisor() actor.SupervisorStrategy {
+	return actor.NewOneForOneStrategy(10, 3*time.Second, decider)
+}
+
+func decider(reason any) actor.Directive {
+	glog.Errorf(context.Background(), "actor panic: %v", reason)
+	return actor.EscalateDirective
+}
+
+func loggerFactory(system *actor.ActorSystem) *slog.Logger {
+	w := glog.DefaultLogger()
+
+	// create a new logger
+	return slog.New(tint.NewHandler(w, &tint.Options{
+		Level:      slog.LevelInfo,
+		TimeFormat: time.Kitchen,
+	})).With("lib", "Proto.Actor").
+		With("system", system.ID)
 }

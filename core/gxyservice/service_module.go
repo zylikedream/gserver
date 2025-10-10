@@ -27,21 +27,19 @@ func (s *serviceModule) GetServices() []IService {
 
 func (s *serviceModule) LoadService(service IService) {
 	s.Services = append(s.Services, service)
+	s.Module.AddModule(context.Background(), service)
 }
 
 func (s *serviceModule) OnInit(ctx context.Context) error {
-	var err error
-	if err = s.Module.OnInit(ctx); err != nil {
+	if err := s.Module.OnInit(ctx); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (s *serviceModule) OnStart(ctx context.Context) error {
-	for _, svc := range s.Services {
-		if err := svc.OnStart(ctx); err != nil {
-			return err
-		}
+	if err := s.Module.OnStart(ctx); err != nil {
+		return err
 	}
 	return nil
 }

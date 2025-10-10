@@ -4,7 +4,9 @@ import (
 	"context"
 	"os"
 
+	"gserver/core/gxymongo"
 	"gserver/core/gxynode"
+	"gserver/core/gxyredis"
 	"gserver/service/gateway"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -16,8 +18,9 @@ import (
 func Init() {
 	node := gxynode.InitNode("config/gate.toml")
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("gate.toml")
-	node.LoadService(gateway.NewGateService())
-	// node.LoadModule(gxynet.NewNetwork("config/gate.net.toml", gateway.NewGateHandler()))
+	node.LoadModule(gxyredis.NewRedisClient("node/config/db.toml"))
+	node.LoadModule(gxymongo.NewMongoClient("node/config/db.toml"))
+	node.LoadService(gateway.GateService())
 }
 
 func main() {

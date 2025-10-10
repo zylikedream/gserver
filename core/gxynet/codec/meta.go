@@ -2,11 +2,11 @@ package codec
 
 import (
 	"fmt"
-	"path"
 	"reflect"
-	"strings"
 
 	"gserver/util"
+
+	"github.com/gookit/goutil/reflects"
 )
 
 var (
@@ -19,16 +19,6 @@ type MessageMeta struct {
 	ID   string
 	Name string
 	Type reflect.Type
-}
-
-func fullName(t reflect.Type) string {
-
-	var sb strings.Builder
-	sb.WriteString(path.Base(t.PkgPath()))
-	sb.WriteString(".")
-	sb.WriteString(t.Name())
-
-	return sb.String()
 }
 
 func (m *MessageMeta) TypeName() string {
@@ -50,16 +40,13 @@ func (m *MessageMeta) NewInstance() interface{} {
 func RegisterMessageMeta(ID string, msg any) *MessageMeta {
 	meta := &MessageMeta{
 		ID:   ID,
-		Type: reflect.TypeOf(msg),
+		Type: reflects.TypeReal(reflect.TypeOf(msg)),
 	}
 	// 注册时, 统一为非指针类型
-	if meta.Type.Kind() == reflect.Ptr {
-		meta.Type = meta.Type.Elem()
-	}
 	meta.Name = meta.Type.Name()
 
 	if _, ok := metaByName[meta.Name]; ok {
-		panic(fmt.Sprintf("Duplicate message meta register by fullname: %s", meta.Name))
+		panic(fmt.Sprintf("Duplicate message meta register by name: %s", meta.Name))
 	} else {
 		metaByName[meta.Name] = meta
 	}
@@ -94,11 +81,11 @@ func MessageMetaByName(name string) *MessageMeta {
 }
 
 // 根据消息对象获得消息元信息
-func MessageMetaByMsg(msg interface{}) *MessageMeta {
+func MessageMetaByMsg(msg any) *MessageMeta {
 
 	if msg == nil {
 		return nil
 	}
 
-	return MessageMetaByName(fullName(reflect.TypeOf(msg)))
+	return MessageMetaByName(util.GetObjectName(msg))
 }
