@@ -3,7 +3,6 @@ module gserver
 go 1.25.1
 
 require (
-	ergo.services/ergo v1.999.310
 	github.com/ahmetb/go-linq v3.0.0+incompatible
 	github.com/asynkron/protoactor-go v0.0.0-20250909165758-e952b3c0850e
 	github.com/go-viper/mapstructure/v2 v2.4.0
@@ -11,7 +10,6 @@ require (
 	github.com/gogf/gf/contrib/registry/etcd/v2 v2.9.3
 	github.com/gogf/gf/v2 v2.9.3
 	github.com/gookit/goutil v0.7.1
-	github.com/lmittmann/tint v1.1.2
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/panjf2000/gnet/v2 v2.9.3
 	github.com/pkg/errors v0.9.1
@@ -49,6 +47,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/lithammer/shortuuid/v4 v4.2.0 // indirect
+	github.com/lmittmann/tint v1.1.2 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

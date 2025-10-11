@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gcmd"
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/gproc"
 )
 
@@ -33,9 +34,12 @@ func run() {
 	gate := gcmd.Command{
 		Name:  "main",
 		Usage: "main",
-		Brief: "start http server",
+		Brief: "game server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
-			return gxynode.Node().Start(ctx)
+			if err = gxynode.Node().Start(ctx); err != nil {
+				glog.Fatalf(ctx, "start game failed: %+v", err)
+			}
+			return nil
 		},
 	}
 	gate.Run(ctx)

@@ -1,0 +1,4 @@
+path = "./log"
+level = "all"
+file = "{Y-m-d}.log"
+stStatus = 0

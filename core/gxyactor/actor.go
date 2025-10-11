@@ -3,8 +3,6 @@ package gxyactor
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"strings"
 	"time"
 
 	"gserver/core/gxymodule"
@@ -14,13 +12,7 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
-	"github.com/lmittmann/tint"
 )
-
-type IService interface {
-	actor.Actor
-	Name() string
-}
 
 // actorSystem 基础Actor模块
 type actorSystem struct {
@@ -40,15 +32,8 @@ func ActorSystem() *actorSystem {
 }
 
 // NewActorSystem创建基础Actor模块
-func NewActorSystem(nodeName string) *actorSystem {
+func NewActorSystem(nodeName string, host string) *actorSystem {
 	// split host from nodeName(name@host)
-	host := ""
-	if idx := strings.Index(nodeName, "@"); idx > 0 {
-		host = nodeName[idx+1:]
-	}
-	if host == "" {
-		panic("invalid nodename, should like 'node@ip'")
-	}
 	actorSys = &actorSystem{
 		nodeName: nodeName,
 		host:     host,
@@ -63,7 +48,7 @@ func (a *actorSystem) OnInit(ctx context.Context) error {
 	if err = a.Module.OnInit(ctx); err != nil {
 		return err
 	}
-	a.system = actor.NewActorSystem(actor.WithLoggerFactory(loggerFactory))
+	a.system = actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging))
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
@@ -192,17 +177,6 @@ func newSupervisor() actor.SupervisorStrategy {
 func decider(reason any) actor.Directive {
 	glog.Errorf(context.Background(), "actor panic: %v", reason)
 	return actor.EscalateDirective
-}
-
-func loggerFactory(system *actor.ActorSystem) *slog.Logger {
-	w := glog.DefaultLogger()
-
-	// create a new logger
-	return slog.New(tint.NewHandler(w, &tint.Options{
-		Level:      slog.LevelInfo,
-		TimeFormat: time.Kitchen,
-	})).With("lib", "Proto.Actor").
-		With("system", system.ID)
 }
 
 func PidEqual(a, b PID) bool {

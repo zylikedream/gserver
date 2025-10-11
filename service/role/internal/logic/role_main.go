@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gserver/core/gxyactor"
+	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
 	"gserver/protocol/pb"
@@ -33,6 +34,15 @@ var (
 	}
 )
 
+type RoleState int32
+
+const (
+	RoleStateInit RoleState = iota
+	RoleStateStart
+	RoleStateLogin
+	RoleStateLogout
+)
+
 type RoleMain struct {
 	gxymodule.Module
 	RoleID int64
@@ -48,12 +58,16 @@ type RoleMain struct {
 
 	session gxyactor.PID
 	actx    actor.Context
+	ctx     context.Context
+	state   RoleState
 }
 
 func NewRoleMain() *RoleMain {
 	r := &RoleMain{
 		modsHash:   map[string]uint64{},
 		msgHandler: util.NewMsgHandler("Req"),
+		ctx:        gxylog.NewContext(context.Background(), "role"),
+		state:      RoleStateInit,
 	}
 	r.SetSelf(r)
 	return r
@@ -66,44 +80,52 @@ func (r *RoleMain) Init(actx actor.Context) error {
 		return err
 	}
 	r.pid = actx.Self()
-	ctx := context.Background()
 	r.Sign = NewRoleSign()
-	r.AddModule(ctx, r.Sign)
+	r.ctx = gxylog.WithValue(r.ctx, gxylog.ContextKeyRoleID, r.RoleID)
+	r.AddModule(r.ctx, r.Sign)
 
 	r.Bag = NewRoleBag()
-	r.AddModule(ctx, r.Bag)
+	r.AddModule(r.ctx, r.Bag)
 
 	r.Basic = NewRoleBasic()
-	r.AddModule(ctx, r.Basic)
+	r.AddModule(r.ctx, r.Basic)
 
 	if err = r.initRole(); err != nil {
 		return err
 	}
 	r.initTimer()
 	r.initMsgHandler()
+	r.state = RoleStateStart
 	return nil
 }
-
 func (r *RoleMain) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
 		if err := r.Init(ctx); err != nil {
-			glog.Errorf(context.Background(), "init role error, roleID: %d, err: %v", r.RoleID, err)
+			glog.Errorf(r.ctx, "init role error, roleID: %d, err: %v", r.RoleID, err)
 			return
 		}
 	case *gxyactor.ActorTimerMsg:
-		r.timer.Active(context.Background(), msg)
+		r.timer.Active(r.ctx, msg)
 	case *pb.ClientMsg:
 		pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
 		if err != nil {
-			glog.Errorf(context.Background(), "unmarshal req error, roleID: %d, err: %v", r.RoleID, err)
+			glog.Errorf(r.ctx, "unmarshal req error, roleID: %d, err: %v", r.RoleID, err)
 			return
+		}
+		if r.state != RoleStateLogin {
+			if _, ok := pbmsg.(*pb.ReqAccountLogin); !ok {
+				glog.Errorf(r.ctx, "role not login, roleID: %d, recv msg: %v", r.RoleID, pbmsg.ProtoReflect().Descriptor().Name())
+				return
+			}
 		}
 		r.actx = ctx
 		var rsp proto.Message
-		result, err := r.msgHandler.CallWithMsg(context.Background(), pbmsg)
+		tm := time.Now()
+		glog.Debugf(r.ctx, "recv client msg, args: %v", pbmsg)
+		result, err := r.msgHandler.CallWithMsg(r.ctx, pbmsg)
+		glog.Debugf(r.ctx, "handle call result, args: %v, result: %v, cost: %vms", pbmsg, result, time.Since(tm).Milliseconds())
 		if err != nil {
-			glog.Errorf(context.Background(), "handle call error, roleID: %d, args: %v, err: %v", r.RoleID, pbmsg, err)
 			rsp = &pb.Ack{
 				Code:   1,
 				Path:   msg.Path,
@@ -119,13 +141,13 @@ func (r *RoleMain) Receive(ctx actor.Context) {
 		if ctx.Sender() != nil && rsp != nil {
 			svrMsg, err := r.newServerMsg(rsp)
 			if err != nil {
-				glog.Errorf(context.Background(), "send server msg error, roleID: %d, err: %v", r.RoleID, err)
+				glog.Errorf(r.ctx, "send server msg error, roleID: %d, err: %v", r.RoleID, err)
 				return
 			}
 			ctx.Respond(svrMsg)
 		}
 	default:
-		glog.Errorf(context.Background(), "unknown message type: %v", msg)
+		glog.Errorf(r.ctx, "unknown message type: %v", msg)
 	}
 }
 
@@ -148,7 +170,7 @@ func (r *RoleMain) initRole() error {
 
 func (r *RoleMain) initTimer() {
 	r.timer = gxyactor.NewActorTimer(r.pid)
-	r.timer.AddTick(context.Background(), PersistTick, r.TickSave)
+	r.timer.AddTick(r.ctx, PersistTick, r.TickSave)
 }
 
 func (r *RoleMain) initMsgHandler() {
@@ -160,11 +182,10 @@ func (r *RoleMain) initMsgHandler() {
 
 func (r *RoleMain) initRoleModules() error {
 	roleID := r.RoleID
-	ctx := context.Background()
 	created := false
 	for _, mod := range r.Modules() {
 		colName := gstr.CaseSnake(mod.GetName())
-		if err := gxymongo.Client().FindOne(ctx, mod, colName, bson.M{"role_id": roleID}); err != nil {
+		if err := gxymongo.Client().FindOne(r.ctx, mod, colName, bson.M{"role_id": roleID}); err != nil {
 			if err != mongo.ErrNoDocuments {
 				return err
 			} else {
@@ -175,12 +196,12 @@ func (r *RoleMain) initRoleModules() error {
 	}
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
-		if err := rmod.AfterInit(ctx); err != nil {
+		if err := rmod.AfterInit(r.ctx); err != nil {
 			return err
 		}
 	}
 	if created {
-		if err := r.save(ctx, true); err != nil {
+		if err := r.save(r.ctx, true); err != nil {
 			return err
 		}
 	}
@@ -214,14 +235,13 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 }
 
 func (r *RoleMain) SendClient(msg proto.Message) {
-	ctx := context.Background()
 	if r.session == nil {
-		glog.Errorf(ctx, "session is nil, roleID: %d", r.RoleID)
+		glog.Errorf(r.ctx, "session is nil, roleID: %d", r.RoleID)
 		return
 	}
 	svrMsg, err := r.newServerMsg(msg)
 	if err != nil {
-		glog.Errorf(ctx, "new server msg error, roleID: %d, err: %v", r.RoleID, err)
+		glog.Errorf(r.ctx, "new server msg error, roleID: %d, err: %v", r.RoleID, err)
 		return
 	}
 	gxyactor.ActorSystem().Send(r.session, svrMsg)
@@ -246,6 +266,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 		glog.Infof(ctx, "role reconnect, roleID: %d", r.RoleID)
 	}
 	r.timer.Cancel(SignleAliveOnce.Name)
+	r.state = RoleStateLogin
 	return &pb.RspAccountLogin{
 		FirstLogin: firstLogin,
 	}, nil
@@ -256,12 +277,14 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 	if !gxyactor.PidEqual(sender, r.session) {
 		return nil
 	}
+	glog.Infof(ctx, "role logout, roleID: %d", r.RoleID)
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
 	r.save(ctx, false)
-	r.timer.AddOnce(context.Background(), SignleAliveOnce, func(ctx context.Context, _ time.Time) {
+	r.timer.AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _ time.Time) {
 		r.actx.Stop(r.pid)
 	})
+	r.state = RoleStateLogout
 	return nil
 }
 

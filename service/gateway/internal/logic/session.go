@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 	"gserver/protocol/pb"
@@ -46,11 +47,13 @@ type Session struct {
 	state       SessionState      // 会话状态
 	sessionInfo *SessionInfo      // 会话信息
 	actx        actor.Context     // 会话上下文
+	ctx         context.Context   // 会话上下文
 }
 
 func NewSession(ep endpoint.Endpoint) *Session {
 	return &Session{
 		endpoint: ep,
+		ctx:      gxylog.NewContext(context.Background(), "session"),
 	}
 }
 
@@ -59,17 +62,17 @@ func (s *Session) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
 		if err := s.Init(); err != nil {
-			glog.Errorf(context.Background(), "init session error, err: %v", err)
+			glog.Errorf(s.ctx, "init session error, err: %v", err)
 		}
 	case *actor.Stopped:
 		s.Stop("normal")
 	case *message.Message:
 		if err := s.OnHandleClientMessage(ctx, msg); err != nil {
-			glog.Errorf(context.Background(), "handle client message error, err: %v", err)
+			glog.Errorf(s.ctx, "handle client message error, err: %v", err)
 		}
 	case *pb.ServerMsg:
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
-			glog.Errorf(context.Background(), "handle server message error, err: %v", err)
+			glog.Errorf(s.ctx, "handle server message error, err: %v", err)
 		}
 	case *pb.ActorStop:
 		s.Stop(msg.Reason)
@@ -89,7 +92,7 @@ func (s *Session) Init() error {
 		ConnectTime: time.Now(),
 		LastActive:  time.Now(),
 	}
-	glog.Infof(context.Background(), "Session initialized: remote: %s", s.endpoint.Conn().RemoteAddr())
+	glog.Infof(s.ctx, "Session initialized: remote: %s", s.endpoint.Conn().RemoteAddr())
 
 	// 可以在这里进行初始化，如启动心跳等
 	return nil
@@ -104,24 +107,25 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 		s.sessionInfo.AccountUid = firstpacket.AccountUid
 		roleID, err := role.RoleService().GetRoleIDByAccount(firstpacket.AccountUid)
 		if err != nil {
-			glog.Errorf(context.Background(), "get role id error, err: %v", err)
+			glog.Errorf(s.ctx, "get role id error, err: %v", err)
 			return err
 		}
 		rolePid, err := role.RoleService().GetRole(roleID)
 		if err != nil {
-			glog.Errorf(context.Background(), "get role pid error, err: %v", err)
+			glog.Errorf(s.ctx, "get role pid error, err: %v", err)
 			return err
 		}
 		s.sessionInfo.RolePid = rolePid
 
 		ctx.Watch(rolePid)
+		s.ctx = gxylog.WithValue(s.ctx, gxylog.ContextKeyRoleID, roleID)
 		s.state = StateAuthenticated
 		rsp := &pb.RspHandShake{
 			AccountUid: firstpacket.AccountUid,
 			RoleId:     roleID,
 		}
 		if err := s.endpoint.SendMsg(rsp); err != nil {
-			glog.Errorf(context.Background(), "send rsp error, err: %v", err)
+			glog.Errorf(s.ctx, "send rsp error, err: %v", err)
 			return err
 		}
 		// 添加会话到会话管理器
@@ -130,11 +134,12 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
 		if !ok {
-			glog.Errorf(context.Background(), "msg is not pb.RemoteReqMsg, msg: %v", msg)
+			glog.Errorf(s.ctx, "msg is not pb.RemoteReqMsg, msg: %v", msg)
 			return nil
 		}
+		glog.Debugf(s.ctx, "recv client msg, path: %s, msg: %v", msg.Path, pbmsg)
 		if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
-			glog.Errorf(context.Background(), "send data msg error, err: %v", err)
+			glog.Errorf(s.ctx, "send data msg error, err: %v", err)
 			return err
 		}
 	}
@@ -148,7 +153,7 @@ func (s *Session) SendDataMsg(msg proto.Message, path string) error {
 		Msg:  &anypb.Any{},
 	}
 	if err := anypb.MarshalFrom(req.Msg, msg, proto.MarshalOptions{}); err != nil {
-		glog.Errorf(context.Background(), "marshal req error, err: %v", err)
+		glog.Errorf(s.ctx, "marshal req error, err: %v", err)
 		return err
 	}
 	s.actx.RequestWithCustomSender(s.sessionInfo.RolePid, req, s.actx.Self())
@@ -159,11 +164,11 @@ func (s *Session) OnHandleServerMessage(ctx actor.Context, msg *pb.ServerMsg) er
 	// 解析响应消息
 	pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
 	if err != nil {
-		glog.Errorf(context.Background(), "unmarshal rsp error, err: %v", err)
+		glog.Errorf(s.ctx, "unmarshal rsp error, err: %v", err)
 		return err
 	}
 	if err := s.endpoint.SendMsg(pbmsg); err != nil {
-		glog.Errorf(context.Background(), "send rsp error, err: %v", err)
+		glog.Errorf(s.ctx, "send rsp error, err: %v", err)
 		return err
 	}
 	return nil
@@ -174,7 +179,7 @@ func (s *Session) Stop(reason string) {
 	if s.state == StateDisconnected {
 		return
 	}
-	glog.Infof(context.Background(), "Session terminating: reason: %v, role_pid: %v", reason, s.sessionInfo.RolePid)
+	glog.Infof(s.ctx, "Session terminating: reason: %v, role_pid: %v", reason, s.sessionInfo.RolePid)
 
 	s.state = StateDisconnected
 	// 关闭网络连接

@@ -62,6 +62,9 @@ func (m *mongoClient) OnInit(ctx context.Context) error {
 	connTimeout := conf.ConnectTimeout
 	opt.SetConnectTimeout(connTimeout)
 	opt.SetServerSelectionTimeout(connTimeout)
+	opt.SetLoggerOptions(&options.LoggerOptions{
+		Sink: NewMongoLogger(),
+	})
 	client, err := mongo.Connect(ctx, opt)
 	if err != nil {
 		return err

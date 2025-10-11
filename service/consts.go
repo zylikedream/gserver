@@ -1,6 +1,6 @@
 package service
 
 const (
-	ROLE_SERVICE = "role_service"
-	GATE_SERVICE = "gate_service"
+	ROLE_SERVICE = "role"
+	GATE_SERVICE = "gate"
 )

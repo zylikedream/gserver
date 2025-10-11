@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"gserver/core/gxyactor"
-	"gserver/core/gxymodule"
 	"gserver/core/gxynet"
 	"gserver/core/gxynet/endpoint"
 	"gserver/service"
@@ -14,7 +13,7 @@ import (
 
 // sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
 type gateService struct {
-	gxymodule.Module
+	gxyactor.InnerService
 	network *gxynet.Network
 }
 

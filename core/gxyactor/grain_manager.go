@@ -101,7 +101,6 @@ func (a *grainActivator) UpdateRegister(ctx context.Context, _tm time.Time) {
 type grainManager struct {
 	sys          *actorSystem
 	grainLocator *gxylocator.Locator
-	registry     gxyregistery.IRegistery
 	grainInfos   map[string]*grainInfo
 }
 
@@ -113,19 +112,11 @@ func NewGrainManager(sys *actorSystem) *grainManager {
 }
 
 func (g *grainManager) Init(ctx context.Context) error {
-	registry, err := gxyregistery.NewRegistery(gxyregistery.REGISTERY_TYPE_ETCD, "node/config/service.toml")
-	if err != nil {
-		return err
-	}
-	g.registry = registry
 	g.grainLocator = gxylocator.NewLocator("gserver")
 	return nil
 }
 
 func (g *grainManager) Stop(ctx context.Context) error {
-	for _, ginfo := range g.grainInfos {
-		g.registry.UnRegister(context.Background(), ginfo.Kind, g.sys.Address())
-	}
 	return nil
 }
 
@@ -162,9 +153,6 @@ func (g *grainManager) RegisterGrain(kind string, props actor.Producer) error {
 	}
 	ginfo.Activator = pid
 	g.grainInfos[kind] = ginfo
-	if err := g.registry.Register(context.Background(), kind, g.sys.Address()); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -194,21 +182,12 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 		return nil, gerror.Newf("grain %s:%s not found", kind, id)
 	}
 
-	grainNode := g.getKindNode(kind, gxyregistery.RoundRobinSelector())
+	grainNode := ServiceManager().GetServiceNode(kind, gxyregistery.RoundRobinSelector())
 
 	if grainNode.Node == "" {
 		return nil, gerror.Newf("find grain node failed, kind: %s, id: %s", kind, id)
 	}
 	return g.spawnGrain(grainNode.Node, kind, id)
-}
-
-func (s *grainManager) getKindNode(kind string, selector gxyregistery.ServiceSelector) gxyregistery.ServiceNode {
-	nodes, err := s.registry.Search(context.Background(), kind)
-	if err != nil {
-		return gxyregistery.ServiceNode{}
-	}
-
-	return selector.Select(kind, nodes)
 }
 
 func getGrainLocateKey(kind string, id string) string {

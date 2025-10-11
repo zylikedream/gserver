@@ -2,10 +2,10 @@ package logic
 
 import (
 	"context"
-	"time"
 
 	// "gserver/gameconfig"
 	gameconfig "gserver/gameconfig/src"
+	"gserver/service/role/internal/logic/bag"
 
 	"gserver/protocol/pb"
 
@@ -20,52 +20,16 @@ var (
 	ErrItemDecItemNotEnough = errors.New("dec item not enough")
 )
 
-type bagItem struct {
-	PropID     int       `bson:"prop_id"`
-	Num        uint64    `bson:"num"`
-	Grid       uint64    `bson:"grid"` // 占用的格子数
-	UpdateTime time.Time `bson:"update_time"`
-}
-
-type Item struct {
-	ID  int    `bson:"id" copier:"Id"`
-	Num uint64 `bson:"num"`
-}
-
-type ItemChange struct {
-	PropID  int
-	PreNum  uint64
-	Num     uint64
-	PreGrid uint64
-	Grid    uint64
-}
-
-func (it *bagItem) update(propID int, Num uint64, Grid uint64) *ItemChange {
-	chg := &ItemChange{
-		PropID:  propID,
-		PreNum:  it.Num,
-		Num:     Num,
-		PreGrid: it.Grid,
-		Grid:    Grid,
-	}
-
-	it.PropID = propID
-	it.Num = Num
-	it.Grid = Grid
-	it.UpdateTime = time.Now()
-
-	return chg
-}
-
 type RoleBag struct {
 	RoleModule `bson:"inline"`
-	Items      map[int]bagItem `bson:"items"`
-	GridUse    int             `bson:"grid_use"`
+	Items      map[int]bag.BagItem     `bson:"items"`
+	Currencies map[int]bag.BagCurrency `bson:"currencies"`
+	GridUse    int                     `bson:"grid_use"`
 }
 
 func NewRoleBag() *RoleBag {
 	return &RoleBag{
-		Items: make(map[int]bagItem),
+		Items: make(map[int]bag.BagItem),
 	}
 }
 
@@ -73,7 +37,7 @@ func (r *RoleBag) OnInit(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleBag) AddSingleItem(ctx context.Context, item Item) (*ItemChange, error) {
+func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.ItemChange, error) {
 	itemTable := gameconfig.GameConfig().TbItem
 	itemconf := itemTable.Get(int32(item.ID))
 	have := r.Items[item.ID]
@@ -86,14 +50,14 @@ func (r *RoleBag) AddSingleItem(ctx context.Context, item Item) (*ItemChange, er
 		// todo 自动使用物品
 		return nil, nil
 	}
-	chg := have.update(item.ID, have.Num+item.Num, newGrid)
+	chg := have.Update(item.ID, have.Num+item.Num, newGrid)
 	r.GridUse += gridAdd
 	return chg, nil
 }
 
-func (r *RoleBag) GetItem(propid int) Item {
+func (r *RoleBag) GetItem(propid int) bag.Item {
 	bagItem := r.Items[propid]
-	return Item{
+	return bag.Item{
 		ID:  propid,
 		Num: bagItem.Num,
 	}
@@ -104,7 +68,7 @@ func (r *RoleBag) isGridFull(add int) bool {
 	return int32(r.GridUse+add) > bagMaxGrid
 }
 
-func (r *RoleBag) DecSingleItem(ctx context.Context, item Item) (*ItemChange, error) {
+func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.ItemChange, error) {
 	have := r.Items[item.ID]
 	if item.Num > have.Num {
 		return nil, errors.Wrapf(ErrItemDecItemNotEnough, "have:%v, need:%v", have, item)
@@ -114,7 +78,7 @@ func (r *RoleBag) DecSingleItem(ctx context.Context, item Item) (*ItemChange, er
 	newGrid := (have.Num - item.Num - 1) / uint64(itemconf.MaxOverlap)
 	gridDec := int(newGrid - have.Grid)
 
-	chg := have.update(item.ID, have.Num-item.Num, newGrid)
+	chg := have.Update(item.ID, have.Num-item.Num, newGrid)
 
 	if newGrid == 0 {
 		delete(r.Items, item.ID)
@@ -134,8 +98,8 @@ func (r *RoleBag) AddItemRc(ctx context.Context, itemRcList []*gameconfig.ItemIt
 	return r.AddItem(ctx, items)
 }
 
-func (r *RoleBag) AddItem(ctx context.Context, itemList []Item) error {
-	var chgs []*ItemChange
+func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
+	var chgs []*bag.ItemChange
 	itemList = r.ClassifyItemList(itemList)
 	for _, item := range itemList {
 		if chg, err := r.AddSingleItem(ctx, item); err != nil {
@@ -158,13 +122,13 @@ func (r *RoleBag) CheckItemRc(ctx context.Context, itemRcList []*gameconfig.Item
 	return r.CheckItem(ctx, items)
 }
 
-func (r *RoleBag) CheckItem(ctx context.Context, itemList []Item) bool {
+func (r *RoleBag) CheckItem(ctx context.Context, itemList []bag.Item) bool {
 	if len(itemList) == 0 {
 		return true
 	}
 	itemList = r.ClassifyItemList(itemList)
-	return linq.From(itemList).All(func(i interface{}) bool {
-		item := i.(Item)
+	return linq.From(itemList).All(func(i any) bool {
+		item := i.(bag.Item)
 		have := r.GetItem(item.ID)
 		return have.Num >= item.Num
 	})
@@ -178,12 +142,12 @@ func (r *RoleBag) DecItemRC(ctx context.Context, itemRcList []*gameconfig.ItemIt
 	return r.DecItem(ctx, items)
 }
 
-func (r *RoleBag) DecItem(ctx context.Context, itemList []Item) error {
+func (r *RoleBag) DecItem(ctx context.Context, itemList []bag.Item) error {
 	if len(itemList) == 0 {
 		return nil
 	}
 	itemList = r.ClassifyItemList(itemList)
-	var chgs []*ItemChange
+	var chgs []*bag.ItemChange
 	for _, item := range itemList {
 		if chg, err := r.DecSingleItem(ctx, item); err != nil {
 			return err
@@ -196,29 +160,27 @@ func (r *RoleBag) DecItem(ctx context.Context, itemList []Item) error {
 	return nil
 }
 
-func (r *RoleBag) notifyItemUpdate(chgs []*ItemChange) {
+func (r *RoleBag) notifyItemUpdate(chgs []*bag.ItemChange) {
 	// sess := ctx.GetSession()
-	msg := pb.NotifyItemUpdate{
+	msg := &pb.NotifyItemUpdate{
 		Items: []*pb.PItemUpdate{},
 	}
-	linq.From(chgs).SelectT(func(i interface{}) interface{} {
+	linq.From(chgs).Select(func(i any) any {
 		return &pb.PItemUpdate{
-			PropId: int32(i.(*ItemChange).PropID),
-			Num:    int64(i.(*ItemChange).Num),
+			PropId: int32(i.(*bag.ItemChange).PropID),
+			Num:    int64(i.(*bag.ItemChange).Num),
 		}
 	}).ToSlice(&msg.Items)
-	// if err := sess.Send(msg); err != nil {
-	// 	s.logger.Error("notify item update failed", zap.Any("msg", msg))
-	// }
+	r.Role.SendClient(msg)
 }
 
-func (r *RoleBag) ClassifyItemList(itemList []Item) []Item {
-	classifyItemList := []Item{}
+func (r *RoleBag) ClassifyItemList(itemList []bag.Item) []bag.Item {
+	classifyItemList := []bag.Item{}
 	linq.From(itemList).GroupBy(
-		func(it interface{}) interface{} { return it.(Item).ID },
-		func(it interface{}) interface{} { return it.(Item).Num },
-	).Select(func(i interface{}) interface{} {
-		return Item{
+		func(it any) any { return it.(bag.Item).ID },
+		func(it any) any { return it.(bag.Item).Num },
+	).Select(func(i any) any {
+		return bag.Item{
 			ID:  i.(linq.Group).Key.(int),
 			Num: linq.From(i.(linq.Group).Group).SumUInts(),
 		}
@@ -226,13 +188,32 @@ func (r *RoleBag) ClassifyItemList(itemList []Item) []Item {
 	return classifyItemList
 }
 
-func (r *RoleBag) ItemRC2Item(itemRcList []*gameconfig.ItemItemRC) ([]Item, error) {
-	items := []Item{}
-	linq.From(itemRcList).Select(func(obj interface{}) interface{} {
-		return Item{
+func (r *RoleBag) ItemRC2Item(itemRcList []*gameconfig.ItemItemRC) ([]bag.Item, error) {
+	items := []bag.Item{}
+	linq.From(itemRcList).Select(func(obj any) any {
+		return bag.Item{
 			ID:  int(obj.(*gameconfig.ItemItemRC).Id),
 			Num: uint64(obj.(*gameconfig.ItemItemRC).Num),
 		}
 	}).ToSlice(&items)
 	return items, nil
+}
+
+func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBagInfo, error) {
+	msg := &pb.RspBagInfo{
+		Items: []*pb.PItemInfo{},
+	}
+	linq.From(r.Items).Select(func(i any) any {
+		return &pb.PItemInfo{
+			PropId: int32(i.(*bag.BagItem).PropID),
+			Num:    int64(i.(*bag.BagItem).Num),
+		}
+	}).ToSlice(&msg.Items)
+	linq.From(r.Currencies).Select(func(i any) any {
+		return &pb.PCurrencyInfo{
+			Id:  int32(i.(*bag.BagCurrency).PropID),
+			Num: int64(i.(*bag.BagCurrency).Num),
+		}
+	}).ToSlice(&msg.Currencys)
+	return msg, nil
 }

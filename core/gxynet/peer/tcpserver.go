@@ -5,11 +5,13 @@ import (
 	"fmt"
 
 	"gserver/core/gxynet/endpoint"
+	"gserver/core/gxynet/logger"
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/panjf2000/gnet/v2"
+	"github.com/panjf2000/gnet/v2/pkg/logging"
 )
 
 type TcpServer struct {
@@ -46,7 +48,10 @@ func (t *TcpServer) Init() error {
 func (t *TcpServer) Start(ctx context.Context, el endpoint.EventHandler) error {
 	t.Handler = el
 	go func() {
-		if err := gnet.Run(t, t.conf.Addr, gnet.WithMulticore(true), gnet.WithReuseAddr(true)); err != nil {
+		if err := gnet.Run(t, t.conf.Addr,
+			gnet.WithMulticore(true),
+			gnet.WithLogger(logger.NewGnetLogger()), gnet.WithLogLevel(logging.DebugLevel),
+			gnet.WithReuseAddr(true)); err != nil {
 			glog.Fatalf(ctx, "gnet run err:%s", err)
 		}
 
@@ -105,6 +110,8 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 func (t *TcpServer) OnClose(c gnet.Conn, err error) gnet.Action {
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
 	t.Handler.OnClose(endPoint, err)
-	glog.Errorf(ctx, "conn close %s, error %+v", c.RemoteAddr().String(), err)
+	if err != nil {
+		glog.Errorf(ctx, "conn close %s, error %+v", c.RemoteAddr().String(), err)
+	}
 	return gnet.None
 }

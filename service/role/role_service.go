@@ -3,8 +3,8 @@ package role
 import (
 	"context"
 	"gserver/core/gxyactor"
-	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
+	"gserver/service"
 	"gserver/service/role/internal/logic"
 	"gserver/util/uid"
 	"strconv"
@@ -15,7 +15,7 @@ import (
 )
 
 type roleService struct {
-	gxymodule.Module
+	gxyactor.Service
 }
 
 var roleSvc = newRoleService()
@@ -29,7 +29,7 @@ func newRoleService() *roleService {
 }
 
 func (r *roleService) Name() string {
-	return "role"
+	return service.ROLE_SERVICE
 }
 
 func (r *roleService) OnStart(ctx context.Context) error {

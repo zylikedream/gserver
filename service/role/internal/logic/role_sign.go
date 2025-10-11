@@ -67,8 +67,9 @@ func (s *RoleSign) ReqSignDraw(ctx context.Context, req *pb.ReqSignDraw) (*pb.Rs
 	}
 	s.DrawDay = s.SignDay
 	s.DrawTime = time.Now()
-	rsp := &pb.RspSignDraw{}
-	rsp.SignTime = time.Now().Unix()
+	rsp := &pb.RspSignDraw{
+		SignTime: s.DrawTime.Unix(),
+	}
 	return rsp, nil
 }
 
