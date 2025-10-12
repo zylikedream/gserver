@@ -12,6 +12,7 @@ import (
 	"context"
 	"time"
 
+	"gserver/core/gxytimer"
 	gameconfig "gserver/gameconfig/src"
 	"gserver/protocol/pb"
 	"gserver/util"
@@ -35,14 +36,13 @@ func NewRoleSign() *RoleSign {
 	return &RoleSign{}
 }
 
-func (r *RoleSign) OnInit(ctx context.Context) error {
-	// r.GetRole().AddCron(ctx, gxyservice.DayRefresh, r.DayRefresh)
-	return nil
+// 刷新的时候自动签到(玩家上线，或者刷新点的时候在线，都算签到一次)
+func (s *RoleSign) DayRefresh(ctx context.Context, tm time.Time) {
+	s.SignDay += 1
 }
 
-// 刷新的时候自动签到(玩家上线，或者刷新点的时候在线，都算签到一次)
-func (r *RoleSign) DayRefresh(ctx context.Context, tm time.Time) {
-	r.SignDay += 1
+func (s *RoleSign) MonthRefresh(ctx context.Context, tm time.Time) {
+	s.SignDay += 1
 }
 
 func (s *RoleSign) ReqSignInfo(ctx context.Context, req *pb.ReqSignInfo) (*pb.RspSignInfo, error) {
@@ -62,7 +62,7 @@ func (s *RoleSign) ReqSignDraw(ctx context.Context, req *pb.ReqSignDraw) (*pb.Rs
 		return nil, errors.New("today is drawed")
 	}
 	rewards := s.getSignReward(s.DrawDay, s.SignDay)
-	if err := s.GetRole().Bag.AddItemRc(ctx, rewards); err != nil {
+	if err := s.Role.Bag.AddItemRc(ctx, rewards); err != nil {
 		errors.Wrap(err, "add item failed")
 	}
 	s.DrawDay = s.SignDay
@@ -74,7 +74,7 @@ func (s *RoleSign) ReqSignDraw(ctx context.Context, req *pb.ReqSignDraw) (*pb.Rs
 }
 
 func (s *RoleSign) getSignReward(from int, to int) []*gameconfig.ItemItemRC {
-	vipLv := s.GetRole().Basic.VipLv
+	vipLv := s.Role.Basic.VipLv
 	rewards := []*gameconfig.ItemItemRC{}
 	for i := from + 1; i <= to; i++ {
 		signConfig := gameconfig.GameConfig().TbSignCheckIn.Get(int32(i))
@@ -97,7 +97,7 @@ func (s *RoleSign) ReqSignPatch(ctx context.Context, req *pb.ReqSignPatch) (*pb.
 		return nil, errors.New("can't patch, sign full")
 	}
 	costs := []*gameconfig.ItemItemRC{}
-	vipLv := s.GetRole().Basic.VipLv
+	vipLv := s.Role.Basic.VipLv
 	for i := 1; i <= int(req.PatchTimes); i++ {
 		patchConfig := gameconfig.GameConfig().TbSignPatch.Get(int32(i + s.Patch))
 		if vipLv < int(patchConfig.Vip) {
@@ -105,7 +105,7 @@ func (s *RoleSign) ReqSignPatch(ctx context.Context, req *pb.ReqSignPatch) (*pb.
 		}
 		costs = append(costs, patchConfig.Costs...)
 	}
-	bag := s.GetRole().Bag
+	bag := s.Role.Bag
 	if bag.CheckItemRc(ctx, costs) {
 		return nil, errors.New("cost not enough")
 	}
@@ -143,7 +143,7 @@ func (r *RoleSign) ReqSignAccumDraw(ctx context.Context, req *pb.ReqSignAccumDra
 	if r.SignDay < int(accumConfig.NeedDays) {
 		return nil, errors.New("accum day not enough")
 	}
-	if err := r.GetRole().Bag.AddItemRc(ctx, accumConfig.Rewards); err != nil {
+	if err := r.Role.Bag.AddItemRc(ctx, accumConfig.Rewards); err != nil {
 		return nil, errors.New("add item failed")
 	}
 	r.AccumDrawStage = append(r.AccumDrawStage, int(req.Stage))
@@ -158,4 +158,8 @@ func (r *RoleSign) ReqSignAccumDraw(ctx context.Context, req *pb.ReqSignAccumDra
 
 func getMaxSignDay() int {
 	return time.Now().Day()
+}
+
+func (r *RoleSign) SignDayRrefresh(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	r.SignDay += 1
 }

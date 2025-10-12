@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"gserver/core/gxylocator"
+	"gserver/core/gxylog"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"time"
 
@@ -26,18 +28,27 @@ type grainActivator struct {
 	manager *grainManager
 	childs  []PID
 	timer   *ActorTimer
+	ctx     context.Context
+}
+
+func NewGrainActivator(ctx context.Context, kind string, manager *grainManager) *grainActivator {
+	return &grainActivator{
+		kind:    kind,
+		manager: manager,
+		ctx:     gxylog.NewContext(context.Background(), "grain_activator"),
+	}
 }
 
 func (a *grainActivator) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
-		a.timer = NewActorTimer(ctx.Self())
-		a.timer.AddTick(context.Background(), &Tick{
-			Name: "update_register",
-			Tick: 10 * time.Second,
+		a.timer = NewActorTimer(ctx.Self(), nil)
+		a.timer.AddTick(a.ctx, &gxytimer.Tick{
+			Name:     "update_register",
+			Interval: 10 * time.Second,
 		}, a.UpdateRegister)
-	case *ActorTimerMsg:
-		a.timer.Active(context.Background(), msg)
+	case ActorTimerMsg:
+		a.timer.Active(a.ctx, msg)
 	case *pb.ActorActive:
 		supervisor := newSupervisor()
 		ginfo, ok := a.manager.grainInfos[a.kind]
@@ -54,18 +65,29 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			})
 			return
 		}
-		key := getGrainLocateKey(a.kind, msg.Id)
-		err := a.manager.grainLocator.RegisterNode(context.Background(), key, a.manager.sys.Address(), 15*time.Second)
+
+		pid, err := a.manager.sys.system.Root.SpawnNamed(ginfo.Props.Configure(actor.WithSupervisor(supervisor)), msg.Id)
 		if err != nil {
-			glog.Error(context.Background(), "register grain node failed: %v", err)
+			glog.Errorf(a.ctx, "spawn grain actor failed: %s", err)
 			ctx.Respond(&pb.ActorError{
 				Reason: err.Error(),
 			})
 			return
 		}
-		pid, err := a.manager.sys.system.Root.SpawnNamed(ginfo.Props.Configure(actor.WithSupervisor(supervisor)), msg.Id)
+		// touch actor to check if it is started
+		err = ctx.RequestFuture(pid, actor.Touch{}, 2*time.Second).Wait()
 		if err != nil {
-			glog.Error(context.Background(), "spawn grain actor failed: %s", err)
+			glog.Errorf(a.ctx, "touch grain actor failed: %v", err)
+			ctx.Respond(&pb.ActorError{
+				Reason: "start grain failed",
+			})
+			return
+		}
+
+		key := getGrainLocateKey(a.kind, msg.Id)
+		err = a.manager.grainLocator.RegisterNode(a.ctx, key, a.manager.sys.Address(), 15*time.Second)
+		if err != nil {
+			glog.Errorf(a.ctx, "register grain node failed: %v", err)
 			ctx.Respond(&pb.ActorError{
 				Reason: err.Error(),
 			})
@@ -81,19 +103,19 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			return
 		}
 		key := getGrainLocateKey(a.kind, child.Id)
-		err := a.manager.grainLocator.UnregisterNode(context.Background(), key)
+		err := a.manager.grainLocator.UnregisterNode(a.ctx, key)
 		if err != nil {
-			glog.Error(context.Background(), "unregister grain node failed: %v", err)
+			glog.Errorf(a.ctx, "unregister grain node failed: %v", err)
 		}
 	}
 }
 
-func (a *grainActivator) UpdateRegister(ctx context.Context, _tm time.Time) {
+func (a *grainActivator) UpdateRegister(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 	for _, child := range a.childs {
 		key := getGrainLocateKey(a.kind, child.Id)
-		err := a.manager.grainLocator.RegisterNode(context.Background(), key, a.manager.sys.Address(), 15*time.Second)
+		err := a.manager.grainLocator.RegisterNode(a.ctx, key, a.manager.sys.Address(), 15*time.Second)
 		if err != nil {
-			glog.Error(context.Background(), "register grain node failed: %v", err)
+			glog.Errorf(a.ctx, "register grain node failed: %v", err)
 		}
 	}
 }

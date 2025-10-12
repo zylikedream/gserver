@@ -105,7 +105,7 @@ func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message)
 	case message.MESSGE_TYPE_FIRST_PACKET:
 		firstpacket := msg.Msg.(*pb.ReqHandShake)
 		s.sessionInfo.AccountUid = firstpacket.AccountUid
-		roleID, err := role.RoleService().GetRoleIDByAccount(firstpacket.AccountUid)
+		roleID, err := role.GetRoleIDByAccount(firstpacket.AccountUid)
 		if err != nil {
 			glog.Errorf(s.ctx, "get role id error, err: %v", err)
 			return err
@@ -156,7 +156,7 @@ func (s *Session) SendDataMsg(msg proto.Message, path string) error {
 		glog.Errorf(s.ctx, "marshal req error, err: %v", err)
 		return err
 	}
-	s.actx.RequestWithCustomSender(s.sessionInfo.RolePid, req, s.actx.Self())
+	s.actx.Request(s.sessionInfo.RolePid, req)
 	return nil
 }
 

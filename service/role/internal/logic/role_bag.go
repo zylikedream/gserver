@@ -33,10 +33,6 @@ func NewRoleBag() *RoleBag {
 	}
 }
 
-func (r *RoleBag) OnInit(ctx context.Context) error {
-	return nil
-}
-
 func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.ItemChange, error) {
 	itemTable := gameconfig.GameConfig().TbItem
 	itemconf := itemTable.Get(int32(item.ID))

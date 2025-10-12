@@ -7,12 +7,14 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
+	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"gserver/util"
 	"strconv"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/pkg/errors"
@@ -24,13 +26,13 @@ import (
 )
 
 var (
-	PersistTick = &gxyactor.Tick{
-		Name: "save_role",
-		Tick: 5 * time.Second,
+	PersistTick = &gxytimer.Tick{
+		Name:     "save_role",
+		Interval: 5 * time.Second,
 	}
-	SignleAliveOnce = &gxyactor.Once{
-		Name:    "signle_alive",
-		EndTime: 10 * time.Minute, // 10min 连接断开后存活时间
+	SignleAliveOnce = &gxytimer.Once{
+		Name:  "signle_alive",
+		After: 10 * time.Minute, // 10min 连接断开后存活时间
 	}
 )
 
@@ -50,6 +52,7 @@ type RoleMain struct {
 	Sign  *RoleSign
 	Bag   *RoleBag
 	Basic *RoleBasic
+	Extra *RoleExtra
 
 	timer      *gxyactor.ActorTimer
 	modsHash   map[string]uint64
@@ -73,15 +76,37 @@ func NewRoleMain() *RoleMain {
 	return r
 }
 
-func (r *RoleMain) Init(actx actor.Context) error {
+func (r *RoleMain) initRole(actx actor.Context) error {
+	r.pid = actx.Self()
 	var err error
 	r.RoleID, err = strconv.ParseInt(actx.Self().Id, 10, 64)
 	if err != nil {
 		return err
 	}
-	r.pid = actx.Self()
-	r.Sign = NewRoleSign()
 	r.ctx = gxylog.WithValue(r.ctx, gxylog.ContextKeyRoleID, r.RoleID)
+	// 验证角色账号是否存在
+	if account := GetAccountByRoleID(r.RoleID); account == "" {
+		return gerror.Newf("role account not exist, roleID: %d", r.RoleID)
+	}
+	if err := r.initModules(); err != nil {
+		return err
+	}
+	r.initTimer()
+	r.initMsgHandler()
+	r.state = RoleStateStart
+	return nil
+}
+
+func (r *RoleMain) afterInit() error {
+	if err := r.Start(r.ctx); err != nil {
+		return err
+	}
+	r.timer.RestoreCron(r.ctx)
+	return nil
+}
+
+func (r *RoleMain) initModules() error {
+	r.Sign = NewRoleSign()
 	r.AddModule(r.ctx, r.Sign)
 
 	r.Bag = NewRoleBag()
@@ -90,22 +115,51 @@ func (r *RoleMain) Init(actx actor.Context) error {
 	r.Basic = NewRoleBasic()
 	r.AddModule(r.ctx, r.Basic)
 
-	if err = r.initRole(); err != nil {
+	r.Extra = NewRoleExtra()
+	r.AddModule(r.ctx, r.Extra)
+
+	if err := r.loadModules(); err != nil {
 		return err
 	}
-	r.initTimer()
-	r.initMsgHandler()
-	r.state = RoleStateStart
 	return nil
 }
+
+func (r *RoleMain) loadModules() error {
+	roleID := r.RoleID
+	for _, mod := range r.Modules() {
+		colName := getModuleColName(mod)
+		if err := gxymongo.Client().FindOne(r.ctx, mod, colName, bson.M{"role_id": roleID}); err != nil {
+			if err != mongo.ErrNoDocuments {
+				return err
+			}
+		}
+		r.modsHash[colName] = util.GetObjectHash(mod)
+	}
+	for _, mod := range r.Modules() {
+		rmod := mod.(IRoleModule)
+		rmod.SetRole(r)
+	}
+	return nil
+}
+
+func getModuleColName(mod gxymodule.IModule) string {
+	return gstr.CaseSnake(mod.GetName())
+}
+
 func (r *RoleMain) Receive(ctx actor.Context) {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
-		if err := r.Init(ctx); err != nil {
+		if err := r.initRole(ctx); err != nil {
 			glog.Errorf(r.ctx, "init role error, roleID: %d, err: %v", r.RoleID, err)
+			ctx.Stop(r.pid)
 			return
 		}
-	case *gxyactor.ActorTimerMsg:
+		if err := r.afterInit(); err != nil {
+			glog.Errorf(r.ctx, "after init role error, roleID: %d, err: %v", r.RoleID, err)
+			ctx.Stop(r.pid)
+			return
+		}
+	case gxyactor.ActorTimerMsg:
 		r.timer.Active(r.ctx, msg)
 	case *pb.ClientMsg:
 		pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
@@ -146,8 +200,8 @@ func (r *RoleMain) Receive(ctx actor.Context) {
 			}
 			ctx.Respond(svrMsg)
 		}
-	default:
-		glog.Errorf(r.ctx, "unknown message type: %v", msg)
+	case *actor.Stopped:
+		r.Stop()
 	}
 }
 
@@ -161,16 +215,10 @@ func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
 	return rspMsg, nil
 }
 
-func (r *RoleMain) initRole() error {
-	if err := r.initRoleModules(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (r *RoleMain) initTimer() {
-	r.timer = gxyactor.NewActorTimer(r.pid)
+	r.timer = gxyactor.NewActorTimer(r.pid, r.Extra)
 	r.timer.AddTick(r.ctx, PersistTick, r.TickSave)
+	r.timer.AddCron(r.ctx, gxytimer.DayRefresh, r.DayRefresh)
 }
 
 func (r *RoleMain) initMsgHandler() {
@@ -180,36 +228,12 @@ func (r *RoleMain) initMsgHandler() {
 	}
 }
 
-func (r *RoleMain) initRoleModules() error {
-	roleID := r.RoleID
-	created := false
-	for _, mod := range r.Modules() {
-		colName := gstr.CaseSnake(mod.GetName())
-		if err := gxymongo.Client().FindOne(r.ctx, mod, colName, bson.M{"role_id": roleID}); err != nil {
-			if err != mongo.ErrNoDocuments {
-				return err
-			} else {
-				created = true
-			}
-		}
-		r.modsHash[colName] = util.GetObjectHash(mod)
-	}
-	for _, mod := range r.Modules() {
-		rmod := mod.(IRoleModule)
-		if err := rmod.AfterInit(r.ctx); err != nil {
-			return err
-		}
-	}
-	if created {
-		if err := r.save(r.ctx, true); err != nil {
-			return err
-		}
-	}
-	return nil
+func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	r.save(ctx, false)
 }
 
-func (r *RoleMain) TickSave(ctx context.Context, _ time.Time) {
-	r.save(ctx, false)
+func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
+	r.Sign.SignDayRrefresh(ctx, info)
 }
 
 func (r *RoleMain) save(ctx context.Context, force bool) error {
@@ -281,13 +305,15 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
 	r.save(ctx, false)
-	r.timer.AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _ time.Time) {
+	r.timer.AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.actx.Stop(r.pid)
 	})
 	r.state = RoleStateLogout
 	return nil
 }
 
-func (r *RoleMain) Stop(ctx context.Context) {
-	r.save(ctx, true)
+func (r *RoleMain) Stop() {
+	glog.Infof(r.ctx, "role actor stop, roleID: %d", r.RoleID)
+	r.timer.CancelAll()
+	r.save(r.ctx, true)
 }
