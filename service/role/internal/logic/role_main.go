@@ -94,6 +94,7 @@ func (r *RoleMain) initRole(actx actor.Context) error {
 	r.initTimer()
 	r.initMsgHandler()
 	r.state = RoleStateStart
+	glog.Debugf(r.ctx, "init role success, roleID: %d", r.RoleID)
 	return nil
 }
 
@@ -203,6 +204,7 @@ func (r *RoleMain) Receive(ctx actor.Context) {
 	case *actor.Stopped:
 		r.Stop()
 	}
+
 }
 
 func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
@@ -229,6 +231,7 @@ func (r *RoleMain) initMsgHandler() {
 }
 
 func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	glog.Debugf(ctx, "tick save role, roleID: %d", r.RoleID)
 	r.save(ctx, false)
 }
 

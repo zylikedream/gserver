@@ -22,14 +22,15 @@ var (
 
 type RoleBag struct {
 	RoleModule `bson:"inline"`
-	Items      map[int]bag.BagItem     `bson:"items"`
-	Currencies map[int]bag.BagCurrency `bson:"currencies"`
-	GridUse    int                     `bson:"grid_use"`
+	Items      map[int]*bag.BagItem     `bson:"items"`
+	Currencies map[int]*bag.BagCurrency `bson:"currencies"`
+	GridUse    int                      `bson:"grid_use"`
 }
 
 func NewRoleBag() *RoleBag {
 	return &RoleBag{
-		Items: make(map[int]bag.BagItem),
+		Items:      make(map[int]*bag.BagItem),
+		Currencies: make(map[int]*bag.BagCurrency),
 	}
 }
 

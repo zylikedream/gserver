@@ -98,38 +98,52 @@ func (s *Session) Init() error {
 	return nil
 }
 
+func (s *Session) handleHandshake(msg any) error {
+	firstpacket, ok := msg.(*pb.ReqHandShake)
+	if !ok {
+		glog.Errorf(s.ctx, "first packet is not pb.ReqHandShake, msg: %v", msg)
+		return nil
+	}
+
+	s.sessionInfo.AccountUid = firstpacket.AccountUid
+	roleID, err := role.GetRoleIDByAccount(firstpacket.AccountUid)
+	if err != nil {
+		glog.Errorf(s.ctx, "get role id error, err: %v", err)
+		return err
+	}
+	rolePid, err := role.RoleService().GetRole(roleID)
+	if err != nil {
+		glog.Errorf(s.ctx, "get role pid error, err: %v", err)
+		return err
+	}
+	s.sessionInfo.RolePid = rolePid
+
+	s.actx.Watch(rolePid)
+	s.ctx = gxylog.WithValue(s.ctx, gxylog.ContextKeyRoleID, roleID)
+	s.state = StateAuthenticated
+	rsp := &pb.RspHandShake{
+		AccountUid: firstpacket.AccountUid,
+		RoleId:     roleID,
+	}
+	if err := s.endpoint.SendMsg(rsp); err != nil {
+		glog.Errorf(s.ctx, "send rsp error, err: %v", err)
+		return err
+	}
+	// 添加会话到会话管理器
+	AddSession(roleID, s.actx.Self())
+	return nil
+}
+
 // OnHandleMessage 处理异步消息
 func (s *Session) OnHandleClientMessage(ctx actor.Context, msg *message.Message) error {
 	s.updateLastActive()
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
-		firstpacket := msg.Msg.(*pb.ReqHandShake)
-		s.sessionInfo.AccountUid = firstpacket.AccountUid
-		roleID, err := role.GetRoleIDByAccount(firstpacket.AccountUid)
-		if err != nil {
-			glog.Errorf(s.ctx, "get role id error, err: %v", err)
+		if err := s.handleHandshake(msg.Msg); err != nil {
+			glog.Errorf(s.ctx, "handle handshake error, err: %v", err)
+			s.Stop("handshake failed")
 			return err
 		}
-		rolePid, err := role.RoleService().GetRole(roleID)
-		if err != nil {
-			glog.Errorf(s.ctx, "get role pid error, err: %v", err)
-			return err
-		}
-		s.sessionInfo.RolePid = rolePid
-
-		ctx.Watch(rolePid)
-		s.ctx = gxylog.WithValue(s.ctx, gxylog.ContextKeyRoleID, roleID)
-		s.state = StateAuthenticated
-		rsp := &pb.RspHandShake{
-			AccountUid: firstpacket.AccountUid,
-			RoleId:     roleID,
-		}
-		if err := s.endpoint.SendMsg(rsp); err != nil {
-			glog.Errorf(s.ctx, "send rsp error, err: %v", err)
-			return err
-		}
-		// 添加会话到会话管理器
-		AddSession(roleID, ctx.Self())
 	case message.MESSAGE_TYPE_DATA_PACKET:
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
@@ -190,6 +204,7 @@ func (s *Session) Stop(reason string) {
 		msg := &pb.ReqAccountLogout{}
 		s.SendDataMsg(msg, util.GetObjectName(msg))
 	}
+	s.actx.Stop(s.actx.Self())
 }
 
 // updateLastActive 更新最后活跃时间

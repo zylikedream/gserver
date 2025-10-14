@@ -75,7 +75,7 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			return
 		}
 		// touch actor to check if it is started
-		err = ctx.RequestFuture(pid, actor.Touch{}, 2*time.Second).Wait()
+		err = ctx.RequestFuture(pid, &actor.Touch{}, 2*time.Second).Wait()
 		if err != nil {
 			glog.Errorf(a.ctx, "touch grain actor failed: %v", err)
 			ctx.Respond(&pb.ActorError{
