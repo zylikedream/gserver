@@ -6,6 +6,7 @@ import (
 
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/net/gsvc"
+	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/pkg/errors"
 )
 
@@ -14,7 +15,7 @@ const (
 )
 
 type IRegistery interface {
-	Register(ctx context.Context, name string, host string) error
+	Register(ctx context.Context, name string, host string, weight int) error
 	Search(ctx context.Context, name string) ([]ServiceNode, error)
 	UnRegister(ctx context.Context, name string, host string) error
 }
@@ -42,12 +43,13 @@ func (r *registery) getPrefix(name string) string {
 	return fmt.Sprintf("/gserver/prod/service/%s/v1", name)
 }
 
-func (r *registery) Register(ctx context.Context, name string, host string) error {
-	sv, _ := gjson.Marshal(map[string]string{
-		"name": name,
-		"host": host,
+func (r *registery) Register(ctx context.Context, name string, host string, weight int) error {
+	sv, _ := gjson.Marshal(&ServiceNode{
+		Name:   name,
+		Node:   host,
+		Weight: weight,
 	})
-	svc, err := gsvc.NewServiceWithKV(fmt.Sprintf("%s/%s", r.getPrefix(name), host), string(sv))
+	svc, err := gsvc.NewServiceWithKV(fmt.Sprintf("%s/%s", r.getPrefix(name), host), gconv.String(sv))
 	if err != nil {
 		return err
 	}
@@ -56,11 +58,7 @@ func (r *registery) Register(ctx context.Context, name string, host string) erro
 }
 
 func (r *registery) UnRegister(ctx context.Context, name string, host string) error {
-	sv, _ := gjson.Marshal(map[string]string{
-		"name": name,
-		"host": host,
-	})
-	svc, err := gsvc.NewServiceWithKV(fmt.Sprintf("%s/%s", r.getPrefix(name), host), string(sv))
+	svc, err := gsvc.NewServiceWithKV(fmt.Sprintf("%s/%s", r.getPrefix(name), host), "")
 	if err != nil {
 		return err
 	}
@@ -77,10 +75,12 @@ func (r *registery) Search(ctx context.Context, name string) ([]ServiceNode, err
 	}
 	serviceNodes := make([]ServiceNode, 0)
 	for _, node := range nodes {
-		serviceNodes = append(serviceNodes, ServiceNode{
-			Name: node.GetName(),
-			Node: node.GetEndpoints().String(),
-		})
+		if node.GetValue() == "" {
+			continue
+		}
+		var sv ServiceNode
+		gjson.Unmarshal([]byte(node.GetValue()), &sv)
+		serviceNodes = append(serviceNodes, sv)
 	}
 	return serviceNodes, nil
 

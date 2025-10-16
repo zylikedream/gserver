@@ -7,6 +7,7 @@ import (
 type IService interface {
 	gxymodule.IModule
 	Name() string
+	Weight() int
 	Public() bool
 }
 
@@ -32,4 +33,8 @@ func (s *InnerService) Name() string {
 
 func (s *InnerService) Public() bool {
 	return false
+}
+
+func (s *InnerService) Weight() int {
+	return 0
 }

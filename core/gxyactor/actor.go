@@ -63,7 +63,6 @@ func (a *actorSystem) OnStart(ctx context.Context) error {
 	if err := a.Module.OnStart(ctx); err != nil {
 		return err
 	}
-
 	// 启动服务
 	return nil
 }
@@ -131,10 +130,10 @@ func (a *actorSystem) Call(pid PID, message any) (any, error) {
 		return nil, fmt.Errorf("node not initialized")
 	}
 
-	future := a.system.Root.RequestFuture(pid, message, 5*time.Second)
+	future := a.system.Root.RequestFuture(pid, message, 1115*time.Second)
 	res, err := future.Result()
 	if err != nil {
-		return nil, err
+		return nil, gerror.Wrap(err, "call error")
 	}
 	if err, ok := res.(*pb.ActorError); ok {
 		return nil, gerror.New(err.Reason)

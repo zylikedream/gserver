@@ -4,12 +4,17 @@ import (
 	"context"
 	"gserver/core/gxymodule"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxytimer"
+	"time"
+
+	"github.com/gogf/gf/v2/os/glog"
 )
 
 type serviceMgr struct {
 	gxymodule.Module
 	Services []IService
 	registry gxyregistery.IRegistery
+	timer    *gxytimer.GxyTimer
 }
 
 var svrMgr *serviceMgr
@@ -19,7 +24,9 @@ func ServiceManager() *serviceMgr {
 }
 
 func NewServiceManager() *serviceMgr {
-	svrMgr = &serviceMgr{}
+	svrMgr = &serviceMgr{
+		timer: gxytimer.NewTimer(),
+	}
 	return svrMgr
 }
 
@@ -48,13 +55,29 @@ func (s *serviceMgr) OnStart(ctx context.Context) error {
 	if err := s.Module.OnStart(ctx); err != nil {
 		return err
 	}
+	if err := s.registerSevices(); err != nil {
+		return err
+	}
+	s.timer.AddTick(ctx, &gxytimer.Tick{
+		Name:     "upate_service",
+		Interval: 10 * time.Second,
+	}, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+		if err := s.registerSevices(); err != nil {
+			glog.Errorf(ctx, "register service failed:%+v", err)
+		}
+	})
+	return nil
+}
+
+func (s *serviceMgr) registerSevices() error {
 	for _, service := range s.Services {
 		if !service.Public() {
 			continue
 		}
-		if err := s.registry.Register(context.Background(), service.Name(), ActorSystem().Address()); err != nil {
+		if err := s.registry.Register(context.Background(), service.Name(), ActorSystem().Address(), service.Weight()); err != nil {
 			return err
 		}
+
 	}
 	return nil
 }
@@ -71,6 +94,7 @@ func (s *serviceMgr) OnStop(ctx context.Context) error {
 			return err
 		}
 	}
+	s.timer.CancelAll()
 	return nil
 }
 

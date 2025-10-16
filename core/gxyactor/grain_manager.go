@@ -8,6 +8,7 @@ import (
 	"gserver/core/gxyregistery"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
+	"hash/fnv"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -58,45 +59,48 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			})
 			return
 		}
-		_, ok = a.manager.sys.system.ProcessRegistry.GetLocal(msg.Id)
-		if ok {
-			ctx.Respond(&remote.ActorPidResponse{
-				Pid: actor.NewPID(a.manager.sys.Address(), msg.Id),
-			})
-			return
-		}
 
 		pid, err := a.manager.sys.system.Root.SpawnNamed(ginfo.Props.Configure(actor.WithSupervisor(supervisor)), msg.Id)
 		if err != nil {
+			if err == actor.ErrNameExists {
+				// actor already exists, return its pid
+				ctx.Respond(&remote.ActorPidResponse{
+					Pid: pid,
+				})
+				return
+			}
 			glog.Errorf(a.ctx, "spawn grain actor failed: %s", err)
 			ctx.Respond(&pb.ActorError{
 				Reason: err.Error(),
 			})
 			return
 		}
-		// touch actor to check if it is started
-		err = ctx.RequestFuture(pid, &actor.Touch{}, 2*time.Second).Wait()
-		if err != nil {
-			glog.Errorf(a.ctx, "touch grain actor failed: %v", err)
-			ctx.Respond(&pb.ActorError{
-				Reason: "start grain failed",
-			})
-			return
-		}
+		go func(actx actor.Context) {
+			// touch actor to check if it is started
+			err := actx.RequestFuture(pid, &actor.Touch{}, 2*time.Second).Wait()
+			if err != nil {
+				glog.Errorf(a.ctx, "touch grain actor failed: %v", err)
+				actx.Respond(&pb.ActorError{
+					Reason: "start grain failed",
+				})
+				return
+			}
 
-		key := getGrainLocateKey(a.kind, msg.Id)
-		err = a.manager.grainLocator.RegisterNode(a.ctx, key, a.manager.sys.Address(), 15*time.Second)
-		if err != nil {
-			glog.Errorf(a.ctx, "register grain node failed: %v", err)
-			ctx.Respond(&pb.ActorError{
-				Reason: err.Error(),
+			key := getGrainLocateKey(a.kind, msg.Id)
+			err = a.manager.grainLocator.RegisterNode(a.ctx, key, a.manager.sys.Address(), 15*time.Second)
+			if err != nil {
+				glog.Errorf(a.ctx, "register grain node failed: %v", err)
+				actx.Stop(pid)
+				actx.Respond(&pb.ActorError{
+					Reason: err.Error(),
+				})
+				return
+			}
+			actx.Watch(pid)
+			actx.Respond(&remote.ActorPidResponse{
+				Pid: pid,
 			})
-			return
-		}
-		ctx.Watch(pid)
-		ctx.Respond(&remote.ActorPidResponse{
-			Pid: pid,
-		})
+		}(ctx)
 	case *actor.Terminated:
 		child := msg.Who
 		if child == nil {
@@ -187,6 +191,9 @@ func (g *grainManager) spawnGrain(node string, kind string, id string) (PID, err
 	if err != nil {
 		return nil, err
 	}
+	if rsp, ok := rsp.(*pb.ActorError); ok {
+		return nil, gerror.New(rsp.Reason)
+	}
 	return rsp.(*remote.ActorPidResponse).Pid, nil
 }
 
@@ -204,7 +211,7 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 		return nil, gerror.Newf("grain %s:%s not found", kind, id)
 	}
 
-	grainNode := ServiceManager().GetServiceNode(kind, gxyregistery.RoundRobinSelector())
+	grainNode := ServiceManager().GetServiceNode(kind, gxyregistery.ConsistentHashSelector())
 
 	if grainNode.Node == "" {
 		return nil, gerror.Newf("find grain node failed, kind: %s, id: %s", kind, id)
@@ -212,6 +219,10 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 	return g.spawnGrain(grainNode.Node, kind, id)
 }
 
+// 建议：考虑数据分布，避免热点
 func getGrainLocateKey(kind string, id string) string {
-	return fmt.Sprintf("%s_%s", kind, id)
+	// 添加哈希前缀，改善Redis分布
+	fnv32a := fnv.New32a()
+	hash := fnv32a.Sum([]byte(kind + id))
+	return fmt.Sprintf("actor:%02d:%s:%s", hash, kind, id)
 }

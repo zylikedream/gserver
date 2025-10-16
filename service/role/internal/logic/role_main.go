@@ -94,6 +94,7 @@ func (r *RoleMain) initRole(actx actor.Context) error {
 	r.initTimer()
 	r.initMsgHandler()
 	r.state = RoleStateStart
+	RoleMgr().Add(r.RoleID, r.pid)
 	glog.Debugf(r.ctx, "init role success, roleID: %d", r.RoleID)
 	return nil
 }

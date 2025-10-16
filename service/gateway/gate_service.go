@@ -41,10 +41,6 @@ func (s *gateService) OnStart(ctx context.Context) error {
 		return err
 	}
 	// 启动会话管理器
-	_, err := gxyactor.ActorSystem().SpawnNamed(logic.SessionMgrName, logic.NewSessionMgr)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

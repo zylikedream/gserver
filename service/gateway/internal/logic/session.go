@@ -129,8 +129,7 @@ func (s *Session) handleHandshake(msg any) error {
 		glog.Errorf(s.ctx, "send rsp error, err: %v", err)
 		return err
 	}
-	// 添加会话到会话管理器
-	AddSession(roleID, s.actx.Self())
+	SessionMgr().Add(roleID, s.actx.Self())
 	return nil
 }
 

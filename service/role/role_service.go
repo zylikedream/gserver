@@ -28,6 +28,10 @@ func (r *roleService) Name() string {
 	return service.ROLE_SERVICE
 }
 
+func (r *roleService) Weight() int {
+	return logic.RoleMgr().Count()
+}
+
 func (r *roleService) OnStart(ctx context.Context) error {
 	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() actor.Actor {
 		return logic.NewRoleMain()
