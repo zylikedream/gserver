@@ -73,6 +73,7 @@ func (a *node) Start(ctx context.Context) error {
 }
 
 func (a *node) Stop(ctx context.Context) error {
+	glog.Infof(context.Background(), "%s stopping...", n.nodeType)
 	for _, mod := range a.rootModule.Modules() {
 		if err := mod.BaseModule().Stop(ctx); err != nil {
 			return err

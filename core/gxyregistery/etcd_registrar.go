@@ -10,6 +10,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/gsvc"
 	"github.com/gogf/gf/v2/os/gcfg"
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/text/gstr"
 )
 
@@ -21,17 +22,23 @@ type etcdRegistery struct {
 type etcdRegisteryConfig struct {
 	EtcdServers    []string      `toml:"etcd_servers"`
 	UpdateInterval time.Duration `toml:"update_interval"`
+	LogLevel       string        `toml:"log_level"`
 }
 
 func newEtcdRegistery(config string) (*etcdRegistery, error) {
 	conf := &etcdRegisteryConfig{}
+	logger := glog.New()
 	cfg := gcfg.Instance(config)
 	if err := util.CfgUnmarshalKey(context.Background(), cfg, "registery.etcd", conf); err != nil {
 		return nil, err
 	}
+	logger.SetLevelStr(conf.LogLevel)
 	regist := &etcdRegistery{}
 	regist.conf = conf
-	regist.Registry = etcd.New(gstr.Join(conf.EtcdServers, ","), etcd.Option{KeepaliveTTL: conf.UpdateInterval})
+	regist.Registry = etcd.New(gstr.Join(conf.EtcdServers, ","), etcd.Option{
+		Logger:       logger,
+		KeepaliveTTL: conf.UpdateInterval,
+	})
 	if err := testEtcdConnection(regist.Registry); err != nil {
 		return nil, err
 	}

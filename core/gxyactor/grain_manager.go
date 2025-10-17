@@ -16,6 +16,7 @@ import (
 	"github.com/asynkron/protoactor-go/router"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type grainInfo struct {
@@ -27,12 +28,18 @@ type grainInfo struct {
 type grainActivator struct {
 	kind    string
 	manager *grainManager
-	childs  []PID
 	timer   *ActorTimer
 	ctx     context.Context
+	childs  map[PID]string
 }
 
-func NewGrainActivator(ctx context.Context, kind string, manager *grainManager) *grainActivator {
+type ActorCheckResult struct {
+	ID  string
+	Pid PID
+	Err error
+}
+
+func NewGrainActivator(kind string, manager *grainManager) *grainActivator {
 	return &grainActivator{
 		kind:    kind,
 		manager: manager,
@@ -47,12 +54,15 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 		a.timer.AddTick(a.ctx, &gxytimer.Tick{
 			Name:     "update_register",
 			Interval: 10 * time.Second,
-		}, a.UpdateRegister)
+		}, func(c context.Context, info gxytimer.TimerActiveInfo) {
+			a.UpdateRegister(c, info, ctx.Children())
+		})
 	case ActorTimerMsg:
 		a.timer.Active(a.ctx, msg)
 	case *pb.ActorActive:
 		supervisor := newSupervisor()
 		ginfo, ok := a.manager.grainInfos[a.kind]
+		system := ctx.ActorSystem()
 		if !ok {
 			ctx.Respond(&pb.ActorError{
 				Reason: fmt.Sprintf("grain kind %s not registered", a.kind),
@@ -60,7 +70,7 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			return
 		}
 
-		pid, err := a.manager.sys.system.Root.SpawnNamed(ginfo.Props.Configure(actor.WithSupervisor(supervisor)), msg.Id)
+		pid, err := ctx.SpawnNamed(ginfo.Props.Configure(actor.WithSupervisor(supervisor)), msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
 				// actor already exists, return its pid
@@ -75,49 +85,72 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			})
 			return
 		}
-		go func(actx actor.Context) {
+		sender := ctx.Sender()
+		self := ctx.Self()
+		go func() {
 			// touch actor to check if it is started
-			err := actx.RequestFuture(pid, &actor.Touch{}, 2*time.Second).Wait()
-			if err != nil {
-				glog.Errorf(a.ctx, "touch grain actor failed: %v", err)
-				actx.Respond(&pb.ActorError{
-					Reason: "start grain failed",
-				})
-				return
-			}
-
-			key := getGrainLocateKey(a.kind, msg.Id)
-			err = a.manager.grainLocator.RegisterNode(a.ctx, key, a.manager.sys.Address(), 15*time.Second)
-			if err != nil {
-				glog.Errorf(a.ctx, "register grain node failed: %v", err)
-				actx.Stop(pid)
-				actx.Respond(&pb.ActorError{
-					Reason: err.Error(),
-				})
-				return
-			}
-			actx.Watch(pid)
-			actx.Respond(&remote.ActorPidResponse{
+			err = system.Root.RequestFuture(pid, &actor.Touch{}, 2*time.Second).Wait()
+			system.Root.RequestWithCustomSender(self, &ActorCheckResult{
+				ID:  msg.Id,
 				Pid: pid,
+				Err: err,
+			}, sender)
+		}()
+
+	case *ActorCheckResult:
+		if msg.Err != nil {
+			glog.Errorf(a.ctx, "touch grain actor failed: %v", msg.Err)
+			ctx.Respond(&pb.ActorError{
+				Reason: "start grain failed",
 			})
-		}(ctx)
+			return
+		}
+		key := getGrainLocateKey(a.kind, msg.ID)
+		pid := msg.Pid
+		err := a.registerGrainNode(a.ctx, key, pid)
+		if err != nil {
+			glog.Errorf(a.ctx, "register grain node failed: %v", err)
+			ctx.Stop(pid)
+			ctx.Respond(&pb.ActorError{
+				Reason: err.Error(),
+			})
+			return
+		}
+		a.childs[pid] = msg.ID
+		ctx.Respond(&remote.ActorPidResponse{
+			Pid: pid,
+		})
 	case *actor.Terminated:
 		child := msg.Who
 		if child == nil {
 			return
 		}
-		key := getGrainLocateKey(a.kind, child.Id)
+		id := a.childs[child]
+		if id == "" {
+			return
+		}
+		key := getGrainLocateKey(a.kind, id)
 		err := a.manager.grainLocator.UnregisterNode(a.ctx, key)
 		if err != nil {
 			glog.Errorf(a.ctx, "unregister grain node failed: %v", err)
 		}
+		delete(a.childs, child)
+	case *actor.Stop:
 	}
 }
 
-func (a *grainActivator) UpdateRegister(ctx context.Context, _info gxytimer.TimerActiveInfo) {
-	for _, child := range a.childs {
-		key := getGrainLocateKey(a.kind, child.Id)
-		err := a.manager.grainLocator.RegisterNode(a.ctx, key, a.manager.sys.Address(), 15*time.Second)
+func (a *grainActivator) registerGrainNode(ctx context.Context, key string, pid PID) error {
+	pidInfo, _ := protojson.Marshal(&pb.ActorPid{
+		Address: pid.Address,
+		Id:      pid.Id,
+	})
+	return a.manager.grainLocator.RegisterNode(ctx, key, string(pidInfo), 15*time.Second)
+}
+
+func (a *grainActivator) UpdateRegister(ctx context.Context, _info gxytimer.TimerActiveInfo, children []PID) {
+	for pid, childID := range a.childs {
+		key := getGrainLocateKey(a.kind, childID)
+		err := a.registerGrainNode(ctx, key, pid)
 		if err != nil {
 			glog.Errorf(a.ctx, "register grain node failed: %v", err)
 		}
@@ -143,6 +176,9 @@ func (g *grainManager) Init(ctx context.Context) error {
 }
 
 func (g *grainManager) Stop(ctx context.Context) error {
+	for _, ginfo := range g.grainInfos {
+		g.sys.system.Root.Stop(ginfo.Activator)
+	}
 	return nil
 }
 
@@ -172,7 +208,7 @@ func (g *grainManager) RegisterGrain(kind string, props actor.Producer) error {
 	}
 	pid, err := g.sys.system.Root.SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
-			return &grainActivator{kind: kind, manager: g}
+			return NewGrainActivator(kind, g)
 		})), g.getManagerName(kind))
 	if err != nil {
 		return err
@@ -183,6 +219,7 @@ func (g *grainManager) RegisterGrain(kind string, props actor.Producer) error {
 }
 
 func (g *grainManager) spawnGrain(node string, kind string, id string) (PID, error) {
+	glog.Debugf(context.Background(), "spawn grain %s:%s at %s", kind, id, node)
 	activator := actor.NewPID(node, g.getManagerName(kind))
 	rsp, err := g.sys.Call(activator, &pb.ActorActive{
 		Kind: kind,
@@ -200,12 +237,17 @@ func (g *grainManager) spawnGrain(node string, kind string, id string) (PID, err
 func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error) {
 	ctx := context.Background()
 	key := getGrainLocateKey(kind, id)
-	node, err := g.grainLocator.LocateNode(ctx, key)
+	pidInfo, err := g.grainLocator.LocateNode(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	if node != "" {
-		return actor.NewPID(node, id), nil
+	if pidInfo != "" {
+		var pid pb.ActorPid
+		err := protojson.Unmarshal([]byte(pidInfo), &pid)
+		if err != nil {
+			return nil, err
+		}
+		return actor.NewPID(pid.Address, pid.Id), nil
 	}
 	if !spawn {
 		return nil, gerror.Newf("grain %s:%s not found", kind, id)

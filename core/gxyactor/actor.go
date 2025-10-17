@@ -63,6 +63,7 @@ func (a *actorSystem) OnStart(ctx context.Context) error {
 	if err := a.Module.OnStart(ctx); err != nil {
 		return err
 	}
+	glog.Infof(ctx, "actor %s started at %s", a.nodeName, a.Address())
 	// 启动服务
 	return nil
 }
@@ -174,8 +175,8 @@ func newSupervisor() actor.SupervisorStrategy {
 }
 
 func decider(reason any) actor.Directive {
-	glog.Errorf(context.Background(), "actor panic: %v", reason)
-	return actor.EscalateDirective
+	glog.Errorf(context.Background(), "actor error : %v", reason)
+	return actor.StopDirective
 }
 
 func PidEqual(a, b PID) bool {

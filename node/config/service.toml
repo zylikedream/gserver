@@ -1,3 +1,4 @@
 [registery.etcd]	
 	etcd_servers = ["localhost:2379"]
 	update_interval = "10s"
+	log_level = "error"

@@ -116,6 +116,7 @@ func (s *Session) handleHandshake(msg any) error {
 		glog.Errorf(s.ctx, "get role pid error, err: %v", err)
 		return err
 	}
+	glog.Infof(s.ctx, "get role pid: %v", rolePid)
 	s.sessionInfo.RolePid = rolePid
 
 	s.actx.Watch(rolePid)

@@ -232,7 +232,6 @@ func (r *RoleMain) initMsgHandler() {
 }
 
 func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
-	glog.Debugf(ctx, "tick save role, roleID: %d", r.RoleID)
 	r.save(ctx, false)
 }
 

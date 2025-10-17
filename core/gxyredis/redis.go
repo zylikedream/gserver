@@ -50,6 +50,7 @@ func (r *gxyRedis) OnInit(ctx context.Context) error {
 	redisConf.DialTimeout = r.conf.Timeout
 	var err error
 	r.Redis, err = gredis.New(redisConf)
+	r.Redis.Client()
 	if err != nil {
 		return err
 	}
