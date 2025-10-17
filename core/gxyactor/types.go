@@ -12,3 +12,6 @@ type (
 )
 
 type ActorTimerMsg gxytimer.TimerActiveInfo
+
+type ActorInitMsg struct {
+}

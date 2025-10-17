@@ -10,13 +10,13 @@ import (
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"gserver/util"
-	"strconv"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/text/gstr"
+	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -76,25 +76,36 @@ func NewRoleMain() *RoleMain {
 	return r
 }
 
-func (r *RoleMain) initRole(actx actor.Context) error {
+func (r *RoleMain) init(actx actor.Context) error {
 	r.pid = actx.Self()
-	var err error
-	r.RoleID, err = strconv.ParseInt(actx.Self().Id, 10, 64)
-	if err != nil {
-		return err
+	gctx, ok := actx.(*gxyactor.GrainContext)
+	if !ok {
+		return gerror.Newf("actor context is not grain context, roleID: %d", r.RoleID)
+	}
+	strRoleID := gctx.MetadataValue(gxyactor.CONTEXT_KEY_ID).(string)
+	r.RoleID = gconv.Int64(strRoleID)
+	if r.RoleID == 0 {
+		return gerror.Newf("roleID is invalid, roleID: %s", strRoleID)
 	}
 	r.ctx = gxylog.WithValue(r.ctx, gxylog.ContextKeyRoleID, r.RoleID)
 	// 验证角色账号是否存在
 	if account := GetAccountByRoleID(r.RoleID); account == "" {
 		return gerror.Newf("role account not exist, roleID: %d", r.RoleID)
 	}
+
+	actx.Send(r.pid, &gxyactor.ActorInitMsg{})
+
+	return nil
+}
+
+func (r *RoleMain) initRole() error {
 	if err := r.initModules(); err != nil {
 		return err
 	}
 	r.initTimer()
 	r.initMsgHandler()
-	r.state = RoleStateStart
 	RoleMgr().Add(r.RoleID, r.pid)
+	r.state = RoleStateStart
 	glog.Debugf(r.ctx, "init role success, roleID: %d", r.RoleID)
 	return nil
 }
@@ -147,32 +158,38 @@ func (r *RoleMain) loadModules() error {
 func getModuleColName(mod gxymodule.IModule) string {
 	return gstr.CaseSnake(mod.GetName())
 }
-
 func (r *RoleMain) Receive(ctx actor.Context) {
+	if err := r.doReceive(ctx); err != nil {
+		glog.Errorf(r.ctx, "%+v", err)
+		ctx.Stop(r.pid)
+		return
+	}
+}
+
+func (r *RoleMain) doReceive(ctx actor.Context) error {
+	var err error
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
-		if err := r.initRole(ctx); err != nil {
-			glog.Errorf(r.ctx, "init role error, roleID: %d, err: %v", r.RoleID, err)
-			ctx.Stop(r.pid)
-			return
+		if err = r.init(ctx); err != nil {
+			return gerror.Wrapf(err, "init error, roleID: %d", r.RoleID)
 		}
 		if err := r.afterInit(); err != nil {
-			glog.Errorf(r.ctx, "after init role error, roleID: %d, err: %v", r.RoleID, err)
-			ctx.Stop(r.pid)
-			return
+			return gerror.Wrapf(err, "after init role error, roleID: %d", r.RoleID)
+		}
+	case *gxyactor.ActorInitMsg:
+		if err := r.initRole(); err != nil {
+			return gerror.Wrapf(err, "init role error, roleID: %d", r.RoleID)
 		}
 	case gxyactor.ActorTimerMsg:
 		r.timer.Active(r.ctx, msg)
 	case *pb.ClientMsg:
 		pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
 		if err != nil {
-			glog.Errorf(r.ctx, "unmarshal req error, roleID: %d, err: %v", r.RoleID, err)
-			return
+			return gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
 		}
 		if r.state != RoleStateLogin {
 			if _, ok := pbmsg.(*pb.ReqAccountLogin); !ok {
-				glog.Errorf(r.ctx, "role not login, roleID: %d, recv msg: %v", r.RoleID, pbmsg.ProtoReflect().Descriptor().Name())
-				return
+				return gerror.Newf("role not login, roleID: %d, recv msg: %v", r.RoleID, pbmsg.ProtoReflect().Descriptor().Name())
 			}
 		}
 		r.actx = ctx
@@ -197,14 +214,15 @@ func (r *RoleMain) Receive(ctx actor.Context) {
 		if ctx.Sender() != nil && rsp != nil {
 			svrMsg, err := r.newServerMsg(rsp)
 			if err != nil {
-				glog.Errorf(r.ctx, "send server msg error, roleID: %d, err: %v", r.RoleID, err)
-				return
+				return gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 			}
+
 			ctx.Respond(svrMsg)
 		}
 	case *actor.Stopped:
 		r.Stop()
 	}
+	return nil
 
 }
 

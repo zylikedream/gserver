@@ -39,6 +39,22 @@ type ActorCheckResult struct {
 	Err error
 }
 
+const (
+	CONTEXT_KEY_ID = "id"
+)
+
+type GrainContext struct {
+	actor.Context
+	Metadata map[string]any
+}
+
+func (ctx *GrainContext) MetadataValue(key string) any {
+	if val, ok := ctx.Metadata[key]; ok {
+		return val
+	}
+	return ""
+}
+
 func NewGrainActivator(kind string, manager *grainManager) *grainActivator {
 	return &grainActivator{
 		kind:    kind,
@@ -70,7 +86,18 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 			return
 		}
 
-		pid, err := ctx.SpawnNamed(ginfo.Props.Configure(actor.WithSupervisor(supervisor)), msg.Id)
+		pid, err := ctx.SpawnNamed(ginfo.Props.Configure(actor.WithSupervisor(supervisor),
+			actor.WithContextDecorator(func(next actor.ContextDecoratorFunc) actor.ContextDecoratorFunc {
+				return func(ctx actor.Context) actor.Context {
+					return &GrainContext{
+						Context: ctx,
+						Metadata: map[string]any{
+							CONTEXT_KEY_ID: msg.Id,
+						},
+					}
+				}
+			}),
+		), msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
 				// actor already exists, return its pid
