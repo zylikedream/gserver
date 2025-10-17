@@ -3,6 +3,7 @@ option go_package="./pb;pb";
 package galaxy.protocol;
 import "google/protobuf/any.proto";
 
+
 message ActorTimerMsg {
     string name = 1;     
     int64 time = 3;
@@ -28,4 +29,9 @@ message ActorActive {
 
 message ActorStop {
     string reason = 1;
+}
+
+message ActorPid {
+    string address = 1;
+    string Id = 2;
 }
