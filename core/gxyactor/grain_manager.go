@@ -163,6 +163,7 @@ func (a *grainActivator) Receive(ctx actor.Context) {
 		}
 		delete(a.childs, child)
 	case *actor.Stop:
+		glog.Info(a.ctx, "grain activator actor stopped")
 	}
 }
 
@@ -280,7 +281,7 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 		return nil, gerror.Newf("grain %s:%s not found", kind, id)
 	}
 
-	grainNode := ServiceManager().GetServiceNode(key, gxyregistery.ConsistentHashSelector())
+	grainNode := ServiceManager().GetServiceNode(kind, key, gxyregistery.ConsistentHashSelector())
 
 	if grainNode.Node == "" {
 		return nil, gerror.Newf("find grain node failed, kind: %s, id: %s", kind, id)

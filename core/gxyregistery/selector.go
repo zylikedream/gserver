@@ -16,7 +16,7 @@ type ServiceNode struct {
 }
 
 type ServiceSelector interface {
-	Select(service string, nodes []ServiceNode) ServiceNode
+	Select(service string, key string, nodes []ServiceNode) ServiceNode
 }
 
 type randomServiceSelector struct {
@@ -28,7 +28,7 @@ func RandomSelector() ServiceSelector {
 	return randomSelector
 }
 
-func (s *randomServiceSelector) Select(service string, nodes []ServiceNode) ServiceNode {
+func (s *randomServiceSelector) Select(service string, _ string, nodes []ServiceNode) ServiceNode {
 	if len(nodes) == 0 {
 		return ServiceNode{}
 	}
@@ -47,7 +47,7 @@ func RoundRobinSelector() ServiceSelector {
 	return roundRobinSelector
 }
 
-func (s *roundRobinServiceSelector) Select(service string, nodes []ServiceNode) ServiceNode {
+func (s *roundRobinServiceSelector) Select(service string, _ string, nodes []ServiceNode) ServiceNode {
 	if len(nodes) == 0 {
 		return ServiceNode{}
 	}
@@ -90,13 +90,13 @@ func ConsistentHashSelectorWithVirtualNodes() ServiceSelector {
 
 // Select 根据一致性哈希算法选择一个服务节点
 // 使用service作为key计算哈希值，在哈希环上找到对应的节点
-func (s *consistentHashSelector) Select(service string, nodes []ServiceNode) ServiceNode {
+func (s *consistentHashSelector) Select(service string, key string, nodes []ServiceNode) ServiceNode {
 	if len(nodes) == 0 {
 		return ServiceNode{}
 	}
 
 	// 为当前服务获取或创建哈希环
-	ringKey := service
+	ringKey := key
 	var ringObj any
 	if val := s.rings.Get(ringKey); val != nil {
 		ringObj = val

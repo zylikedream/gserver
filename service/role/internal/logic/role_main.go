@@ -110,7 +110,7 @@ func (r *RoleMain) initRole() error {
 	return nil
 }
 
-func (r *RoleMain) afterInit() error {
+func (r *RoleMain) afterInitRole() error {
 	if err := r.Start(r.ctx); err != nil {
 		return err
 	}
@@ -173,12 +173,13 @@ func (r *RoleMain) doReceive(ctx actor.Context) error {
 		if err = r.init(ctx); err != nil {
 			return gerror.Wrapf(err, "init error, roleID: %d", r.RoleID)
 		}
-		if err := r.afterInit(); err != nil {
-			return gerror.Wrapf(err, "after init role error, roleID: %d", r.RoleID)
-		}
+
 	case *gxyactor.ActorInitMsg:
 		if err := r.initRole(); err != nil {
 			return gerror.Wrapf(err, "init role error, roleID: %d", r.RoleID)
+		}
+		if err := r.afterInitRole(); err != nil {
+			return gerror.Wrapf(err, "after init role error, roleID: %d", r.RoleID)
 		}
 	case gxyactor.ActorTimerMsg:
 		r.timer.Active(r.ctx, msg)

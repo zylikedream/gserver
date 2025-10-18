@@ -98,11 +98,11 @@ func (s *serviceMgr) OnStop(ctx context.Context) error {
 	return nil
 }
 
-func (s *serviceMgr) GetServiceNode(name string, selector gxyregistery.ServiceSelector) gxyregistery.ServiceNode {
+func (s *serviceMgr) GetServiceNode(name string, key string, selector gxyregistery.ServiceSelector) gxyregistery.ServiceNode {
 	nodes, err := s.registry.Search(context.Background(), name)
 	if err != nil {
 		return gxyregistery.ServiceNode{}
 	}
 
-	return selector.Select(name, nodes)
+	return selector.Select(name, key, nodes)
 }
