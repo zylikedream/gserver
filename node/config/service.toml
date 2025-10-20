@@ -1,4 +1,8 @@
-[registery.etcd]	
-	etcd_servers = ["localhost:2379"]
-	update_interval = "10s"
-	log_level = "error"
+# [registery.etcd]	
+# 	etcd_servers = ["localhost:2379"]
+# 	update_interval = "10s"
+# 	log_level = "error"
+[registery.consul]	
+	address = "localhost:8500"
+	ttl = "10s"
+	refresh_ttl = "10s"

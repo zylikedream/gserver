@@ -24,11 +24,19 @@ type actorSystem struct {
 	grainMgr *grainManager
 }
 
+const (
+	CLUSTER_NAME = "gcluster"
+)
+
 var actorSys *actorSystem
 
 // ActorSystem 获取基础Actor模块
 func ActorSystem() *actorSystem {
 	return actorSys
+}
+
+func (a *actorSystem) NodeName() string {
+	return a.nodeName
 }
 
 // NewActorSystem创建基础Actor模块

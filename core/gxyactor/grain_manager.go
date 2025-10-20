@@ -60,6 +60,7 @@ func NewGrainActivator(kind string, manager *grainManager) *grainActivator {
 		kind:    kind,
 		manager: manager,
 		ctx:     gxylog.NewContext(context.Background(), "grain_activator"),
+		childs:  make(map[PID]string),
 	}
 }
 
@@ -283,10 +284,10 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 
 	grainNode := ServiceManager().GetServiceNode(kind, key, gxyregistery.ConsistentHashSelector())
 
-	if grainNode.Node == "" {
+	if grainNode.NodeHost == "" {
 		return nil, gerror.Newf("find grain node failed, kind: %s, id: %s", kind, id)
 	}
-	return g.spawnGrain(grainNode.Node, kind, id)
+	return g.spawnGrain(grainNode.NodeHost, kind, id)
 }
 
 // 建议：考虑数据分布，避免热点

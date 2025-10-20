@@ -17,6 +17,7 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
+	"github.com/gogf/gf/v2/util/gutil"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -158,12 +159,16 @@ func (r *RoleMain) loadModules() error {
 func getModuleColName(mod gxymodule.IModule) string {
 	return gstr.CaseSnake(mod.GetName())
 }
-func (r *RoleMain) Receive(ctx actor.Context) {
-	if err := r.doReceive(ctx); err != nil {
-		glog.Errorf(r.ctx, "%+v", err)
-		ctx.Stop(r.pid)
-		return
-	}
+func (r *RoleMain) Receive(actx actor.Context) {
+	gutil.TryCatch(r.ctx, func(ctx context.Context) {
+		if err := r.doReceive(actx); err != nil {
+			glog.Errorf(r.ctx, "role error, %+v", err)
+			r.Stop()
+		}
+	}, func(ctx context.Context, exception error) {
+		glog.Errorf(r.ctx, "role internal error, %+v", exception)
+		r.Stop()
+	})
 }
 
 func (r *RoleMain) doReceive(ctx actor.Context) error {
@@ -221,7 +226,7 @@ func (r *RoleMain) doReceive(ctx actor.Context) error {
 			ctx.Respond(svrMsg)
 		}
 	case *actor.Stopped:
-		r.Stop()
+		r.Terminate()
 	}
 	return nil
 
@@ -328,14 +333,18 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 	r.Basic.LogoutTm = time.Now()
 	r.save(ctx, false)
 	r.timer.AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
-		r.actx.Stop(r.pid)
+		r.Stop()
 	})
 	r.state = RoleStateLogout
 	return nil
 }
 
 func (r *RoleMain) Stop() {
-	glog.Infof(r.ctx, "role actor stop, roleID: %d", r.RoleID)
+	r.actx.Stop(r.pid)
+}
+
+func (r *RoleMain) Terminate() {
+	glog.Infof(r.ctx, "role actor terminate, roleID: %d", r.RoleID)
 	r.timer.CancelAll()
 	r.save(r.ctx, true)
 }

@@ -5,16 +5,16 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxytimer"
-	"time"
 
 	"github.com/gogf/gf/v2/os/glog"
 )
 
 type serviceMgr struct {
 	gxymodule.Module
-	Services []IService
-	registry gxyregistery.IRegistery
-	timer    *gxytimer.GxyTimer
+	Services    []IService
+	serviceInfo []*gxyregistery.ServiceInfo
+	registry    gxyregistery.IRegistery
+	timer       *gxytimer.GxyTimer
 }
 
 var svrMgr *serviceMgr
@@ -43,7 +43,7 @@ func (s *serviceMgr) OnInit(ctx context.Context) error {
 	if err := s.Module.OnInit(ctx); err != nil {
 		return err
 	}
-	registry, err := gxyregistery.NewRegistery(gxyregistery.REGISTERY_TYPE_ETCD, "node/config/service.toml")
+	registry, err := gxyregistery.NewRegistery(gxyregistery.REGISTERY_TYPE_CONSUL, "node/config/service.toml")
 	if err != nil {
 		return err
 	}
@@ -58,14 +58,6 @@ func (s *serviceMgr) OnStart(ctx context.Context) error {
 	if err := s.registerSevices(); err != nil {
 		return err
 	}
-	s.timer.AddTick(ctx, &gxytimer.Tick{
-		Name:     "upate_service",
-		Interval: 10 * time.Second,
-	}, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
-		if err := s.registerSevices(); err != nil {
-			glog.Errorf(ctx, "register service failed:%+v", err)
-		}
-	})
 	return nil
 }
 
@@ -74,9 +66,15 @@ func (s *serviceMgr) registerSevices() error {
 		if !service.Public() {
 			continue
 		}
-		if err := s.registry.Register(context.Background(), service.Name(), ActorSystem().Address(), service.Weight()); err != nil {
+		svcInfo := gxyregistery.NewServiceInfo(
+			service.Name(),
+			ActorSystem().NodeName(),
+			ActorSystem().Address(),
+			service.Version(), service.Weight())
+		if err := s.registry.Register(context.Background(), svcInfo); err != nil {
 			return err
 		}
+		s.serviceInfo = append(s.serviceInfo, svcInfo)
 
 	}
 	return nil
@@ -86,23 +84,22 @@ func (s *serviceMgr) OnStop(ctx context.Context) error {
 	if err := s.Module.OnStop(ctx); err != nil {
 		return err
 	}
-	for _, service := range s.Services {
-		if !service.Public() {
+	glog.Infof(ctx, "unregister %d services", len(s.serviceInfo))
+	for _, svcInfo := range s.serviceInfo {
+		if err := s.registry.UnRegister(ctx, svcInfo); err != nil {
+			glog.Errorf(ctx, "unregister service failed:%+v", err)
 			continue
-		}
-		if err := s.registry.UnRegister(context.Background(), service.Name(), ActorSystem().Address()); err != nil {
-			return err
 		}
 	}
 	s.timer.CancelAll()
 	return nil
 }
 
-func (s *serviceMgr) GetServiceNode(name string, key string, selector gxyregistery.ServiceSelector) gxyregistery.ServiceNode {
-	nodes, err := s.registry.Search(context.Background(), name)
+func (s *serviceMgr) GetServiceNode(name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
+	services, err := s.registry.Search(context.Background(), name)
 	if err != nil {
-		return gxyregistery.ServiceNode{}
+		return nil
 	}
 
-	return selector.Select(name, key, nodes)
+	return selector.Select(name, key, services)
 }

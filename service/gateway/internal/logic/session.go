@@ -48,6 +48,7 @@ type Session struct {
 	sessionInfo *SessionInfo      // 会话信息
 	actx        actor.Context     // 会话上下文
 	ctx         context.Context   // 会话上下文
+	stopReason  string
 }
 
 func NewSession(ep endpoint.Endpoint) *Session {
@@ -65,7 +66,7 @@ func (s *Session) Receive(ctx actor.Context) {
 			glog.Errorf(s.ctx, "init session error, err: %v", err)
 		}
 	case *actor.Stopped:
-		s.Stop("normal")
+		s.Terminate()
 	case *message.Message:
 		if err := s.OnHandleClientMessage(ctx, msg); err != nil {
 			glog.Errorf(s.ctx, "handle client message error, err: %v", err)
@@ -190,11 +191,13 @@ func (s *Session) OnHandleServerMessage(ctx actor.Context, msg *pb.ServerMsg) er
 
 // OnTerminate 终止处理
 func (s *Session) Stop(reason string) {
-	if s.state == StateDisconnected {
-		return
-	}
-	glog.Infof(s.ctx, "Session terminating: reason: %v, role_pid: %v", reason, s.sessionInfo.RolePid)
+	s.actx.Stop(s.actx.Self())
+	s.stopReason = reason
+}
 
+// Terminate 终止会话
+func (s *Session) Terminate() {
+	glog.Infof(s.ctx, "Session terminating: reason: %v, role_pid: %v", s.stopReason, s.sessionInfo.RolePid)
 	s.state = StateDisconnected
 	// 关闭网络连接
 	if s.endpoint != nil {
@@ -204,7 +207,7 @@ func (s *Session) Stop(reason string) {
 		msg := &pb.ReqAccountLogout{}
 		s.SendDataMsg(msg, util.GetObjectName(msg))
 	}
-	s.actx.Stop(s.actx.Self())
+
 }
 
 // updateLastActive 更新最后活跃时间

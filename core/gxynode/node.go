@@ -2,7 +2,6 @@ package gxynode
 
 import (
 	"context"
-	"strings"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
@@ -16,9 +15,8 @@ import (
 
 type node struct {
 	rootModule gxymodule.Module
-	nodeName   string
-	nodeType   string
-	Host       string `v:"ipv4"`
+	Name       string `toml:"name"`
+	Host       string `toml:"host" v:"ipv4"`
 }
 
 var n *node
@@ -39,24 +37,21 @@ func InitNode(config string) *node {
 func (n *node) init(config string) error {
 	cfg := gcfg.Instance(config)
 	ctx := context.Background()
-	n.nodeName = cfg.MustGet(ctx, "node.node_name").String()
-	if idx := strings.Index(n.nodeName, "@"); idx > 0 {
-		n.Host = n.nodeName[idx+1:]
-		n.nodeType = n.nodeName[:idx]
-	}
-	if n.Host == "" || n.nodeType == "" {
-		return gerror.New("invalid nodename, should like 'node@ip'")
+	n.Name = cfg.MustGet(ctx, "node.name").String()
+	n.Host = cfg.MustGet(ctx, "node.host").String()
+	if n.Host == "" || n.Name == "" {
+		return gerror.New("no name or host'")
 	}
 	if err := g.Validator().Data(n).Run(ctx); err != nil {
-		return gerror.Newf("validate node err: %+v", err)
+		return gerror.Newf("validate node err: %+v, check host is ipv4?", err)
 	}
 	logConfig, _ := cfg.Get(ctx, "log.config", "node/config/log.toml")
-	if err := gxylog.InitLog(ctx, logConfig.String(), n.nodeType); err != nil {
+	if err := gxylog.InitLog(ctx, logConfig.String(), n.Name); err != nil {
 		return gerror.Newf("init log err: %+v", err)
 	}
-	glog.Infof(context.Background(), "%s starting...", n.nodeType)
+	glog.Infof(context.Background(), "%s starting...", n.Name)
 	svc := gxyactor.NewServiceManager()
-	n.LoadModule(gxyactor.NewActorSystem(n.nodeName, n.Host))
+	n.LoadModule(gxyactor.NewActorSystem(n.Name, n.Host))
 	n.LoadModule(svc)
 	return nil
 }
@@ -68,12 +63,12 @@ func (a *node) Start(ctx context.Context) error {
 			return err
 		}
 	}
-	glog.Infof(context.Background(), "%s start success", n.nodeType)
+	glog.Infof(context.Background(), "%s start success", n.Name)
 	return nil
 }
 
 func (a *node) Stop(ctx context.Context) error {
-	glog.Infof(context.Background(), "%s stopping...", n.nodeType)
+	glog.Infof(context.Background(), "%s stopping...", n.Name)
 	for _, mod := range a.rootModule.Modules() {
 		if err := mod.BaseModule().Stop(ctx); err != nil {
 			return err

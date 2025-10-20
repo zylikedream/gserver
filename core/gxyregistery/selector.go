@@ -9,14 +9,8 @@ import (
 	"github.com/gogf/gf/v2/container/gtree"
 )
 
-type ServiceNode struct {
-	Name   string
-	Node   string
-	Weight int
-}
-
 type ServiceSelector interface {
-	Select(service string, key string, nodes []ServiceNode) ServiceNode
+	Select(service string, key string, services []*ServiceInfo) *ServiceInfo
 }
 
 type randomServiceSelector struct {
@@ -28,11 +22,11 @@ func RandomSelector() ServiceSelector {
 	return randomSelector
 }
 
-func (s *randomServiceSelector) Select(service string, _ string, nodes []ServiceNode) ServiceNode {
-	if len(nodes) == 0 {
-		return ServiceNode{}
+func (s *randomServiceSelector) Select(service string, _ string, services []*ServiceInfo) *ServiceInfo {
+	if len(services) == 0 {
+		return nil
 	}
-	return nodes[rand.Intn(len(nodes))]
+	return services[rand.Intn(len(services))]
 }
 
 type roundRobinServiceSelector struct {
@@ -47,17 +41,17 @@ func RoundRobinSelector() ServiceSelector {
 	return roundRobinSelector
 }
 
-func (s *roundRobinServiceSelector) Select(service string, _ string, nodes []ServiceNode) ServiceNode {
-	if len(nodes) == 0 {
-		return ServiceNode{}
+func (s *roundRobinServiceSelector) Select(service string, _ string, services []*ServiceInfo) *ServiceInfo {
+	if len(services) == 0 {
+		return nil
 	}
 	var index int
 	s.serviceIndex.LockFunc(func(m map[string]int) {
 		index = m[service]
-		m[service] = (index + 1) % len(nodes)
+		m[service] = (index + 1) % len(services)
 		index = m[service]
 	})
-	return nodes[index]
+	return services[index]
 }
 
 // consistentHashSelector 实现基于一致性哈希的服务选择器
@@ -90,9 +84,9 @@ func ConsistentHashSelectorWithVirtualNodes() ServiceSelector {
 
 // Select 根据一致性哈希算法选择一个服务节点
 // 使用service作为key计算哈希值，在哈希环上找到对应的节点
-func (s *consistentHashSelector) Select(service string, key string, nodes []ServiceNode) ServiceNode {
-	if len(nodes) == 0 {
-		return ServiceNode{}
+func (s *consistentHashSelector) Select(service string, key string, services []*ServiceInfo) *ServiceInfo {
+	if len(services) == 0 {
+		return nil
 	}
 
 	// 为当前服务获取或创建哈希环
@@ -128,26 +122,26 @@ func (s *consistentHashSelector) Select(service string, key string, nodes []Serv
 	ring := ringObj.(*gtree.AVLTree)
 
 	// 如果节点列表有变化，重建哈希环
-	hashKey := fmt.Sprintf("%s:%d", service, len(nodes))
+	hashKey := fmt.Sprintf("%s:%d", service, len(services))
 	hashNodesKey := s.getHashNodesKey(hashKey)
 	existingNodesKey := s.rings.Get(hashNodesKey)
 
 	if existingNodesKey == nil || existingNodesKey.(string) != hashKey {
-		s.rebuildRing(ring, nodes, hashKey, hashNodesKey)
+		s.rebuildRing(ring, services, hashKey, hashNodesKey)
 	}
 
 	// 计算服务的哈希值
 	hash := s.hash(service)
 
 	// 在哈希环上查找大于等于当前哈希值的最小节点
-	var selectedNode ServiceNode
+	var selectedNode *ServiceInfo
 	found := false
 
 	// 遍历AVL树查找第一个大于等于当前哈希值的节点
 	ring.IteratorAsc(func(key, value any) bool {
 		currentHash := key.(uint32)
 		if currentHash >= hash {
-			selectedNode = value.(ServiceNode)
+			selectedNode = value.(*ServiceInfo)
 			found = true
 			return false // 找到后停止遍历
 		}
@@ -158,7 +152,7 @@ func (s *consistentHashSelector) Select(service string, key string, nodes []Serv
 	if !found {
 		firstKey := ring.Left()
 		if firstKey != nil {
-			selectedNode = ring.Get(firstKey).(ServiceNode)
+			selectedNode = ring.Get(firstKey).(*ServiceInfo)
 			found = true
 		}
 	}
@@ -169,19 +163,19 @@ func (s *consistentHashSelector) Select(service string, key string, nodes []Serv
 	}
 
 	// 兜底方案：如果哈希环为空，随机返回一个节点
-	return nodes[rand.Intn(len(nodes))]
+	return services[rand.Intn(len(services))]
 }
 
 // rebuildRing 重建一致性哈希环
-func (s *consistentHashSelector) rebuildRing(ring *gtree.AVLTree, nodes []ServiceNode, hashKey, hashNodesKey string) {
+func (s *consistentHashSelector) rebuildRing(ring *gtree.AVLTree, services []*ServiceInfo, hashKey, hashNodesKey string) {
 	// 清空现有哈希环
 	ring.Clear()
 
 	// 为每个节点创建多个虚拟节点，并将它们添加到哈希环上
-	for _, node := range nodes {
+	for _, node := range services {
 		for i := 0; i < s.virtualNodeCount; i++ {
 			// 为虚拟节点生成唯一标识
-			virtualNodeKey := fmt.Sprintf("%s:%s:%d", node.Name, node.Node, i)
+			virtualNodeKey := fmt.Sprintf("%s:%s:%d", node.Name, node.NodeHost, i)
 			// 计算虚拟节点的哈希值
 			hash := s.hash(virtualNodeKey)
 			// 添加到哈希环
