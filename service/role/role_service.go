@@ -6,8 +6,6 @@ import (
 	"gserver/service"
 	"gserver/service/role/internal/logic"
 	"strconv"
-
-	"github.com/asynkron/protoactor-go/actor"
 )
 
 type roleService struct {
@@ -33,7 +31,7 @@ func (r *roleService) Weight() int {
 }
 
 func (r *roleService) OnStart(ctx context.Context) error {
-	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() actor.Actor {
+	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() gxyactor.IGrain {
 		return logic.NewRoleMain()
 	})
 	return nil

@@ -16,7 +16,7 @@ import (
 
 // actorSystem 基础Actor模块
 type actorSystem struct {
-	gxymodule.Module
+	gxymodule.ModuleBase
 	system   *actor.ActorSystem
 	remote   *remote.Remote
 	nodeName string
@@ -52,10 +52,6 @@ func NewActorSystem(nodeName string, host string) *actorSystem {
 
 // OnInit Actor模块初始化 - 启动节点
 func (a *actorSystem) OnInit(ctx context.Context) error {
-	var err error
-	if err = a.Module.OnInit(ctx); err != nil {
-		return err
-	}
 	a.system = actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging))
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
@@ -68,9 +64,6 @@ func (a *actorSystem) OnInit(ctx context.Context) error {
 }
 
 func (a *actorSystem) OnStart(ctx context.Context) error {
-	if err := a.Module.OnStart(ctx); err != nil {
-		return err
-	}
 	glog.Infof(ctx, "actor %s started at %s", a.nodeName, a.Address())
 	// 启动服务
 	return nil
@@ -80,7 +73,7 @@ func (a *actorSystem) GetActorSystem() *actor.ActorSystem {
 	return a.system
 }
 
-func (a *actorSystem) RegisterGrain(name string, prod func() actor.Actor) error {
+func (a *actorSystem) RegisterGrain(name string, prod GrainProducer) error {
 	return a.grainMgr.RegisterGrain(name, prod)
 }
 
@@ -92,7 +85,7 @@ func (a *actorSystem) OnStop(ctx context.Context) error {
 		glog.Infof(ctx, "node stopped: %s", a.nodeName)
 	}
 	a.grainMgr.Stop(ctx)
-	return a.Module.OnStop(ctx)
+	return nil
 }
 
 // SpawnRegister创建新的Actor

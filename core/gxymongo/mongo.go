@@ -19,7 +19,7 @@ import (
 )
 
 type mongoClient struct {
-	gxymodule.Module
+	gxymodule.ModuleBase
 	client *mongo.Client
 	conf   *mongoConfig
 }

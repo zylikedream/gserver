@@ -8,56 +8,56 @@ import (
 )
 
 type IModule interface {
-	GetName() string
-	GetID() string
-	OnInit(ctx context.Context) error
-	OnStart(ctx context.Context) error
-	OnStop(ctx context.Context) error
-	BaseModule() *Module
+	GetModName() string
+	GetModID() string
+	OnModInit(ctx context.Context) error
+	OnModStart(ctx context.Context) error
+	OnModStop(ctx context.Context) error
+	BaseModule() *ModuleBase
 }
 
-// 必须继承Module
-type Module struct {
+// 必须继承ModuleBase
+type ModuleBase struct {
 	name   string
 	self   IModule
 	parent IModule
 	childs map[string]IModule
 }
 
-func (m *Module) Self() IModule {
+func (m *ModuleBase) SelfMod() IModule {
 	return m.self
 }
 
-func (m *Module) SetSelf(self IModule) {
+func (m *ModuleBase) SetSelfMod(self IModule) {
 	m.self = self
 }
 
-func (m *Module) GetID() string {
-	return m.GetName()
+func (m *ModuleBase) GetModID() string {
+	return m.GetModName()
 }
 
-func (m *Module) GetName() string {
+func (m *ModuleBase) GetModName() string {
 	return m.name
 }
 
-func (m *Module) OnInit(ctx context.Context) error {
+func (m *ModuleBase) OnModInit(ctx context.Context) error {
 	return nil
 }
 
-func (m *Module) OnStart(ctx context.Context) error {
+func (m *ModuleBase) OnModStart(ctx context.Context) error {
 	return nil
 }
 
-func (m *Module) OnStop(ctx context.Context) error {
+func (m *ModuleBase) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (m *Module) GetModule(id string) IModule {
+func (m *ModuleBase) GetModule(id string) IModule {
 	mod := m.childs[id]
 	return mod
 }
 
-func (m *Module) AddModule(ctx context.Context, mod IModule) error {
+func (m *ModuleBase) AddModule(ctx context.Context, mod IModule) error {
 	base := mod.BaseModule()
 	if m.childs == nil {
 		m.childs = map[string]IModule{}
@@ -65,36 +65,36 @@ func (m *Module) AddModule(ctx context.Context, mod IModule) error {
 	base.name = util.GetObjectName(mod)
 	base.self = mod
 	base.parent = m.self
-	if err := mod.OnInit(ctx); err != nil {
+	if err := mod.OnModInit(ctx); err != nil {
 		return err
 	}
-	m.childs[mod.GetID()] = mod
+	m.childs[mod.GetModID()] = mod
 	return nil
 }
 
-func (m *Module) Start(ctx context.Context) error {
-	if err := m.self.OnStart(ctx); err != nil {
+func (m *ModuleBase) StartModule(ctx context.Context) error {
+	if err := m.self.OnModStart(ctx); err != nil {
 		return err
 	}
 	//启动子孙
 	for _, child := range m.childs {
 		mod := child.BaseModule()
-		if err := mod.Start(ctx); err != nil {
+		if err := mod.StartModule(ctx); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Module) Stop(ctx context.Context) error {
+func (m *ModuleBase) StopModule(ctx context.Context) error {
 	//释放子孙
 	for _, child := range m.childs {
 		mod := child.BaseModule()
-		if err := mod.Stop(ctx); err != nil {
-			glog.Errorf(ctx, "stop child mod %s err: %v", mod.GetName(), err)
+		if err := mod.StopModule(ctx); err != nil {
+			glog.Errorf(ctx, "stop child mod %s err: %v", mod.GetModName(), err)
 		}
 	}
-	if err := m.self.OnStop(ctx); err != nil {
+	if err := m.self.OnModStop(ctx); err != nil {
 		return err
 	}
 	m.self = nil
@@ -103,26 +103,14 @@ func (m *Module) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (m *Module) StopModule(ctx context.Context, modName string) error {
-	mod := m.GetModule(modName).BaseModule()
-	if mod == nil {
-		return nil
-	}
-	if err := mod.Stop(ctx); err != nil {
-		return err
-	}
-	delete(m.childs, modName)
-	return nil
-}
-
-func (m *Module) GetParent() IModule {
+func (m *ModuleBase) GetParent() IModule {
 	return m.parent
 }
 
-func (m *Module) Modules() map[string]IModule {
+func (m *ModuleBase) Modules() map[string]IModule {
 	return m.childs
 }
 
-func (m *Module) BaseModule() *Module {
+func (m *ModuleBase) BaseModule() *ModuleBase {
 	return m
 }

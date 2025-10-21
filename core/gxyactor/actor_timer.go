@@ -18,13 +18,16 @@ type ActorTimer struct {
 	pid           PID
 }
 
-func NewActorTimer(pid PID, cronState ICronState) *ActorTimer {
+func NewActorTimer(pid PID) *ActorTimer {
 	return &ActorTimer{
 		GxyTimer:      gxytimer.NewTimer(),
-		cronState:     cronState,
 		callbackFuncs: make(map[string]gxytimer.CallbackFunc),
 		pid:           pid,
 	}
+}
+
+func (s *ActorTimer) SetCronState(cronState ICronState) {
+	s.cronState = cronState
 }
 
 func (s *ActorTimer) AddTick(ctx context.Context, tick *gxytimer.Tick, fun gxytimer.CallbackFunc) {

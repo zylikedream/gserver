@@ -14,7 +14,7 @@ import (
 )
 
 type node struct {
-	rootModule gxymodule.Module
+	rootModule gxymodule.ModuleBase
 	Name       string `toml:"name"`
 	Host       string `toml:"host" v:"ipv4"`
 }
@@ -59,7 +59,7 @@ func (n *node) init(config string) error {
 func (a *node) Start(ctx context.Context) error {
 	for _, mod := range a.rootModule.Modules() {
 		// actorSys := gxyactor.ActorSystem().GetNode().ApplicationLoad()
-		if err := mod.BaseModule().Start(ctx); err != nil {
+		if err := mod.BaseModule().StartModule(ctx); err != nil {
 			return err
 		}
 	}
@@ -70,7 +70,7 @@ func (a *node) Start(ctx context.Context) error {
 func (a *node) Stop(ctx context.Context) error {
 	glog.Infof(context.Background(), "%s stopping...", n.Name)
 	for _, mod := range a.rootModule.Modules() {
-		if err := mod.BaseModule().Stop(ctx); err != nil {
+		if err := mod.BaseModule().StopModule(ctx); err != nil {
 			return err
 		}
 	}
@@ -79,7 +79,7 @@ func (a *node) Stop(ctx context.Context) error {
 
 func (a *node) LoadModule(mod gxymodule.IModule) {
 	if err := a.rootModule.AddModule(context.Background(), mod); err != nil {
-		glog.Fatalf(context.Background(), "add module %v err: %+v", mod.GetName(), err)
+		glog.Fatalf(context.Background(), "add module %v err: %+v", mod.GetModName(), err)
 	}
 }
 

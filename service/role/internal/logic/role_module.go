@@ -12,9 +12,9 @@ type IRoleModule interface {
 }
 
 type RoleModule struct {
-	gxymodule.Module `bson:"-"`
-	RoleID           int64     `bson:"role_id"`
-	Role             *RoleMain `bson:"-" hash:"-"`
+	gxymodule.ModuleBase `bson:"-"`
+	RoleID               int64     `bson:"role_id"`
+	Role                 *RoleMain `bson:"-" hash:"-"`
 }
 
 func (r *RoleModule) SetRole(role *RoleMain) {

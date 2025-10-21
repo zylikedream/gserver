@@ -8,7 +8,6 @@ import (
 	"gserver/core/gxyredis"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 const (
@@ -48,16 +47,16 @@ func (l *Locator) LocateNode(ctx context.Context, key string) (string, error) {
 func (l *Locator) Locate(ctx context.Context, t string, key string) (string, error) {
 	redisCli := gxyredis.GetRedis()
 	redisKey := l.formatKey(t, key)
-	result, err := redisCli.Get(ctx, redisKey)
+	result, err := redisCli.Get(ctx, redisKey).Result()
 	if err != nil {
 		return "", gerror.Wrap(err, "Failed to locate key in Redis")
 	}
 
-	if result.IsEmpty() {
+	if result == "" {
 		return "", nil // 键不存在
 	}
 
-	return result.String(), nil
+	return result, nil
 }
 
 func (l *Locator) RegisterNode(ctx context.Context, key string, node string, expireTime time.Duration) error {
@@ -68,30 +67,25 @@ func (l *Locator) RegisterNode(ctx context.Context, key string, node string, exp
 func (l *Locator) Register(ctx context.Context, t string, key string, node string, expireTime time.Duration) error {
 	redisCli := gxyredis.GetRedis()
 	redisKey := l.formatKey(t, key)
-	succ, err := redisCli.SetNX(ctx, redisKey, node)
+	_, err := redisCli.Set(ctx, redisKey, node, expireTime).Result()
 	if err != nil {
 		return gerror.Wrap(err, "Failed to register key in Redis")
 	}
-	if !succ {
-		return gerror.New("Key already registered")
-	}
-	redisCli.Expire(ctx, redisKey, int64(expireTime.Seconds()))
 
 	return nil
 }
 
-func (l *Locator) UnregisterNode(ctx context.Context, key string) error {
-	return l.Unregister(ctx, LocatorTypeNode, key)
+func (l *Locator) UnregisterNode(ctx context.Context, key string, node string) error {
+	return l.Unregister(ctx, LocatorTypeNode, key, node)
 }
 
-func (l *Locator) Unregister(ctx context.Context, t string, key string) error {
+func (l *Locator) Unregister(ctx context.Context, t string, key string, val string) error {
+	// 验证节点是否匹配
 	redisCli := gxyredis.GetRedis()
 	redisKey := l.formatKey(t, key)
-	_, err := redisCli.Del(ctx, redisKey)
+	_, err := UnregisterGrainNode(redisCli.Client, redisKey, val)
 	if err != nil {
 		return gerror.Wrap(err, "Failed to unregister key in Redis")
 	}
-
-	glog.Debug(ctx, "Unregistered key-node mapping", "key", key)
 	return nil
 }

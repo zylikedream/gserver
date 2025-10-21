@@ -18,11 +18,11 @@ type IService interface {
 }
 
 type Service struct {
-	gxymodule.Module
+	gxymodule.ModuleBase
 }
 
 func (s *Service) Name() string {
-	return s.GetName()
+	return s.GetModName()
 }
 
 func (s *Service) Public() bool {
@@ -38,11 +38,11 @@ func (s *Service) Version() string {
 }
 
 type InnerService struct {
-	gxymodule.Module
+	gxymodule.ModuleBase
 }
 
 func (s *InnerService) Name() string {
-	return s.GetName()
+	return s.GetModName()
 }
 
 func (s *InnerService) Public() bool {

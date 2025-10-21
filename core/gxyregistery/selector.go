@@ -7,6 +7,7 @@ import (
 
 	"github.com/gogf/gf/v2/container/gmap"
 	"github.com/gogf/gf/v2/container/gtree"
+	"golang.org/x/sync/singleflight"
 )
 
 type ServiceSelector interface {
@@ -31,10 +32,11 @@ func (s *randomServiceSelector) Select(service string, _ string, services []*Ser
 
 type roundRobinServiceSelector struct {
 	serviceIndex *gmap.StrIntMap
+	sfg          singleflight.Group
 }
 
 var roundRobinSelector = &roundRobinServiceSelector{
-	serviceIndex: gmap.NewStrIntMap(true),
+	serviceIndex: gmap.NewStrIntMap(false),
 }
 
 func RoundRobinSelector() ServiceSelector {
@@ -45,13 +47,13 @@ func (s *roundRobinServiceSelector) Select(service string, _ string, services []
 	if len(services) == 0 {
 		return nil
 	}
-	var index int
-	s.serviceIndex.LockFunc(func(m map[string]int) {
-		index = m[service]
-		m[service] = (index + 1) % len(services)
-		index = m[service]
+	// 使用singleflight.Group确保每个服务的索引更新是原子的
+	val, _, _ := s.sfg.Do(service, func() (any, error) {
+		index := s.serviceIndex.GetOrSet(service, 0)
+		s.serviceIndex.Set(service, (index+1)%len(services))
+		return index, nil
 	})
-	return services[index]
+	return services[val.(int)]
 }
 
 // consistentHashSelector 实现基于一致性哈希的服务选择器

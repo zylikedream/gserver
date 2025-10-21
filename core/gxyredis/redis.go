@@ -8,9 +8,9 @@ import (
 	"gserver/util"
 
 	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
-	"github.com/gogf/gf/v2/database/gredis"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/redis/go-redis/v9"
 )
 
 type redisConfig struct {
@@ -20,10 +20,12 @@ type redisConfig struct {
 	Password string        `toml:"password"`
 }
 
+type Client redis.UniversalClient
+
 type gxyRedis struct {
-	gxymodule.Module
+	gxymodule.ModuleBase
 	conf *redisConfig
-	*gredis.Redis
+	Client
 }
 
 var redisCli *gxyRedis
@@ -43,17 +45,13 @@ func NewRedisClient(config string) *gxyRedis {
 	return r
 }
 func (r *gxyRedis) OnInit(ctx context.Context) error {
-	redisConf := &gredis.Config{}
-	redisConf.Address = r.conf.Addr
-	redisConf.Pass = r.conf.Password
-	redisConf.Db = r.conf.DB
-	redisConf.DialTimeout = r.conf.Timeout
-	var err error
-	r.Redis, err = gredis.New(redisConf)
-	r.Redis.Client()
-	if err != nil {
-		return err
+	redisConf := &redis.UniversalOptions{
+		Addrs:       []string{r.conf.Addr},
+		Password:    r.conf.Password,
+		DB:          r.conf.DB,
+		DialTimeout: r.conf.Timeout,
 	}
+	r.Client = redis.NewUniversalClient(redisConf)
 	return nil
 }
 
@@ -63,9 +61,13 @@ func (r *gxyRedis) OnStart(ctx context.Context) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel() // 确保在函数结束时取消上下文
 
-	if _, err := r.Do(timeoutCtx, "PING"); err != nil {
+	if err := r.Ping(timeoutCtx).Err(); err != nil {
 		return err
 	}
 	glog.Infof(ctx, "[module]redis start success: %s", r.conf.Addr)
 	return nil
+}
+
+func (r *gxyRedis) RunScript(ctx context.Context, script *redis.Script, keys []string, args ...any) *redis.Cmd {
+	return script.Run(ctx, r.Client, keys, args...)
 }

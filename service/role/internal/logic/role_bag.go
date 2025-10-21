@@ -106,7 +106,7 @@ func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
 			chgs = append(chgs, chg)
 		}
 	}
-	r.notifyItemUpdate(chgs)
+	r.notifyItemUpdate(ctx, chgs)
 	glog.Debug(ctx, "add item success", zap.Any("item", itemList), zap.Any("chgs", chgs))
 	return nil
 }
@@ -152,12 +152,12 @@ func (r *RoleBag) DecItem(ctx context.Context, itemList []bag.Item) error {
 			chgs = append(chgs, chg)
 		}
 	}
-	r.notifyItemUpdate(chgs)
+	r.notifyItemUpdate(ctx, chgs)
 	glog.Debug(ctx, "dec item success", zap.Any("item", itemList), zap.Any("griddec ", chgs))
 	return nil
 }
 
-func (r *RoleBag) notifyItemUpdate(chgs []*bag.ItemChange) {
+func (r *RoleBag) notifyItemUpdate(ctx context.Context, chgs []*bag.ItemChange) {
 	// sess := ctx.GetSession()
 	msg := &pb.NotifyItemUpdate{
 		Items: []*pb.PItemUpdate{},
@@ -168,7 +168,7 @@ func (r *RoleBag) notifyItemUpdate(chgs []*bag.ItemChange) {
 			Num:    int64(i.(*bag.ItemChange).Num),
 		}
 	}).ToSlice(&msg.Items)
-	r.Role.SendClient(msg)
+	r.Role.SendClient(ctx, msg)
 }
 
 func (r *RoleBag) ClassifyItemList(itemList []bag.Item) []bag.Item {

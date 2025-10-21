@@ -5,7 +5,6 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/service"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
@@ -32,8 +31,10 @@ func (r *simpleService) Weight() int {
 }
 
 func (r *simpleService) OnStart(ctx context.Context) error {
-	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() actor.Actor {
-		return &SimpleGrain{}
+	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() gxyactor.IGrain {
+		s := &SimpleGrain{}
+		s.GrainBase = gxyactor.NewGrainBase(ctx, s)
+		return s
 	})
 	return nil
 }
@@ -47,8 +48,16 @@ func (s *simpleService) GetSimpleGrain(id int64) (gxyactor.PID, error) {
 }
 
 type SimpleGrain struct {
+	*gxyactor.GrainBase
 }
 
-func (s *SimpleGrain) Receive(ctx actor.Context) {
+func (s *SimpleGrain) Init(ctx context.Context) error {
+	return nil
+}
 
+func (s *SimpleGrain) HandleMessage(ctx context.Context, _ any) error {
+	return nil
+}
+
+func (s *SimpleGrain) Terminate(ctx context.Context, _ error) {
 }

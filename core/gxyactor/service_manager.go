@@ -10,7 +10,7 @@ import (
 )
 
 type serviceMgr struct {
-	gxymodule.Module
+	gxymodule.ModuleBase
 	Services    []IService
 	serviceInfo []*gxyregistery.ServiceInfo
 	registry    gxyregistery.IRegistery
@@ -36,13 +36,10 @@ func (s *serviceMgr) GetServices() []IService {
 
 func (s *serviceMgr) LoadService(service IService) {
 	s.Services = append(s.Services, service)
-	s.Module.AddModule(context.Background(), service)
+	s.ModuleBase.AddModule(context.Background(), service)
 }
 
 func (s *serviceMgr) OnInit(ctx context.Context) error {
-	if err := s.Module.OnInit(ctx); err != nil {
-		return err
-	}
 	registry, err := gxyregistery.NewRegistery(gxyregistery.REGISTERY_TYPE_CONSUL, "node/config/service.toml")
 	if err != nil {
 		return err
@@ -52,9 +49,6 @@ func (s *serviceMgr) OnInit(ctx context.Context) error {
 }
 
 func (s *serviceMgr) OnStart(ctx context.Context) error {
-	if err := s.Module.OnStart(ctx); err != nil {
-		return err
-	}
 	if err := s.registerSevices(); err != nil {
 		return err
 	}
@@ -81,9 +75,6 @@ func (s *serviceMgr) registerSevices() error {
 }
 
 func (s *serviceMgr) OnStop(ctx context.Context) error {
-	if err := s.Module.OnStop(ctx); err != nil {
-		return err
-	}
 	glog.Infof(ctx, "unregister %d services", len(s.serviceInfo))
 	for _, svcInfo := range s.serviceInfo {
 		if err := s.registry.UnRegister(ctx, svcInfo); err != nil {
