@@ -91,6 +91,7 @@ func (r *RoleMain) DelayInit(ctx context.Context) error {
 	if err := r.afterInitRole(ctx); err != nil {
 		return gerror.Wrapf(err, "after init role error, roleID: %d", r.RoleID)
 	}
+	glog.Debugf(ctx, "role start success, roleID: %d", r.RoleID)
 	return nil
 }
 
@@ -100,7 +101,7 @@ func (r *RoleMain) initRole(ctx context.Context) error {
 	}
 	r.initTimer(ctx)
 	r.initMsgHandler()
-	RoleMgr().Add(r.RoleID, r.Self)
+	RoleMgr().Add(r.RoleID, r.Self())
 	r.state = RoleStateStart
 	glog.Debugf(ctx, "init role success, roleID: %d", r.RoleID)
 	return nil
@@ -110,7 +111,7 @@ func (r *RoleMain) afterInitRole(ctx context.Context) error {
 	if err := r.StartModule(ctx); err != nil {
 		return err
 	}
-	r.Timer.RestoreCron(ctx)
+	r.Timer().RestoreCron(ctx)
 	return nil
 }
 
@@ -171,18 +172,20 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 		tm := time.Now()
 		glog.Debugf(ctx, "recv client msg, args: %v", pbmsg)
 		result, err := r.msgHandler.CallWithMsg(ctx, pbmsg)
-		glog.Debugf(ctx, "handle call result, args: %v, result: %v, cost: %vms", pbmsg, result, time.Since(tm).Milliseconds())
 		if err != nil {
 			rsp = &pb.Ack{
 				Code:   1,
 				Path:   msg.Path,
 				Reason: err.Error(),
 			}
+			glog.Debugf(ctx, "handle call result error, args: %+v, error: %+v, cost: %vms", pbmsg, result, time.Since(tm).Milliseconds())
 		} else if result != nil {
 			rsp1, ok := result.(proto.Message)
 			if ok {
 				rsp = rsp1
 			}
+			glog.Infof(ctx, "handle call result succ, args: %+v, result: %+v, cost: %vms",
+				pbmsg, rsp, time.Since(tm).Milliseconds())
 		}
 
 		if rsp != nil {
@@ -209,9 +212,9 @@ func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
 }
 
 func (r *RoleMain) initTimer(ctx context.Context) {
-	r.Timer.SetCronState(r.Extra)
-	r.Timer.AddTick(ctx, PersistTick, r.TickSave)
-	r.Timer.AddCron(ctx, gxytimer.DayRefresh, r.DayRefresh)
+	r.Timer().SetCronState(r.Extra)
+	r.Timer().AddTick(ctx, PersistTick, r.TickSave)
+	r.Timer().AddCron(ctx, gxytimer.DayRefresh, r.DayRefresh)
 }
 
 func (r *RoleMain) initMsgHandler() {
@@ -283,7 +286,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
 		glog.Infof(ctx, "role reconnect, roleID: %d", r.RoleID)
 	}
-	r.Timer.Cancel(SignleAliveOnce.Name)
+	r.Timer().Cancel(SignleAliveOnce.Name)
 	r.state = RoleStateLogin
 	return &pb.RspAccountLogin{
 		FirstLogin: firstLogin,
@@ -299,7 +302,7 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
 	r.save(ctx, false)
-	r.Timer.AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.Stop(errors.New("single alive timeout"))
 	})
 	r.state = RoleStateLogout
@@ -308,6 +311,6 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
-	r.Timer.CancelAll()
+	r.Timer().CancelAll()
 	r.save(ctx, true)
 }

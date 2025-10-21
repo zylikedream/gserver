@@ -8,6 +8,7 @@ import (
 	"gserver/core/gxyredis"
 
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -48,8 +49,8 @@ func (l *Locator) Locate(ctx context.Context, t string, key string) (string, err
 	redisCli := gxyredis.GetRedis()
 	redisKey := l.formatKey(t, key)
 	result, err := redisCli.Get(ctx, redisKey).Result()
-	if err != nil {
-		return "", gerror.Wrap(err, "Failed to locate key in Redis")
+	if err != nil && err != redis.Nil {
+		return "", gerror.Newf("Failed to locate key %s in Redis, error:%v", redisKey, err)
 	}
 
 	if result == "" {

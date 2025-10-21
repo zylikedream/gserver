@@ -73,8 +73,10 @@ func (m *ModuleBase) AddModule(ctx context.Context, mod IModule) error {
 }
 
 func (m *ModuleBase) StartModule(ctx context.Context) error {
-	if err := m.self.OnModStart(ctx); err != nil {
-		return err
+	if m.self != nil {
+		if err := m.self.OnModStart(ctx); err != nil {
+			return err
+		}
 	}
 	//启动子孙
 	for _, child := range m.childs {
@@ -94,8 +96,10 @@ func (m *ModuleBase) StopModule(ctx context.Context) error {
 			glog.Errorf(ctx, "stop child mod %s err: %v", mod.GetModName(), err)
 		}
 	}
-	if err := m.self.OnModStop(ctx); err != nil {
-		return err
+	if m.self != nil {
+		if err := m.self.OnModStop(ctx); err != nil {
+			return err
+		}
 	}
 	m.self = nil
 	m.parent = nil

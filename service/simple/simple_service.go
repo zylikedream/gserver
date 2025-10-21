@@ -30,7 +30,7 @@ func (r *simpleService) Weight() int {
 	return 0
 }
 
-func (r *simpleService) OnStart(ctx context.Context) error {
+func (r *simpleService) OnModStart(ctx context.Context) error {
 	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() gxyactor.IGrain {
 		s := &SimpleGrain{}
 		s.GrainBase = gxyactor.NewGrainBase(ctx, s)

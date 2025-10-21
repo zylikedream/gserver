@@ -31,16 +31,25 @@ func (s *gateService) Name() string {
 	return service.GATE_SERVICE
 }
 
-func (s *gateService) OnInit(ctx context.Context) error {
+func (s *gateService) OnModInit(ctx context.Context) error {
 	s.network = gxynet.NewNetwork("config/gate.net.toml", NewGateHandler())
 	return nil
 }
 
-func (s *gateService) OnStart(ctx context.Context) error {
+func (s *gateService) OnModStart(ctx context.Context) error {
 	if err := s.network.Start(ctx); err != nil {
 		return err
 	}
 	// 启动会话管理器
+	return nil
+}
+
+func (s *gateService) OnModStop(ctx context.Context) error {
+	if s.network != nil {
+		if err := s.network.Stop(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

@@ -41,10 +41,6 @@ func NewRedisClient(config string) *gxyRedis {
 		glog.Fatal(context.Background(), err)
 	}
 	r := &gxyRedis{conf: conf}
-	redisCli = r
-	return r
-}
-func (r *gxyRedis) OnInit(ctx context.Context) error {
 	redisConf := &redis.UniversalOptions{
 		Addrs:       []string{r.conf.Addr},
 		Password:    r.conf.Password,
@@ -52,10 +48,11 @@ func (r *gxyRedis) OnInit(ctx context.Context) error {
 		DialTimeout: r.conf.Timeout,
 	}
 	r.Client = redis.NewUniversalClient(redisConf)
-	return nil
+	redisCli = r
+	return r
 }
 
-func (r *gxyRedis) OnStart(ctx context.Context) error {
+func (r *gxyRedis) OnModStart(ctx context.Context) error {
 	// 创建一个带有超时的上下文，这里设置为5秒超时
 	// 可以根据需要调整超时时间长度
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -65,6 +62,15 @@ func (r *gxyRedis) OnStart(ctx context.Context) error {
 		return err
 	}
 	glog.Infof(ctx, "[module]redis start success: %s", r.conf.Addr)
+	return nil
+}
+
+func (r *gxyRedis) OnModStop(ctx context.Context) error {
+	if r.Client != nil {
+		if err := r.Client.Close(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

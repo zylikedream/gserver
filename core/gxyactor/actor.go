@@ -2,184 +2,176 @@ package gxyactor
 
 import (
 	"context"
-	"fmt"
-	"time"
-
-	"gserver/core/gxymodule"
-	"gserver/protocol/pb"
+	"gserver/core/gxylog"
+	"gserver/core/gxytimer"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/gogf/gf/v2/util/gutil"
 )
 
-// actorSystem 基础Actor模块
-type actorSystem struct {
-	gxymodule.ModuleBase
-	system   *actor.ActorSystem
-	remote   *remote.Remote
-	nodeName string
-	host     string
-	grainMgr *grainManager
-}
-
-const (
-	CLUSTER_NAME = "gcluster"
+// 类型别名 - 抽象层，隐藏具体实现但保持兼容性
+type (
+	PID = *actor.PID // 进程ID
 )
 
-var actorSys *actorSystem
+type ActorTimerMsg gxytimer.TimerActiveInfo
 
-// ActorSystem 获取基础Actor模块
-func ActorSystem() *actorSystem {
-	return actorSys
+type ActorInitMsg struct {
 }
 
-func (a *actorSystem) NodeName() string {
-	return a.nodeName
+type ActorInternalError struct {
+	err error
 }
 
-// NewActorSystem创建基础Actor模块
-func NewActorSystem(nodeName string, host string) *actorSystem {
-	// split host from nodeName(name@host)
-	actorSys = &actorSystem{
-		nodeName: nodeName,
-		host:     host,
+type GrainContext struct {
+	actor.Context
+	ID   string
+	Kind string
+}
+
+type GrainProducer func() IGrain
+type IActor interface {
+	Init(ctx context.Context) error
+	DelayInit(ctx context.Context) error
+	HandleMessage(ctx context.Context, msg any) error
+	Terminate(ctx context.Context, err error)
+	Timer() *ActorTimer
+	Self() PID
+	actor.Actor
+}
+
+type IGrain interface {
+	IActor
+	GrainID() string
+}
+
+type ActorBase struct {
+	timer   *ActorTimer
+	self    PID
+	Actx    actor.Context
+	ctx     context.Context
+	actor   IActor
+	stopErr error
+}
+
+func NewActorBasse(ctx context.Context, actor IActor) *ActorBase {
+	return &ActorBase{
+		ctx:   ctx,
+		actor: actor,
 	}
-
-	return actorSys
 }
 
-// OnInit Actor模块初始化 - 启动节点
-func (a *actorSystem) OnInit(ctx context.Context) error {
-	a.system = actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging))
-	config := remote.Configure(a.host, 0)
-	a.remote = remote.NewRemote(a.system, config)
-	a.remote.Start()
-	a.grainMgr = NewGrainManager(a)
-	if err := a.grainMgr.Init(ctx); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *actorSystem) OnStart(ctx context.Context) error {
-	glog.Infof(ctx, "actor %s started at %s", a.nodeName, a.Address())
-	// 启动服务
-	return nil
-}
-
-func (a *actorSystem) GetActorSystem() *actor.ActorSystem {
-	return a.system
-}
-
-func (a *actorSystem) RegisterGrain(name string, prod GrainProducer) error {
-	return a.grainMgr.RegisterGrain(name, prod)
-}
-
-// OnStop 停止Actor模块 - 停止节点
-func (a *actorSystem) OnStop(ctx context.Context) error {
-	if a.system != nil {
-		// 停止节点
-		a.system.Shutdown()
-		glog.Infof(ctx, "node stopped: %s", a.nodeName)
-	}
-	a.grainMgr.Stop(ctx)
-	return nil
-}
-
-// SpawnRegister创建新的Actor
-func (a *actorSystem) SpawnNamed(name string, prod func() actor.Actor) (PID, error) {
-	if a.system == nil {
-		return nil, fmt.Errorf("node not initialized")
-	}
-	actor.WithOnInit()
-	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	pid, err := a.system.Root.SpawnNamed(props, name)
-	if err != nil {
-		return nil, gerror.Wrap(err, "failed to spawn actor")
-	}
-
-	return pid, nil
-}
-
-func (a *actorSystem) Spawn(prod func() actor.Actor) (pid PID, err error) {
-	if a.system == nil {
-		return nil, fmt.Errorf("node not initialized")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			glog.Errorf(context.Background(), "actor spawn panicked: %v", r)
-			err = gerror.New("spawn error")
+func (g *ActorBase) Receive(actx actor.Context) {
+	g.Actx = actx
+	gutil.TryCatch(g.ctx, func(ctx context.Context) {
+		if err := g.doReceive(actx); err != nil {
+			glog.Errorf(g.ctx, "grain error, %+v", err)
+			g.Stop(err)
 		}
-	}()
-	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	pid = a.system.Root.Spawn(props)
-	return
+	}, func(ctx context.Context, exception error) {
+		glog.Errorf(g.ctx, "role internal error, %+v", exception)
+		g.Stop(exception)
+	})
 }
 
-// Send 发送消息（异步）
-func (a *actorSystem) Send(pid PID, message any) error {
-	if a.system == nil {
-		return fmt.Errorf("node not initialized")
+func (g *ActorBase) doReceive(ctx actor.Context) error {
+	switch msg := ctx.Message().(type) {
+	case *actor.Started:
+		g.self = ctx.Self()
+		g.timer = NewActorTimer(g.self)
+		if err := g.actor.Init(g.ctx); err != nil {
+			return gerror.Wrap(err, "init actor error")
+		}
+		g.SendSelf(&ActorInitMsg{})
+	case *ActorInitMsg:
+		if err := g.actor.DelayInit(g.ctx); err != nil {
+			return gerror.Wrap(err, "delay init actor error")
+		}
+	case ActorTimerMsg:
+		g.timer.Active(g.ctx, msg)
+	case *actor.Stopped:
+		g.actor.Terminate(g.ctx, g.stopErr)
+	default:
+		return g.actor.HandleMessage(g.ctx, ctx.Message())
 	}
-	a.system.Root.Send(pid, message)
 	return nil
 }
 
-func (a *actorSystem) Call(pid PID, message any) (any, error) {
-	if a.system == nil {
-		return nil, fmt.Errorf("node not initialized")
-	}
-
-	future := a.system.Root.RequestFuture(pid, message, 1115*time.Second)
-	res, err := future.Result()
-	if err != nil {
-		return nil, gerror.Wrap(err, "call error")
-	}
-	if err, ok := res.(*pb.ActorError); ok {
-		return nil, gerror.New(err.Reason)
-	}
-	return res, nil
+func (g *ActorBase) Stop(err error) {
+	g.stopErr = err
+	g.Actx.Stop(g.self)
 }
 
-func (a *actorSystem) GetNodeName() string {
-	return string(a.nodeName)
+func (g *ActorBase) SendSelf(msg any) {
+	g.Send(g.self, msg)
 }
 
-func (a *actorSystem) StopActor(pid PID) error {
-	if a.system == nil {
-		return fmt.Errorf("node not initialized")
-	}
-	a.system.Root.Stop(pid)
+func (g *ActorBase) Sender() PID {
+	return g.Actx.Sender()
+}
+
+func (g *ActorBase) Send(pid PID, msg any) {
+	g.Actx.Send(pid, msg)
+}
+
+func (g *ActorBase) Timer() *ActorTimer {
+	return g.timer
+}
+
+func (g *ActorBase) Self() PID {
+	return g.self
+}
+
+func (g *ActorBase) DelayInit(ctx context.Context) error {
 	return nil
 }
 
-func (a *actorSystem) Host() string {
-	return a.host
-}
-
-func (a *actorSystem) Address() string {
-	return a.system.Address()
-}
-
-func (a *actorSystem) GetGrain(kind string, id string, spawn ...bool) (PID, error) {
-	spawnFlag := true
-	if len(spawn) > 0 {
-		spawnFlag = spawn[0]
+func (a *ActorBase) Respond(msg any) {
+	if a.Actx.Sender() == nil {
+		glog.Infof(a.ctx, "respond sender is nil, msg: %v", msg)
+		return
 	}
-	return a.grainMgr.getGrain(kind, id, spawnFlag)
+	a.Actx.Respond(msg)
 }
 
-func newSupervisor() actor.SupervisorStrategy {
-	return actor.NewOneForOneStrategy(10, 3*time.Second, decider)
+func (a *ActorBase) Request(pid PID, msg any) {
+	a.Actx.Request(pid, msg)
 }
 
-func decider(reason any) actor.Directive {
-	glog.Errorf(context.Background(), "actor error : %v", reason)
-	return actor.StopDirective
+func (a *ActorBase) SpawnNamed(props *actor.Props, name string) (PID, error) {
+	return a.Actx.SpawnNamed(props, name)
 }
 
-func PidEqual(a, b PID) bool {
-	return a.Id == b.Id && a.Address == b.Address
+func (a *ActorBase) SetLogValue(key string, val any) *ActorBase {
+	a.ctx = gxylog.WithValue(a.ctx, key, val)
+	return a
+}
+
+type GrainBase struct {
+	grainID string
+	*ActorBase
+	grain IGrain
+}
+
+func NewGrainBase(ctx context.Context, grain IGrain) *GrainBase {
+	base := &GrainBase{
+		grain: grain,
+	}
+	base.ActorBase = NewActorBasse(ctx, grain)
+	return base
+}
+
+func (g *GrainBase) GrainID() string {
+	return g.grainID
+}
+
+func (g *GrainBase) Receive(ctx actor.Context) {
+	switch ctx.Message().(type) {
+	case *actor.Started:
+		grainCtx := ctx.(*GrainContext)
+		g.grainID = grainCtx.ID
+	}
+	g.ActorBase.Receive(ctx)
 }

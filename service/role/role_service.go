@@ -30,10 +30,15 @@ func (r *roleService) Weight() int {
 	return logic.RoleMgr().Count()
 }
 
-func (r *roleService) OnStart(ctx context.Context) error {
+func (r *roleService) OnModStart(ctx context.Context) error {
 	gxyactor.ActorSystem().RegisterGrain(r.Name(), func() gxyactor.IGrain {
 		return logic.NewRoleMain()
 	})
+	return nil
+}
+
+func (r *roleService) OnModStop(ctx context.Context) error {
+	gxyactor.ActorSystem().DeRegisterGrain(r.Name())
 	return nil
 }
 

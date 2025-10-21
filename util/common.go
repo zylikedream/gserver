@@ -2,7 +2,9 @@ package util
 
 import (
 	"context"
+	"path/filepath"
 	"reflect"
+	"runtime"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -61,4 +63,12 @@ func CfgUnmarshalKey(ctx context.Context, c *gcfg.Config, key string, data any) 
 	vp := CfgToViper(ctx, c)
 
 	return vp.UnmarshalKey(key, data, opt)
+}
+
+func GetCurrenDir() string {
+	_, filename, _, ok := runtime.Caller(1)
+	if !ok {
+		return ""
+	}
+	return filepath.Dir(filename)
 }

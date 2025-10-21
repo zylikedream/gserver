@@ -3,15 +3,21 @@ package gxylocator
 import (
 	"context"
 	"gserver/core/gxyredis"
+	"gserver/util"
 	"os"
+	"path/filepath"
 
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/redis/go-redis/v9"
 )
 
 var CommonScript *redis.Script
 
 func init() {
-	commonScriptSrc, err := os.ReadFile("script/common.lua")
+	dir := util.GetCurrenDir()
+	commonScriptPath := filepath.Join(dir, "script", "common.lua")
+	commonScriptSrc, err := os.ReadFile(commonScriptPath)
+	glog.Debugf(context.Background(), "common script path: %s", commonScriptPath)
 	if err != nil {
 		panic(err)
 	}

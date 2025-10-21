@@ -53,7 +53,7 @@ func NewMongoClient(config string) *mongoClient {
 	return mgoCli
 }
 
-func (m *mongoClient) OnInit(ctx context.Context) error {
+func (m *mongoClient) OnModInit(ctx context.Context) error {
 	opt := options.Client()
 	conf := m.conf
 	opt.ApplyURI(conf.Addr)
@@ -72,7 +72,7 @@ func (m *mongoClient) OnInit(ctx context.Context) error {
 	m.client = client
 	return nil
 }
-func (m *mongoClient) OnStart(ctx context.Context) error {
+func (m *mongoClient) OnModStart(ctx context.Context) error {
 	// 创建一个带超时的context
 	// 这里可以使用配置中的连接超时时间，或自定义一个超时时间
 	pingTimeout := m.conf.ConnectTimeout
@@ -87,6 +87,15 @@ func (m *mongoClient) OnStart(ctx context.Context) error {
 		return gerror.Wrapf(err, "mongo client ping error: %s", m.conf.Addr)
 	}
 	glog.Infof(ctx, "[module]mongo start success: %s", m.conf.Addr)
+	return nil
+}
+
+func (m *mongoClient) OnModStop(ctx context.Context) error {
+	if m.client != nil {
+		if err := m.client.Disconnect(ctx); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

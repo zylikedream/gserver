@@ -81,7 +81,7 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 }
 
 // NewSession 创建会话
-// OnInit Actor初始化
+// OnModInit Actor初始化
 func (s *Session) Init(ctx context.Context) error {
 	s.state = StateConnected
 	s.sessionInfo = &SessionInfo{
@@ -103,12 +103,12 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.sessionInfo.AccountUid = firstpacket.AccountUid
 	roleID, err := role.GetRoleIDByAccount(firstpacket.AccountUid)
 	if err != nil {
-		return gerror.Newf("get role id error, err: %v", err)
+		return gerror.Wrapf(err, "get role id error, account: %s", firstpacket.AccountUid)
 	}
 	s.SetLogValue(gxylog.ContextKeyRoleID, roleID)
 	rolePid, err := role.RoleService().GetRole(roleID)
 	if err != nil {
-		return gerror.Newf("get role pid error, err: %v", err)
+		return gerror.Wrapf(err, "get role id error, role: %d", roleID)
 	}
 	glog.Infof(ctx, "get role pid: %v", rolePid)
 	s.sessionInfo.RolePid = rolePid
@@ -123,7 +123,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	if err := s.endpoint.SendMsg(rsp); err != nil {
 		return gerror.Newf("send rsp error, err: %v", err)
 	}
-	SessionMgr().Add(roleID, s.Self)
+	SessionMgr().Add(roleID, s.Self())
 	return nil
 }
 

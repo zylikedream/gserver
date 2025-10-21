@@ -32,3 +32,12 @@ func (net *Network) Start(ctx context.Context) error {
 	net.peer = peer
 	return net.peer.Start(ctx, net.handler)
 }
+
+func (net *Network) Stop(ctx context.Context) error {
+	if net.peer != nil {
+		if err := net.peer.Stop(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}

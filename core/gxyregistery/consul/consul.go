@@ -216,8 +216,6 @@ func (r *Registry) ttlHealthCheck(serviceID string) {
 		}
 		// 健康检查成功，重置重试计数
 		retryCount = 0
-		// 降低日志级别，避免日志过多
-		r.logger.Debugf(context.Background(), "TTL health check succ: %s", checkID)
 	}
 }
 

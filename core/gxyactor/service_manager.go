@@ -39,7 +39,7 @@ func (s *serviceMgr) LoadService(service IService) {
 	s.ModuleBase.AddModule(context.Background(), service)
 }
 
-func (s *serviceMgr) OnInit(ctx context.Context) error {
+func (s *serviceMgr) OnModInit(ctx context.Context) error {
 	registry, err := gxyregistery.NewRegistery(gxyregistery.REGISTERY_TYPE_CONSUL, "node/config/service.toml")
 	if err != nil {
 		return err
@@ -48,7 +48,7 @@ func (s *serviceMgr) OnInit(ctx context.Context) error {
 	return nil
 }
 
-func (s *serviceMgr) OnStart(ctx context.Context) error {
+func (s *serviceMgr) OnModStart(ctx context.Context) error {
 	if err := s.registerSevices(); err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (s *serviceMgr) registerSevices() error {
 	return nil
 }
 
-func (s *serviceMgr) OnStop(ctx context.Context) error {
+func (s *serviceMgr) OnModStop(ctx context.Context) error {
 	glog.Infof(ctx, "unregister %d services", len(s.serviceInfo))
 	for _, svcInfo := range s.serviceInfo {
 		if err := s.registry.UnRegister(ctx, svcInfo); err != nil {
@@ -89,6 +89,7 @@ func (s *serviceMgr) OnStop(ctx context.Context) error {
 func (s *serviceMgr) GetServiceNode(name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
 	services, err := s.registry.Search(context.Background(), name)
 	if err != nil {
+		glog.Errorf(context.Background(), "search service failed:%+v", err)
 		return nil
 	}
 
