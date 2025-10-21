@@ -8,6 +8,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
+	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"gserver/service/role"
 	"gserver/util"
@@ -20,8 +21,10 @@ import (
 )
 
 const (
-	SESSION_MSG_STOP   = "stop"
-	SESSION_MSG_CLIENT = "client" // 客户端消息
+	SESSION_MSG_STOP       = "stop"
+	SESSION_MSG_CLIENT     = "client"         // 客户端消息
+	SESSION_IDLE_TIMEOUT   = 10 * time.Minute // 空闲超时时间
+	SESSION_CHECK_INTERVAL = 30 * time.Second
 )
 
 // SessionState 会话状态
@@ -90,8 +93,21 @@ func (s *Session) Init(ctx context.Context) error {
 	}
 	glog.Infof(ctx, "Session initialized: remote: %s", s.endpoint.Conn().RemoteAddr())
 
-	// 可以在这里进行初始化，如启动心跳等
 	return nil
+}
+
+func (s *Session) DelayInit(ctx context.Context) error {
+	s.Timer().AddTick(ctx, &gxytimer.Tick{
+		Name:     "check",
+		Interval: SESSION_CHECK_INTERVAL,
+	}, s.sessionCheck)
+	return nil
+}
+
+func (s *Session) sessionCheck(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+	if s.IsIdle() {
+		s.Stop(gerror.New("idle timeout"))
+	}
 }
 
 func (s *Session) handleHandshake(ctx context.Context, msg any) error {
@@ -204,4 +220,8 @@ func (s *Session) GetSessionInfo() *SessionInfo {
 // IsAuthenticated 是否已认证
 func (s *Session) IsAuthenticated() bool {
 	return s.state == StateAuthenticated && s.sessionInfo.RoleID != 0
+}
+
+func (s *Session) IsIdle() bool {
+	return time.Since(s.sessionInfo.LastActive) > SESSION_IDLE_TIMEOUT
 }
