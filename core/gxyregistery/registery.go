@@ -15,6 +15,11 @@ const (
 	REGISTERY_TYPE_CONSUL = "consul"
 )
 
+type Services struct {
+	Infos   []*ServiceInfo
+	Version int
+}
+
 type IRegistery interface {
 	Register(ctx context.Context, service *ServiceInfo) error
 	Search(ctx context.Context, name string) ([]*ServiceInfo, error)
@@ -135,16 +140,14 @@ func (r *registery) StartWatch(name string) {
 	// 服务变更防抖定时器
 	var debounceTimer *time.Timer
 	var pendingServices []*ServiceInfo
-	var pendingName string
-	debounceDuration := 500 * time.Millisecond
+	debounceDuration := 2 * time.Second
 
 	// 防抖处理函数
 	processDebouncedUpdate := func() {
 		if pendingServices != nil {
-			glog.Infof(context.Background(), "Updating services for %s, count: %d", pendingName, len(pendingServices))
-			r.services.Set(pendingName, pendingServices)
+			glog.Infof(context.Background(), "Updating services for %s, count: %d", name, len(pendingServices))
+			r.services.Set(name, pendingServices)
 			pendingServices = nil
-			pendingName = ""
 		}
 	}
 
@@ -172,7 +175,6 @@ func (r *registery) StartWatch(name string) {
 
 		// 使用防抖机制，合并短时间内的多次变更
 		pendingServices = serviceInfos
-		pendingName = name
 
 		if debounceTimer != nil {
 			debounceTimer.Stop()

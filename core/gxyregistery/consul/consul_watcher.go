@@ -47,8 +47,12 @@ func newWatcher(registry *Registry, key string) (*Watcher, error) {
 
 // watch starts the watching process.
 func (w *Watcher) watch() {
+	entries, _, err := w.registry.client.Health().Service(w.key, "", true, &api.QueryOptions{})
+	if err != nil {
+		return
+	}
 	// Get initial service list
-	initServices, err := w.Services()
+	initServices, err := w.Services(entries)
 	if err != nil {
 		return
 	}
@@ -80,8 +84,12 @@ func (w *Watcher) watch() {
 		default:
 		}
 
+		entries, ok := data.([]*api.ServiceEntry)
+		if !ok {
+			return
+		}
 		// Get current services
-		services, _ := w.Services()
+		services, _ := w.Services(entries)
 
 		// Update services
 		w.mu.Lock()
@@ -159,12 +167,9 @@ func (w *Watcher) Close() error {
 }
 
 // Services returns current services from the watcher.
-func (w *Watcher) Services() ([]gsvc.Service, error) {
+func (w *Watcher) Services(entries []*api.ServiceEntry) ([]gsvc.Service, error) {
 	// Query services directly from Consul
-	entries, _, err := w.registry.client.Health().Service(w.key, "", true, &api.QueryOptions{})
-	if err != nil {
-		return nil, err
-	}
+
 	// Convert entries to services
 	var services []gsvc.Service
 	for _, entry := range entries {

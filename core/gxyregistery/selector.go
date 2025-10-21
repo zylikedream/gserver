@@ -124,7 +124,7 @@ func (s *consistentHashSelector) Select(service string, key string, services []*
 	ring := ringObj.(*gtree.AVLTree)
 
 	// 如果节点列表有变化，重建哈希环
-	hashKey := fmt.Sprintf("%s:%d", service, len(services))
+	hashKey := fmt.Sprintf("%s:%d", service, service)
 	hashNodesKey := s.getHashNodesKey(hashKey)
 	existingNodesKey := s.rings.Get(hashNodesKey)
 
