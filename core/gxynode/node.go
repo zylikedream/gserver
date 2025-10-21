@@ -69,6 +69,7 @@ func (a *node) Stop(ctx context.Context) error {
 	if err := a.StopModule(ctx); err != nil {
 		return err
 	}
+	glog.Infof(context.Background(), "node %s stop success", a.Name)
 	return nil
 }
 

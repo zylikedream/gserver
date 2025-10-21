@@ -67,13 +67,19 @@ deploy: cli.install
 
 
 # Parsing protobuf files and generating go files.
-.PHONY: pb
-pb: cli.install
+.PHONY: pbraw
+pbraw: cli.install
 	@proto_dir=protocol; \
 	for file in `ls $$proto_dir/*.proto`; do \
     	echo "Generating $$file"; \
     	protoc --proto_path=$$proto_dir/ -I $$proto_dir/ --go_out=$$proto_dir/ --go-binary_out=$$proto_dir/ $$file; \
     done;
+
+# 生成不带omitempty标签的protobuf代码
+.PHONY: pb
+pb: cli.install pbraw
+	@echo "Removing omitempty tags from generated protobuf files..."
+	@find protocol/pb -name "*.pb.go" -type f -exec sed -i 's/,omitempty"/"/' {} \;
 
 # Generate protobuf files for database tables.
 .PHONY: pbentity

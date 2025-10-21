@@ -96,6 +96,7 @@ func (m *mongoClient) OnModStop(ctx context.Context) error {
 			return err
 		}
 	}
+	glog.Info(ctx, "[module]mongo stop success")
 	return nil
 }
 

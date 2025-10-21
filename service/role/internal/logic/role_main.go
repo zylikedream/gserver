@@ -178,14 +178,14 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 				Path:   msg.Path,
 				Reason: err.Error(),
 			}
-			glog.Debugf(ctx, "handle call result error, args: %+v, error: %+v, cost: %vms", pbmsg, result, time.Since(tm).Milliseconds())
+			glog.Debugf(ctx, "handle call result error, args: %s, error: %+v, cost: %vms", util.ForamtProto(pbmsg), result, time.Since(tm).Milliseconds())
 		} else if result != nil {
 			rsp1, ok := result.(proto.Message)
 			if ok {
 				rsp = rsp1
 			}
-			glog.Infof(ctx, "handle call result succ, args: %+v, result: %+v, cost: %vms",
-				pbmsg, rsp, time.Since(tm).Milliseconds())
+			glog.Infof(ctx, "handle call result succ, args: %s, result: %s, cost: %vms",
+				util.ForamtProto(pbmsg), util.ForamtProto(rsp), time.Since(tm).Milliseconds())
 		}
 
 		if rsp != nil {
@@ -311,6 +311,5 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
-	r.Timer().CancelAll()
 	r.save(ctx, true)
 }

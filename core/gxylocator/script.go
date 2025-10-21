@@ -25,7 +25,7 @@ func init() {
 }
 
 func UnregisterGrainNode(rdb gxyredis.Client, id string, node string) (int64, error) {
-	keys := []string{"id", "node"}
-	args := []string{id, node}
+	keys := []string{"func", "id", "node"}
+	args := []string{"unregister_grain_node", id, node}
 	return CommonScript.Run(context.Background(), rdb, keys, args).Int64()
 }

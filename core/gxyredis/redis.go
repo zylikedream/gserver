@@ -71,6 +71,7 @@ func (r *gxyRedis) OnModStop(ctx context.Context) error {
 			return err
 		}
 	}
+	glog.Info(ctx, "[module]redis stop success")
 	return nil
 }
 

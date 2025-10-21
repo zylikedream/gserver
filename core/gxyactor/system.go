@@ -86,9 +86,9 @@ func (a *actorSystem) OnModStop(ctx context.Context) error {
 	if a.system != nil {
 		// 停止节点
 		a.system.Shutdown()
-		glog.Infof(ctx, "node stopped: %s", a.nodeName)
 	}
 	a.grainMgr.Stop(ctx)
+	glog.Infof(ctx, "actor system stopped: %s", a.Address())
 	return nil
 }
 

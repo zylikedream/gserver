@@ -4,7 +4,6 @@ import (
 	"context"
 	"gserver/core/gxymodule"
 	"gserver/core/gxyregistery"
-	"gserver/core/gxytimer"
 
 	"github.com/gogf/gf/v2/os/glog"
 )
@@ -14,7 +13,6 @@ type serviceMgr struct {
 	Services    []IService
 	serviceInfo []*gxyregistery.ServiceInfo
 	registry    gxyregistery.IRegistery
-	timer       *gxytimer.GxyTimer
 }
 
 var svrMgr *serviceMgr
@@ -24,9 +22,7 @@ func ServiceManager() *serviceMgr {
 }
 
 func NewServiceManager() *serviceMgr {
-	svrMgr = &serviceMgr{
-		timer: gxytimer.NewTimer(),
-	}
+	svrMgr = &serviceMgr{}
 	return svrMgr
 }
 
@@ -82,7 +78,6 @@ func (s *serviceMgr) OnModStop(ctx context.Context) error {
 			continue
 		}
 	}
-	s.timer.CancelAll()
 	return nil
 }
 

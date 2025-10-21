@@ -2,11 +2,13 @@ package util
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"runtime"
 
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/glog"
@@ -14,6 +16,7 @@ import (
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 func GetName[T any]() string {
@@ -71,4 +74,8 @@ func GetCurrenDir() string {
 		return ""
 	}
 	return filepath.Dir(filename)
+}
+
+func ForamtProto(msg proto.Message) string {
+	return fmt.Sprintf("%T%s", msg, gjson.MustEncode(msg))
 }

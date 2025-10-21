@@ -31,9 +31,9 @@ const (
 type SessionState int
 
 const (
-	StateConnected     SessionState = iota // 已连接
-	StateAuthenticated                     // 已认证
-	StateDisconnected                      // 已断开
+	StateConnected    SessionState = iota // 已连接
+	StateLogin                            // 已登录
+	StateDisconnected                     // 已断开
 )
 
 // SessionInfo 会话信息
@@ -73,9 +73,10 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 			return gerror.Wrap(err, "handle server message error")
 		}
 	case *pb.ActorStop:
+		s.sessionInfo.RolePid = nil
 		s.Stop(gerror.New(msg.Reason))
 	case *actor.Terminated:
-		if msg.Who == s.sessionInfo.RolePid {
+		if gxyactor.PidEqual(msg.Who, s.sessionInfo.RolePid) {
 			s.sessionInfo.RolePid = nil
 			s.Stop(gerror.New("role terminated"))
 		}
@@ -131,7 +132,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.sessionInfo.RoleID = roleID
 
 	s.Actx.Watch(rolePid)
-	s.state = StateAuthenticated
+	s.state = StateLogin
 	rsp := &pb.RspHandShake{
 		AccountUid: firstpacket.AccountUid,
 		RoleId:     roleID,
@@ -155,9 +156,9 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
 		if !ok {
-			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %v", msg)
+			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", util.ForamtProto(pbmsg))
 		}
-		glog.Debugf(ctx, "recv client msg, path: %s, msg: %v", msg.Path, pbmsg)
+		glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.ForamtProto(pbmsg))
 		if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
 			return gerror.Wrap(err, "send data msg error")
 		}
@@ -196,9 +197,10 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 	s.state = StateDisconnected
 	// 关闭网络连接
 	if s.endpoint != nil {
+		s.endpoint.SetData(nil)
 		s.endpoint.Conn().Close()
 	}
-	if s.sessionInfo.RolePid != nil {
+	if s.sessionInfo.RolePid != nil && s.IsLogin() {
 		msg := &pb.ReqAccountLogout{}
 		s.SendDataMsg(msg, util.GetObjectName(msg))
 	}
@@ -218,8 +220,8 @@ func (s *Session) GetSessionInfo() *SessionInfo {
 }
 
 // IsAuthenticated 是否已认证
-func (s *Session) IsAuthenticated() bool {
-	return s.state == StateAuthenticated && s.sessionInfo.RoleID != 0
+func (s *Session) IsLogin() bool {
+	return s.state == StateLogin && s.sessionInfo.RoleID != 0
 }
 
 func (s *Session) IsIdle() bool {

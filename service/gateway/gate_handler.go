@@ -47,7 +47,7 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 	sessPid, ok := ep.GetData().(gxyactor.PID)
-	if ok {
+	if sessPid != nil && ok {
 		GateService().StopSession(sessPid)
 	}
 }

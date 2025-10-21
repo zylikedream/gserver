@@ -11,7 +11,8 @@ end
 local args = parse_args()
 local funcName = args["func"] or ''
 
-function unregister_grain_node(id, node)
+-- notice: redis6.2以后 function只能使用local 定义，不能使用function xx() 这样会报错Attempt to modify a readonly table https://blog.csdn.net/jj1245_/article/details/149157715
+local unregister_grain_node = function(id, node)
     local v = redis.call("GET", id)
     if v == node then
         return redis.call("DEL", id)
@@ -21,5 +22,6 @@ function unregister_grain_node(id, node)
 end
 
 if funcName == 'unregister_grain_node' then
-    unregister_grain_node(args["id"], args["node"])
+    return unregister_grain_node(args["id"], args["node"])
 end
+return 0

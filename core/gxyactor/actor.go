@@ -92,6 +92,7 @@ func (g *ActorBase) doReceive(ctx actor.Context) error {
 	case ActorTimerMsg:
 		g.timer.Active(g.ctx, msg)
 	case *actor.Stopped:
+		g.timer.CancelAll()
 		g.actor.Terminate(g.ctx, g.stopErr)
 	default:
 		return g.actor.HandleMessage(g.ctx, ctx.Message())
