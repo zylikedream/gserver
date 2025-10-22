@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxyredis"
+	"gserver/core/gxyservice"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -18,7 +19,7 @@ type node struct {
 	gxymodule.ModuleBase
 	Name     string `toml:"name"`
 	Host     string `toml:"host" v:"ipv4"`
-	services []gxyactor.IService
+	services []gxyservice.IService
 }
 
 func InitNode(config string) *node {
@@ -56,13 +57,13 @@ func (a *node) GetModName() string {
 func (n *node) OnModInit(ctx context.Context) error {
 	n.LoadModule(gxyredis.NewRedisClient("node/config/db.toml"))
 	n.LoadModule(gxyactor.NewActorSystem(n.Name, n.Host))
-	svcMgr := gxyactor.NewServiceManager()
+	svcMgr := gxyservice.NewServiceManager(n.Name)
 	n.LoadModule(svcMgr)
 	return nil
 }
 
 func (a *node) OnModStart(ctx context.Context) error {
-	svcMgr := gxyactor.ServiceManager()
+	svcMgr := gxyservice.ServiceManager()
 	for _, svc := range a.services {
 		svcMgr.LoadService(svc)
 	}
@@ -90,6 +91,6 @@ func (a *node) LoadModule(mod gxymodule.IModule) {
 	}
 }
 
-func (a *node) LoadService(svc gxyactor.IService) {
+func (a *node) LoadService(svc gxyservice.IService) {
 	a.services = append(a.services, svc)
 }

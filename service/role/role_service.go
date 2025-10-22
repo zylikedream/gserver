@@ -9,7 +9,7 @@ import (
 )
 
 type roleService struct {
-	gxyactor.Service
+	gxyactor.ActorService
 }
 
 var roleSvc = newRoleService()

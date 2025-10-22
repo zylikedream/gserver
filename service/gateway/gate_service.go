@@ -5,6 +5,7 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxynet"
 	"gserver/core/gxynet/endpoint"
+	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 	"gserver/service"
 	"gserver/service/gateway/internal/logic"
@@ -15,7 +16,7 @@ import (
 
 // sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
 type gateService struct {
-	gxyactor.InnerService
+	gxyservice.InnerService
 }
 
 var gate = newGateService()

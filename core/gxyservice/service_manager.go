@@ -1,4 +1,4 @@
-package gxyactor
+package gxyservice
 
 import (
 	"context"
@@ -13,6 +13,7 @@ type serviceMgr struct {
 	Services    []IService
 	serviceInfo []*gxyregistery.ServiceInfo
 	registry    gxyregistery.IRegistery
+	nodeName    string
 }
 
 var svrMgr *serviceMgr
@@ -21,8 +22,10 @@ func ServiceManager() *serviceMgr {
 	return svrMgr
 }
 
-func NewServiceManager() *serviceMgr {
-	svrMgr = &serviceMgr{}
+func NewServiceManager(nodeName string) *serviceMgr {
+	svrMgr = &serviceMgr{
+		nodeName: nodeName,
+	}
 	return svrMgr
 }
 
@@ -58,8 +61,8 @@ func (s *serviceMgr) registerSevices() error {
 		}
 		svcInfo := gxyregistery.NewServiceInfo(
 			service.Name(),
-			ActorSystem().NodeName(),
-			ActorSystem().Address(),
+			s.nodeName,
+			service.Host(),
 			service.Version(), service.Weight())
 		if err := s.registry.Register(context.Background(), svcInfo); err != nil {
 			return err

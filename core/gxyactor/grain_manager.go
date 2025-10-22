@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxyservice"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"time"
@@ -324,7 +325,7 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 		return nil, gerror.Newf("grain %s:%s not found", kind, id)
 	}
 
-	grainInfo := ServiceManager().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
+	grainInfo := gxyservice.ServiceManager().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
 
 	if grainInfo == nil || grainInfo.NodeHost == "" {
 		return nil, gerror.Newf("find grain node failed, kind: %s, id: %s", kind, id)
