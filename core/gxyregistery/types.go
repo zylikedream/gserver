@@ -11,6 +11,11 @@ const (
 	SERVICE_NAMESPACE = "gserver"
 )
 
+type HashServices struct {
+	ServiceInfos []*ServiceInfo
+	Hash         string
+}
+
 type ServiceData struct {
 	Name     string
 	NodeName string

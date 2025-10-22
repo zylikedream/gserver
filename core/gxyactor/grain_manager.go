@@ -316,12 +316,12 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 		return nil, gerror.Newf("grain %s:%s not found", kind, id)
 	}
 
-	grainNode := ServiceManager().GetServiceNode(kind, key, gxyregistery.ConsistentHashSelector())
+	grainInfo := ServiceManager().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
 
-	if grainNode == nil || grainNode.NodeHost == "" {
+	if grainInfo == nil || grainInfo.NodeHost == "" {
 		return nil, gerror.Newf("find grain node failed, kind: %s, id: %s", kind, id)
 	}
-	return g.spawnGrain(grainNode.NodeHost, kind, id)
+	return g.spawnGrain(grainInfo.NodeHost, kind, id)
 }
 
 // 建议：考虑数据分布，避免热点

@@ -2,11 +2,13 @@ package gxyregistery
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/gogf/gf/v2/container/gmap"
 	"github.com/gogf/gf/v2/net/gsvc"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/pkg/errors"
 )
 
@@ -15,20 +17,17 @@ const (
 	REGISTERY_TYPE_CONSUL = "consul"
 )
 
-type Services struct {
-	Infos   []*ServiceInfo
-	Version int
-}
-
 type IRegistery interface {
 	Register(ctx context.Context, service *ServiceInfo) error
 	Search(ctx context.Context, name string) ([]*ServiceInfo, error)
 	UnRegister(ctx context.Context, service *ServiceInfo) error
+	GetHashServices(ctx context.Context, name string) (HashServices, error)
 }
 
 type registery struct {
 	gsvc.Registry
 	services *gmap.StrAnyMap
+	seqs     *gmap.StrIntMap
 }
 
 func NewRegistery(t string, config string) (*registery, error) {
@@ -51,6 +50,7 @@ func NewRegistery(t string, config string) (*registery, error) {
 	return &registery{
 		Registry: r,
 		services: gmap.NewStrAnyMap(true),
+		seqs:     gmap.NewStrIntMap(true),
 	}, nil
 }
 
@@ -100,6 +100,21 @@ func (r *registery) toServiceInfos(svcs []gsvc.Service) []*ServiceInfo {
 		}
 		serviceInfos = append(serviceInfos, sv)
 	}
+	// 对服务列表进行排序，确保返回顺序一致
+	// 排序依据：服务名称 > 节点主机 > 版本号
+	sort.Slice(serviceInfos, func(i, j int) bool {
+		if serviceInfos[i].Name != serviceInfos[j].Name {
+			return serviceInfos[i].Name < serviceInfos[j].Name
+		}
+		if serviceInfos[i].NodeHost != serviceInfos[j].NodeHost {
+			return serviceInfos[i].NodeHost < serviceInfos[j].NodeHost
+		}
+		if serviceInfos[i].Version != serviceInfos[j].Version {
+			return serviceInfos[i].Version < serviceInfos[j].Version
+		}
+		return serviceInfos[i].NodeName < serviceInfos[j].NodeName
+	})
+
 	return serviceInfos
 }
 
@@ -145,8 +160,7 @@ func (r *registery) StartWatch(name string) {
 	// 防抖处理函数
 	processDebouncedUpdate := func() {
 		if pendingServices != nil {
-			glog.Infof(context.Background(), "Updating services for %s, count: %d", name, len(pendingServices))
-			r.services.Set(name, pendingServices)
+			r.updateServices(name, pendingServices)
 			pendingServices = nil
 		}
 	}
@@ -182,4 +196,29 @@ func (r *registery) StartWatch(name string) {
 
 		debounceTimer = time.AfterFunc(debounceDuration, processDebouncedUpdate)
 	}
+}
+
+func (r *registery) updateServices(name string, services []*ServiceInfo) {
+	r.services.Set(name, services)
+	newSeq := r.seqs.GetOrSet(name, 0) + 1
+	r.seqs.Set(name, newSeq)
+	glog.Infof(context.Background(), "Updating services for %s, count: %d, seq: %d", name,
+		len(services), newSeq)
+}
+
+func (r *registery) GetHashServices(ctx context.Context, name string) (HashServices, error) {
+	var err error
+	services, ok := r.services.Get(name).([]*ServiceInfo)
+	if !ok || len(services) == 0 {
+		services, err = r.Search(ctx, name)
+		if err != nil {
+			return HashServices{}, err
+		}
+		r.updateServices(name, services)
+	}
+	seq := r.seqs.GetOrSet(name, 0)
+	return HashServices{
+		ServiceInfos: services,
+		Hash:         gconv.String(seq),
+	}, nil
 }

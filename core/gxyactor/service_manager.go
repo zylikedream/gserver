@@ -81,12 +81,11 @@ func (s *serviceMgr) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (s *serviceMgr) GetServiceNode(name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
-	services, err := s.registry.Search(context.Background(), name)
+func (s *serviceMgr) GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
+	services, err := s.registry.GetHashServices(ctx, name)
 	if err != nil {
-		glog.Errorf(context.Background(), "search service failed:%+v", err)
+		glog.Errorf(ctx, "get services failed:%+v", err)
 		return nil
 	}
-
 	return selector.Select(name, key, services)
 }
