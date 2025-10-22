@@ -196,8 +196,3 @@ func (s *consistentHashSelector) hash(key string) uint32 {
 	// 将16字节的MD5哈希转换为32位无符号整数
 	return uint32(hash[0])<<24 | uint32(hash[1])<<16 | uint32(hash[2])<<8 | uint32(hash[3])
 }
-
-// getHashNodesKey 获取存储节点列表标识的键
-func (s *consistentHashSelector) getHashNodesKey(ringKey string) string {
-	return fmt.Sprintf("%s_nodes", ringKey)
-}

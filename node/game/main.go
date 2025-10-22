@@ -4,9 +4,9 @@ import (
 	"context"
 	"os"
 
+	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
 	"gserver/core/gxynode"
-	"gserver/core/gxyredis"
 	"gserver/service/role"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -16,12 +16,14 @@ import (
 	"github.com/gogf/gf/v2/os/gproc"
 )
 
+var rootModule gxymodule.ModuleBase
+
 func Init() {
 	node := gxynode.InitNode("config/game.toml")
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/game.toml")
-	node.LoadModule(gxyredis.NewRedisClient("node/config/db.toml"))
 	node.LoadModule(gxymongo.NewMongoClient("node/config/db.toml"))
 	node.LoadService(role.RoleService())
+	rootModule.AddModule(context.Background(), node)
 }
 
 func main() {
@@ -36,7 +38,7 @@ func run() {
 		Usage: "main",
 		Brief: "game server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
-			if err = gxynode.Node().Start(ctx); err != nil {
+			if err = rootModule.StartModule(ctx); err != nil {
 				glog.Fatalf(ctx, "start game failed: %+v", err)
 			}
 			return nil
@@ -50,5 +52,5 @@ func run() {
 
 func OnMainClose(s os.Signal) {
 	ctx := context.Background()
-	gxynode.Node().Stop(ctx)
+	rootModule.StopModule(ctx)
 }

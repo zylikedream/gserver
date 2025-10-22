@@ -16,7 +16,6 @@ import (
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 )
 
 func GetName[T any]() string {
@@ -76,6 +75,9 @@ func GetCurrenDir() string {
 	return filepath.Dir(filename)
 }
 
-func ForamtProto(msg proto.Message) string {
+func FormatProto(msg any) string {
+	if msg == nil {
+		return "nil{}"
+	}
 	return fmt.Sprintf("%T%s", msg, gjson.MustEncode(msg))
 }

@@ -5,16 +5,17 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxynet"
 	"gserver/core/gxynet/endpoint"
+	"gserver/protocol/pb"
 	"gserver/service"
 	"gserver/service/gateway/internal/logic"
 
 	"github.com/asynkron/protoactor-go/actor"
+	"github.com/gogf/gf/v2/errors/gerror"
 )
 
 // sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
 type gateService struct {
 	gxyactor.InnerService
-	network *gxynet.Network
 }
 
 var gate = newGateService()
@@ -32,23 +33,21 @@ func (s *gateService) Name() string {
 }
 
 func (s *gateService) OnModInit(ctx context.Context) error {
-	s.network = gxynet.NewNetwork("config/gate.net.toml", NewGateHandler())
+	network := gxynet.NewNetwork("config/gate.net.toml", NewGateHandler())
+	s.AddModule(ctx, network)
+	logic.NewSessionMgr()
 	return nil
 }
 
 func (s *gateService) OnModStart(ctx context.Context) error {
-	if err := s.network.Start(ctx); err != nil {
-		return err
-	}
 	// 启动会话管理器
 	return nil
 }
 
 func (s *gateService) OnModStop(ctx context.Context) error {
-	if s.network != nil {
-		if err := s.network.Stop(ctx); err != nil {
-			return err
-		}
+	sessions := logic.SessionMgr().All()
+	for _, pid := range sessions {
+		s.StopSession(pid, gerror.New("gateway service stop"))
 	}
 	return nil
 }
@@ -59,6 +58,8 @@ func (s *gateService) SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
 	})
 }
 
-func (s *gateService) StopSession(pid gxyactor.PID) error {
-	return gxyactor.ActorSystem().StopActor(pid)
+func (s *gateService) StopSession(pid gxyactor.PID, err error) error {
+	return gxyactor.ActorSystem().Send(pid, &pb.ActorStop{
+		Reason: err.Error(),
+	})
 }

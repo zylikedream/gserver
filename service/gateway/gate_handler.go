@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -48,6 +49,6 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 	sessPid, ok := ep.GetData().(gxyactor.PID)
 	if sessPid != nil && ok {
-		GateService().StopSession(sessPid)
+		GateService().StopSession(sessPid, gerror.Newf("conn closed: %s", err))
 	}
 }

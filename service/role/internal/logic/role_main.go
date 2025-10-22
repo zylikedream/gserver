@@ -38,10 +38,10 @@ var (
 type RoleState int32
 
 const (
-	RoleStateInit RoleState = iota
-	RoleStateStart
-	RoleStateLogin
-	RoleStateLogout
+	RoleStateInit    RoleState = iota
+	RoleStateStart             // 角色已初始化，等待登录
+	RoleStateLogined           // 角色已登录, 开始正常处理消息
+	RoleStateLogout            // 角色已登出
 )
 
 type RoleMain struct {
@@ -101,7 +101,6 @@ func (r *RoleMain) initRole(ctx context.Context) error {
 	}
 	r.initTimer(ctx)
 	r.initMsgHandler()
-	RoleMgr().Add(r.RoleID, r.Self())
 	r.state = RoleStateStart
 	glog.Debugf(ctx, "init role success, roleID: %d", r.RoleID)
 	return nil
@@ -163,42 +162,61 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 		if err != nil {
 			return gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
 		}
-		if r.state != RoleStateLogin {
-			if _, ok := pbmsg.(*pb.ReqAccountLogin); !ok {
-				return gerror.Newf("role not login, roleID: %d, recv msg: %v", r.RoleID, pbmsg.ProtoReflect().Descriptor().Name())
-			}
-		}
-		var rsp proto.Message
-		tm := time.Now()
-		glog.Debugf(ctx, "recv client msg, args: %v", pbmsg)
-		result, err := r.msgHandler.CallWithMsg(ctx, pbmsg)
+		err = r.handleClientMsg(ctx, msg.Path, pbmsg)
 		if err != nil {
-			rsp = &pb.Ack{
-				Code:   1,
-				Path:   msg.Path,
-				Reason: err.Error(),
-			}
-			glog.Debugf(ctx, "handle call result error, args: %s, error: %+v, cost: %vms", util.ForamtProto(pbmsg), result, time.Since(tm).Milliseconds())
-		} else if result != nil {
-			rsp1, ok := result.(proto.Message)
-			if ok {
-				rsp = rsp1
-			}
-			glog.Infof(ctx, "handle call result succ, args: %s, result: %s, cost: %vms",
-				util.ForamtProto(pbmsg), util.ForamtProto(rsp), time.Since(tm).Milliseconds())
+			return err
 		}
-
-		if rsp != nil {
-			svrMsg, err := r.newServerMsg(rsp)
-			if err != nil {
-				return gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
-			}
-
-			r.Respond(svrMsg)
-		}
+	default:
+		glog.Warningf(ctx, "recv unknown msg, roleID: %d, msg: %v", r.RoleID, msg)
 	}
 	return nil
+}
 
+func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.Message) error {
+	switch msg := msg.(type) {
+	case *pb.ReqAccountLogin:
+		if r.state == RoleStateLogined {
+			glog.Warningf(ctx, "role ready login, roleID: %d", r.RoleID)
+			return nil
+		}
+	default:
+		if r.state != RoleStateLogined {
+			glog.Warningf(ctx, "role not login, roleID: %d, recv msg: %s", r.RoleID, util.FormatProto(msg))
+			return nil
+		}
+	}
+	return r.doHandleClientMsg(ctx, path, msg)
+}
+
+func (r *RoleMain) doHandleClientMsg(ctx context.Context, path string, msg proto.Message) error {
+	var rsp proto.Message
+	tm := time.Now()
+	glog.Debugf(ctx, "handle client msg start, args: %v", util.FormatProto(msg))
+	result, merr := r.msgHandler.CallWithMsg(ctx, msg)
+	glog.Infof(ctx, "handle client msg end, args: %s, result: %s, err %s, cost: %vms",
+		util.FormatProto(msg), util.FormatProto(result), merr, time.Since(tm).Milliseconds())
+	if merr != nil {
+		rsp = &pb.Ack{
+			Code:   1,
+			Path:   path,
+			Reason: merr.Error(),
+		}
+	} else if result != nil {
+		rsp1, ok := result.(proto.Message)
+		if ok {
+			rsp = rsp1
+		}
+	}
+
+	if rsp != nil {
+		svrMsg, err := r.newServerMsg(rsp)
+		if err != nil {
+			return gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
+		}
+
+		r.Respond(svrMsg)
+	}
+	return nil
 }
 
 func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
@@ -287,7 +305,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 		glog.Infof(ctx, "role reconnect, roleID: %d", r.RoleID)
 	}
 	r.Timer().Cancel(SignleAliveOnce.Name)
-	r.state = RoleStateLogin
+	r.state = RoleStateLogined
 	return &pb.RspAccountLogin{
 		FirstLogin: firstLogin,
 	}, nil
@@ -310,6 +328,6 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 }
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
-	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
 	r.save(ctx, true)
+	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
 }

@@ -27,7 +27,11 @@ func (r *roleService) Name() string {
 }
 
 func (r *roleService) Weight() int {
-	return logic.RoleMgr().Count()
+	return gxyactor.ActorSystem().GetGrainCount(r.Name())
+}
+
+func (r *roleService) OnModInit(ctx context.Context) error {
+	return nil
 }
 
 func (r *roleService) OnModStart(ctx context.Context) error {

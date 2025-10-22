@@ -13,5 +13,5 @@ func TestProtobuf(t *testing.T) {
 	}
 
 	// 或者使用我们的工具函数（如果需要更自定义的格式）
-	t.Logf("%s", util.ForamtProto(msg))
+	t.Logf("%s", util.FormatProto(msg))
 }

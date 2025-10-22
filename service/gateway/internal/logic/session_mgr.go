@@ -1,11 +1,16 @@
 package logic
 
 import (
-	"gserver/service"
+	"gserver/core/gxyactor"
 )
 
-var sessMgr = service.NewActorMgr()
+var sessMgr *gxyactor.ActorMgr
 
-func SessionMgr() *service.ActorMgr {
+func NewSessionMgr() *gxyactor.ActorMgr {
+	sessMgr = gxyactor.NewActorMgr("session_mgr")
+	return sessMgr
+}
+
+func SessionMgr() *gxyactor.ActorMgr {
 	return sessMgr
 }

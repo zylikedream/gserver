@@ -57,9 +57,7 @@ func (a *actorSystem) OnModInit(ctx context.Context) error {
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
 	a.grainMgr = NewGrainManager(a)
-	if err := a.grainMgr.Init(ctx); err != nil {
-		return err
-	}
+	a.AddModule(ctx, a.grainMgr)
 	return nil
 }
 
@@ -83,11 +81,7 @@ func (a *actorSystem) DeRegisterGrain(name string) {
 
 // OnModStop 停止Actor模块 - 停止节点
 func (a *actorSystem) OnModStop(ctx context.Context) error {
-	if a.system != nil {
-		// 停止节点
-		a.system.Shutdown()
-	}
-	a.grainMgr.Stop(ctx)
+	a.system.Shutdown()
 	glog.Infof(ctx, "actor system stopped: %s", a.Address())
 	return nil
 }
@@ -173,6 +167,10 @@ func (a *actorSystem) GetGrain(kind string, id string, spawn ...bool) (PID, erro
 		spawnFlag = spawn[0]
 	}
 	return a.grainMgr.getGrain(kind, id, spawnFlag)
+}
+
+func (a *actorSystem) GetGrainCount(kind string) int {
+	return a.grainMgr.GetGrainCount(kind)
 }
 
 func newSupervisor() actor.SupervisorStrategy {

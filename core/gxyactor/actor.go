@@ -4,6 +4,7 @@ import (
 	"context"
 	"gserver/core/gxylog"
 	"gserver/core/gxytimer"
+	"gserver/protocol/pb"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -91,6 +92,8 @@ func (g *ActorBase) doReceive(ctx actor.Context) error {
 		}
 	case ActorTimerMsg:
 		g.timer.Active(g.ctx, msg)
+	case *pb.ActorStop:
+		g.Stop(gerror.New(msg.Reason))
 	case *actor.Stopped:
 		g.timer.CancelAll()
 		g.actor.Terminate(g.ctx, g.stopErr)

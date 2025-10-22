@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gserver/core/gxylocator"
 	"gserver/core/gxylog"
+	"gserver/core/gxymodule"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
@@ -27,13 +28,15 @@ type grainInfo struct {
 	Kind      string
 	Props     *actor.Props
 	Activator PID
+	mgr       *ActorMgr
 }
 
 type grainActivator struct {
 	*ActorBase
-	kind    string
-	manager *grainManager
-	childs  map[PID]string
+	kind       string
+	manager    *grainManager
+	childs     map[PID]string
+	grainInfos *grainInfo
 }
 
 type ActorCheckResult struct {
@@ -69,6 +72,7 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 			})
 			return nil
 		}
+		a.grainInfos = ginfo
 		pid, err := a.SpawnNamed(ginfo.Props.Configure(
 			actor.WithSupervisor(supervisor),
 			actor.WithContextDecorator(a.contextDecorator(msg.Id)),
@@ -111,6 +115,7 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 		}
 		pid := msg.Pid
 		a.childs[pid] = msg.ID
+		a.grainInfos.mgr.Add(msg.ID, pid)
 		a.Respond(&remote.ActorPidResponse{
 			Pid: pid,
 		})
@@ -123,6 +128,7 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 		if id == "" {
 			return nil
 		}
+		a.grainInfos.mgr.Remove(id)
 		delete(a.childs, child)
 	}
 	return nil
@@ -224,6 +230,7 @@ func (g *grainActivator) contextDecorator(ID string) actor.ContextDecorator {
 }
 
 type grainManager struct {
+	gxymodule.ModuleBase
 	sys          *actorSystem
 	grainLocator *gxylocator.Locator
 	grainInfos   map[string]*grainInfo
@@ -236,12 +243,12 @@ func NewGrainManager(sys *actorSystem) *grainManager {
 	}
 }
 
-func (g *grainManager) Init(ctx context.Context) error {
+func (g *grainManager) OnModInit(ctx context.Context) error {
 	g.grainLocator = gxylocator.NewLocator("gserver")
 	return nil
 }
 
-func (g *grainManager) Stop(ctx context.Context) error {
+func (g *grainManager) OnModStop(ctx context.Context) error {
 	for _, ginfo := range g.grainInfos {
 		g.sys.system.Root.Stop(ginfo.Activator)
 	}
@@ -268,6 +275,7 @@ func (g *grainManager) RegisterGrain(kind string, props GrainProducer) error {
 		return err
 	}
 	ginfo.Activator = pid
+	ginfo.mgr = NewActorMgr(fmt.Sprintf("%s_%s", "grainMgr", kind))
 	g.grainInfos[kind] = ginfo
 	return nil
 }
@@ -327,4 +335,12 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 // 建议：考虑数据分布，避免热点
 func getGrainLocateKey(kind string, id string) string {
 	return fmt.Sprintf("actor:%s:%s", kind, id)
+}
+
+func (g *grainManager) GetGrainCount(kind string) int {
+	grainInfo, ok := g.grainInfos[kind]
+	if !ok {
+		return 0
+	}
+	return grainInfo.mgr.Count()
 }

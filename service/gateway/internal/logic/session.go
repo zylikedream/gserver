@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	SESSION_MSG_STOP       = "stop"
-	SESSION_MSG_CLIENT     = "client"         // 客户端消息
-	SESSION_IDLE_TIMEOUT   = 10 * time.Minute // 空闲超时时间
-	SESSION_CHECK_INTERVAL = 30 * time.Second
+	SESSION_MSG_STOP            = "stop"
+	SESSION_MSG_CLIENT          = "client"        // 客户端消息
+	SESSION_CLIENT_IDLE_TIMEOUT = 3 * time.Minute // 空闲超时时间
+	SESSION_SERVER_IDLE_TIMEOUT = 1 * time.Minute // 空闲超时时间
+	SESSION_CHECK_INTERVAL      = 30 * time.Second
 )
 
 // SessionState 会话状态
@@ -38,11 +39,12 @@ const (
 
 // SessionInfo 会话信息
 type SessionInfo struct {
-	AccountUid  string       // 账号ID
-	RoleID      int64        // 玩家ID（认证后才有）
-	ConnectTime time.Time    // 连接时间
-	LastActive  time.Time    // 最后活跃时间
-	RolePid     gxyactor.PID // 角色PID
+	AccountUid       string       // 账号ID
+	RoleID           int64        // 玩家ID（认证后才有）
+	ConnectTime      time.Time    // 连接时间
+	ClientLastActive time.Time    // 客户端最后活跃时间
+	ServerLastActive time.Time    // 服务器最后活跃时间
+	RolePid          gxyactor.PID // 角色PID
 }
 
 // Session 会话Actor，继承自ActorBase
@@ -55,7 +57,8 @@ type Session struct {
 
 func NewSession(ep endpoint.Endpoint) *Session {
 	s := &Session{
-		endpoint: ep,
+		endpoint:    ep,
+		sessionInfo: &SessionInfo{},
 	}
 	ctx := gxylog.NewContext(context.Background(), "session")
 	s.ActorBase = gxyactor.NewActorBasse(ctx, s)
@@ -72,9 +75,6 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
 			return gerror.Wrap(err, "handle server message error")
 		}
-	case *pb.ActorStop:
-		s.sessionInfo.RolePid = nil
-		s.Stop(gerror.New(msg.Reason))
 	case *actor.Terminated:
 		if gxyactor.PidEqual(msg.Who, s.sessionInfo.RolePid) {
 			s.sessionInfo.RolePid = nil
@@ -87,12 +87,12 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 // NewSession 创建会话
 // OnModInit Actor初始化
 func (s *Session) Init(ctx context.Context) error {
-	s.state = StateConnected
 	s.sessionInfo = &SessionInfo{
-		ConnectTime: time.Now(),
-		LastActive:  time.Now(),
+		ConnectTime:      time.Now(),
+		ClientLastActive: time.Now(),
 	}
 	glog.Infof(ctx, "Session initialized: remote: %s", s.endpoint.Conn().RemoteAddr())
+	s.state = StateConnected
 
 	return nil
 }
@@ -106,8 +106,16 @@ func (s *Session) DelayInit(ctx context.Context) error {
 }
 
 func (s *Session) sessionCheck(ctx context.Context, _ gxytimer.TimerActiveInfo) {
-	if s.IsIdle() {
-		s.Stop(gerror.New("idle timeout"))
+	clientIdleTime := time.Since(s.sessionInfo.ClientLastActive)
+	if clientIdleTime > SESSION_CLIENT_IDLE_TIMEOUT {
+		s.Stop(gerror.New("client idle timeout"))
+		return
+	}
+	serverIdleTime := time.Since(s.sessionInfo.ServerLastActive)
+	// 客户端发了包，但是服务器超过时间没有响应
+	if clientIdleTime < SESSION_SERVER_IDLE_TIMEOUT && serverIdleTime > SESSION_SERVER_IDLE_TIMEOUT {
+		s.Stop(gerror.New("server idle timeout"))
+		return
 	}
 }
 
@@ -132,7 +140,6 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.sessionInfo.RoleID = roleID
 
 	s.Actx.Watch(rolePid)
-	s.state = StateLogin
 	rsp := &pb.RspHandShake{
 		AccountUid: firstpacket.AccountUid,
 		RoleId:     roleID,
@@ -141,12 +148,13 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		return gerror.Newf("send rsp error, err: %v", err)
 	}
 	SessionMgr().Add(roleID, s.Self())
+	s.state = StateLogin
 	return nil
 }
 
 // OnHandleMessage 处理异步消息
 func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Message) error {
-	s.updateLastActive()
+	s.updateClientLastActive()
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
 		if err := s.handleHandshake(ctx, msg.Msg); err != nil {
@@ -156,9 +164,9 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
 		if !ok {
-			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", util.ForamtProto(pbmsg))
+			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", util.FormatProto(pbmsg))
 		}
-		glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.ForamtProto(pbmsg))
+		glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.FormatProto(pbmsg))
 		if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
 			return gerror.Wrap(err, "send data msg error")
 		}
@@ -180,6 +188,7 @@ func (s *Session) SendDataMsg(msg proto.Message, path string) error {
 }
 
 func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) error {
+	s.updateServerLastActive()
 	// 解析响应消息
 	pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
 	if err != nil {
@@ -193,25 +202,30 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 
 // Terminate 终止会话
 func (s *Session) Terminate(ctx context.Context, err error) {
-	glog.Infof(ctx, "Session terminating: reason: %v, role_id: %d", err, s.sessionInfo.RoleID)
-	s.state = StateDisconnected
+	glog.Infof(ctx, "Session terminating: role_id: %d, reason: %s", s.sessionInfo.RoleID, err)
+	SessionMgr().Remove(s.sessionInfo.RoleID)
 	// 关闭网络连接
 	if s.endpoint != nil {
 		s.endpoint.SetData(nil)
 		s.endpoint.Conn().Close()
 	}
 	if s.sessionInfo.RolePid != nil && s.IsLogin() {
+		s.Actx.Unwatch(s.sessionInfo.RolePid)
 		msg := &pb.ReqAccountLogout{}
 		s.SendDataMsg(msg, util.GetObjectName(msg))
 	}
+	s.state = StateDisconnected
 
 }
 
-// updateLastActive 更新最后活跃时间
-func (s *Session) updateLastActive() {
-	if s.sessionInfo != nil {
-		s.sessionInfo.LastActive = time.Now()
-	}
+// updateClientLastActive 更新最后活跃时间
+func (s *Session) updateClientLastActive() {
+	s.sessionInfo.ClientLastActive = time.Now()
+}
+
+// updateServerLastActive 更新服务器最后活跃时间
+func (s *Session) updateServerLastActive() {
+	s.sessionInfo.ServerLastActive = time.Now()
 }
 
 // GetSessionInfo 获取会话信息
@@ -222,8 +236,4 @@ func (s *Session) GetSessionInfo() *SessionInfo {
 // IsAuthenticated 是否已认证
 func (s *Session) IsLogin() bool {
 	return s.state == StateLogin && s.sessionInfo.RoleID != 0
-}
-
-func (s *Session) IsIdle() bool {
-	return time.Since(s.sessionInfo.LastActive) > SESSION_IDLE_TIMEOUT
 }

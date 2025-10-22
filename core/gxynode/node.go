@@ -6,6 +6,7 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
+	"gserver/core/gxyredis"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -15,18 +16,13 @@ import (
 
 type node struct {
 	gxymodule.ModuleBase
-	Name string `toml:"name"`
-	Host string `toml:"host" v:"ipv4"`
-}
-
-var n *node
-
-func Node() *node {
-	return n
+	Name     string `toml:"name"`
+	Host     string `toml:"host" v:"ipv4"`
+	services []gxyactor.IService
 }
 
 func InitNode(config string) *node {
-	n = &node{}
+	n := &node{}
 	if err := n.init(config); err != nil {
 		glog.Fatalf(context.Background(), "init node err: %+v", err)
 		return nil
@@ -49,26 +45,41 @@ func (n *node) init(config string) error {
 	if err := gxylog.InitLog(ctx, logConfig.String(), n.Name); err != nil {
 		return gerror.Newf("init log err: %+v", err)
 	}
-	glog.Infof(context.Background(), "%s starting...", n.Name)
-	svc := gxyactor.NewServiceManager()
+
+	return nil
+}
+
+func (a *node) GetModName() string {
+	return a.Name
+}
+
+func (n *node) OnModInit(ctx context.Context) error {
+	n.LoadModule(gxyredis.NewRedisClient("node/config/db.toml"))
 	n.LoadModule(gxyactor.NewActorSystem(n.Name, n.Host))
-	n.LoadModule(svc)
+	svcMgr := gxyactor.NewServiceManager()
+	n.LoadModule(svcMgr)
 	return nil
 }
 
-func (a *node) Start(ctx context.Context) error {
-	if err := a.StartModule(ctx); err != nil {
-		return err
+func (a *node) OnModStart(ctx context.Context) error {
+	svcMgr := gxyactor.ServiceManager()
+	for _, svc := range a.services {
+		svcMgr.LoadService(svc)
 	}
-	glog.Infof(context.Background(), "%s start success", a.Name)
 	return nil
 }
 
-func (a *node) Stop(ctx context.Context) error {
-	glog.Infof(context.Background(), "%s stopping...", a.Name)
-	if err := a.StopModule(ctx); err != nil {
-		return err
-	}
+func (a *node) OnModStartAfter(ctx context.Context) error {
+	glog.Infof(context.Background(), "node %s start success", a.Name)
+	return nil
+}
+
+func (a *node) OnModStopBefore(ctx context.Context) error {
+	glog.Infof(context.Background(), "node %s stopping...", a.Name)
+	return nil
+}
+
+func (a *node) OnModStop(ctx context.Context) error {
 	glog.Infof(context.Background(), "node %s stop success", a.Name)
 	return nil
 }
@@ -80,5 +91,5 @@ func (a *node) LoadModule(mod gxymodule.IModule) {
 }
 
 func (a *node) LoadService(svc gxyactor.IService) {
-	gxyactor.ServiceManager().LoadService(svc)
+	a.services = append(a.services, svc)
 }
