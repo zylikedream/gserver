@@ -5,6 +5,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
+	"gserver/util"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -49,86 +50,91 @@ type IGrain interface {
 }
 
 type ActorBase struct {
-	timer   *ActorTimer
-	self    PID
-	Actx    actor.Context
-	ctx     context.Context
-	actor   IActor
-	stopErr error
+	timer      *ActorTimer
+	self       PID
+	Actx       actor.Context
+	ctx        context.Context
+	actor      IActor
+	stopErr    error
+	msgHandler *util.MsgHandler
 }
 
 func NewActorBasse(ctx context.Context, actor IActor) *ActorBase {
 	return &ActorBase{
-		ctx:   ctx,
-		actor: actor,
+		ctx:        ctx,
+		actor:      actor,
+		msgHandler: util.NewMsgHandler(),
 	}
 }
 
-func (g *ActorBase) Receive(actx actor.Context) {
-	g.Actx = actx
-	gutil.TryCatch(g.ctx, func(ctx context.Context) {
-		if err := g.doReceive(actx); err != nil {
-			glog.Errorf(g.ctx, "grain error, %+v", err)
-			g.Stop(err)
+func (a *ActorBase) Receive(actx actor.Context) {
+	a.Actx = actx
+	gutil.TryCatch(a.ctx, func(ctx context.Context) {
+		if err := a.doReceive(actx); err != nil {
+			glog.Errorf(a.ctx, "grain error, %+v", err)
+			a.Stop(err)
 		}
 	}, func(ctx context.Context, exception error) {
-		glog.Errorf(g.ctx, "role internal error, %+v", exception)
-		g.Stop(exception)
+		glog.Errorf(a.ctx, "role internal error, %+v", exception)
+		a.Stop(exception)
 	})
 }
 
-func (g *ActorBase) doReceive(ctx actor.Context) error {
+func (a *ActorBase) doReceive(ctx actor.Context) error {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
-		g.self = ctx.Self()
-		g.timer = NewActorTimer(g.self)
-		if err := g.actor.Init(g.ctx); err != nil {
+		a.self = ctx.Self()
+		a.timer = NewActorTimer(a.self)
+		if err := a.actor.Init(a.ctx); err != nil {
 			return gerror.Wrap(err, "init actor error")
 		}
-		g.SendSelf(&ActorInitMsg{})
+		a.SendSelf(&ActorInitMsg{})
 	case *ActorInitMsg:
-		if err := g.actor.DelayInit(g.ctx); err != nil {
+		a.msgHandler.AddHandler(a.actor)
+		if err := a.actor.DelayInit(a.ctx); err != nil {
 			return gerror.Wrap(err, "delay init actor error")
 		}
 	case ActorTimerMsg:
-		g.timer.Active(g.ctx, msg)
+		a.timer.Active(a.ctx, msg)
+	case *pb.ApiMsg:
+		a.msgHandler.CallWithMsg(a.ctx, msg.Msg)
 	case *pb.ActorStop:
-		g.Stop(gerror.New(msg.Reason))
+		a.Stop(gerror.New(msg.Reason))
 	case *actor.Stopped:
-		g.timer.CancelAll()
-		g.actor.Terminate(g.ctx, g.stopErr)
+		a.timer.CancelAll()
+		a.actor.Terminate(a.ctx, a.stopErr)
 	default:
-		return g.actor.HandleMessage(g.ctx, ctx.Message())
+		return a.actor.HandleMessage(a.ctx, ctx.Message())
 	}
 	return nil
 }
 
-func (g *ActorBase) Stop(err error) {
-	g.stopErr = err
-	g.Actx.Stop(g.self)
+func (a *ActorBase) Stop(err error) {
+	a.stopErr = err
+	a.Actx.Stop(a.self)
 }
 
-func (g *ActorBase) SendSelf(msg any) {
-	g.Send(g.self, msg)
+func (a *ActorBase) SendSelf(msg any) {
+	a.Send(a.self, msg)
 }
 
-func (g *ActorBase) Sender() PID {
-	return g.Actx.Sender()
+func (a *ActorBase) Sender() PID {
+	return a.Actx.Sender()
 }
 
-func (g *ActorBase) Send(pid PID, msg any) {
-	g.Actx.Send(pid, msg)
+func (a *ActorBase) Send(pid PID, msg any) {
+	a.Actx.Send(pid, msg)
 }
 
-func (g *ActorBase) Timer() *ActorTimer {
-	return g.timer
+func (a *ActorBase) Timer() *ActorTimer {
+	return a.timer
 }
 
-func (g *ActorBase) Self() PID {
-	return g.self
+func (a *ActorBase) Self() PID {
+	return a.self
 }
 
-func (g *ActorBase) DelayInit(ctx context.Context) error {
+func (a *ActorBase) DelayInit(ctx context.Context) error {
 	return nil
 }
 
@@ -151,6 +157,14 @@ func (a *ActorBase) SpawnNamed(props *actor.Props, name string) (PID, error) {
 func (a *ActorBase) SetLogValue(key string, val any) *ActorBase {
 	a.ctx = gxylog.WithValue(a.ctx, key, val)
 	return a
+}
+
+func (a *ActorBase) AddMsgHandler(handler any) {
+	a.msgHandler.AddHandler(handler)
+}
+
+func (a *ActorBase) CallHandlerMsg(ctx context.Context, msg any) (any, error) {
+	return a.msgHandler.CallWithMsg(ctx, msg)
 }
 
 type GrainBase struct {

@@ -164,9 +164,9 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
 		if !ok {
-			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", util.FormatProto(pbmsg))
+			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", util.FormatObject(pbmsg))
 		}
-		glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.FormatProto(pbmsg))
+		glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.FormatObject(pbmsg))
 		if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
 			return gerror.Wrap(err, "send data msg error")
 		}

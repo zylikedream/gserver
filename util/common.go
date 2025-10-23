@@ -75,7 +75,7 @@ func GetCurrenDir() string {
 	return filepath.Dir(filename)
 }
 
-func FormatProto(msg any) string {
+func FormatObject(msg any) string {
 	if msg == nil {
 		return "nil{}"
 	}

@@ -53,17 +53,15 @@ type RoleMain struct {
 	Basic  *RoleBasic
 	Extra  *RoleExtra
 
-	modsHash   map[string]uint64
-	msgHandler *util.MsgHandler
-	session    gxyactor.PID
-	state      RoleState
+	modsHash map[string]uint64
+	session  gxyactor.PID
+	state    RoleState
 }
 
 func NewRoleMain() *RoleMain {
 	r := &RoleMain{
-		modsHash:   map[string]uint64{},
-		msgHandler: util.NewMsgHandler("Req"),
-		state:      RoleStateInit,
+		modsHash: map[string]uint64{},
+		state:    RoleStateInit,
 	}
 	ctx := gxylog.NewContext(context.Background(), "role")
 	r.GrainBase = gxyactor.NewGrainBase(ctx, r)
@@ -181,7 +179,7 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 		}
 	default:
 		if r.state != RoleStateLogined {
-			glog.Warningf(ctx, "role not login, roleID: %d, recv msg: %s", r.RoleID, util.FormatProto(msg))
+			glog.Warningf(ctx, "role not login, roleID: %d, recv msg: %s", r.RoleID, util.FormatObject(msg))
 			return nil
 		}
 	}
@@ -191,10 +189,10 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 func (r *RoleMain) doHandleClientMsg(ctx context.Context, path string, msg proto.Message) error {
 	var rsp proto.Message
 	tm := time.Now()
-	glog.Debugf(ctx, "handle client msg start, args: %v", util.FormatProto(msg))
-	result, merr := r.msgHandler.CallWithMsg(ctx, msg)
+	glog.Debugf(ctx, "handle client msg start, args: %v", util.FormatObject(msg))
+	result, merr := r.CallHandlerMsg(ctx, msg)
 	glog.Infof(ctx, "handle client msg end, args: %s, result: %s, err %s, cost: %vms",
-		util.FormatProto(msg), util.FormatProto(result), merr, time.Since(tm).Milliseconds())
+		util.FormatObject(msg), util.FormatObject(result), merr, time.Since(tm).Milliseconds())
 	if merr != nil {
 		rsp = &pb.Ack{
 			Code:   1,
@@ -236,9 +234,8 @@ func (r *RoleMain) initTimer(ctx context.Context) {
 }
 
 func (r *RoleMain) initMsgHandler() {
-	r.msgHandler.AddHandler(r)
 	for _, mod := range r.Modules() {
-		r.msgHandler.AddHandler(mod)
+		r.AddMsgHandler(mod)
 	}
 }
 
@@ -330,4 +327,13 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	r.save(ctx, true)
 	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
+}
+
+func (r *RoleMain) GetRolePublic(ctx context.Context) *pb.PRolePublic {
+	return &pb.PRolePublic{
+		RoleId:     r.RoleID,
+		Name:       r.Basic.RoleName,
+		Head:       r.Basic.Head,
+		CreateTime: r.Basic.CreateTm.Unix(),
+	}
 }

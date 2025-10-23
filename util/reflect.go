@@ -179,6 +179,6 @@ func (m *MsgHandler) GetMethodMeta(msg any) *MethodMeta {
 	return method.GetMeta()
 }
 
-func (m *MsgHandler) GetHandlers() map[string]MsgMethod {
+func (m *MsgHandler) GetMethods() map[string]MsgMethod {
 	return m.methodMap
 }

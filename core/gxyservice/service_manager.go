@@ -87,7 +87,7 @@ func (s *serviceMgr) OnModStop(ctx context.Context) error {
 func (s *serviceMgr) GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
 	services, err := s.registry.GetHashServices(ctx, name)
 	if err != nil {
-		glog.Errorf(ctx, "get services failed:%+v", err)
+		glog.Errorf(ctx, "get service(%s:%s) failed:%+v", name, key, err)
 		return nil
 	}
 	return selector.Select(name, key, services)

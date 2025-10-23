@@ -3,6 +3,7 @@ package role
 import (
 	"context"
 	"gserver/core/gxyactor"
+	"gserver/protocol/pb"
 	"gserver/service"
 	"gserver/service/role/internal/logic"
 	"strconv"
@@ -52,6 +53,10 @@ func (s *roleService) GetRole(roleID int64) (gxyactor.PID, error) {
 		return nil, err
 	}
 	return pid, nil
+}
+
+func (s *roleService) GetRoleBasic(ctx context.Context, roleID int64) (*pb.PRolePublic, error) {
+	return nil, nil
 }
 
 func GetRoleIDByAccount(account string) (int64, error) {
