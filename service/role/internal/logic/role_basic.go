@@ -7,18 +7,23 @@ import (
 	"time"
 )
 
-type RoleBasic struct {
-	RoleModule `bson:"inline"`
-	RoleName   string    `bson:"role_name"`
-	Head       string    `bson:"head"`
-	LoginTm    time.Time `bson:"login_tm"`
-	LogoutTm   time.Time `bson:"logout_tm"`
-	CreateTm   time.Time `bson:"create_tm"` // 创角时间
-	VipLv      int       `bson:"vip_lv"`
+type RoleBasicState struct {
+	RolePersistState `bson:",inline"`
+	RoleName         string    `bson:"role_name"`
+	Head             string    `bson:"head"`
+	LoginTm          time.Time `bson:"login_tm"`
+	LogoutTm         time.Time `bson:"logout_tm"`
+	CreateTm         time.Time `bson:"create_tm"` // 创角时间
+	VipLv            int       `bson:"vip_lv"`
 }
 
-func NewRoleBasic() *RoleBasic {
-	return &RoleBasic{}
+type RoleBasic struct {
+	RoleModule
+	RoleBasicState
+}
+
+func (r *RoleBasic) PersistState() IPersistState {
+	return &r.RoleBasicState
 }
 
 func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName) (*pb.RspBasicSetName, error) {

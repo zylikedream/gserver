@@ -55,7 +55,7 @@ func (s *roleService) GetRole(roleID int64) (gxyactor.PID, error) {
 	return pid, nil
 }
 
-func (s *roleService) GetRoleBasic(ctx context.Context, roleID int64) (*pb.PRolePublic, error) {
+func (s *roleService) GetRolePublic(ctx context.Context, roleID int64) (*pb.PRolePublic, error) {
 	return nil, nil
 }
 

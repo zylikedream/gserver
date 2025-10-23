@@ -6,11 +6,14 @@ import (
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"gserver/util"
+	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gutil"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // 类型别名 - 抽象层，隐藏具体实现但保持兼容性
@@ -96,8 +99,18 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		}
 	case ActorTimerMsg:
 		a.timer.Active(a.ctx, msg)
-	case *pb.ApiMsg:
-		a.msgHandler.CallWithMsg(a.ctx, msg.Msg)
+	case *pb.RpcMessage:
+		rsp, err := a.handleRpcMsg(a.ctx, msg)
+		if err != nil {
+			glog.Errorf(a.ctx, "handle rpc msg failed, msg:%s, error:%+v", msg.Msg.String(), err)
+			a.Respond(&pb.ActorError{
+				Reason: err.Error(),
+			})
+			return nil
+		}
+		if rsp != nil {
+			a.Respond(rsp)
+		}
 	case *pb.ActorStop:
 		a.Stop(gerror.New(msg.Reason))
 	case *actor.Stopped:
@@ -107,6 +120,30 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		return a.actor.HandleMessage(a.ctx, ctx.Message())
 	}
 	return nil
+}
+
+func (a *ActorBase) handleRpcMsg(ctx context.Context, msg *pb.RpcMessage) (proto.Message, error) {
+	pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
+	if err != nil {
+		return nil, gerror.Wrapf(err, "unmarshal rpc msg error, msg: %s", msg.String())
+	}
+	return a.HandleProtobufMsg(ctx, pbmsg)
+}
+
+func (a *ActorBase) HandleProtobufMsg(ctx context.Context, msg proto.Message) (proto.Message, error) {
+	tm := time.Now()
+	glog.Debugf(ctx, "handle msg start, msg: %v", util.FormatObject(msg))
+	result, err := a.CallHandlerMsg(ctx, msg)
+	glog.Debugf(ctx, "handle msg end, msg: %s, result: %s, err %s, cost: %vms",
+		util.FormatObject(msg), util.FormatObject(result), err, time.Since(tm).Milliseconds())
+	if err != nil {
+		return nil, err
+	}
+	var rsp proto.Message
+	if result != nil {
+		rsp, _ = result.(proto.Message)
+	}
+	return rsp, nil
 }
 
 func (a *ActorBase) Stop(err error) {

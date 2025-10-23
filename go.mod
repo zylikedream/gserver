@@ -5,6 +5,7 @@ go 1.25.1
 require (
 	github.com/ahmetb/go-linq v3.0.0+incompatible
 	github.com/asynkron/protoactor-go v0.0.0-20250909165758-e952b3c0850e
+	github.com/bsm/gomega v1.27.10
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/gogf/gf/contrib/nosql/redis/v2 v2.9.4
 	github.com/gogf/gf/contrib/registry/etcd/v2 v2.9.4
@@ -14,11 +15,13 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/panjf2000/gnet/v2 v2.9.3
 	github.com/pkg/errors v0.9.1
+	github.com/redis/go-redis/v9 v9.14.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/smallnest/rpcx v1.9.1
 	github.com/spf13/viper v1.21.0
 	go.mongodb.org/mongo-driver v1.17.4
 	go.uber.org/zap v1.27.0
+	golang.org/x/sync v0.17.0
 	google.golang.org/protobuf v1.36.9
 )
 
@@ -78,7 +81,6 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/otlptranslator v0.0.2 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
-	github.com/redis/go-redis/v9 v9.14.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/serialx/hashring v0.0.0-20200727003509-22c0c7ab6b1b // indirect
@@ -112,7 +114,6 @@ require (
 	golang.org/x/crypto v0.42.0 // indirect
 	golang.org/x/exp v0.0.0-20251017212417-90e834f514db // indirect
 	golang.org/x/net v0.44.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250908214217-97024824d090 // indirect

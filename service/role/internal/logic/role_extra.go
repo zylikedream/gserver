@@ -1,16 +1,27 @@
 package logic
 
-import "time"
+import (
+	"context"
+	"time"
+)
+
+type RoleExtraPersistState struct {
+	RolePersistState `bson:"inline"`
+	CronTm           time.Time `bson:"cron_tm"`
+}
 
 type RoleExtra struct {
 	RoleModule `bson:"inline"`
-	CronTm     time.Time `bson:"cron_tm"`
+	RoleExtraPersistState
 }
 
-func NewRoleExtra() *RoleExtra {
-	return &RoleExtra{
-		CronTm: time.Now(),
-	}
+func (r *RoleExtra) PersistState() IPersistState {
+	return &r.RoleExtraPersistState
+}
+
+func (r *RoleExtra) OnModInit(ctx context.Context) error {
+	r.CronTm = time.Now()
+	return nil
 }
 
 func (r *RoleExtra) GetCronTm() time.Time {

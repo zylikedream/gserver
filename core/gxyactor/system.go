@@ -12,6 +12,8 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // actorSystem 基础Actor模块
@@ -139,6 +141,26 @@ func (a *actorSystem) Call(pid PID, message any) (any, error) {
 		return nil, gerror.New(err.Reason)
 	}
 	return res, nil
+}
+
+func (a *actorSystem) RpcCall(pid PID, message proto.Message) (proto.Message, error) {
+	if a.system == nil {
+		return nil, fmt.Errorf("node not initialized")
+	}
+
+	rpc := &pb.RpcMessage{
+		Msg: &anypb.Any{},
+	}
+
+	if err := anypb.MarshalFrom(rpc.Msg, message, proto.MarshalOptions{}); err != nil {
+		return nil, gerror.Newf("marshal rpc req error, err: %v", err)
+	}
+	res, err := a.Call(pid, rpc)
+	if err != nil {
+		return nil, gerror.Wrap(err, "rpc call error")
+	}
+	pres, _ := res.(proto.Message)
+	return pres, nil
 }
 
 func (a *actorSystem) GetNodeName() string {

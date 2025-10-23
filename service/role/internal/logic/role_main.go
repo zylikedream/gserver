@@ -10,6 +10,7 @@ import (
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"gserver/util"
+	"reflect"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -112,19 +113,28 @@ func (r *RoleMain) afterInitRole(ctx context.Context) error {
 	return nil
 }
 
+func (r *RoleMain) initRoleModules(ctx context.Context) {
+	// 使用反射获取继承了IRoleModule的字段, 并初始化
+	t := util.TypeReal(r)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		if field.Type.Kind() != reflect.Ptr {
+			continue
+		}
+		if !field.Type.Implements(reflect.TypeFor[IRoleModule]()) {
+			continue
+		}
+		rmod := util.NewObject(field.Type.Elem())
+		reflect.ValueOf(r).Elem().Field(i).Set(reflect.ValueOf(rmod))
+		r.AddModule(ctx, rmod.(IRoleModule))
+	}
+}
+
 func (r *RoleMain) initModules(ctx context.Context) error {
-	r.Sign = NewRoleSign()
-	r.AddModule(ctx, r.Sign)
-
-	r.Bag = NewRoleBag()
-	r.AddModule(ctx, r.Bag)
-
-	r.Basic = NewRoleBasic()
-	r.AddModule(ctx, r.Basic)
-
-	r.Extra = NewRoleExtra()
-	r.AddModule(ctx, r.Extra)
-
+	r.initRoleModules(ctx)
 	if err := r.loadModules(ctx); err != nil {
 		return err
 	}
@@ -134,13 +144,26 @@ func (r *RoleMain) initModules(ctx context.Context) error {
 func (r *RoleMain) loadModules(ctx context.Context) error {
 	roleID := r.RoleID
 	for _, mod := range r.Modules() {
-		colName := getModuleColName(mod)
-		if err := gxymongo.Client().FindOne(ctx, mod, colName, bson.M{"role_id": roleID}); err != nil {
+		rmod, _ := mod.(IRoleModule)
+		if rmod == nil {
+			continue
+		}
+		colName := getModuleColName(rmod)
+		modState := rmod.PersistState()
+		if modState == nil {
+			continue
+		}
+		if reflect.TypeOf(modState).Kind() != reflect.Pointer {
+			glog.Warningf(ctx, "mod %s State not pointer, will not loaded or saved", rmod.GetModName())
+			continue
+		}
+		if err := gxymongo.Client().FindOne(ctx, modState, colName, bson.M{"role_id": roleID}); err != nil {
 			if err != mongo.ErrNoDocuments {
 				return err
 			}
 		}
-		r.modsHash[colName] = util.GetObjectHash(mod)
+		modState.SetRoleID(roleID)
+		r.modsHash[colName] = util.GetObjectHash(modState)
 	}
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
@@ -183,37 +206,22 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 			return nil
 		}
 	}
-	return r.doHandleClientMsg(ctx, path, msg)
-}
-
-func (r *RoleMain) doHandleClientMsg(ctx context.Context, path string, msg proto.Message) error {
-	var rsp proto.Message
-	tm := time.Now()
-	glog.Debugf(ctx, "handle client msg start, args: %v", util.FormatObject(msg))
-	result, merr := r.CallHandlerMsg(ctx, msg)
-	glog.Infof(ctx, "handle client msg end, args: %s, result: %s, err %s, cost: %vms",
-		util.FormatObject(msg), util.FormatObject(result), merr, time.Since(tm).Milliseconds())
-	if merr != nil {
+	rsp, err := r.HandleProtobufMsg(ctx, msg)
+	if err != nil {
 		rsp = &pb.Ack{
 			Code:   1,
 			Path:   path,
-			Reason: merr.Error(),
+			Reason: err.Error(),
 		}
-	} else if result != nil {
-		rsp1, ok := result.(proto.Message)
-		if ok {
-			rsp = rsp1
-		}
-	}
-
-	if rsp != nil {
+	} else if rsp != nil {
 		svrMsg, err := r.newServerMsg(rsp)
 		if err != nil {
 			return gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 		}
+		rsp = svrMsg
 
-		r.Respond(svrMsg)
 	}
+	r.Respond(rsp)
 	return nil
 }
 
@@ -251,13 +259,19 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 	var errStr string
 	client := gxymongo.Client()
 	for _, mod := range r.Modules() {
-		colName := gstr.CaseSnake(mod.GetModName())
-		modHash := util.GetObjectHash(mod)
+		rmod, _ := mod.(IRoleModule)
+		if rmod == nil {
+			continue
+		}
+		colName := gstr.CaseSnake(rmod.GetModName())
+		modState := rmod.PersistState()
+		modHash := util.GetObjectHash(modState)
 		if modHash == r.modsHash[colName] && !force {
 			continue
 		}
+
 		if _, err := client.ReplaceOne(ctx, colName, bson.M{"role_id": r.RoleID},
-			mod, options.Replace().SetUpsert(true)); err != nil {
+			modState, options.Replace().SetUpsert(true)); err != nil {
 			errStr += fmt.Sprintf("save mod %s failed: %s", colName, err)
 			continue
 		}
@@ -308,6 +322,14 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	}, nil
 }
 
+func (r *RoleMain) OnModuleCreated(ctx context.Context) error {
+	for _, mod := range r.Modules() {
+		rmod := mod.(IRoleModule)
+		rmod.OnCreate(ctx)
+	}
+	return nil
+}
+
 func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogout) error {
 	sender := r.Sender()
 	if !gxyactor.PidEqual(sender, r.session) {
@@ -325,6 +347,9 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 }
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
+	if serr := r.StopModule(ctx); serr != nil {
+		glog.Errorf(ctx, "stop module error, roleID: %d, err: %v", r.RoleID, err)
+	}
 	r.save(ctx, true)
 	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
 }

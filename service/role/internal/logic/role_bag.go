@@ -20,18 +20,26 @@ var (
 	ErrItemDecItemNotEnough = errors.New("dec item not enough")
 )
 
-type RoleBag struct {
-	RoleModule `bson:"inline"`
-	Items      map[int]*bag.BagItem     `bson:"items"`
-	Currencies map[int]*bag.BagCurrency `bson:"currencies"`
-	GridUse    int                      `bson:"grid_use"`
+type RoleBagState struct {
+	RolePersistState `bson:"inline"`
+	Items            map[int]*bag.BagItem     `bson:"items"`
+	Currencies       map[int]*bag.BagCurrency `bson:"currencies"`
+	GridUse          int                      `bson:"grid_use"`
 }
 
-func NewRoleBag() *RoleBag {
-	return &RoleBag{
-		Items:      make(map[int]*bag.BagItem),
-		Currencies: make(map[int]*bag.BagCurrency),
-	}
+type RoleBag struct {
+	RoleModule
+	RoleBagState
+}
+
+func (r *RoleBag) PersistState() IPersistState {
+	return &r.RoleBagState
+}
+
+func (r *RoleBag) OnModInit(ctx context.Context) error {
+	r.Items = make(map[int]*bag.BagItem)
+	r.Currencies = make(map[int]*bag.BagCurrency)
+	return nil
 }
 
 func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.ItemChange, error) {

@@ -23,17 +23,18 @@ import (
 )
 
 // --------------------proto handlers start-------------
-type RoleSign struct {
-	RoleModule     `bson:"inline"`
-	DrawTime       time.Time `bson:"sign_time"`        // 当日领取签到奖励
-	SignDay        int       `bson:"sign_day"`         // 当月签到天数
-	AccumDrawStage []int     `bson:"accum_draw_stage"` // 累积奖励阶段
-	DrawDay        int       `bson:"reward_day"`       // 当月领取奖励的天数
-	Patch          int       `bason:"patch"`           // 补签天数
+type RoleSignPersistState struct {
+	RolePersistState `bson:"inline"`
+	DrawTime         time.Time `bson:"sign_time"`        // 当日领取签到奖励
+	SignDay          int       `bson:"sign_day"`         // 当月签到天数
+	AccumDrawStage   []int     `bson:"accum_draw_stage"` // 累积奖励阶段
+	DrawDay          int       `bson:"reward_day"`       // 当月领取奖励的天数
+	Patch            int       `bason:"patch"`           // 补签天数
 }
 
-func NewRoleSign() *RoleSign {
-	return &RoleSign{}
+type RoleSign struct {
+	RoleModule
+	RoleSignPersistState
 }
 
 // 刷新的时候自动签到(玩家上线，或者刷新点的时候在线，都算签到一次)

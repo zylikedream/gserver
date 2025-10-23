@@ -6,10 +6,15 @@ import (
 	friend "gserver/service/friend/api"
 )
 
+type friendCache struct {
+	friendList    []friend.FriendInfo
+	applySendList []friend.FriendInfo
+	applyRecv     []friend.FriendInfo
+}
+
 type RoleFriend struct {
-	FriendList    []friend.FriendInfo
-	ApplySendList []friend.FriendInfo
-	ApplyRecv     []friend.FriendInfo
+	RoleModule `bson:"inline"`
+	cache      friendCache
 }
 
 func (r *RoleFriend) ReqFriendInfo(ctx context.Context, req *pb.ReqFriendInfo) (*pb.RspFriendInfo, error) {
