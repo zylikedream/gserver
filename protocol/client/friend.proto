@@ -8,63 +8,76 @@ message ReqFriendInfo {
 
 }
 
+message PFriendBase {
+    PRolePublic role_public = 1;  // 好友信息
+    int64 friend_time = 2; // 关系建立时间
+    string source = 3; // 来源
+}
+
 message PFriendInfo {
-    PRolePublic role_public = 1; 
-    int64 friend_time = 2;
-    int32 favor = 3;
-    int64 send_gift_time = 4;
-    bool can_recv_gift = 5;
+    PFriendBase base = 1;
+    int32 favor = 2;
+    int64 send_gift_time = 3;
+    bool can_recv_gift = 4;
 }
 
 message PFriendApply {
-    PRolePublic role_public = 1; 
-    int64 friend_time = 2;
+    PFriendBase base = 1;
 }
 
 message RspFriendInfo {
     repeated PFriendInfo friends = 1; // 好友列表
-    repeated PFriendApply apply = 2; // 申请列表（自己申请别人)
-    repeated PFriendApply applyed = 3; // 被申请列表（别人申请自己)
+    repeated PFriendApply apply_send = 2; // 发送的申请
+    repeated PFriendApply apply_recv = 3; // 收到的申请
+}
+
+message PFriendApplyData {
+    int64 role_id = 1;    
+    string source = 2;
 }
 
 message ReqFriendApply {
-    string role_id = 1;
+    repeated PFriendApplyData apply_list = 1;
 }
 
+
 message RspFriendApply {
-    PFriendApply apply_new = 1; // 申请者
+    repeated PFriendApply apply_send_add_list = 1; // 新增的申请列表
 }
 
 message ReqFriendDealApply {
-   string role_id = 1;
+   repeated int64 role_id = 1;
    int32 deal = 2; // 0-拒绝 1-同一
 }
 
 message RspFriendDealApply {
-    PFriendInfo friend_new = 1; // 新增好友
-    string applyed_delete = 2; // 删除的申请者
+    repeated PFriendInfo friend_add_list = 1; // 新增好友
+    repeated PFriendApply apply_recv_delete_list = 2; // 删除的申请者
 }
 
 message ReqFriendDelete {
-    string role_id = 1;
+    repeated int64 role_id = 1;
 }
 
 message RspFriendDelete {
-    string friend_delete = 1;
+    repeated int64 friend_delete = 1;
 }
 
 message ReqFriendSendGift{
-    string role_id = 1;
+    int64 role_id = 1;
 }
 
 message RspFriendSendGift{
-    int64 send_gift_time = 4;
+    int64 role_id = 1;
+    int64 send_gift_time = 2;
 }
 
 message ReqFriendRecvGift{
-    string role_id = 1;
+    int64 role_id = 1;
 }
 
 message RspFriendRecvGift{
-    int32 favor = 3;
+    int64 role_id = 1;
+    int32 favor = 2;
+    bool can_recv = 3;
 }
