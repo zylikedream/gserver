@@ -22,13 +22,10 @@ type RoleBasic struct {
 	RoleBasicState
 }
 
+var _ IRoleModule = (*RoleBasic)(nil)
+
 func (r *RoleBasic) PersistState() IPersistState {
 	return &r.RoleBasicState
-}
-
-func (r *RoleBasic) OnCreate(ctx context.Context) error {
-	r.CreateTm = time.Now()
-	return nil
 }
 
 func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName) (*pb.RspBasicSetName, error) {

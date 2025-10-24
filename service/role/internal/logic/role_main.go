@@ -48,15 +48,20 @@ const (
 	RoleStateLogout            // 角色已登出
 )
 
-type RoleMain struct {
-	gxymodule.ModuleBase
-	*gxyactor.GrainBase
-	RoleID int64
+type roleModules struct {
 	Sign   *RoleSign
 	Bag    *RoleBag
 	Basic  *RoleBasic
 	Public *RolePublic
 	Extra  *RoleExtra
+	Friend *RoleFriend
+}
+
+type RoleMain struct {
+	gxymodule.ModuleBase
+	roleModules
+	*gxyactor.GrainBase
+	RoleID int64
 
 	modsHash map[string]uint64
 	session  gxyactor.PID
@@ -119,7 +124,8 @@ func (r *RoleMain) afterInitRole(ctx context.Context) error {
 
 func (r *RoleMain) initRoleModules(ctx context.Context) {
 	// 使用反射获取继承了IRoleModule的字段, 并初始化
-	t := util.TypeReal(r)
+	modules := &r.roleModules
+	t := util.TypeReal(modules)
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if !field.IsExported() {
@@ -132,7 +138,7 @@ func (r *RoleMain) initRoleModules(ctx context.Context) {
 			continue
 		}
 		rmod := util.NewObject(field.Type.Elem())
-		reflect.ValueOf(r).Elem().Field(i).Set(reflect.ValueOf(rmod))
+		reflect.ValueOf(modules).Elem().Field(i).Set(reflect.ValueOf(rmod))
 		r.AddModule(ctx, rmod.(IRoleModule))
 	}
 }
@@ -154,7 +160,7 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 		}
 		modState := rmod.PersistState()
 		if modState == nil {
-			return nil
+			continue
 		}
 		if err := LoadModuleState(ctx, roleID, modState); err != nil {
 			return err
@@ -252,7 +258,7 @@ func (r *RoleMain) initTimer(ctx context.Context) {
 
 func (r *RoleMain) initMsgHandler() {
 	for _, mod := range r.Modules() {
-		r.AddMsgHandler(mod)
+		r.AddMsgHandler(mod, "Req")
 	}
 }
 
@@ -346,6 +352,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	now := time.Now()
 	if r.Basic.CreateTm.IsZero() {
 		firstLogin = true
+		r.Basic.CreateTm = now
 		if err := r.OnRoleCreated(ctx); err != nil {
 			return nil, err
 		}

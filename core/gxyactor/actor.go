@@ -196,8 +196,8 @@ func (a *ActorBase) SetLogValue(key string, val any) *ActorBase {
 	return a
 }
 
-func (a *ActorBase) AddMsgHandler(handler any) {
-	a.msgHandler.AddHandler(handler)
+func (a *ActorBase) AddMsgHandler(handler any, prefix ...string) {
+	a.msgHandler.AddHandler(handler, prefix...)
 }
 
 func (a *ActorBase) CallHandlerMsg(ctx context.Context, msg any) (any, error) {

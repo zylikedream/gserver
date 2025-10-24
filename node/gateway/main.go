@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxymongo"
 	"gserver/core/gxynode"
+	"gserver/service/friend"
 	"gserver/service/gateway"
 
 	"github.com/gogf/gf/v2/frame/g"
@@ -24,6 +25,7 @@ func Init() {
 	node.LoadModule(gxymongo.NewMongoClient("node/config/db.toml"))
 	node.LoadService(gateway.GateService())
 	rootModule.AddModule(context.Background(), node)
+	node.LoadService(friend.FriendService())
 }
 
 func main() {

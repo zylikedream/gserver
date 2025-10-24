@@ -12,7 +12,7 @@ type IModule interface {
 	GetModID() string
 	OnModInit(ctx context.Context) error
 	OnModStart(ctx context.Context) error
-	OnModStartAfter(ctx context.Context) error
+	OnModStartAfter(ctx context.Context) error // 如果依赖与其他module,就实现这个方法
 	OnModStop(ctx context.Context) error
 	OnModStopBefore(ctx context.Context) error
 	BaseModule() *ModuleBase
@@ -93,6 +93,11 @@ func (m *ModuleBase) StartModule(ctx context.Context) error {
 	for _, child := range m.childs {
 		mod := child.BaseModule()
 		if err := mod.StartModule(ctx); err != nil {
+			return err
+		}
+	}
+	for _, child := range m.childs {
+		if err := child.OnModStartAfter(ctx); err != nil {
 			return err
 		}
 	}

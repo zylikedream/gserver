@@ -22,9 +22,9 @@ import (
 
 const (
 	SESSION_MSG_STOP            = "stop"
-	SESSION_MSG_CLIENT          = "client"        // 客户端消息
-	SESSION_CLIENT_IDLE_TIMEOUT = 3 * time.Minute // 空闲超时时间
-	SESSION_SERVER_IDLE_TIMEOUT = 1 * time.Minute // 空闲超时时间
+	SESSION_MSG_CLIENT          = "client"         // 客户端消息
+	SESSION_CLIENT_IDLE_TIMEOUT = 10 * time.Minute // 空闲超时时间
+	SESSION_SERVER_IDLE_TIMEOUT = 10 * time.Minute // 空闲超时时间
 	SESSION_CHECK_INTERVAL      = 30 * time.Second
 )
 
@@ -102,6 +102,8 @@ func (s *Session) DelayInit(ctx context.Context) error {
 		Name:     "check",
 		Interval: SESSION_CHECK_INTERVAL,
 	}, s.sessionCheck)
+	s.updateClientLastActive()
+	s.updateServerLastActive()
 	return nil
 }
 
@@ -113,7 +115,7 @@ func (s *Session) sessionCheck(ctx context.Context, _ gxytimer.TimerActiveInfo) 
 	}
 	serverIdleTime := time.Since(s.sessionInfo.ServerLastActive)
 	// 客户端发了包，但是服务器超过时间没有响应
-	if clientIdleTime < SESSION_SERVER_IDLE_TIMEOUT && serverIdleTime > SESSION_SERVER_IDLE_TIMEOUT {
+	if serverIdleTime > SESSION_SERVER_IDLE_TIMEOUT {
 		s.Stop(gerror.New("server idle timeout"))
 		return
 	}
@@ -133,7 +135,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.SetLogValue(gxylog.ContextKeyRoleID, roleID)
 	rolePid, err := role.RoleService().GetRole(roleID)
 	if err != nil {
-		return gerror.Wrapf(err, "get role id error, role: %d", roleID)
+		return gerror.Wrapf(err, "get role grain error, role: %d", roleID)
 	}
 	glog.Infof(ctx, "get role pid: %v", rolePid)
 	s.sessionInfo.RolePid = rolePid

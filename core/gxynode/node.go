@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxyredis"
@@ -57,12 +58,14 @@ func (a *node) GetModName() string {
 func (n *node) OnModInit(ctx context.Context) error {
 	n.LoadModule(gxyredis.NewRedisClient("node/config/db.toml"))
 	n.LoadModule(gxyactor.NewActorSystem(n.Name, n.Host))
+	n.LoadModule(gxyhttp.NewHttpSystem(n.Name, n.Host))
 	svcMgr := gxyservice.NewServiceManager(n.Name)
 	n.LoadModule(svcMgr)
 	return nil
 }
 
 func (a *node) OnModStart(ctx context.Context) error {
+	glog.Infof(context.Background(), "node %s starting....", a.Name)
 	svcMgr := gxyservice.ServiceManager()
 	for _, svc := range a.services {
 		svcMgr.LoadService(svc)

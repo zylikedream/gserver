@@ -32,6 +32,8 @@ type RoleBag struct {
 	RoleBagState
 }
 
+var _ IRoleModule = (*RoleBag)(nil)
+
 func (r *RoleBag) PersistState() IPersistState {
 	return &r.RoleBagState
 }

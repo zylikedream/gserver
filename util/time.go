@@ -18,7 +18,7 @@ func DayRefreshTime(ctx context.Context, tm time.Time) time.Time {
 }
 
 func IsSameDay(ctx context.Context, tm1 time.Time, tm2 time.Time) bool {
-	return DayRefreshTime(ctx, tm1) == DayRefreshTime(ctx, tm2)
+	return DayRefreshTime(ctx, tm1).Equal(DayRefreshTime(ctx, tm2))
 }
 
 func IsCrossDay(ctx context.Context, tm1 time.Time, tm2 time.Time) bool {

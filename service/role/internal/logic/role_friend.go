@@ -38,8 +38,15 @@ type RoleFriend struct {
 	cache friendCache
 }
 
-func (r *RoleFriend) OnModInit(ctx context.Context) {
+var _ IRoleModule = (*RoleFriend)(nil)
+
+func (r *RoleFriend) OnModInit(ctx context.Context) error {
 	r.FriendDataList = make(map[int64]FriendData)
+	return nil
+}
+
+func (r *RoleFriend) PersistState() IPersistState {
+	return &r.RoleFriendState
 }
 
 func (r *RoleFriend) ensureFriendInfo(ctx context.Context) (*friendCache, error) {
@@ -48,7 +55,7 @@ func (r *RoleFriend) ensureFriendInfo(ctx context.Context) (*friendCache, error)
 	}
 	FriendInfo, err := friend.FriendService().GetFriendInfo(ctx, r.RoleID)
 	if err != nil {
-		glog.Error(ctx, "get friend info failed, err: %v", err)
+		glog.Errorf(ctx, "get friend info failed, roleID: %d, err: %+v", r.RoleID, err)
 		return &r.cache, gerror.Wrapf(err, "get friend info failed")
 	}
 	r.cache.friendList = FriendInfo.FriendList
@@ -107,7 +114,7 @@ func (r *RoleFriend) packFriendInfo(ctx context.Context, frd *api.FriendInfo) *p
 	}
 }
 
-func (r *RoleFriend) ApplyFriend(ctx context.Context, req *pb.ReqFriendApply) (*pb.RspFriendApply, error) {
+func (r *RoleFriend) ReqFriendApply(ctx context.Context, req *pb.ReqFriendApply) (*pb.RspFriendApply, error) {
 	if len(req.ApplyList) == 0 {
 		return nil, gerror.New("apply list is empty")
 	}
@@ -175,7 +182,7 @@ func (r *RoleFriend) isInFriendList(friendID int64, friendList []api.FriendInfo)
 	return false
 }
 
-func (r *RoleFriend) DealApply(ctx context.Context, req *pb.ReqFriendDealApply) (*pb.RspFriendDealApply, error) {
+func (r *RoleFriend) ReqFriendDealApply(ctx context.Context, req *pb.ReqFriendDealApply) (*pb.RspFriendDealApply, error) {
 	if len(req.RoleId) == 0 {
 		return nil, gerror.New("role id is empty")
 	}
@@ -243,7 +250,7 @@ func (r *RoleFriend) newFriendData(friendID int64) FriendData {
 	}
 }
 
-func (r *RoleFriend) DeleteFriend(ctx context.Context, req *pb.ReqFriendDelete) (*pb.RspFriendDelete, error) {
+func (r *RoleFriend) ReqFriendDelete(ctx context.Context, req *pb.ReqFriendDelete) (*pb.RspFriendDelete, error) {
 	if len(req.RoleId) == 0 {
 		return nil, gerror.New("role id is empty")
 	}

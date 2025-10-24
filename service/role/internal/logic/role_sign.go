@@ -37,6 +37,12 @@ type RoleSign struct {
 	RoleSignPersistState
 }
 
+var _ IRoleModule = (*RoleSign)(nil)
+
+func (s *RoleSign) PersistState() IPersistState {
+	return &s.RoleSignPersistState
+}
+
 // 刷新的时候自动签到(玩家上线，或者刷新点的时候在线，都算签到一次)
 func (s *RoleSign) DayRefresh(ctx context.Context, tm time.Time) {
 	s.SignDay += 1

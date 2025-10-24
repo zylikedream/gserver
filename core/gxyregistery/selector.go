@@ -154,11 +154,13 @@ func (s *consistentHashSelector) Select(service string, key string, hservices Ha
 
 	// 如果没有找到，使用环上的第一个节点（形成环结构）
 	if !found {
-		firstKey := ring.Left()
-		if firstKey != nil {
-			selectedNode = ring.Get(firstKey).(*ServiceInfo)
+		// 遍历树获取第一个节点的键值对
+		found = false
+		ring.IteratorAsc(func(key, value any) bool {
+			selectedNode = value.(*ServiceInfo)
 			found = true
-		}
+			return false // 找到第一个节点后停止遍历
+		})
 	}
 
 	if found {

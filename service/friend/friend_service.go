@@ -36,11 +36,7 @@ func (f *friendService) Name() string {
 }
 
 func (f *friendService) OnModInit(ctx context.Context) error {
-	return nil
-}
-
-func (f *friendService) OnModStart(ctx context.Context) error {
-	f.SetHandler(f.Name(), logic.NewFriendController())
+	f.SetHandler(ctx, f.Name(), logic.NewFriendController())
 	return nil
 }
 

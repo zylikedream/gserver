@@ -3,6 +3,7 @@ package role
 import (
 	"context"
 	"gserver/core/gxyactor"
+	gameconfig "gserver/gameconfig/src"
 	"gserver/service"
 	"gserver/service/role/internal/logic"
 	"strconv"
@@ -31,6 +32,7 @@ func (r *roleService) Weight() int {
 }
 
 func (r *roleService) OnModInit(ctx context.Context) error {
+	r.AddModule(ctx, gameconfig.NewGameConfig())
 	return nil
 }
 

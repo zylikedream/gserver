@@ -74,7 +74,8 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 			return nil
 		}
 		a.grainInfos = ginfo
-		pid, err := a.SpawnNamed(ginfo.Props.Configure(
+		props := ginfo.Props.Clone()
+		pid, err := a.SpawnNamed(props.Configure(
 			actor.WithSupervisor(supervisor),
 			actor.WithContextDecorator(a.contextDecorator(msg.Id)),
 			actor.WithReceiverMiddleware(a.grainReciveMiddleware())),

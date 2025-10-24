@@ -6,11 +6,11 @@ import (
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/gstructs"
 )
 
 type HttpService struct {
-	msgHandler util.MsgHandler
 	gxyservice.PublicService
 }
 
@@ -29,12 +29,16 @@ type Response struct {
 	Data    any    `json:"data,omitempty"`
 }
 
-func (h *HttpService) SetHandler(name string, handler any) {
-	h.msgHandler.AddHandler(handler)
+func (h *HttpService) SetHandler(ctx context.Context, name string, handler any) {
 	server := httpSys.server
+	if server.Status() == ghttp.ServerStatusRunning {
+		glog.Warningf(ctx, "http server is running, can not set handler")
+		return
+	}
 	server.Group("/"+name, func(group *ghttp.RouterGroup) {
-		group.Bind(handler)
+		// 先注册中间件，再绑定处理器，确保中间件生效
 		group.Middleware(ghttp.MiddlewareHandlerResponse)
+		group.Bind(handler)
 	})
 }
 

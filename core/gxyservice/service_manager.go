@@ -47,7 +47,8 @@ func (s *serviceMgr) OnModInit(ctx context.Context) error {
 	return nil
 }
 
-func (s *serviceMgr) OnModStart(ctx context.Context) error {
+// 确保所有启动都启动好了以后再注册
+func (s *serviceMgr) OnModStartAfter(ctx context.Context) error {
 	if err := s.registerSevices(); err != nil {
 		return err
 	}
