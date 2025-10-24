@@ -18,6 +18,7 @@ message ReqAccountLogin {
 
 message RspAccountLogin {
     bool first_login = 1;
+    int64 role_id = 2;
 }
 
 message ReqAccountLogout {
