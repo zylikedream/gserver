@@ -3,18 +3,19 @@ package gameconfig
 import (
 	"context"
 	"encoding/json"
+	"gserver/core/gxymodule"
 	"os"
 )
 
 type gameConfig struct {
+	gxymodule.ModuleBase
 	*Tables
 }
 
 var gameCfg *gameConfig
 
-func init() {
-	gameCfg = NewGameConfig()
-	if err := gameCfg.OnInit(context.Background()); err != nil {
+func OnModInit(ctx context.Context) {
+	if err := gameCfg.OnInit(ctx); err != nil {
 		panic(err)
 	}
 }
