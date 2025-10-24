@@ -26,6 +26,11 @@ func (r *RoleBasic) PersistState() IPersistState {
 	return &r.RoleBasicState
 }
 
+func (r *RoleBasic) OnCreate(ctx context.Context) error {
+	r.CreateTm = time.Now()
+	return nil
+}
+
 func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName) (*pb.RspBasicSetName, error) {
 	if !r.isNameValid(req.Name) {
 		return nil, fmt.Errorf("name unvalid:%s", req.Name)

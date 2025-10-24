@@ -46,10 +46,11 @@ func (f *friendService) OnModStart(ctx context.Context) error {
 
 // 返回成功响应
 // handleApply 处理好友申请
-func (f *friendService) FriendApply(ctx context.Context, roleID int64, friendID int64) (*api.ApplyFriendRes, error) {
+func (f *friendService) FriendApply(ctx context.Context, roleID int64, friendID int64, source string) (*api.ApplyFriendRes, error) {
 	req := api.ApplyFriendReq{
-		RoleID:   gconv.String(roleID),
-		FriendID: gconv.String(friendID),
+		RoleID:   roleID,
+		FriendID: friendID,
+		Source:   source,
 	}
 	uri := f.GetReqUri(req)
 	rsp, err := gxyhttp.HttpSystem().PostService(ctx, f.Name(), uri, req)
@@ -67,8 +68,8 @@ func (f *friendService) FriendApply(ctx context.Context, roleID int64, friendID 
 // handleDealApply 处理好友申请回应
 func (f *friendService) DealApply(ctx context.Context, roleID int64, applyerID int64, deal int32) (*api.DealApplyRes, error) {
 	req := api.DealApplyReq{
-		RoleID:    gconv.String(roleID),
-		ApplyerID: gconv.String(applyerID),
+		RoleID:    roleID,
+		ApplyerID: applyerID,
 		Deal:      deal,
 	}
 	uri := f.GetReqUri(req)
@@ -87,8 +88,8 @@ func (f *friendService) DealApply(ctx context.Context, roleID int64, applyerID i
 // handleDeleteFriend 处理删除好友
 func (f *friendService) FriendDelete(ctx context.Context, roleID int64, friendID int64) (*api.DeleteFriendRes, error) {
 	req := api.DeleteFriendReq{
-		RoleID:   gconv.String(roleID),
-		FriendID: gconv.String(friendID),
+		RoleID:   roleID,
+		FriendID: friendID,
 	}
 
 	uri := f.GetReqUri(req)
@@ -105,9 +106,9 @@ func (f *friendService) FriendDelete(ctx context.Context, roleID int64, friendID
 }
 
 // handleGetFriendList 处理获取好友列表
-func (f *friendService) FriendInfo(ctx context.Context, roleID int64) (*api.GetFriendListRes, error) {
+func (f *friendService) GetFriendInfo(ctx context.Context, roleID int64) (*api.GetFriendListRes, error) {
 	req := api.GetFriendListReq{
-		RoleID: gconv.String(roleID),
+		RoleID: roleID,
 	}
 	uri := f.GetReqUri(req)
 	rsp, err := gxyhttp.HttpSystem().PostService(ctx, f.Name(), uri, req)

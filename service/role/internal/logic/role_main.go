@@ -15,7 +15,6 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
-	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
@@ -33,6 +32,10 @@ var (
 	SignleAliveOnce = &gxytimer.Once{
 		Name:  "signle_alive",
 		After: 10 * time.Minute, // 10min 连接断开后存活时间
+	}
+	PublicUpdateTick = &gxytimer.Tick{
+		Name:     "update_role_public",
+		Interval: 10 * time.Minute,
 	}
 )
 
@@ -52,6 +55,7 @@ type RoleMain struct {
 	Sign   *RoleSign
 	Bag    *RoleBag
 	Basic  *RoleBasic
+	Public *RolePublic
 	Extra  *RoleExtra
 
 	modsHash map[string]uint64
@@ -148,22 +152,15 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 		if rmod == nil {
 			continue
 		}
-		colName := getModuleColName(rmod)
 		modState := rmod.PersistState()
 		if modState == nil {
-			continue
+			return nil
 		}
-		if reflect.TypeOf(modState).Kind() != reflect.Pointer {
-			glog.Warningf(ctx, "mod %s State not pointer, will not loaded or saved", rmod.GetModName())
-			continue
-		}
-		if err := gxymongo.Client().FindOne(ctx, modState, colName, bson.M{"role_id": roleID}); err != nil {
-			if err != mongo.ErrNoDocuments {
-				return err
-			}
+		if err := LoadModuleState(ctx, roleID, modState); err != nil {
+			return err
 		}
 		modState.SetRoleID(roleID)
-		r.modsHash[colName] = util.GetObjectHash(modState)
+		r.modsHash[getColName(modState)] = util.GetObjectHash(modState)
 	}
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
@@ -172,8 +169,17 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 	return nil
 }
 
-func getModuleColName(mod gxymodule.IModule) string {
-	return gstr.CaseSnake(mod.GetModName())
+func LoadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
+	colName := getColName(modState)
+	if err := gxymongo.Client().FindOne(ctx, modState, colName, bson.M{"role_id": roleID}); err != nil {
+		if err != mongo.ErrNoDocuments {
+			return err
+		} else {
+			// 新创建的文档，设置初始版本号
+			modState.SetVersion(1)
+		}
+	}
+	return nil
 }
 
 func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
@@ -239,6 +245,9 @@ func (r *RoleMain) initTimer(ctx context.Context) {
 	r.Timer().SetCronState(r.Extra)
 	r.Timer().AddTick(ctx, PersistTick, r.TickSave)
 	r.Timer().AddCron(ctx, gxytimer.DayRefresh, r.DayRefresh)
+	r.Timer().AddTick(ctx, PublicUpdateTick, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+		r.Public.UpdateRolePublic(ctx)
+	})
 }
 
 func (r *RoleMain) initMsgHandler() {
@@ -263,18 +272,46 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 		if rmod == nil {
 			continue
 		}
-		colName := gstr.CaseSnake(rmod.GetModName())
 		modState := rmod.PersistState()
+		if modState == nil {
+			continue
+		}
+		colName := getColName(modState)
 		modHash := util.GetObjectHash(modState)
 		if modHash == r.modsHash[colName] && !force {
 			continue
 		}
 
-		if _, err := client.ReplaceOne(ctx, colName, bson.M{"role_id": r.RoleID},
-			modState, options.Replace().SetUpsert(true)); err != nil {
+		// 获取当前版本号用于乐观锁
+		currentVersion := modState.GetVersion()
+
+		// 准备更新操作，添加版本号条件
+		filter := bson.M{
+			"role_id": r.RoleID,
+			"version": currentVersion,
+		}
+
+		// 设置新版本号为当前时间戳
+		modState.SetVersion(currentVersion + 1)
+		modState.SetUpdateAt(time.Now())
+
+		// 执行更新操作，只有当版本号匹配时才会成功
+		result, err := client.UpdateOne(ctx, colName, filter, bson.M{"$set": modState},
+			options.Update().SetUpsert(true))
+		if err != nil {
 			errStr += fmt.Sprintf("save mod %s failed: %s", colName, err)
 			continue
 		}
+
+		// 检查是否更新成功
+		if result.MatchedCount == 0 && result.UpsertedCount == 0 {
+			// 版本不匹配，说明有其他进程修改了数据
+			glog.Errorf(ctx, "optimistic lock error: version conflict for mod %s, roleID: %d, currentVersion: %d", colName, r.RoleID, currentVersion)
+			// 终止当前进程
+			r.Stop(errors.New("optimistic lock version conflict"))
+			return errors.New("optimistic lock version conflict")
+		}
+
 		r.modsHash[colName] = modHash
 	}
 	if errStr != "" {
@@ -308,8 +345,10 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	firstLogin := false
 	now := time.Now()
 	if r.Basic.CreateTm.IsZero() {
-		r.Basic.CreateTm = now
 		firstLogin = true
+		if err := r.OnRoleCreated(ctx); err != nil {
+			return nil, err
+		}
 	}
 	r.Basic.LoginTm = now
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
@@ -322,10 +361,14 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	}, nil
 }
 
-func (r *RoleMain) OnModuleCreated(ctx context.Context) error {
+func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
 		rmod.OnCreate(ctx)
+	}
+	// 建号强制保存一次
+	if err := r.save(ctx, true); err != nil {
+		return err
 	}
 	return nil
 }

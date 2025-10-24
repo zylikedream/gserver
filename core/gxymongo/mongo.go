@@ -157,3 +157,14 @@ func (m *mongoClient) DeleteMany(ctx context.Context, Col string, filter interfa
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.DeleteOne(ctx, filter, opts...)
 }
+
+// WithTransactionWithOptions 执行带选项的MongoDB事务
+func (m *mongoClient) WithTransaction(ctx context.Context, fn func(ctx mongo.SessionContext) (any, error), opts ...*options.TransactionOptions) (any, error) {
+	session, err := m.client.StartSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.EndSession(ctx)
+
+	return session.WithTransaction(ctx, fn, opts...)
+}

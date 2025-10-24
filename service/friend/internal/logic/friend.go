@@ -71,7 +71,7 @@ func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (
 	return &api.ApplyFriendRes{ApplyNew: *apply}, nil
 }
 
-func (f *FriendController) newApply(roleID string, friendID string, source string) *api.FriendInfo {
+func (f *FriendController) newApply(roleID int64, friendID int64, source string) *api.FriendInfo {
 	return &api.FriendInfo{
 		RoleID:     roleID,
 		FriendID:   friendID,
@@ -100,32 +100,60 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 	}
 
 	// 如果接受申请，创建好友关系
-	newFriend := &api.FriendInfo{}
+	rsp := &api.DealApplyRes{
+		ApplyDelete: apply,
+	}
+
+	// 使用事务处理接受申请的逻辑，确保原子性
 	if req.Deal == 1 {
 		// 为双方创建好友关系
 		friendInfo1 := f.newFriend(req.ApplyerID, req.RoleID, apply.Source)
 		friendInfo2 := f.newFriend(req.RoleID, req.ApplyerID, apply.Source)
 
-		// 保存好友关系
-		_, err = gxymongo.Client().InsertOne(ctx, FriendRelationCol, friendInfo1)
+		// 使用事务保证原子性
+		_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+			// 1. 删除原来的申请记录
+			_, err := gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, filter)
+			if err != nil {
+				glog.Errorf(ctx, "delete friend apply failed: %v, roleID: %d, friendID: %d", err, req.ApplyerID, req.RoleID)
+				return nil, err
+			}
+
+			// 2. 插入双方好友关系
+			_, err = gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, friendInfo1)
+			if err != nil {
+				glog.Errorf(ctx, "insert friend info failed: %v, friend: %s", err, util.FormatObject(friendInfo1))
+				return nil, err
+			}
+
+			result, err := gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, friendInfo2)
+			if err != nil {
+				glog.Errorf(ctx, "insert friend info failed: %v, friend: %s", err, util.FormatObject(friendInfo2))
+				return nil, err
+			}
+
+			return result, nil
+		})
+
 		if err != nil {
-			glog.Errorf(ctx, "insert friend info failed: %v, friend: %s", err, util.FormatObject(friendInfo1))
+			glog.Errorf(ctx, "deal friend apply transaction failed: %v", err)
 			return nil, err
 		}
 
-		_, err = gxymongo.Client().InsertOne(ctx, FriendRelationCol, friendInfo2)
+		rsp.FriendNew = *friendInfo2
+	} else {
+		// 拒绝申请，删除申请记录
+		_, err = gxymongo.Client().DeleteOne(ctx, FriendRelationCol, filter)
 		if err != nil {
-			glog.Errorf(ctx, "insert friend info failed: %v, friend: %s", err, util.FormatObject(friendInfo1))
+			glog.Errorf(ctx, "delete friend apply failed: %v, roleID: %d, friendID: %d", err, req.ApplyerID, req.RoleID)
 			return nil, err
 		}
-		newFriend = friendInfo2
-
 	}
 
-	return &api.DealApplyRes{FriendNew: *newFriend}, nil
+	return rsp, nil
 }
 
-func (f *FriendController) newFriend(roleID string, friendID string, source string) *api.FriendInfo {
+func (f *FriendController) newFriend(roleID int64, friendID int64, source string) *api.FriendInfo {
 	return &api.FriendInfo{
 		RoleID:     roleID,
 		FriendID:   friendID,
@@ -150,15 +178,25 @@ func (f *FriendController) Delete(ctx context.Context, req *api.DeleteFriendReq)
 	filter1 := bson.M{"role_id": req.RoleID, "friend_id": req.FriendID}
 	filter2 := bson.M{"role_id": req.FriendID, "friend_id": req.RoleID}
 
-	_, err = gxymongo.Client().DeleteOne(ctx, FriendRelationCol, filter1)
-	if err != nil {
-		glog.Errorf(ctx, "delete friend from role %s failed: %v", req.RoleID, err)
-		return nil, err
-	}
+	// 使用事务保证原子性
+	_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+		_, terr := gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, filter1)
+		if terr != nil {
+			glog.Errorf(ctx, "delete friend from role %d failed: %v", req.RoleID, err)
+			return nil, terr
+		}
 
-	_, err = gxymongo.Client().DeleteOne(ctx, FriendRelationCol, filter2)
+		result, terr := gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, filter2)
+		if terr != nil {
+			glog.Errorf(ctx, "delete friend from role %d failed: %v", req.FriendID, terr)
+			return nil, terr
+		}
+
+		return result, nil
+	})
+
 	if err != nil {
-		glog.Errorf(ctx, "delete friend from role %s failed: %v", req.FriendID, err)
+		glog.Errorf(ctx, "delete friend transaction failed: %v", err)
 		return nil, err
 	}
 
@@ -203,7 +241,7 @@ func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriend
 
 // 辅助方法
 // isFriend 检查两个角色是否是好友
-func (f *FriendController) isFriend(ctx context.Context, roleID string, friendID string) (bool, error) {
+func (f *FriendController) isFriend(ctx context.Context, roleID int64, friendID int64) (bool, error) {
 	filter := bson.M{
 		"role_id":   roleID,
 		"friend_id": friendID,
@@ -223,7 +261,7 @@ func (f *FriendController) isFriend(ctx context.Context, roleID string, friendID
 }
 
 // applyExists 检查好友申请是否已存在
-func (f *FriendController) applyExists(ctx context.Context, ApplyerID string, targetID string) (bool, error) {
+func (f *FriendController) applyExists(ctx context.Context, ApplyerID int64, targetID int64) (bool, error) {
 	filter := bson.M{
 		"role_id":   ApplyerID,
 		"friend_id": targetID,
