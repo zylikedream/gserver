@@ -302,8 +302,8 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 		modState.SetUpdateAt(time.Now())
 
 		// 执行更新操作，只有当版本号匹配时才会成功
-		result, err := client.UpdateOne(ctx, colName, filter, bson.M{"$set": modState},
-			options.Update().SetUpsert(true))
+		result, err := client.ReplaceOne(ctx, colName, filter, modState,
+			options.Replace().SetUpsert(true))
 		if err != nil {
 			errStr += fmt.Sprintf("save mod %s failed: %s", colName, err)
 			continue
