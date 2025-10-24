@@ -35,3 +35,7 @@ message ActorPid {
     string address = 1;
     string Id = 2;
 }
+
+message RpcMessage {
+    google.protobuf.Any msg = 1;
+}
