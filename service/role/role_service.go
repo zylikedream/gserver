@@ -33,6 +33,7 @@ func (r *roleService) Weight() int {
 
 func (r *roleService) OnModInit(ctx context.Context) error {
 	r.AddModule(ctx, gameconfig.NewGameConfig())
+	r.AddModule(ctx, logic.NewRoleDBIndex())
 	return nil
 }
 

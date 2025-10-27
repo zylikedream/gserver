@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/text/gstr"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type IRoleModule interface {
@@ -22,12 +25,13 @@ type IPersistState interface {
 	SetVersion(version int64)
 	GetUpdateAt() time.Time
 	SetUpdateAt(updateAt time.Time)
+	GetIndexes() []mongo.IndexModel
 }
 
 type RolePersistState struct {
 	RoleID   int64     `bson:"role_id"`
-	UpdateAt time.Time `bson:"update_at"`
-	Version  int64     `bson:"version"`
+	UpdateAt time.Time `bson:"update_at" hash:"-"`
+	Version  int64     `bson:"version" hash:"-"`
 }
 
 func (r *RolePersistState) SetRoleID(roleID int64) {
@@ -52,6 +56,15 @@ func (r *RolePersistState) SetUpdateAt(updateAt time.Time) {
 
 func getColName(mod IPersistState) string {
 	return gstr.CaseSnake(util.GetObjectName(mod))
+}
+
+func (r *RolePersistState) GetIndexes() []mongo.IndexModel {
+	return []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "role_id", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+	}
 }
 
 type RoleModule struct {

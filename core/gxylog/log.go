@@ -55,7 +55,7 @@ type LogAdapter struct {
 
 func NewLogAdapter(ctx context.Context, typ string, level int) *LogAdapter {
 	return &LogAdapter{
-		Logger: logger,
+		Logger: logger.Skip(1),
 		Ctx:    NewContext(ctx, typ),
 		Level:  level,
 	}

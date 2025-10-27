@@ -23,7 +23,7 @@ import (
 )
 
 // --------------------proto handlers start-------------
-type RoleSignPersistState struct {
+type RoleSignState struct {
 	RolePersistState `bson:"inline"`
 	DrawTime         time.Time `bson:"sign_time"`        // 当日领取签到奖励
 	SignDay          int       `bson:"sign_day"`         // 当月签到天数
@@ -34,13 +34,13 @@ type RoleSignPersistState struct {
 
 type RoleSign struct {
 	RoleModule
-	RoleSignPersistState
+	RoleSignState
 }
 
 var _ IRoleModule = (*RoleSign)(nil)
 
 func (s *RoleSign) PersistState() IPersistState {
-	return &s.RoleSignPersistState
+	return &s.RoleSignState
 }
 
 // 刷新的时候自动签到(玩家上线，或者刷新点的时候在线，都算签到一次)

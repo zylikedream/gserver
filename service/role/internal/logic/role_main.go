@@ -162,7 +162,7 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 		if modState == nil {
 			continue
 		}
-		if err := LoadModuleState(ctx, roleID, modState); err != nil {
+		if err := loadModuleState(ctx, roleID, modState); err != nil {
 			return err
 		}
 		modState.SetRoleID(roleID)
@@ -175,15 +175,23 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 	return nil
 }
 
-func LoadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
+func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
 	colName := getColName(modState)
 	if err := gxymongo.Client().FindOne(ctx, modState, colName, bson.M{"role_id": roleID}); err != nil {
-		if err != mongo.ErrNoDocuments {
-			return err
-		} else {
+		if err == mongo.ErrNoDocuments {
 			// 新创建的文档，设置初始版本号
-			modState.SetVersion(1)
+			modState.SetVersion(0)
+		} else {
+			return err
 		}
+	}
+	return nil
+}
+
+func ensureModIndex(ctx context.Context, modState IPersistState) error {
+	colName := getColName(modState)
+	if err := gxymongo.Client().EnsureIndexes(ctx, colName, modState.GetIndexes()); err != nil {
+		return err
 	}
 	return nil
 }
@@ -209,7 +217,12 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 	switch msg := msg.(type) {
 	case *pb.ReqAccountLogin:
 		if r.state == RoleStateLogined {
-			glog.Warningf(ctx, "role ready login, roleID: %d", r.RoleID)
+			glog.Warningf(ctx, "role already login, roleID: %d", r.RoleID)
+			r.Respond(&pb.Ack{
+				Code:   10,
+				Path:   path,
+				Reason: "role already login",
+			})
 			return nil
 		}
 	default:
@@ -218,22 +231,25 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 			return nil
 		}
 	}
-	rsp, err := r.HandleProtobufMsg(ctx, msg)
+	var rsp proto.Message
+	res, err := r.HandleProtobufMsg(ctx, msg)
 	if err != nil {
 		rsp = &pb.Ack{
 			Code:   1,
 			Path:   path,
 			Reason: err.Error(),
 		}
-	} else if rsp != nil {
-		svrMsg, err := r.newServerMsg(rsp)
+	} else if res != nil {
+		svrMsg, err := r.newServerMsg(res)
 		if err != nil {
 			return gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 		}
 		rsp = svrMsg
 
 	}
-	r.Respond(rsp)
+	if rsp != nil {
+		r.Respond(rsp)
+	}
 	return nil
 }
 
@@ -263,7 +279,12 @@ func (r *RoleMain) initMsgHandler() {
 }
 
 func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
-	r.save(ctx, false)
+	if err := r.save(ctx, false); err != nil {
+		glog.Errorf(ctx, "save error, roleID: %d, err: %+v", r.RoleID, err)
+		// 终止当前进程
+		r.Stop(err)
+		return
+	}
 }
 
 func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
@@ -283,6 +304,7 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 			continue
 		}
 		colName := getColName(modState)
+		// 计算modhash时要除开版本号
 		modHash := util.GetObjectHash(modState)
 		if modHash == r.modsHash[colName] && !force {
 			continue
@@ -305,18 +327,15 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 		result, err := client.ReplaceOne(ctx, colName, filter, modState,
 			options.Replace().SetUpsert(true))
 		if err != nil {
+			if mongo.IsDuplicateKeyError(err) { // 重复键错误，说明版本号不匹配导致了插入操作失败
+				glog.Warning(ctx, result)
+				glog.Errorf(ctx, "optimistic lock error: version conflict for mod %s, roleID: %d, currentVersion: %d", colName, r.RoleID, currentVersion)
+				return ErrVersionConflict
+			}
 			errStr += fmt.Sprintf("save mod %s failed: %s", colName, err)
 			continue
 		}
-
-		// 检查是否更新成功
-		if result.MatchedCount == 0 && result.UpsertedCount == 0 {
-			// 版本不匹配，说明有其他进程修改了数据
-			glog.Errorf(ctx, "optimistic lock error: version conflict for mod %s, roleID: %d, currentVersion: %d", colName, r.RoleID, currentVersion)
-			// 终止当前进程
-			r.Stop(errors.New("optimistic lock version conflict"))
-			return errors.New("optimistic lock version conflict")
-		}
+		glog.Debugf(ctx, "save mod %s success, roleID: %d, version: %d", colName, r.RoleID, modState.GetVersion())
 
 		r.modsHash[colName] = modHash
 	}
@@ -388,7 +407,9 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 	glog.Infof(ctx, "role logout, roleID: %d", r.RoleID)
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
-	r.save(ctx, false)
+	if err := r.save(ctx, false); err != nil {
+		return err
+	}
 	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.Stop(errors.New("single alive timeout"))
 	})
@@ -400,7 +421,9 @@ func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	if serr := r.StopModule(ctx); serr != nil {
 		glog.Errorf(ctx, "stop module error, roleID: %d, err: %v", r.RoleID, err)
 	}
-	r.save(ctx, true)
+	if serr := r.save(ctx, true); serr != nil {
+		glog.Errorf(ctx, "save error, roleID: %d, err: %+v", r.RoleID, serr)
+	}
 	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
 }
 

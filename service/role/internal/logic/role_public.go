@@ -11,7 +11,7 @@ import (
 )
 
 type RolePublicState struct {
-	RolePersistState `bson:",inline"`
+	RolePersistState `bson:"inline"`
 	Name             string `bson:"name"`
 	Head             string `bson:"head"`
 	CreateTime       int64  `bson:"create_time"`
@@ -79,7 +79,7 @@ func GetRolePublicFromCache(ctx context.Context, roleID int64) *RolePublicState 
 
 func GetRolePublicFromDB(ctx context.Context, roleID int64) *RolePublicState {
 	rolePublic := &RolePublicState{}
-	if err := LoadModuleState(ctx, roleID, rolePublic); err != nil {
+	if err := loadModuleState(ctx, roleID, rolePublic); err != nil {
 		glog.Errorf(ctx, "load role public from db failed, roleID: %d, err: %v", roleID, err)
 		return nil
 	}

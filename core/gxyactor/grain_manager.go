@@ -57,28 +57,24 @@ func NewGrainActivator(kind string, manager *grainManager) *grainActivator {
 	return a
 }
 
-func (a *grainActivator) Init(ctx context.Context) error {
+func (a *grainActivator) DelayInit(ctx context.Context) error {
+	ginfo, ok := a.manager.grainInfos[a.kind]
+	if !ok {
+		return fmt.Errorf("grain kind %s not registered", a.kind)
+	}
+	a.grainInfos = ginfo
+	a.grainInfos.Props = a.grainInfos.Props.Configure(
+		actor.WithReceiverMiddleware(a.grainReciveMiddleware()),
+	)
 	return nil
 }
 
 func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *pb.ActorActive:
-		supervisor := newSupervisor()
-		ginfo, ok := a.manager.grainInfos[a.kind]
-		if !ok {
-			glog.Warningf(ctx, "grain kind %s not registered", a.kind)
-			a.Respond(&pb.ActorError{
-				Reason: fmt.Sprintf("grain kind %s not registered", a.kind),
-			})
-			return nil
-		}
-		a.grainInfos = ginfo
-		props := ginfo.Props.Clone()
+		props := a.grainInfos.Props.Clone()
 		pid, err := a.SpawnNamed(props.Configure(
-			actor.WithSupervisor(supervisor),
-			actor.WithContextDecorator(a.contextDecorator(msg.Id)),
-			actor.WithReceiverMiddleware(a.grainReciveMiddleware())),
+			actor.WithContextDecorator(a.contextDecorator(msg.Id))),
 			msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
@@ -264,21 +260,22 @@ func (g *grainManager) getManagerName(kind string) string {
 func (g *grainManager) RegisterGrain(kind string, props GrainProducer) error {
 	newProps := actor.PropsFromProducer(func() actor.Actor {
 		return props()
-	})
+	}, actor.WithSupervisor(newSupervisor()))
 	ginfo := &grainInfo{
 		Kind:  kind,
 		Props: newProps,
 	}
+	g.grainInfos[kind] = ginfo
 	pid, err := g.sys.system.Root.SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
 			return NewGrainActivator(kind, g)
 		})), g.getManagerName(kind))
 	if err != nil {
+		g.grainInfos[kind] = nil
 		return err
 	}
 	ginfo.Activator = pid
 	ginfo.mgr = NewActorMgr(fmt.Sprintf("%s_%s", "grainMgr", kind))
-	g.grainInfos[kind] = ginfo
 	return nil
 }
 

@@ -134,7 +134,7 @@ func (a *ActorBase) HandleProtobufMsg(ctx context.Context, msg proto.Message) (p
 	tm := time.Now()
 	glog.Debugf(ctx, "handle msg start, msg: %v", util.FormatObject(msg))
 	result, err := a.CallHandlerMsg(ctx, msg)
-	glog.Debugf(ctx, "handle msg end, msg: %s, result: %s, err %s, cost: %vms",
+	glog.Debugf(ctx, "handle msg end, msg: %s, result: %s, err %+v, cost: %vms",
 		util.FormatObject(msg), util.FormatObject(result), err, time.Since(tm).Milliseconds())
 	if err != nil {
 		return nil, err
@@ -169,6 +169,10 @@ func (a *ActorBase) Timer() *ActorTimer {
 
 func (a *ActorBase) Self() PID {
 	return a.self
+}
+
+func (a *ActorBase) Init(ctx context.Context) error {
+	return nil
 }
 
 func (a *ActorBase) DelayInit(ctx context.Context) error {

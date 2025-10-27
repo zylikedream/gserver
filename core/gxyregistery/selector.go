@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"gserver/util"
 	"math/rand"
 
 	"github.com/gogf/gf/v2/container/gmap"
@@ -97,7 +98,7 @@ func (s *consistentHashSelector) Select(service string, key string, hservices Ha
 	}
 
 	// 为当前服务获取或创建哈希环
-	ringKey := key
+	ringKey := service
 	var ringObj any
 	if val := s.rings.Get(ringKey); val != nil {
 		ringObj = val
@@ -127,11 +128,13 @@ func (s *consistentHashSelector) Select(service string, key string, hservices Ha
 		})
 	}
 	ring := ringObj.(*gtree.AVLTree)
-	hashval := s.hashs.Get(service)
+	hashval := s.hashs.Get(ringKey)
 
 	if hashval == "" || hashval != hservices.Hash {
 		s.rebuildRing(ring, services)
-		s.hashs.Set(service, hservices.Hash)
+		s.hashs.Set(ringKey, hservices.Hash)
+		glog.Debugf(context.Background(), "consistentHashSelector rebuild ring, ring: %s, hash: %s, services: %s",
+			ringKey, hservices.Hash, util.FormatObject(services))
 	}
 
 	// 计算服务的哈希值

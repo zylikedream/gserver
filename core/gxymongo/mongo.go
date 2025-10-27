@@ -168,3 +168,13 @@ func (m *mongoClient) WithTransaction(ctx context.Context, fn func(ctx mongo.Ses
 
 	return session.WithTransaction(ctx, fn, opts...)
 }
+
+func (m *mongoClient) EnsureIndexes(ctx context.Context, Col string, indexes []mongo.IndexModel) error {
+	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
+	_, err := col.Indexes().CreateMany(ctx, indexes)
+	return err
+}
+
+func (m *mongoClient) GetClient() *mongo.Client {
+	return m.client
+}

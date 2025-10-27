@@ -8,7 +8,7 @@ import (
 )
 
 type RoleBasicState struct {
-	RolePersistState `bson:",inline"`
+	RolePersistState `bson:"inline"`
 	RoleName         string    `bson:"role_name"`
 	Head             string    `bson:"head"`
 	LoginTm          time.Time `bson:"login_tm"`
