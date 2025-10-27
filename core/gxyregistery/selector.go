@@ -14,7 +14,7 @@ import (
 )
 
 type ServiceSelector interface {
-	Select(service string, key string, services HashServices) *ServiceInfo
+	Select(ctx context.Context, service string, key string, services HashServices) *ServiceInfo
 }
 
 type randomServiceSelector struct {
@@ -26,7 +26,7 @@ func RandomSelector() ServiceSelector {
 	return randomSelector
 }
 
-func (s *randomServiceSelector) Select(service string, _ string, hservices HashServices) *ServiceInfo {
+func (s *randomServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *ServiceInfo {
 	services := hservices.ServiceInfos
 	if len(services) == 0 {
 		return nil
@@ -47,7 +47,7 @@ func RoundRobinSelector() ServiceSelector {
 	return roundRobinSelector
 }
 
-func (s *roundRobinServiceSelector) Select(service string, _ string, hservices HashServices) *ServiceInfo {
+func (s *roundRobinServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *ServiceInfo {
 	services := hservices.ServiceInfos
 	if len(services) == 0 {
 		return nil
@@ -91,7 +91,7 @@ func ConsistentHashSelectorWithVirtualNodes(count int) ServiceSelector {
 
 // Select 根据一致性哈希算法选择一个服务节点
 // 使用service作为key计算哈希值，在哈希环上找到对应的节点
-func (s *consistentHashSelector) Select(service string, key string, hservices HashServices) *ServiceInfo {
+func (s *consistentHashSelector) Select(ctx context.Context, service string, key string, hservices HashServices) *ServiceInfo {
 	services := hservices.ServiceInfos
 	if len(services) == 0 {
 		return nil
@@ -133,7 +133,7 @@ func (s *consistentHashSelector) Select(service string, key string, hservices Ha
 	if hashval == "" || hashval != hservices.Hash {
 		s.rebuildRing(ring, services)
 		s.hashs.Set(ringKey, hservices.Hash)
-		glog.Debugf(context.Background(), "consistentHashSelector rebuild ring, ring: %s, hash: %s, services: %s",
+		glog.Debugf(ctx, "consistentHashSelector rebuild ring, ring: %s, hash: %s, services: %s",
 			ringKey, hservices.Hash, util.FormatObject(services))
 	}
 

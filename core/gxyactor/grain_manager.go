@@ -232,12 +232,14 @@ type grainManager struct {
 	sys          *actorSystem
 	grainLocator *gxylocator.Locator
 	grainInfos   map[string]*grainInfo
+	ctx          context.Context
 }
 
 func NewGrainManager(sys *actorSystem) *grainManager {
 	return &grainManager{
 		sys:        sys,
 		grainInfos: make(map[string]*grainInfo),
+		ctx:        gxylog.NewContext(context.Background(), "grainManager"),
 	}
 }
 
@@ -289,7 +291,7 @@ func (g *grainManager) DeRegisterGrain(kind string) {
 }
 
 func (g *grainManager) spawnGrain(node string, kind string, id string) (PID, error) {
-	glog.Debugf(context.Background(), "spawn grain %s:%s at %s", kind, id, node)
+	glog.Debugf(g.ctx, "spawn grain %s:%s at %s", kind, id, node)
 	activator := actor.NewPID(node, g.getManagerName(kind))
 	rsp, err := g.sys.Call(activator, &pb.ActorActive{
 		Kind: kind,

@@ -93,5 +93,5 @@ func (s *serviceMgr) GetServiceInfo(ctx context.Context, name string, key string
 		return nil
 	}
 	glog.Debugf(ctx, "get service(%s:%s) success, services: %s", name, key, util.FormatObject(services))
-	return selector.Select(name, key, services)
+	return selector.Select(ctx, name, key, services)
 }
