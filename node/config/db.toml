@@ -1,8 +1,9 @@
 [mongo]
-	addr = "mongodb://root:test@localhost:27017/admin"
+	addr = "mongodb://root:test@localhost:27017/admin?directConnection=true"
 	database = "galaxy"
 	pool_size = {min = 0, max = 20}
-	connect_timeout = "5s"
+	connect_timeout = "3s"
+	replica_set = "rs0"
 [redis]
 	addr = "localhost:6379"
 	password = "@zyc0131"

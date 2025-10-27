@@ -392,6 +392,7 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 		rmod := mod.(IRoleModule)
 		rmod.OnCreate(ctx)
 	}
+	r.Public.UpdateRolePublic(ctx)
 	// 建号强制保存一次
 	if err := r.save(ctx, true); err != nil {
 		return err
@@ -407,6 +408,7 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 	glog.Infof(ctx, "role logout, roleID: %d", r.RoleID)
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
+	r.Public.UpdateRolePublic(ctx)
 	if err := r.save(ctx, false); err != nil {
 		return err
 	}

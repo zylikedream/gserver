@@ -28,8 +28,9 @@ const (
 )
 
 const (
-	FRIENND_STATE_APPLY  = 1
-	FRIENND_STATE_FRIEND = 2
+	FRIENND_STATE_APPLY   = 1 // 申请中
+	FRIENND_STATE_APPLIED = 2 // 已申请
+	FRIENND_STATE_FRIEND  = 3 // 好友
 )
 
 // Apply 申请添加好友
@@ -56,42 +57,57 @@ func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (
 	}
 
 	// 创建好友申请
-	apply := f.newApply(roleID, friendID, req.Source)
+	apply_send := f.newApply(roleID, friendID, req.Source, FRIENND_STATE_APPLY)
+	apply_recv := f.newApply(friendID, roleID, req.Source, FRIENND_STATE_APPLIED)
 
 	// 保存申请
-	_, err = gxymongo.Client().InsertOne(ctx, FriendRelationCol, apply)
+	// 1. 保存发送申请
+	_, err = gxymongo.Client().InsertOne(ctx, FriendRelationCol, apply_send)
 	if err != nil {
-		glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %s, friendID: %s", err, roleID, friendID)
+		glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
+		return nil, err
+	}
+
+	// 2. 保存接收申请
+	_, err = gxymongo.Client().InsertOne(ctx, FriendRelationCol, apply_recv)
+	if err != nil {
+		glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
 		return nil, err
 	}
 
 	// 获取申请者的公开信息
 	// 这里需要调用角色服务获取角色公开信息
 	// 暂时返回空的公开信息
-	return &api.ApplyFriendRes{ApplyNew: *apply}, nil
+	return &api.ApplyFriendRes{ApplyNew: *apply_send}, nil
 }
 
-func (f *FriendController) newApply(roleID int64, friendID int64, source string) *api.FriendInfo {
+func (f *FriendController) newApply(roleID int64, friendID int64, source string, applyState int) *api.FriendInfo {
 	return &api.FriendInfo{
 		RoleID:     roleID,
 		FriendID:   friendID,
 		Source:     source,
 		FriendTime: time.Now().Unix(),
-		State:      FRIENND_STATE_APPLY,
+		State:      int32(applyState),
 	}
 }
 
 // DealApply 处理好友申请
 func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq) (*api.DealApplyRes, error) {
 	// 查找待处理的申请
-	filter := bson.M{
+	applyfilter := bson.M{
 		"role_id":   req.ApplyerID,
 		"friend_id": req.RoleID,
 		"state":     FRIENND_STATE_APPLY,
 	}
 
+	applyedfilter := bson.M{
+		"role_id":   req.RoleID,
+		"friend_id": req.ApplyerID,
+		"state":     FRIENND_STATE_APPLIED,
+	}
+
 	var apply api.FriendInfo
-	err := gxymongo.Client().FindOne(ctx, &apply, FriendRelationCol, filter)
+	err := gxymongo.Client().FindOne(ctx, &apply, FriendRelationCol, applyfilter)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, ErrApplyNotFound
@@ -106,33 +122,23 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 
 	// 使用事务处理接受申请的逻辑，确保原子性
 	if req.Deal == 1 {
-		// 为双方创建好友关系
-		friendInfo1 := f.newFriend(req.ApplyerID, req.RoleID, apply.Source)
-		friendInfo2 := f.newFriend(req.RoleID, req.ApplyerID, apply.Source)
 
 		// 使用事务保证原子性
 		_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
-			// 1. 删除原来的申请记录
-			_, err := gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, filter)
-			if err != nil {
-				glog.Errorf(ctx, "delete friend apply failed: %v, roleID: %d, friendID: %d", err, req.ApplyerID, req.RoleID)
-				return nil, err
-			}
-
 			// 2. 插入双方好友关系
-			_, err = gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, friendInfo1)
+			_, err = gxymongo.Client().UpdateOne(sessCtx, FriendRelationCol, applyfilter, bson.M{"$set": bson.M{"state": FRIENND_STATE_FRIEND}})
 			if err != nil {
-				glog.Errorf(ctx, "insert friend info failed: %v, friend: %s", err, util.FormatObject(friendInfo1))
+				glog.Errorf(ctx, "udpate friend apply state failed: %v, filter: %s", err, util.FormatObject(applyfilter))
 				return nil, err
 			}
 
-			result, err := gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, friendInfo2)
+			_, err = gxymongo.Client().UpdateOne(sessCtx, FriendRelationCol, applyedfilter, bson.M{"$set": bson.M{"state": FRIENND_STATE_FRIEND}})
 			if err != nil {
-				glog.Errorf(ctx, "insert friend info failed: %v, friend: %s", err, util.FormatObject(friendInfo2))
+				glog.Errorf(ctx, "udpate friend apply state failed: %v, filter: %s", err, util.FormatObject(applyedfilter))
 				return nil, err
 			}
 
-			return result, nil
+			return nil, nil
 		})
 
 		if err != nil {
@@ -140,12 +146,26 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 			return nil, err
 		}
 
-		rsp.FriendNew = *friendInfo2
+		rsp.FriendNew = *f.newFriend(req.ApplyerID, req.RoleID, apply.Source)
 	} else {
 		// 拒绝申请，删除申请记录
-		_, err = gxymongo.Client().DeleteOne(ctx, FriendRelationCol, filter)
+		_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+			_, err = gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, applyfilter)
+			if err != nil {
+				glog.Errorf(ctx, "delete friend apply failed: %v, filter: %s", err, util.FormatObject(applyfilter))
+				return nil, err
+			}
+
+			_, err = gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, applyedfilter)
+			if err != nil {
+				glog.Errorf(ctx, "delete friend apply failed: %v, filter: %s", err, util.FormatObject(applyedfilter))
+				return nil, err
+			}
+
+			return nil, nil
+		})
 		if err != nil {
-			glog.Errorf(ctx, "delete friend apply failed: %v, roleID: %d, friendID: %d", err, req.ApplyerID, req.RoleID)
+			glog.Errorf(ctx, "delete friend apply transaction failed: %v", err)
 			return nil, err
 		}
 	}
@@ -211,7 +231,7 @@ func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriend
 	var friendInfos []api.FriendInfo
 	err := gxymongo.Client().Find(ctx, &friendInfos, FriendRelationCol, filter)
 	if err != nil {
-		glog.Errorf(ctx, "get friend list for role %s failed: %v", req.RoleID, err)
+		glog.Errorf(ctx, "get friend list for role %d failed: %v", req.RoleID, err)
 		return nil, err
 	}
 
@@ -225,14 +245,15 @@ func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriend
 	for _, info := range friendInfos {
 		// 这里应该从角色服务获取好友的公开信息
 		// 暂时创建空的公开信息
-		if info.State == FRIENND_STATE_APPLY {
-			if info.RoleID == req.RoleID {
-				rsp.ApplySendList = append(rsp.ApplySendList, info)
-			} else {
-				rsp.ApplyRecvList = append(rsp.ApplyRecvList, info)
-			}
-		} else {
+		switch info.State {
+		case FRIENND_STATE_APPLY:
+			rsp.ApplySendList = append(rsp.ApplySendList, info)
+		case FRIENND_STATE_APPLIED:
+			rsp.ApplyRecvList = append(rsp.ApplyRecvList, info)
+		case FRIENND_STATE_FRIEND:
 			rsp.FriendList = append(rsp.FriendList, info)
+		default:
+			glog.Warningf(ctx, "unknown friend state %d for role %d", info.State, req.RoleID)
 		}
 	}
 

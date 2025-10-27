@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/logger"
 	"gserver/util"
@@ -25,7 +26,7 @@ type tcpServerConfig struct {
 	Addr string `toml:"addr"`
 }
 
-var ctx = context.Background()
+var ctx = gxylog.NewContext(context.Background(), "TcpServer")
 
 func newTcpServer(c *gcfg.Config) (*TcpServer, error) {
 	server := &TcpServer{}

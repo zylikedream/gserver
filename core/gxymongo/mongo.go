@@ -32,6 +32,7 @@ type mongoConfig struct {
 		Min int `toml:"min"`
 	} `toml:"pool_size"`
 	ConnectTimeout time.Duration `toml:"connect_timeout"`
+	ReplicaSet     string        `toml:"replica_set"`
 }
 
 var mgoCli *mongoClient
@@ -65,6 +66,9 @@ func (m *mongoClient) OnModInit(ctx context.Context) error {
 	opt.SetLoggerOptions(&options.LoggerOptions{
 		Sink: NewMongoLogger(),
 	})
+	if conf.ReplicaSet != "" {
+		opt.SetReplicaSet(conf.ReplicaSet)
+	}
 	client, err := mongo.Connect(ctx, opt)
 	if err != nil {
 		return err
