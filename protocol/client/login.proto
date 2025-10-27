@@ -22,4 +22,5 @@ message RspAccountLogin {
 }
 
 message ReqAccountLogout {
+    string reason = 1;
 }
