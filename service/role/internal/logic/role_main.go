@@ -24,6 +24,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
+const (
+	SESSION_ALIVE_INTERVAL = 10 * time.Minute
+)
+
 var (
 	PersistTick = &gxytimer.Tick{
 		Name:     "save_role",
@@ -35,6 +39,10 @@ var (
 	}
 	PublicUpdateTick = &gxytimer.Tick{
 		Name:     "update_role_public",
+		Interval: 8 * time.Minute,
+	}
+	SessionAliveCheckTick = &gxytimer.Tick{
+		Name:     "check_session_alive",
 		Interval: 10 * time.Minute,
 	}
 )
@@ -63,9 +71,10 @@ type RoleMain struct {
 	*gxyactor.GrainBase
 	RoleID int64
 
-	modsHash map[string]uint64
-	session  gxyactor.PID
-	state    RoleState
+	modsHash          map[string]uint64
+	session           gxyactor.PID
+	state             RoleState
+	sessionActiveTime time.Time
 }
 
 func NewRoleMain() *RoleMain {
@@ -214,10 +223,11 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 }
 
 func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.Message) error {
+	r.sessionActiveTime = time.Now()
 	switch msg := msg.(type) {
 	case *pb.ReqAccountLogin:
+		glog.Warningf(ctx, "role already login, roleID: %d", r.RoleID)
 		if r.state == RoleStateLogined {
-			glog.Warningf(ctx, "role already login, roleID: %d", r.RoleID)
 			r.Respond(&pb.Ack{
 				Code:   10,
 				Path:   path,
@@ -359,6 +369,9 @@ func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 }
 
 func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (*pb.RspAccountLogin, error) {
+	if r.state == RoleStateLogined {
+		return nil, gerror.New("role already login")
+	}
 	sender := r.Sender()
 	if r.session != nil && !gxyactor.PidEqual(r.session, sender) { // 表示重复登录
 		// 断开旧连接
@@ -382,6 +395,9 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	}
 	r.Timer().Cancel(SignleAliveOnce.Name)
 	r.state = RoleStateLogined
+	if err := r.afterRoleLogin(ctx); err != nil {
+		return nil, err
+	}
 	return &pb.RspAccountLogin{
 		FirstLogin: firstLogin,
 	}, nil
@@ -400,12 +416,34 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	return nil
 }
 
+func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
+	r.sessionActiveTime = time.Now()
+	r.Timer().AddTick(ctx, SessionAliveCheckTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+		r.checkSessionAlive(ctx)
+	})
+	return nil
+}
+
+func (r *RoleMain) checkSessionAlive(ctx context.Context) {
+	if time.Since(r.sessionActiveTime) <= SESSION_ALIVE_INTERVAL {
+		return
+	}
+	r.dologout(ctx, "session alive timeout")
+}
+
 func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogout) error {
+	return r.dologout(ctx, req.Reason)
+}
+
+func (r *RoleMain) dologout(ctx context.Context, reason string) error {
+	if r.state == RoleStateLogout {
+		return nil
+	}
+	r.Timer().Cancel(SessionAliveCheckTick.Name)
 	sender := r.Sender()
 	if !gxyactor.PidEqual(sender, r.session) {
 		return nil
 	}
-	glog.Infof(ctx, "role logout, roleID: %d", r.RoleID)
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
 	r.Public.UpdateRolePublic(ctx)
@@ -416,6 +454,7 @@ func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogou
 		r.Stop(errors.New("single alive timeout"))
 	})
 	r.state = RoleStateLogout
+	glog.Infof(ctx, "role logout, roleID: %d, reason %s", r.RoleID, reason)
 	return nil
 }
 

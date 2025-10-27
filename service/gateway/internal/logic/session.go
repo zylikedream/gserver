@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"gserver/core/gxyactor"
@@ -32,9 +33,10 @@ const (
 type SessionState int
 
 const (
-	StateConnected    SessionState = iota // 已连接
-	StateLogin                            // 已登录
-	StateDisconnected                     // 已断开
+	StateConnected SessionState = iota // 已连接
+	StateHandshake                     // 已登录
+	StateLogin
+	StateDisconnected // 已断开
 )
 
 // SessionInfo 会话信息
@@ -150,7 +152,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		return gerror.Newf("send rsp error, err: %v", err)
 	}
 	SessionMgr().Add(roleID, s.Self())
-	s.state = StateLogin
+	s.state = StateHandshake
 	return nil
 }
 
@@ -168,10 +170,16 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		if !ok {
 			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", util.FormatObject(pbmsg))
 		}
-		glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.FormatObject(pbmsg))
-		if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
-			return gerror.Wrap(err, "send data msg error")
+		switch pbmsg.(type) {
+		case *pb.ReqAccountLogout:
+			s.Stop(gerror.New("client account logout"))
+		default:
+			glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.FormatObject(pbmsg))
+			if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
+				return gerror.Wrap(err, "send data msg error")
+			}
 		}
+
 	}
 
 	return nil
@@ -196,6 +204,10 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	if err != nil {
 		return gerror.Wrap(err, "unmarshal rsp error, err: %v")
 	}
+	switch pbmsg.(type) {
+	case *pb.RspAccountLogin:
+		s.state = StateLogin
+	}
 	if err := s.endpoint.SendMsg(pbmsg); err != nil {
 		return gerror.Wrap(err, "send rsp error, err: %v")
 	}
@@ -211,9 +223,11 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		s.endpoint.SetData(nil)
 		s.endpoint.Conn().Close()
 	}
-	if s.sessionInfo.RolePid != nil && s.IsLogin() {
+	if s.sessionInfo.RolePid != nil {
 		s.Actx.Unwatch(s.sessionInfo.RolePid)
-		msg := &pb.ReqAccountLogout{}
+		msg := &pb.ReqAccountLogout{
+			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
+		}
 		s.SendDataMsg(msg, util.GetObjectName(msg))
 	}
 	s.state = StateDisconnected
@@ -233,9 +247,4 @@ func (s *Session) updateServerLastActive() {
 // GetSessionInfo 获取会话信息
 func (s *Session) GetSessionInfo() *SessionInfo {
 	return s.sessionInfo
-}
-
-// IsAuthenticated 是否已认证
-func (s *Session) IsLogin() bool {
-	return s.state == StateLogin && s.sessionInfo.RoleID != 0
 }

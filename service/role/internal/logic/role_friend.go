@@ -13,6 +13,10 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
+const (
+	RoleFriendCacheExpire = 2 * time.Hour
+)
+
 type FriendData struct {
 	FriendID     int64     `bson:"friend_id"`
 	SendGiftTime time.Time `bson:"send_gift_time"`
@@ -50,7 +54,7 @@ func (r *RoleFriend) PersistState() IPersistState {
 }
 
 func (r *RoleFriend) ensureFriendInfo(ctx context.Context) (*friendCache, error) {
-	if !r.cache.updateTime.IsZero() {
+	if !r.cache.updateTime.IsZero() && time.Since(r.cache.updateTime) < RoleFriendCacheExpire {
 		return &r.cache, nil
 	}
 	FriendInfo, err := friend.FriendService().GetFriendInfo(ctx, r.RoleID)
