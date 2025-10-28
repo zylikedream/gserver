@@ -4,6 +4,7 @@ import (
 	"context"
 	"gserver/core/gxyactor"
 	gameconfig "gserver/gameconfig/src"
+	"gserver/protocol/pb"
 	"gserver/service"
 	"gserver/service/role/internal/logic"
 	"strconv"
@@ -57,16 +58,9 @@ func (s *roleService) GetRole(roleID int64) (gxyactor.PID, error) {
 	return pid, nil
 }
 
-// func (s *roleService) GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
-// 	rolePublic := logic.GetRolePublic(ctx, roleID)
-// 	if rolePublic == nil {
-// 		glog.Warningf(ctx, "role public not found, roleID: %d, return default", roleID)
-// 		return &pb.PRolePublic{
-// 			RoleId: roleID,
-// 		}
-// 	}
-// 	return rolePublic
-// }
+func (s *roleService) GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
+	return logic.GetRolePublic(ctx, roleID)
+}
 
 func GetRoleIDByAccount(account string) (int64, error) {
 	return logic.GetRoleIDByAccount(account)
