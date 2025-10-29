@@ -8,13 +8,11 @@ import (
 	"gserver/service/friend/api"
 	"gserver/service/friend/internal/logic"
 
-	"github.com/gogf/gf/v2/net/gclient"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
 type friendService struct {
 	gxyhttp.HttpService
-	client     *gclient.Client
 	controller *logic.FriendController
 }
 

@@ -11,6 +11,7 @@ import (
 	"gserver/protocol/pb"
 	"gserver/util"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -475,4 +476,20 @@ func (r *RoleMain) GetRolePublic(ctx context.Context) *pb.PRolePublic {
 		Head:       r.Basic.Head,
 		CreateTime: r.Basic.CreateTm.Unix(),
 	}
+}
+
+func GetRole(roleID int64) (gxyactor.PID, error) {
+	pid, err := gxyactor.ActorSystem().GetGrain(ROLE_GRAIN_TYPE, strconv.Itoa(int(roleID)))
+	if err != nil {
+		return nil, err
+	}
+	return pid, nil
+}
+
+func GetRoleOnline(roleID int64) (gxyactor.PID, error) {
+	pid, err := gxyactor.ActorSystem().GetGrain(ROLE_GRAIN_TYPE, strconv.Itoa(int(roleID)), false)
+	if err != nil {
+		return nil, err
+	}
+	return pid, nil
 }

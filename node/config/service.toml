@@ -6,3 +6,5 @@
 	address = "localhost:8500"
 	ttl = "10s"
 	refresh_ttl = "10s"
+[mq.pulsar]
+	url = "pulsar://localhost:6650"

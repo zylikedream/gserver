@@ -2,13 +2,10 @@ package logic
 
 import (
 	"context"
-	"gserver/core/gxyactor"
 	"gserver/protocol/pb"
-	"gserver/service"
 	"gserver/service/friend"
 	"gserver/service/friend/api"
 	"slices"
-	"strconv"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -164,8 +161,6 @@ func (r *RoleFriend) applyFriendSingle(ctx context.Context, friendID int64, sour
 		return nil, gerror.Wrapf(err, "%d apply friend failed", friendID)
 	}
 	r.cache.applySendList = append(r.cache.applySendList, rsp.ApplyNew)
-	// todo notify friend change
-	gxyactor.ActorSystem().GetGrain(service.ROLE_SERVICE, strconv.Itoa(int(friendID)))
 	return &rsp.ApplyNew, nil
 }
 

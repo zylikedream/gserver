@@ -7,7 +7,6 @@ import (
 	"gserver/protocol/pb"
 	"gserver/service"
 	"gserver/service/role/internal/logic"
-	"strconv"
 )
 
 type roleService struct {
@@ -51,11 +50,7 @@ func (r *roleService) OnModStop(ctx context.Context) error {
 }
 
 func (s *roleService) GetRole(roleID int64) (gxyactor.PID, error) {
-	pid, err := gxyactor.ActorSystem().GetGrain(s.Name(), strconv.Itoa(int(roleID)))
-	if err != nil {
-		return nil, err
-	}
-	return pid, nil
+	return logic.GetRole(roleID)
 }
 
 func (s *roleService) GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
