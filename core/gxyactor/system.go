@@ -7,6 +7,7 @@ import (
 
 	"gserver/core/gxymodule"
 	"gserver/protocol/pb"
+	"gserver/util"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
@@ -161,6 +162,22 @@ func (a *actorSystem) RpcCall(pid PID, message proto.Message) (proto.Message, er
 	}
 	pres, _ := res.(proto.Message)
 	return pres, nil
+}
+
+func (a *actorSystem) Notify(pid PID, message any) error {
+	if a.system == nil {
+		return fmt.Errorf("node not initialized")
+	}
+	msgData, err := util.EncodeMsg(message)
+	if err != nil {
+		return gerror.Wrapf(err, "encode message error, msg: %v", message)
+	}
+	msg := &pb.PushMessage{
+		MsgName: util.GetObjectName(message),
+		MsgData: string(msgData),
+	}
+	a.system.Root.Send(pid, msg)
+	return nil
 }
 
 func (a *actorSystem) GetNodeName() string {

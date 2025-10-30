@@ -322,7 +322,7 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 		return actor.NewPID(pid.Address, pid.Id), nil
 	}
 	if !spawn {
-		return nil, gerror.Newf("grain %s:%s not found", kind, id)
+		return nil, nil
 	}
 
 	grainInfo := gxyservice.ServiceManager().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())

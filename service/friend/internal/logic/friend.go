@@ -6,7 +6,8 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxymongo"
-	"gserver/service/friend/api"
+	"gserver/service/api"
+	"gserver/service/push"
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/os/glog"
@@ -74,10 +75,9 @@ func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (
 		glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
 		return nil, err
 	}
+	// 3. 通知好友
+	f.notifyFriend(ctx, friendID, roleID, api.FriendNotifyTypeApplyRecv)
 
-	// 获取申请者的公开信息
-	// 这里需要调用角色服务获取角色公开信息
-	// 暂时返回空的公开信息
 	return &api.ApplyFriendRes{ApplyNew: *apply_send}, nil
 }
 
@@ -146,6 +146,8 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 			return nil, err
 		}
 
+		// 4. 通知好友
+		f.notifyFriend(ctx, req.ApplyerID, req.RoleID, api.FriendNotifyTypeAdd)
 		rsp.FriendNew = *f.newFriend(req.ApplyerID, req.RoleID, apply.Source)
 	} else {
 		// 拒绝申请，删除申请记录
@@ -219,6 +221,7 @@ func (f *FriendController) Delete(ctx context.Context, req *api.DeleteFriendReq)
 		glog.Errorf(ctx, "delete friend transaction failed: %v", err)
 		return nil, err
 	}
+	f.notifyFriend(ctx, req.FriendID, req.RoleID, api.FriendNotifyTypeDel)
 
 	return &api.DeleteFriendRes{}, nil
 }
@@ -243,8 +246,6 @@ func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriend
 	}
 
 	for _, info := range friendInfos {
-		// 这里应该从角色服务获取好友的公开信息
-		// 暂时创建空的公开信息
 		switch info.State {
 		case FRIENND_STATE_APPLY:
 			rsp.ApplySendList = append(rsp.ApplySendList, info)
@@ -299,6 +300,17 @@ func (f *FriendController) applyExists(ctx context.Context, ApplyerID int64, tar
 	}
 
 	return true, nil
+}
+
+func (r *FriendController) notifyFriend(ctx context.Context, roleID int64, friendID int64, notifyType int32) {
+	push.PushService().NotifyRoleMessageOnline(ctx, roleID, &api.FriendNotify{
+		NotifyList: []api.PFriendNotify{
+			{
+				Type:     notifyType,
+				FriendID: friendID,
+			},
+		},
+	})
 }
 
 // 错误定义

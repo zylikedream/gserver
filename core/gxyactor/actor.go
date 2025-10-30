@@ -111,6 +111,11 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if rsp != nil {
 			a.Respond(rsp)
 		}
+	case *pb.PushMessage:
+		if err := a.handlePushMsg(a.ctx, msg); err != nil {
+			glog.Errorf(a.ctx, "handle push msg failed, error:%+v", err)
+			return nil
+		}
 	case *pb.ActorStop:
 		a.Stop(gerror.New(msg.Reason))
 	case *actor.Stopped:
@@ -118,6 +123,23 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		a.actor.Terminate(a.ctx, a.stopErr)
 	default:
 		return a.actor.HandleMessage(a.ctx, ctx.Message())
+	}
+	return nil
+}
+
+func (a *ActorBase) handlePushMsg(ctx context.Context, msg *pb.PushMessage) error {
+	meta := a.msgHandler.GetMethodMetaByName(msg.MsgName)
+	if meta == nil {
+		return gerror.Newf("method not found for msg %s", msg.MsgName)
+	}
+	arg := util.NewObject(meta.ArgType)
+	if err := util.DecodeMsg([]byte(msg.MsgData), arg); err != nil {
+		return gerror.Wrapf(err, "unmarshal push msg error, msg: %s", msg.MsgName)
+	}
+	// push 没有返回值
+	_, err := a.CallHandlerMsg(ctx, arg)
+	if err != nil {
+		return err
 	}
 	return nil
 }

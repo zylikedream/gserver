@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
+	"gserver/core/gxymq"
 	"gserver/core/gxyredis"
 	"gserver/core/gxyservice"
 
@@ -57,6 +58,7 @@ func (a *node) GetModName() string {
 
 func (n *node) OnModInit(ctx context.Context) error {
 	n.LoadModule(gxyredis.NewRedisClient("node/config/db.toml"))
+	n.LoadModule(gxymq.NewInstance("node/config/service.toml"))
 	n.LoadModule(gxyactor.NewActorSystem(n.Name, n.Host))
 	n.LoadModule(gxyhttp.NewHttpSystem(n.Name, n.Host))
 	svcMgr := gxyservice.NewServiceManager(n.Name)

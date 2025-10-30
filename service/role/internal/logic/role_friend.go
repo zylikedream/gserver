@@ -3,8 +3,8 @@ package logic
 import (
 	"context"
 	"gserver/protocol/pb"
+	"gserver/service/api"
 	"gserver/service/friend"
-	"gserver/service/friend/api"
 	"slices"
 	"time"
 
@@ -53,39 +53,43 @@ func (r *RoleFriend) PersistState() IPersistState {
 	return &r.RoleFriendState
 }
 
-func (r *RoleFriend) ensureFriendInfo(ctx context.Context) (*friendCache, error) {
+func (r *RoleFriend) ensureFriendInfo(ctx context.Context) {
 	if !r.cache.updateTime.IsZero() && time.Since(r.cache.updateTime) < RoleFriendCacheExpire {
-		return &r.cache, nil
+		return
 	}
 	FriendInfo, err := friend.FriendService().GetFriendInfo(ctx, r.RoleID)
 	if err != nil {
 		glog.Errorf(ctx, "get friend info failed, roleID: %d, err: %+v", r.RoleID, err)
-		return &r.cache, gerror.Wrapf(err, "get friend info failed")
+		return
 	}
 	r.cache.friendList = FriendInfo.FriendList
+	newFriendDataList := make(map[int64]FriendData)
+	for _, friend := range r.cache.friendList {
+		if v, ok := r.FriendDataList[friend.FriendID]; !ok {
+			r.FriendDataList[friend.FriendID] = r.newFriendData(friend.FriendID)
+		} else {
+			newFriendDataList[friend.FriendID] = v
+		}
+	}
+	r.FriendDataList = newFriendDataList
 	r.cache.applySendList = FriendInfo.ApplySendList
 	r.cache.applyRecvList = FriendInfo.ApplyRecvList
 	r.cache.updateTime = time.Now()
-	return &r.cache, nil
 
 }
 
 func (r *RoleFriend) ReqFriendInfo(ctx context.Context, req *pb.ReqFriendInfo) (*pb.RspFriendInfo, error) {
-
-	FriendInfo, err := r.ensureFriendInfo(ctx)
-	if err != nil {
-		return nil, err
-	}
+	r.ensureFriendInfo(ctx)
 	rsp := &pb.RspFriendInfo{}
-	for _, friend := range FriendInfo.friendList {
+	for _, friend := range r.cache.friendList {
 		rsp.Friends = append(rsp.Friends, r.packFriendInfo(ctx, &friend))
 	}
-	for _, apply := range FriendInfo.applySendList {
+	for _, apply := range r.cache.applySendList {
 		rsp.ApplySend = append(rsp.ApplySend, &pb.PFriendApply{
 			Base: r.packFriendBase(ctx, &apply),
 		})
 	}
-	for _, apply := range FriendInfo.applyRecvList {
+	for _, apply := range r.cache.applyRecvList {
 		rsp.ApplyRecv = append(rsp.ApplyRecv, &pb.PFriendApply{
 			Base: r.packFriendBase(ctx, &apply),
 		})
@@ -122,6 +126,7 @@ func (r *RoleFriend) ReqFriendApply(ctx context.Context, req *pb.ReqFriendApply)
 	if len(req.ApplyList) == 0 {
 		return nil, gerror.New("apply list is empty")
 	}
+	r.ensureFriendInfo(ctx)
 	var errs []error
 	var newApply []*api.FriendInfo
 	for _, apply := range req.ApplyList {
@@ -165,30 +170,42 @@ func (r *RoleFriend) applyFriendSingle(ctx context.Context, friendID int64, sour
 }
 
 func (r *RoleFriend) isFriend(friendID int64) bool {
-	return r.isInFriendList(friendID, r.cache.friendList)
+	return r.getFriendInfo(friendID) != nil
 }
 
+func (r *RoleFriend) getFriendInfo(friendID int64) *api.FriendInfo {
+	return r.GetFriendFromList(friendID, r.cache.friendList)
+}
 func (r *RoleFriend) isApplySend(friendID int64) bool {
-	return r.isInFriendList(friendID, r.cache.applySendList)
+	return r.getApplySend(friendID) != nil
+}
+
+func (r *RoleFriend) getApplySend(friendID int64) *api.FriendInfo {
+	return r.GetFriendFromList(friendID, r.cache.applySendList)
 }
 
 func (r *RoleFriend) isApplyRecv(friendID int64) bool {
-	return r.isInFriendList(friendID, r.cache.applyRecvList)
+	return r.getApplyRecv(friendID) != nil
 }
 
-func (r *RoleFriend) isInFriendList(friendID int64, friendList []api.FriendInfo) bool {
+func (r *RoleFriend) getApplyRecv(friendID int64) *api.FriendInfo {
+	return r.GetFriendFromList(friendID, r.cache.applyRecvList)
+}
+
+func (r *RoleFriend) GetFriendFromList(friendID int64, friendList []api.FriendInfo) *api.FriendInfo {
 	for _, friend := range friendList {
 		if friend.FriendID == friendID {
-			return true
+			return &friend
 		}
 	}
-	return false
+	return nil
 }
 
 func (r *RoleFriend) ReqFriendDealApply(ctx context.Context, req *pb.ReqFriendDealApply) (*pb.RspFriendDealApply, error) {
 	if len(req.RoleId) == 0 {
 		return nil, gerror.New("role id is empty")
 	}
+	r.ensureFriendInfo(ctx)
 	var errs []error
 	var applyRecvDeleted []*api.FriendInfo
 	var friendNewList []*api.FriendInfo
@@ -257,6 +274,7 @@ func (r *RoleFriend) ReqFriendDelete(ctx context.Context, req *pb.ReqFriendDelet
 	if len(req.RoleId) == 0 {
 		return nil, gerror.New("role id is empty")
 	}
+	r.ensureFriendInfo(ctx)
 	var errs []error
 	var friendDeleted []int64
 	for _, friendID := range req.RoleId {
@@ -287,4 +305,32 @@ func (r *RoleFriend) deleteFriendSingle(ctx context.Context, friendID int64) (in
 	r.cache.friendList = r.removeFriendList(r.RoleID, friendID, r.cache.friendList)
 	delete(r.FriendDataList, friendID)
 	return friendID, nil
+}
+
+func (r *RoleFriend) OnFriendNotify(ctx context.Context, notify *api.FriendNotify) error {
+	lastUpdateTime := r.cache.updateTime
+	update := &pb.NotifyFriendUpdate{}
+	for _, notify := range notify.NotifyList {
+		if notify.NotifyTime.After(lastUpdateTime) {
+			// 重置缓存时间，让其过期
+			r.cache.updateTime = time.Time{}
+			r.ensureFriendInfo(ctx)
+			break
+		}
+	}
+	for _, notify := range notify.NotifyList {
+		if notify.NotifyTime.Before(lastUpdateTime) {
+			continue
+		}
+		switch notify.Type {
+		case api.FriendNotifyTypeAdd:
+			update.FriendAddList = append(update.FriendAddList, r.packFriendInfo(ctx, r.getFriendInfo(notify.FriendID)))
+		case api.FriendNotifyTypeDel:
+			update.FriendDelList = append(update.FriendDelList, notify.FriendID)
+		case api.FriendNotifyTypeApplyRecv:
+			update.FriendRecvAddList = append(update.FriendRecvAddList, r.packFriendInfo(ctx, r.getApplyRecv(notify.FriendID)))
+		}
+	}
+	r.Role.SendClient(ctx, update)
+	return nil
 }

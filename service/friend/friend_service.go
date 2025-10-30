@@ -5,7 +5,7 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/service"
-	"gserver/service/friend/api"
+	"gserver/service/api"
 	"gserver/service/friend/internal/logic"
 
 	"github.com/gogf/gf/v2/util/gconv"

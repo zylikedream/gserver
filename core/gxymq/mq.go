@@ -2,7 +2,10 @@ package gxymq
 
 import (
 	"context"
+	"gserver/core/gxymodule"
+	"gserver/util"
 
+	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -23,48 +26,80 @@ type IMessageQueue interface {
 	Close(ctx context.Context) error
 }
 
-type MessageQueue struct {
+type messageQueueConfig struct {
+	Type        MessageQueueType `json:"type"`
+	WorkerCount int              `json:"worker_count"`
+}
+
+type messageQueue struct {
+	gxymodule.ModuleBase
 	queue      IMessageQueue
 	priorityCh []chan PriorityData
 	subs       map[string]*SubInfo
+	config     *messageQueueConfig
 	// 是否已关闭
 	closed bool
 	stopCh chan struct{}
 }
 
+var ins *messageQueue
+
+func Instance() *messageQueue {
+	return ins
+}
+
 // NewMessageQueue 创建默认的消息队列实例
 // 默认使用Redis实现，如果Redis不可用则尝试使用Pulsar
-func NewMessageQueue(t MessageQueueType, config string) (*MessageQueue, error) {
+func NewMessageQueue(conf *messageQueueConfig, queue IMessageQueue) *messageQueue {
 	// 首先尝试创建Redis消息队列
-	mq := &MessageQueue{
+	mq := &messageQueue{
 		priorityCh: make([]chan PriorityData, TOPIC_PRIORITY_MAX),
+		config:     conf,
+		queue:      queue,
 	}
 	for i := range int(TOPIC_PRIORITY_MAX) {
 		mq.priorityCh[i] = make(chan PriorityData, 1000)
 	}
-	var err error
-	switch t {
-	case MQTypePulsar:
-		mq.queue, err = NewPulsarMQ(config)
-	case MQTypeRedis:
-		mq.queue, err = NewRedisMQ(config)
-	default:
-		mq.queue, err = NewRedisMQ(config)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return mq, nil
+
+	return mq
 }
 
-func (mq *MessageQueue) Start(ctx context.Context) error {
+func NewInstance(config string) *messageQueue {
+	conf := &messageQueueConfig{}
+	cfg := gcfg.Instance(config)
+	if err := util.CfgUnmarshalKey(context.Background(), cfg, "mq", conf); err != nil {
+		glog.Fatalf(context.Background(), "Failed to unmarshal message queue config: %+v", err)
+	}
+	var err error
+	var queue IMessageQueue
+	switch conf.Type {
+	case MQTypePulsar:
+		queue, err = NewPulsarMQ(config)
+	case MQTypeRedis:
+		queue, err = NewRedisMQ(config)
+	default:
+		queue, err = NewRedisMQ(config)
+	}
+	if err != nil {
+		glog.Fatalf(context.Background(), "Failed to create message queue: %+v", err)
+	}
+	ins = NewMessageQueue(conf, queue)
+	if err != nil {
+		glog.Fatalf(context.Background(), "Failed to create message queue: %+v", err)
+	}
+	return ins
+}
+
+func (mq *messageQueue) OnModStart(ctx context.Context) error {
 	if err := mq.queue.Start(ctx); err != nil {
 		return err
 	}
 	if err := mq.startSubscribe(ctx); err != nil {
 		return err
 	}
-	go mq.processMessages(ctx)
+	for range mq.config.WorkerCount {
+		go mq.processMessages(ctx)
+	}
 	if err := mq.queue.Start(ctx); err != nil {
 		return err
 	}
@@ -72,13 +107,13 @@ func (mq *MessageQueue) Start(ctx context.Context) error {
 }
 
 // Publish 发布消息到指定主题
-func (mq *MessageQueue) Publish(ctx context.Context, topic string, msg string) error {
+func (mq *messageQueue) Publish(ctx context.Context, topic string, msg string) error {
 	// 直接使用Redis的PUBLISH命令发布消息
 	return mq.queue.Publish(ctx, topic, msg)
 }
 
 // Subscribe 订阅指定主题，基于topic优先级处理消息
-func (mq *MessageQueue) Subscribe(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error, priorityArg ...MessagePriority) error {
+func (mq *messageQueue) Subscribe(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error, priorityArg ...MessagePriority) error {
 	priority := TOPIC_PRIORITY_NORMAL
 	if len(priorityArg) > 0 {
 		priority = priorityArg[0]
@@ -91,7 +126,7 @@ func (mq *MessageQueue) Subscribe(ctx context.Context, topic string, handler fun
 	return nil
 }
 
-func (mq *MessageQueue) startSubscribe(ctx context.Context) error {
+func (mq *messageQueue) startSubscribe(ctx context.Context) error {
 	for _, sub := range mq.subs {
 		if err := mq.doSubscribe(ctx, sub); err != nil {
 			return err
@@ -99,7 +134,7 @@ func (mq *MessageQueue) startSubscribe(ctx context.Context) error {
 	}
 	return nil
 }
-func (mq *MessageQueue) doSubscribe(ctx context.Context, subInfo *SubInfo) error {
+func (mq *messageQueue) doSubscribe(ctx context.Context, subInfo *SubInfo) error {
 	// 创建Redis订阅者
 	mq.queue.Subscribe(ctx, subInfo.Topic, func(ctx context.Context, msg string) error {
 		// 发送消息到通道
@@ -118,7 +153,7 @@ func (mq *MessageQueue) doSubscribe(ctx context.Context, subInfo *SubInfo) error
 }
 
 // processMessages 处理消息
-func (mq *MessageQueue) processMessages(ctx context.Context) error {
+func (mq *messageQueue) processMessages(ctx context.Context) error {
 	// 获取topic优先级，用于日志记录
 	for {
 	pri:
@@ -143,7 +178,7 @@ func (mq *MessageQueue) processMessages(ctx context.Context) error {
 }
 
 // Close 关闭消息队列，释放所有资源
-func (mq *MessageQueue) Close(ctx context.Context) error {
+func (mq *messageQueue) Close(ctx context.Context) error {
 	if mq.closed {
 		return nil // 已经关闭，直接返回
 	}

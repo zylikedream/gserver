@@ -11,6 +11,7 @@ import (
 	"gserver/core/gxynet/message"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
+	"gserver/service"
 	"gserver/service/role"
 	"gserver/util"
 
@@ -135,7 +136,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		return gerror.Wrapf(err, "get role id error, account: %s", firstpacket.AccountUid)
 	}
 	s.SetLogValue(gxylog.ContextKeyRoleID, roleID)
-	rolePid, err := role.RoleService().GetRole(roleID)
+	rolePid, err := service.GetRoleGrain(roleID)
 	if err != nil {
 		return gerror.Wrapf(err, "get role grain error, role: %d", roleID)
 	}

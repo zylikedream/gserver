@@ -11,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/gogo/protobuf/proto"
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -62,4 +63,32 @@ func FormatObject(msg any) string {
 		return "nil{}"
 	}
 	return fmt.Sprintf("%T%s", msg, gjson.MustEncode(msg))
+}
+
+func EncodeMsg(msg any) ([]byte, error) {
+	switch v := msg.(type) {
+	case string:
+		return []byte(v), nil
+	case []byte:
+		return v, nil
+	case proto.Message:
+		return proto.Marshal(v)
+	default:
+		return gjson.Encode(v)
+	}
+}
+
+func DecodeMsg(msgData []byte, msg any) error {
+	switch v := msg.(type) {
+	case *string:
+		*v = string(msgData)
+		return nil
+	case *[]byte:
+		*v = msgData
+		return nil
+	case proto.Message:
+		return proto.Unmarshal(msgData, v)
+	default:
+		return gjson.Unmarshal(msgData, v)
+	}
 }

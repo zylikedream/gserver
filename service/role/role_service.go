@@ -49,10 +49,6 @@ func (r *roleService) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (s *roleService) GetRole(roleID int64) (gxyactor.PID, error) {
-	return logic.GetRole(roleID)
-}
-
 func (s *roleService) GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
 	return logic.GetRolePublic(ctx, roleID)
 }

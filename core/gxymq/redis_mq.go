@@ -20,13 +20,14 @@ type RedisMQ struct {
 // NewRedisMQ 创建Redis消息队列实例
 func NewRedisMQ(_ string) (*RedisMQ, error) {
 	mq := &RedisMQ{
-		client: gxyredis.GetRedis().Client,
 		stopCh: make(chan struct{}),
 	}
 	return mq, nil
 }
 
 func (mq *RedisMQ) Start(ctx context.Context) error {
+	// 初始化Redis客户端
+	mq.client = gxyredis.GetRedis().Client
 	return nil
 }
 
