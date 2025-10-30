@@ -1,14 +1,18 @@
 package api
 
-import "github.com/gogf/gf/v2/frame/g"
+import (
+	"time"
+
+	"github.com/gogf/gf/v2/frame/g"
+)
 
 // FriendInfo 好友信息结构
 type FriendInfo struct {
-	RoleID     int64  `bson:"role_id"`
-	FriendID   int64  `bson:"friend_id"`
-	Source     string `bson:"source"` //来源
-	FriendTime int64  `bson:"friend_time"`
-	State      int32  `bson:"state"` // 1-申请中, 2-好友
+	RoleID     int64     `bson:"role_id"`
+	FriendID   int64     `bson:"friend_id"`
+	Source     string    `bson:"source"` //来源
+	FriendTime time.Time `bson:"friend_time"`
+	State      int32     `bson:"state"` // 1-申请中, 2-好友
 }
 
 // 请求参数结构
@@ -49,6 +53,10 @@ type GetFriendListReq struct {
 }
 
 type GetFriendListRes struct {
+	FriendData FriendData `json:"friend_data"`
+}
+
+type FriendData struct {
 	FriendList    []FriendInfo `json:"friend_list"`
 	ApplySendList []FriendInfo `json:"apply_send_list"`
 	ApplyRecvList []FriendInfo `json:"apply_recv_list"`

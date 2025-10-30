@@ -2,15 +2,19 @@ package logic
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxymongo"
+	"gserver/core/gxyredis"
 	"gserver/service/api"
 	"gserver/service/push"
 	"gserver/util"
 
+	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -34,26 +38,103 @@ const (
 	FRIENND_STATE_FRIEND  = 3 // 好友
 )
 
+type friendInfoList struct {
+	FriendList []api.FriendInfo `json:"friend_list"`
+}
+
+func (f *friendInfoList) getFriendInfo(friendID int64) *api.FriendInfo {
+	for _, friend := range f.FriendList {
+		if friend.FriendID == friendID {
+			return &friend
+		}
+	}
+	return nil
+}
+
+func (f *friendInfoList) isFriend(friendID int64) bool {
+	info := f.getFriendInfo(friendID)
+	return info != nil && info.State == FRIENND_STATE_FRIEND
+}
+
+func (f *friendInfoList) isApplySend(friendID int64) bool {
+	info := f.getFriendInfo(friendID)
+	return info != nil && info.State == FRIENND_STATE_APPLY
+}
+
+func getFriendCacheKey(roleID int64) string {
+	return fmt.Sprintf("friend_data:%d", roleID)
+}
+
+func (f *FriendController) getFriendInfoList(ctx context.Context, roleID int64) (*friendInfoList, error) {
+	cacheKey := getFriendCacheKey(roleID)
+	rd := gxyredis.GetRedis()
+	friendInfoList := &friendInfoList{}
+	friendMap, err := rd.HGetAll(ctx, cacheKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			friendList, err := f.getFriendInfoListFromDB(ctx, roleID)
+			if err != nil {
+				return nil, err
+			}
+			kvList := []any{}
+			for _, friend := range *friendList {
+				kvList = append(kvList, fmt.Sprintf("%d", friend.FriendID), gjson.MustEncodeString(friend))
+			}
+			// 使用 HMSet 一次性写入
+			_, err = rd.HMSet(ctx, cacheKey, kvList...).Result()
+			rd.Expire(ctx, cacheKey, time.Hour)
+			if err != nil {
+				glog.Errorf(ctx, "HMSet friend data failed: %v", err)
+				return nil, err
+			}
+			friendInfoList.FriendList = *friendList
+		} else {
+			return nil, err
+		}
+	} else {
+		for friendID, friendStr := range friendMap {
+			friendInfo := api.FriendInfo{}
+			err := gjson.Unmarshal([]byte(friendStr), &friendInfo)
+			if err != nil {
+				glog.Errorf(ctx, "unmarshal friend info failed: %v, friendID: %d", err, friendID)
+				continue
+			}
+			friendInfoList.FriendList = append(friendInfoList.FriendList, friendInfo)
+		}
+	}
+	return friendInfoList, nil
+}
+
+func (f *FriendController) getFriendInfoListFromDB(ctx context.Context, roleID int64) (*[]api.FriendInfo, error) {
+	filter := bson.M{"role_id": roleID}
+
+	var friendInfos []api.FriendInfo
+	err := gxymongo.Client().Find(ctx, &friendInfos, FriendRelationCol, filter)
+	if err != nil {
+		glog.Errorf(ctx, "get friend list for role %d failed: %v", roleID, err)
+		return nil, err
+	}
+	return &friendInfos, nil
+}
+
 // Apply 申请添加好友
 func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (*api.ApplyFriendRes, error) {
 	roleID := req.RoleID
 	friendID := req.FriendID
 
-	// 检查是否已经是好友
-	isFriend, err := f.isFriend(ctx, roleID, friendID)
+	friendInfoList, err := f.getFriendInfoList(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
+	// 检查是否已经是好友
+	isFriend := friendInfoList.isFriend(friendID)
 	if isFriend {
 		return nil, ErrAlreadyFriend
 	}
 
 	// 检查是否已经发送过申请
-	applyExists, err := f.applyExists(ctx, roleID, friendID)
-	if err != nil {
-		return nil, err
-	}
-	if applyExists {
+	applySended := friendInfoList.isApplySend(friendID)
+	if applySended {
 		return nil, ErrApplyAlreadyExists
 	}
 
@@ -63,18 +144,29 @@ func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (
 
 	// 保存申请
 	// 1. 保存发送申请
-	_, err = gxymongo.Client().InsertOne(ctx, FriendRelationCol, apply_send)
+	_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+		_, err = gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, apply_send)
+		if err != nil {
+			glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
+			return nil, err
+		}
+		// 2. 保存接收申请
+		_, err = gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, apply_recv)
+		if err != nil {
+			glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
+			return nil, err
+		}
+		if err != nil {
+			glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
+			return nil, err
+		}
+		return nil, nil
+	})
 	if err != nil {
-		glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
 		return nil, err
 	}
-
-	// 2. 保存接收申请
-	_, err = gxymongo.Client().InsertOne(ctx, FriendRelationCol, apply_recv)
-	if err != nil {
-		glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
-		return nil, err
-	}
+	f.updateCache(ctx, apply_send)
+	f.updateCache(ctx, apply_recv)
 	// 3. 通知好友
 	f.notifyFriend(ctx, friendID, roleID, api.FriendNotifyTypeApplyRecv)
 
@@ -86,7 +178,7 @@ func (f *FriendController) newApply(roleID int64, friendID int64, source string,
 		RoleID:     roleID,
 		FriendID:   friendID,
 		Source:     source,
-		FriendTime: time.Now().Unix(),
+		FriendTime: time.Now(),
 		State:      int32(applyState),
 	}
 }
@@ -106,18 +198,19 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 		"state":     FRIENND_STATE_APPLIED,
 	}
 
-	var apply api.FriendInfo
-	err := gxymongo.Client().FindOne(ctx, &apply, FriendRelationCol, applyfilter)
+	var apply *api.FriendInfo
+	roleFrdList, err := f.getFriendInfoList(ctx, req.RoleID)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			return nil, ErrApplyNotFound
-		}
 		return nil, err
+	}
+	apply = roleFrdList.getFriendInfo(req.ApplyerID)
+	if apply == nil {
+		return nil, ErrApplyNotFound
 	}
 
 	// 如果接受申请，创建好友关系
 	rsp := &api.DealApplyRes{
-		ApplyDelete: apply,
+		ApplyDelete: *apply,
 	}
 
 	// 使用事务处理接受申请的逻辑，确保原子性
@@ -145,7 +238,7 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 			glog.Errorf(ctx, "deal friend apply transaction failed: %v", err)
 			return nil, err
 		}
-
+		f.updateCache(ctx, apply)
 		// 4. 通知好友
 		f.notifyFriend(ctx, req.ApplyerID, req.RoleID, api.FriendNotifyTypeAdd)
 		rsp.FriendNew = *f.newFriend(req.ApplyerID, req.RoleID, apply.Source)
@@ -180,7 +273,7 @@ func (f *FriendController) newFriend(roleID int64, friendID int64, source string
 		RoleID:     roleID,
 		FriendID:   friendID,
 		Source:     source,
-		FriendTime: time.Now().Unix(),
+		FriendTime: time.Now(),
 		State:      FRIENND_STATE_FRIEND,
 	}
 }
@@ -311,6 +404,26 @@ func (r *FriendController) notifyFriend(ctx context.Context, roleID int64, frien
 			},
 		},
 	})
+}
+
+func (r *FriendController) updateCache(ctx context.Context, frdInfo *api.FriendInfo) {
+	key := getFriendCacheKey(frdInfo.RoleID)
+	_, err := gxyredis.GetRedis().Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		ex, _ := pipe.Exists(ctx, key).Uint64()
+		if ex == 1 {
+			return pipe.HSet(ctx, key, frdInfo.FriendID, gjson.MustEncodeString(frdInfo)).Err()
+		}
+		return nil
+	})
+	if err != nil {
+		glog.Errorf(ctx, "update friend cache failed: %v, roleID: %d, friendID: %d", err, frdInfo.RoleID, frdInfo.FriendID)
+		r.clearCache(ctx, frdInfo.RoleID)
+	}
+}
+
+func (r *FriendController) clearCache(ctx context.Context, roleID int64) {
+	key := getFriendCacheKey(roleID)
+	gxyredis.GetRedis().Del(ctx, key)
 }
 
 // 错误定义
