@@ -63,6 +63,12 @@ message RspFriendDelete {
     repeated int64 friend_delete = 1;
 }
 
+message NotifyFriendUpdate {
+    repeated PFriendInfo friend_add_list = 1; // 新增好友
+    repeated int64       friend_del_list = 2; // 删除好友
+    repeated PFriendInfo friend_recv_add_list = 3; // 新增申请列表
+}
+
 message ReqFriendSendGift{
     int64 role_id = 1;
 }
