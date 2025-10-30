@@ -39,3 +39,9 @@ message ActorPid {
 message RpcMessage {
     google.protobuf.Any msg = 1;
 }
+
+// 推送消息
+message PushMessage {
+    string msg_name = 1;
+    string msg_data = 2;
+}
