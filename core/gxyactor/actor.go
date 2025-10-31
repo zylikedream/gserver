@@ -118,8 +118,10 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		}
 	case *pb.ActorStop:
 		a.Stop(gerror.New(msg.Reason))
+	case *actor.Stopping:
+		return nil
 	case *actor.Stopped:
-		a.timer.CancelAll()
+		a.timer.CancelAll(a.ctx)
 		a.actor.Terminate(a.ctx, a.stopErr)
 	default:
 		return a.actor.HandleMessage(a.ctx, ctx.Message())

@@ -25,25 +25,28 @@ import (
 )
 
 const (
-	SESSION_ALIVE_INTERVAL = 10 * time.Minute
+	SESSION_ALIVE_INTERVAL = 30 * time.Second
+	PERSIST_INTERVAL       = 5 * time.Second
+	SINGLE_ALIVE_INTERVAL  = 30 * time.Second
+	PUBLIC_UPDATE_INTERVAL = 8 * time.Minute
 )
 
 var (
 	PersistTick = &gxytimer.Tick{
 		Name:     "save_role",
-		Interval: 5 * time.Second,
+		Interval: PERSIST_INTERVAL,
 	}
 	SignleAliveOnce = &gxytimer.Once{
 		Name:  "signle_alive",
-		After: 10 * time.Minute, // 10min 连接断开后存活时间
+		After: SINGLE_ALIVE_INTERVAL, // 10min 连接断开后存活时间
 	}
 	PublicUpdateTick = &gxytimer.Tick{
 		Name:     "update_role_public",
-		Interval: 8 * time.Minute,
+		Interval: PUBLIC_UPDATE_INTERVAL,
 	}
 	SessionAliveCheckTick = &gxytimer.Tick{
 		Name:     "check_session_alive",
-		Interval: 10 * time.Minute,
+		Interval: SESSION_ALIVE_INTERVAL,
 	}
 )
 
@@ -226,8 +229,8 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 	r.sessionActiveTime = time.Now()
 	switch msg := msg.(type) {
 	case *pb.ReqAccountLogin:
-		glog.Warningf(ctx, "role already login, roleID: %d", r.RoleID)
 		if r.state == RoleStateLogined {
+			glog.Warningf(ctx, "role already login, roleID: %d", r.RoleID)
 			r.Respond(&pb.Ack{
 				Code:   10,
 				Path:   path,
@@ -393,7 +396,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
 		glog.Infof(ctx, "role reconnect, roleID: %d", r.RoleID)
 	}
-	r.Timer().Cancel(SignleAliveOnce.Name)
+	r.Timer().Cancel(ctx, SignleAliveOnce.Name)
 	r.state = RoleStateLogined
 	if err := r.afterRoleLogin(ctx); err != nil {
 		return nil, err
@@ -432,6 +435,10 @@ func (r *RoleMain) checkSessionAlive(ctx context.Context) {
 }
 
 func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogout) error {
+	sender := r.Sender()
+	if !gxyactor.PidEqual(sender, r.session) {
+		return nil
+	}
 	return r.dologout(ctx, req.Reason)
 }
 
@@ -439,11 +446,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	if r.state == RoleStateLogout {
 		return nil
 	}
-	r.Timer().Cancel(SessionAliveCheckTick.Name)
-	sender := r.Sender()
-	if !gxyactor.PidEqual(sender, r.session) {
-		return nil
-	}
+	r.Timer().Cancel(ctx, SessionAliveCheckTick.Name)
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
 	r.Public.UpdateRolePublic(ctx)

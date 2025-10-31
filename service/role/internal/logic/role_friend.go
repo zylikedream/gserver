@@ -88,7 +88,7 @@ func (r *RoleFriend) packFriendBase(ctx context.Context, frd *api.FriendInfo) *p
 	friendPublic := GetRolePublic(ctx, friendID)
 	return &pb.PFriendBase{
 		RolePublic: friendPublic,
-		FriendTime: frd.FriendTime,
+		FriendTime: frd.FriendTime.Unix(),
 		Source:     frd.Source,
 	}
 }

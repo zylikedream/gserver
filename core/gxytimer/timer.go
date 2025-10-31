@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/os/gcron"
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/gtimer"
 	"github.com/robfig/cron/v3"
 )
@@ -159,22 +160,25 @@ func (s *GxyTimer) RestoreCron(ctx context.Context, tm time.Time) {
 	}
 }
 
-func (s *GxyTimer) Cancel(name string) {
+func (s *GxyTimer) Cancel(ctx context.Context, name string) {
 	if info, ok := s.timerInfos[name]; ok {
+		glog.Debugf(ctx, "Cancel timer %s", name)
 		if info.timerEntry != nil {
-			info.timerEntry.Stop()
+			info.timerEntry.Close()
 		}
 		if info.cronEntry != nil {
-			info.cronEntry.Stop()
+			info.cronEntry.Close()
 		}
 		delete(s.timerInfos, name)
 	}
 }
 
-func (s *GxyTimer) CancelAll() {
+func (s *GxyTimer) CancelAll(ctx context.Context) {
 	for name := range s.timerInfos {
-		s.Cancel(name)
+		s.Cancel(ctx, name)
 	}
+	// s.timer.Close()
+	// s.cron.Close()
 }
 
 func (s *GxyTimer) getIntervalCount(interval time.Duration, duration time.Duration) int {

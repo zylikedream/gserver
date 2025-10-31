@@ -222,5 +222,8 @@ func decider(reason any) actor.Directive {
 }
 
 func PidEqual(a, b PID) bool {
+	if a == nil || b == nil {
+		return false
+	}
 	return a.Id == b.Id && a.Address == b.Address
 }

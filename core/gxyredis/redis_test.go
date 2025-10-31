@@ -20,4 +20,8 @@ func TestGet(t *testing.T) {
 	if result != value {
 		t.Errorf("Expected value %s, but got %s", value, result)
 	}
+	_, err = redisCli.Exists(ctx, "not_exist").Result()
+	if err != nil {
+		t.Errorf("Failed to get key %s from Redis, error:%v", key, err)
+	}
 }
