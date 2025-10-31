@@ -211,7 +211,7 @@ func (r *RoleFriend) ReqFriendDelete(ctx context.Context, req *pb.ReqFriendDelet
 	}
 	// 一个都没有成功，返回错误
 	if len(errs) == len(req.RoleId) {
-		return nil, gerror.Newf("delete friend failed, err: %v", errs[0])
+		return nil, errs[0]
 	}
 	rsp := &pb.RspFriendDelete{
 		FriendDelete: friendDeleted,
@@ -229,5 +229,19 @@ func (r *RoleFriend) deleteFriendSingle(ctx context.Context, friendID int64) (in
 }
 
 func (r *RoleFriend) OnFriendNotify(ctx context.Context, notify *api.FriendNotify) error {
+	pbNotify := &pb.NotifyFriendUpdate{
+		FriendAddList:     make([]*pb.PFriendInfo, 0, len(notify.FriendAddList)),
+		FriendDelList:     make([]int64, 0, len(notify.FriendDeleteList)),
+		FriendRecvAddList: make([]*pb.PFriendInfo, 0, len(notify.ApplyRecvAddList)),
+	}
+	for _, friend := range notify.FriendAddList {
+		pbNotify.FriendAddList = append(pbNotify.FriendAddList, r.packFriendInfo(ctx, &friend))
+	}
+	pbNotify.FriendDelList = append(pbNotify.FriendDelList, notify.FriendDeleteList...)
+	for _, friend := range notify.ApplyRecvAddList {
+		pbNotify.FriendRecvAddList = append(pbNotify.FriendRecvAddList, r.packFriendInfo(ctx, &friend))
+	}
+
+	r.Role.SendClient(ctx, pbNotify)
 	return nil
 }

@@ -173,12 +173,12 @@ func (s *GxyTimer) Cancel(ctx context.Context, name string) {
 	}
 }
 
-func (s *GxyTimer) CancelAll(ctx context.Context) {
+func (s *GxyTimer) Stop(ctx context.Context) {
 	for name := range s.timerInfos {
 		s.Cancel(ctx, name)
 	}
-	// s.timer.Close()
-	// s.cron.Close()
+	s.timer.Close()
+	s.cron.Close()
 }
 
 func (s *GxyTimer) getIntervalCount(interval time.Duration, duration time.Duration) int {

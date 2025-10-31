@@ -224,7 +224,9 @@ func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (
 	f.updateCache(ctx, apply_send)
 	f.updateCache(ctx, apply_recv)
 	// 3. 通知好友
-	f.notifyFriend(ctx, friendID, roleID, api.FriendNotifyTypeApplyRecv)
+	f.notifyFriend(ctx, friendID, &api.FriendNotify{
+		ApplyRecvAddList: []api.FriendInfo{*apply_recv},
+	})
 
 	return &api.ApplyFriendRes{ApplyNew: *apply_send}, nil
 }
@@ -306,7 +308,9 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 		applySend.State = FRIEND_STATE_FRIEND
 		f.updateCache(ctx, applySend)
 		// 4. 通知好友
-		f.notifyFriend(ctx, req.ApplyerID, req.RoleID, api.FriendNotifyTypeAdd)
+		f.notifyFriend(ctx, req.ApplyerID, &api.FriendNotify{
+			FriendAddList: []api.FriendInfo{*applyRecv},
+		})
 		rsp.FriendNew = *f.newFriend(req.ApplyerID, req.RoleID, applyRecv.Source)
 	} else {
 		// 拒绝申请，删除申请记录
@@ -385,7 +389,9 @@ func (f *FriendController) Delete(ctx context.Context, req *api.DeleteFriendReq)
 	f.deleteCache(ctx, req.RoleID, req.FriendID)
 	f.deleteCache(ctx, req.FriendID, req.RoleID)
 
-	f.notifyFriend(ctx, req.FriendID, req.RoleID, api.FriendNotifyTypeDel)
+	f.notifyFriend(ctx, req.FriendID, &api.FriendNotify{
+		FriendDeleteList: []int64{req.RoleID},
+	})
 
 	return &api.DeleteFriendRes{}, nil
 }
@@ -417,15 +423,8 @@ func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriend
 	return &api.GetFriendListRes{FriendData: *data}, nil
 }
 
-func (f *FriendController) notifyFriend(ctx context.Context, roleID int64, friendID int64, notifyType int32) {
-	push.PushService().NotifyRoleMessageOnline(ctx, roleID, &api.FriendNotify{
-		NotifyList: []api.PFriendNotify{
-			{
-				Type:     notifyType,
-				FriendID: friendID,
-			},
-		},
-	})
+func (f *FriendController) notifyFriend(ctx context.Context, roleID int64, notify *api.FriendNotify) {
+	push.PushService().NotifyRoleMessageOnline(ctx, roleID, notify)
 }
 
 func (f *FriendController) updateCache(ctx context.Context, frdInfo *api.FriendInfo) {

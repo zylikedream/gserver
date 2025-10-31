@@ -63,9 +63,6 @@ func (a *grainActivator) DelayInit(ctx context.Context) error {
 		return fmt.Errorf("grain kind %s not registered", a.kind)
 	}
 	a.grainInfos = ginfo
-	a.grainInfos.Props = a.grainInfos.Props.Configure(
-		actor.WithReceiverMiddleware(a.grainReciveMiddleware()),
-	)
 	return nil
 }
 
@@ -74,7 +71,8 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 	case *pb.ActorActive:
 		props := a.grainInfos.Props.Clone()
 		pid, err := a.SpawnNamed(props.Configure(
-			actor.WithContextDecorator(a.contextDecorator(msg.Id))),
+			actor.WithContextDecorator(a.contextDecorator(msg.Id)),
+			actor.WithReceiverMiddleware(a.grainReciveMiddleware())),
 			msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {

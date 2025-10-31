@@ -83,6 +83,8 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 			s.sessionInfo.RolePid = nil
 			s.Stop(gerror.New("role terminated"))
 		}
+	case *pb.ActorError:
+		s.Stop(gerror.New(msg.Reason))
 	}
 	return nil
 }

@@ -121,7 +121,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	case *actor.Stopping:
 		return nil
 	case *actor.Stopped:
-		a.timer.CancelAll(a.ctx)
+		a.timer.Stop(a.ctx)
 		a.actor.Terminate(a.ctx, a.stopErr)
 	default:
 		return a.actor.HandleMessage(a.ctx, ctx.Message())

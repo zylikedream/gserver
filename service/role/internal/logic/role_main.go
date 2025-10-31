@@ -25,9 +25,9 @@ import (
 )
 
 const (
-	SESSION_ALIVE_INTERVAL = 30 * time.Second
+	SESSION_ALIVE_INTERVAL = 10 * time.Minute
 	PERSIST_INTERVAL       = 5 * time.Second
-	SINGLE_ALIVE_INTERVAL  = 30 * time.Second
+	SINGLE_ALIVE_INTERVAL  = 10 * time.Minute
 	PUBLIC_UPDATE_INTERVAL = 8 * time.Minute
 )
 
@@ -231,28 +231,34 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 	case *pb.ReqAccountLogin:
 		if r.state == RoleStateLogined {
 			glog.Warningf(ctx, "role already login, roleID: %d", r.RoleID)
-			r.Respond(&pb.Ack{
-				Code:   10,
-				Path:   path,
+			r.Respond(&pb.ActorError{
 				Reason: "role already login",
 			})
 			return nil
 		}
 	default:
-		if r.state != RoleStateLogined {
-			glog.Warningf(ctx, "role not login, roleID: %d, recv msg: %s", r.RoleID, util.FormatObject(msg))
+		switch r.state {
+		case RoleStateInit:
+			glog.Warningf(ctx, "role recv msg in init state, ignore it  roleID: %d, msg: %s", r.RoleID, util.FormatObject(msg))
+			return nil
+		case RoleStateLogout:
+			glog.Warningf(ctx, "role recv msg in logout state, ignore it  roleID: %d, msg: %s", r.RoleID, util.FormatObject(msg))
+			r.Respond(&pb.ActorError{
+				Reason: "role logout, can not handle msg",
+			})
 			return nil
 		}
 	}
 	var rsp proto.Message
 	res, err := r.HandleProtobufMsg(ctx, msg)
 	if err != nil {
-		rsp = &pb.Ack{
+		res = &pb.Ack{
 			Code:   1,
 			Path:   path,
 			Reason: err.Error(),
 		}
-	} else if res != nil {
+	}
+	if res != nil {
 		svrMsg, err := r.newServerMsg(res)
 		if err != nil {
 			return gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
@@ -287,7 +293,7 @@ func (r *RoleMain) initTimer(ctx context.Context) {
 
 func (r *RoleMain) initMsgHandler() {
 	for _, mod := range r.Modules() {
-		r.AddMsgHandler(mod, "Req")
+		r.AddMsgHandler(mod)
 	}
 }
 

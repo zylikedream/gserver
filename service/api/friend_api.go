@@ -61,3 +61,9 @@ type FriendData struct {
 	ApplySendList []FriendInfo `json:"apply_send_list"`
 	ApplyRecvList []FriendInfo `json:"apply_recv_list"`
 }
+
+type FriendNotify struct {
+	FriendAddList    []FriendInfo `json:"friend_add_list"`
+	FriendDeleteList []int64      `json:"friend_delete_list"`
+	ApplyRecvAddList []FriendInfo `json:"apply_recv_add_list"`
+}

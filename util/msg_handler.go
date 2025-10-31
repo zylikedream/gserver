@@ -80,7 +80,6 @@ func GetSuitableMethods(typ reflect.Type, methodPrefix string) []*MethodMeta {
 		if mtype.NumIn() != 3 {
 			continue
 		}
-
 		ctxType := mtype.In(1)
 		if !ctxType.Implements(typeOfContext) {
 			continue
