@@ -12,6 +12,7 @@ package gameconfig;
 type JsonLoader func(string) ([]map[string]interface{}, error)
 
 type Tables struct {
+    TbActivity *ActivityTbActivity
     TbTimeSwitcher *ControllerTbTimeSwitcher
     TbGlobal *GlobalTbGlobal
     TbItem *ItemTbItem
@@ -25,6 +26,12 @@ func NewTables(loader JsonLoader) (*Tables, error) {
     var buf []map[string]interface{}
 
     tables := &Tables{}
+    if buf, err = loader("activity_tbactivity") ; err != nil {
+        return nil, err
+    }
+    if tables.TbActivity, err = NewActivityTbActivity(buf) ; err != nil {
+        return nil, err
+    }
     if buf, err = loader("controller_tbtimeswitcher") ; err != nil {
         return nil, err
     }
