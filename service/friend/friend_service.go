@@ -13,7 +13,6 @@ import (
 
 type friendService struct {
 	gxyhttp.HttpService
-	controller *logic.FriendController
 }
 
 var friendSvc = newFriendService()
@@ -23,9 +22,7 @@ func FriendService() *friendService {
 }
 
 func newFriendService() *friendService {
-	return &friendService{
-		controller: logic.NewFriendController(),
-	}
+	return &friendService{}
 }
 
 func (f *friendService) Name() string {

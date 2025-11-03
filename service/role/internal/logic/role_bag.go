@@ -3,8 +3,8 @@ package logic
 import (
 	"context"
 
-	// "gserver/gameconfig"
-	gameconfig "gserver/gameconfig/src"
+	"gserver/gameconfig"
+	cfg "gserver/gameconfig/src"
 	"gserver/service/role/internal/logic/bag"
 
 	"gserver/protocol/pb"
@@ -94,7 +94,7 @@ func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.ItemCh
 	return chg, nil
 }
 
-func (r *RoleBag) AddItemRc(ctx context.Context, itemRcList []*gameconfig.ItemItemRC) error {
+func (r *RoleBag) AddItemRc(ctx context.Context, itemRcList []*cfg.ItemItemRC) error {
 	if len(itemRcList) == 0 {
 		return nil
 	}
@@ -121,7 +121,7 @@ func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
 	return nil
 }
 
-func (r *RoleBag) CheckItemRc(ctx context.Context, itemRcList []*gameconfig.ItemItemRC) bool {
+func (r *RoleBag) CheckItemRc(ctx context.Context, itemRcList []*cfg.ItemItemRC) bool {
 	items, err := r.ItemRC2Item(itemRcList)
 	if err != nil {
 		return false
@@ -141,7 +141,7 @@ func (r *RoleBag) CheckItem(ctx context.Context, itemList []bag.Item) bool {
 	})
 }
 
-func (r *RoleBag) DecItemRC(ctx context.Context, itemRcList []*gameconfig.ItemItemRC) error {
+func (r *RoleBag) DecItemRC(ctx context.Context, itemRcList []*cfg.ItemItemRC) error {
 	items, err := r.ItemRC2Item(itemRcList)
 	if err != nil {
 		return err
@@ -195,12 +195,12 @@ func (r *RoleBag) ClassifyItemList(itemList []bag.Item) []bag.Item {
 	return classifyItemList
 }
 
-func (r *RoleBag) ItemRC2Item(itemRcList []*gameconfig.ItemItemRC) ([]bag.Item, error) {
+func (r *RoleBag) ItemRC2Item(itemRcList []*cfg.ItemItemRC) ([]bag.Item, error) {
 	items := []bag.Item{}
 	linq.From(itemRcList).Select(func(obj any) any {
 		return bag.Item{
-			ID:  int(obj.(*gameconfig.ItemItemRC).Id),
-			Num: uint64(obj.(*gameconfig.ItemItemRC).Num),
+			ID:  int(obj.(*cfg.ItemItemRC).Id),
+			Num: uint64(obj.(*cfg.ItemItemRC).Num),
 		}
 	}).ToSlice(&items)
 	return items, nil

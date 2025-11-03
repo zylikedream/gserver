@@ -13,7 +13,8 @@ import (
 	"time"
 
 	"gserver/core/gxytimer"
-	gameconfig "gserver/gameconfig/src"
+	"gserver/gameconfig"
+	cfg "gserver/gameconfig/src"
 	"gserver/protocol/pb"
 	"gserver/util"
 
@@ -80,9 +81,9 @@ func (s *RoleSign) ReqSignDraw(ctx context.Context, req *pb.ReqSignDraw) (*pb.Rs
 	return rsp, nil
 }
 
-func (s *RoleSign) getSignReward(from int, to int) []*gameconfig.ItemItemRC {
+func (s *RoleSign) getSignReward(from int, to int) []*cfg.ItemItemRC {
 	vipLv := s.Role.Basic.VipLv
-	rewards := []*gameconfig.ItemItemRC{}
+	rewards := []*cfg.ItemItemRC{}
 	for i := from + 1; i <= to; i++ {
 		signConfig := gameconfig.GameConfig().TbSignCheckIn.Get(int32(i))
 		rewards = append(rewards, signConfig.Rewards...)
@@ -103,7 +104,7 @@ func (s *RoleSign) ReqSignPatch(ctx context.Context, req *pb.ReqSignPatch) (*pb.
 	if maxDay <= s.SignDay+int(req.PatchTimes) {
 		return nil, errors.New("can't patch, sign full")
 	}
-	costs := []*gameconfig.ItemItemRC{}
+	costs := []*cfg.ItemItemRC{}
 	vipLv := s.Role.Basic.VipLv
 	for i := 1; i <= int(req.PatchTimes); i++ {
 		patchConfig := gameconfig.GameConfig().TbSignPatch.Get(int32(i + s.Patch))

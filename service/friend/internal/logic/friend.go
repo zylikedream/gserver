@@ -8,8 +8,8 @@ import (
 	"gserver/core/gxyhttp"
 	"gserver/core/gxymongo"
 	"gserver/core/gxyredis"
+	"gserver/lib"
 	"gserver/service/api"
-	"gserver/service/push"
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -424,7 +424,7 @@ func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriend
 }
 
 func (f *FriendController) notifyFriend(ctx context.Context, roleID int64, notify *api.FriendNotify) {
-	push.PushService().NotifyRoleMessageOnline(ctx, roleID, notify)
+	lib.NotifyRoleMessageOnline(ctx, roleID, notify)
 }
 
 func (f *FriendController) updateCache(ctx context.Context, frdInfo *api.FriendInfo) {

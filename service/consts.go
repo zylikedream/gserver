@@ -5,5 +5,5 @@ const (
 	GATE_SERVICE   = "gate"
 	SIMPLE_SERVICE = "simple"
 	FRIEND_SERVICE = "friend"
-	SOCIAL_SERVICE = "social"
+	GAME_SERVICE   = "game"
 )

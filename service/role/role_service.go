@@ -3,7 +3,7 @@ package role
 import (
 	"context"
 	"gserver/core/gxyactor"
-	gameconfig "gserver/gameconfig/src"
+	"gserver/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/service"
 	"gserver/service/role/internal/logic"
