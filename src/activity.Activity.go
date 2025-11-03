@@ -16,8 +16,8 @@ type ActivityActivity struct {
     Id int32
     Name string
     Type int32
-    StartTime int64
-    EndTime int64
+    StartTime string
+    EndTime string
     Level int32
 }
 
@@ -32,8 +32,8 @@ func NewActivityActivity(_buf map[string]interface{}) (_v *ActivityActivity, err
     { var _ok_ bool; var __json_id__ interface{}; if __json_id__, _ok_ = _buf["id"]; !_ok_ || __json_id__ == nil { err = errors.New("id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Id = __x__ }}
     { var _ok_ bool; var __json_name__ interface{}; if __json_name__, _ok_ = _buf["name"]; !_ok_ || __json_name__ == nil { err = errors.New("name error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_name__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Name = __x__ }}
     { var _ok_ bool; var __json_type__ interface{}; if __json_type__, _ok_ = _buf["type"]; !_ok_ || __json_type__ == nil { err = errors.New("type error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_type__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Type = __x__ }}
-    { var _ok_ bool; var __json_start_time__ interface{}; if __json_start_time__, _ok_ = _buf["start_time"]; !_ok_ || __json_start_time__ == nil { err = errors.New("start_time error"); return } else { var __x__ int64;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_start_time__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int64(_x_) }; _v.StartTime = __x__ }}
-    { var _ok_ bool; var __json_end_time__ interface{}; if __json_end_time__, _ok_ = _buf["end_time"]; !_ok_ || __json_end_time__ == nil { err = errors.New("end_time error"); return } else { var __x__ int64;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_end_time__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int64(_x_) }; _v.EndTime = __x__ }}
+    { var _ok_ bool; var __json_start_time__ interface{}; if __json_start_time__, _ok_ = _buf["start_time"]; !_ok_ || __json_start_time__ == nil { err = errors.New("start_time error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_start_time__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.StartTime = __x__ }}
+    { var _ok_ bool; var __json_end_time__ interface{}; if __json_end_time__, _ok_ = _buf["end_time"]; !_ok_ || __json_end_time__ == nil { err = errors.New("end_time error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_end_time__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.EndTime = __x__ }}
     { var _ok_ bool; var __json_level__ interface{}; if __json_level__, _ok_ = _buf["level"]; !_ok_ || __json_level__ == nil { err = errors.New("level error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_level__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Level = __x__ }}
     return
 }
