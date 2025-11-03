@@ -11,45 +11,29 @@ const (
 
 type IService interface {
 	gxymodule.IModule
-	Name() string
+	ServiceName() string
 	Weight() int
-	Public() bool
 	Version() string
 	Host() string
 }
 
-type PublicService struct {
-	baseService
-}
-
-func (s *PublicService) Public() bool {
-	return true
-}
-
-type InnerService struct {
-	baseService
-}
-
-type baseService struct {
+type Service struct {
 	gxymodule.ModuleBase
+	name string
 }
 
-func (s *baseService) Name() string {
+func (s *Service) ServiceName() string {
 	return s.GetModName()
 }
 
-func (s *baseService) Public() bool {
-	return false
-}
-
-func (s *baseService) Weight() int {
+func (s *Service) Weight() int {
 	return DEFAULT_WEIGHT
 }
 
-func (s *baseService) Version() string {
+func (s *Service) Version() string {
 	return DEFAULT_VERSION
 }
 
-func (s *baseService) Host() string {
+func (s *Service) Host() string {
 	return ""
 }

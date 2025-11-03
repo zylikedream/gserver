@@ -3,11 +3,15 @@ package gxyredis
 import (
 	"context"
 	"testing"
+
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
 )
 
 func TestGet(t *testing.T) {
+	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/redis.test.toml")
 	ctx := context.Background()
-	redisCli := NewRedisClient("config/redis.test.toml")
+	redisCli := newRedisApp()
 	key := "test_key"
 	value := "test_value"
 	redisCli.Set(ctx, key, value, 0)

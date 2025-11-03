@@ -27,7 +27,7 @@ func init() {
 }
 
 func (u *uidGen) GenAutoIncID(Group string) (int64, error) {
-	redis := gxyredis.GetRedis()
+	redis := gxyredis.Redis()
 	key := fmt.Sprintf("%s.%s", UID_GROUP_PREFIX, Group)
 	return redis.Incr(context.Background(), key).Result()
 }

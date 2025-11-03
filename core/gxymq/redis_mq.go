@@ -5,6 +5,7 @@ import (
 
 	"gserver/core/gxyredis"
 
+	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
@@ -18,7 +19,7 @@ type RedisMQ struct {
 }
 
 // NewRedisMQ 创建Redis消息队列实例
-func NewRedisMQ(_ string) (*RedisMQ, error) {
+func NewRedisMQ(_ *gcfg.Config) (*RedisMQ, error) {
 	mq := &RedisMQ{
 		stopCh: make(chan struct{}),
 	}
@@ -27,7 +28,7 @@ func NewRedisMQ(_ string) (*RedisMQ, error) {
 
 func (mq *RedisMQ) Start(ctx context.Context) error {
 	// 初始化Redis客户端
-	mq.client = gxyredis.GetRedis().Client
+	mq.client = gxyredis.Redis().Client
 	return nil
 }
 

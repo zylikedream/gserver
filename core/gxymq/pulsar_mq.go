@@ -26,10 +26,9 @@ type pulsarMQConfig struct {
 }
 
 // NewPulsarMQ 创建Pulsar消息队列实例
-func NewPulsarMQ(config string) (*PulsarMQ, error) {
+func NewPulsarMQ(cfg *gcfg.Config) (*PulsarMQ, error) {
 	// 创建Pulsar客户端
 	conf := &pulsarMQConfig{}
-	cfg := gcfg.Instance(config)
 	if err := util.CfgUnmarshalKey(context.Background(), cfg, "mq.pulsar", conf); err != nil {
 		return nil, err
 	}

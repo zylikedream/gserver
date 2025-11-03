@@ -3,13 +3,9 @@ package gxynode
 import (
 	"context"
 
-	"gserver/core/gxyactor"
-	"gserver/core/gxyhttp"
+	"gserver/core/gxyapp.go"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
-	"gserver/core/gxymq"
-	"gserver/core/gxyredis"
-	"gserver/core/gxyservice"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -19,9 +15,9 @@ import (
 
 type node struct {
 	gxymodule.ModuleBase
-	Name     string `toml:"name"`
-	Host     string `toml:"host" v:"ipv4"`
-	services []gxyservice.IService
+	Name string `toml:"name"`
+	Host string `toml:"host" v:"ipv4"`
+	apps []string
 }
 
 func InitNode(config string) *node {
@@ -34,10 +30,12 @@ func InitNode(config string) *node {
 }
 
 func (n *node) init(config string) error {
-	cfg := gcfg.Instance(config)
+	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName(config)
+	cfg := g.Cfg()
 	ctx := context.Background()
 	n.Name = cfg.MustGet(ctx, "node.name").String()
 	n.Host = cfg.MustGet(ctx, "node.host").String()
+	n.apps = cfg.MustGet(ctx, "node.apps").Strings()
 	if n.Host == "" || n.Name == "" {
 		return gerror.New("no name or host'")
 	}
@@ -57,21 +55,17 @@ func (a *node) GetModName() string {
 }
 
 func (n *node) OnModInit(ctx context.Context) error {
-	n.LoadModule(gxyredis.NewRedisClient("node/config/db.toml"))
-	n.LoadModule(gxymq.NewInstance("node/config/service.toml"))
-	n.LoadModule(gxyactor.NewActorSystem(n.Name, n.Host))
-	n.LoadModule(gxyhttp.NewHttpSystem(n.Name, n.Host))
-	svcMgr := gxyservice.NewServiceManager(n.Name)
-	n.LoadModule(svcMgr)
+	for _, appName := range n.apps {
+		app := gxyapp.GetApp(appName)
+		if err := n.AddModule(ctx, app); err != nil {
+			return gerror.Newf("add module %s err: %+v", appName, err)
+		}
+	}
 	return nil
 }
 
 func (a *node) OnModStart(ctx context.Context) error {
 	glog.Infof(context.Background(), "node %s starting....", a.Name)
-	svcMgr := gxyservice.ServiceManager()
-	for _, svc := range a.services {
-		svcMgr.LoadService(svc)
-	}
 	return nil
 }
 
@@ -88,14 +82,4 @@ func (a *node) OnModStopBefore(ctx context.Context) error {
 func (a *node) OnModStop(ctx context.Context) error {
 	glog.Infof(context.Background(), "node %s stop success", a.Name)
 	return nil
-}
-
-func (a *node) LoadModule(mod gxymodule.IModule) {
-	if err := a.AddModule(context.Background(), mod); err != nil {
-		glog.Fatalf(context.Background(), "add module %v err: %+v", mod.GetModName(), err)
-	}
-}
-
-func (a *node) LoadService(svc gxyservice.IService) {
-	a.services = append(a.services, svc)
 }

@@ -58,11 +58,8 @@ func (s *serviceMgr) OnModStartAfter(ctx context.Context) error {
 
 func (s *serviceMgr) registerSevices() error {
 	for _, service := range s.Services {
-		if !service.Public() {
-			continue
-		}
 		svcInfo := gxyregistery.NewServiceInfo(
-			service.Name(),
+			service.ServiceName(),
 			s.nodeName,
 			service.Host(),
 			service.Version(), service.Weight())

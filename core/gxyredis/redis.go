@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
-	"gserver/core/gxymodule"
+	"gserver/core/gxyapp.go"
 	"gserver/util"
 
+	"github.com/gogf/gf/v2/frame/g"
+
 	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
-	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/redis/go-redis/v9"
 )
@@ -22,25 +23,25 @@ type redisConfig struct {
 
 type Client redis.UniversalClient
 
-type gxyRedis struct {
-	gxymodule.ModuleBase
+type redisApp struct {
+	gxyapp.App
 	conf *redisConfig
 	Client
 }
 
-var redisCli *gxyRedis
+var redisCli *redisApp
 
-func GetRedis() *gxyRedis {
+func Redis() *redisApp {
 	return redisCli
 }
 
-func NewRedisClient(config string) *gxyRedis {
-	cfg := gcfg.Instance(config)
+func newRedisApp() *redisApp {
+	cfg := g.Cfg()
 	conf := &redisConfig{}
 	if err := util.CfgUnmarshalKey(context.Background(), cfg, "redis", conf); err != nil {
 		glog.Fatal(context.Background(), err)
 	}
-	r := &gxyRedis{conf: conf}
+	r := &redisApp{conf: conf}
 	redisConf := &redis.UniversalOptions{
 		Addrs:       []string{r.conf.Addr},
 		Password:    r.conf.Password,
@@ -52,7 +53,7 @@ func NewRedisClient(config string) *gxyRedis {
 	return r
 }
 
-func (r *gxyRedis) OnModStart(ctx context.Context) error {
+func (r *redisApp) OnModStart(ctx context.Context) error {
 	// 创建一个带有超时的上下文，这里设置为5秒超时
 	// 可以根据需要调整超时时间长度
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -65,7 +66,7 @@ func (r *gxyRedis) OnModStart(ctx context.Context) error {
 	return nil
 }
 
-func (r *gxyRedis) OnModStop(ctx context.Context) error {
+func (r *redisApp) OnModStop(ctx context.Context) error {
 	if r.Client != nil {
 		if err := r.Client.Close(); err != nil {
 			return err
@@ -75,6 +76,10 @@ func (r *gxyRedis) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (r *gxyRedis) RunScript(ctx context.Context, script *redis.Script, keys []string, args ...any) *redis.Cmd {
+func (r *redisApp) RunScript(ctx context.Context, script *redis.Script, keys []string, args ...any) *redis.Cmd {
 	return script.Run(ctx, r.Client, keys, args...)
+}
+
+func init() {
+	gxyapp.RegisterApp(newRedisApp())
 }

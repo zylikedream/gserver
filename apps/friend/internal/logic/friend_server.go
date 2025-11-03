@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"gserver/apps/api"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxymongo"
 	"gserver/core/gxyredis"
 	"gserver/lib"
-	"gserver/service/api"
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -18,9 +18,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 )
-
-// FriendController 好友控制器
-type FriendController struct{}
 
 const (
 	FRIEND_CACHE_EXPIRE      = time.Hour
@@ -33,9 +30,8 @@ const (
 	MAX_APPLY_RECV   = 150
 )
 
-// NewFriendController 创建好友控制器实例
-func NewFriendController() *FriendController {
-	return &FriendController{}
+// FriendServer 好友控制器
+type FriendServer struct {
 }
 
 const (
@@ -80,9 +76,15 @@ func getFriendCacheKey(roleID int64) string {
 	return fmt.Sprintf("friend_data:%d", roleID)
 }
 
-func (f *FriendController) getFriendData(ctx context.Context, roleID int64) (*friendData, error) {
+// NewFriendController 创建好友控制器实例
+func NewFriendServer() *FriendServer {
+	server := &FriendServer{}
+	return server
+}
+
+func (f *FriendServer) getFriendData(ctx context.Context, roleID int64) (*friendData, error) {
 	cacheKey := getFriendCacheKey(roleID)
-	rd := gxyredis.GetRedis()
+	rd := gxyredis.Redis()
 
 	friendInfoList := []*api.FriendInfo{}
 	friendMap, err := rd.HGetAll(ctx, cacheKey).Result()
@@ -142,11 +144,11 @@ func (f *FriendController) getFriendData(ctx context.Context, roleID int64) (*fr
 	return friendData, nil
 }
 
-func (f *FriendController) getFriendInfoListFromDB(ctx context.Context, roleID int64) (*[]api.FriendInfo, error) {
+func (f *FriendServer) getFriendInfoListFromDB(ctx context.Context, roleID int64) (*[]api.FriendInfo, error) {
 	filter := bson.M{"role_id": roleID}
 
 	var friendInfos []api.FriendInfo
-	err := gxymongo.Client().Find(ctx, &friendInfos, FriendRelationCol, filter)
+	err := gxymongo.Mongo().Find(ctx, &friendInfos, FriendRelationCol, filter)
 	if err != nil {
 		glog.Errorf(ctx, "get friend list for role %d failed: %v", roleID, err)
 		return nil, err
@@ -155,7 +157,7 @@ func (f *FriendController) getFriendInfoListFromDB(ctx context.Context, roleID i
 }
 
 // Apply 申请添加好友
-func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (*api.ApplyFriendRes, error) {
+func (f *FriendServer) Apply(ctx context.Context, req *api.ApplyFriendReq) (*api.ApplyFriendRes, error) {
 	roleID := req.RoleID
 	friendID := req.FriendID
 	if roleID == friendID {
@@ -200,14 +202,14 @@ func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (
 
 	// 保存申请
 	// 1. 保存发送申请
-	_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
-		_, err = gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, apply_send)
+	_, err = gxymongo.Mongo().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+		_, err = gxymongo.Mongo().InsertOne(sessCtx, FriendRelationCol, apply_send)
 		if err != nil {
 			glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
 			return nil, err
 		}
 		// 2. 保存接收申请
-		_, err = gxymongo.Client().InsertOne(sessCtx, FriendRelationCol, apply_recv)
+		_, err = gxymongo.Mongo().InsertOne(sessCtx, FriendRelationCol, apply_recv)
 		if err != nil {
 			glog.Errorf(ctx, "insert friend apply failed: %v, roleID: %d, friendID: %d", err, roleID, friendID)
 			return nil, err
@@ -231,7 +233,7 @@ func (f *FriendController) Apply(ctx context.Context, req *api.ApplyFriendReq) (
 	return &api.ApplyFriendRes{ApplyNew: *apply_send}, nil
 }
 
-func (f *FriendController) newApply(roleID int64, friendID int64, source string, applyState int) *api.FriendInfo {
+func (f *FriendServer) newApply(roleID int64, friendID int64, source string, applyState int) *api.FriendInfo {
 	return &api.FriendInfo{
 		RoleID:     roleID,
 		FriendID:   friendID,
@@ -242,7 +244,7 @@ func (f *FriendController) newApply(roleID int64, friendID int64, source string,
 }
 
 // DealApply 处理好友申请
-func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq) (*api.DealApplyRes, error) {
+func (f *FriendServer) DealApply(ctx context.Context, req *api.DealApplyReq) (*api.DealApplyRes, error) {
 	// 查找待处理的申请
 	applyfilter := bson.M{
 		"role_id":   req.ApplyerID,
@@ -282,15 +284,15 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 	// 使用事务处理接受申请的逻辑，确保原子性
 	if req.Deal == 1 {
 		// 使用事务保证原子性
-		_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+		_, err = gxymongo.Mongo().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
 			// 2. 插入双方好友关系
-			_, err = gxymongo.Client().UpdateOne(sessCtx, FriendRelationCol, applyfilter, bson.M{"$set": bson.M{"state": FRIEND_STATE_FRIEND}})
+			_, err = gxymongo.Mongo().UpdateOne(sessCtx, FriendRelationCol, applyfilter, bson.M{"$set": bson.M{"state": FRIEND_STATE_FRIEND}})
 			if err != nil {
 				glog.Errorf(ctx, "udpate friend apply state failed: %v, filter: %s", err, util.FormatObject(applyfilter))
 				return nil, err
 			}
 
-			_, err = gxymongo.Client().UpdateOne(sessCtx, FriendRelationCol, applyedfilter, bson.M{"$set": bson.M{"state": FRIEND_STATE_FRIEND}})
+			_, err = gxymongo.Mongo().UpdateOne(sessCtx, FriendRelationCol, applyedfilter, bson.M{"$set": bson.M{"state": FRIEND_STATE_FRIEND}})
 			if err != nil {
 				glog.Errorf(ctx, "udpate friend apply state failed: %v, filter: %s", err, util.FormatObject(applyedfilter))
 				return nil, err
@@ -314,14 +316,14 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 		rsp.FriendNew = *f.newFriend(req.ApplyerID, req.RoleID, applyRecv.Source)
 	} else {
 		// 拒绝申请，删除申请记录
-		_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
-			_, err = gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, applyfilter)
+		_, err = gxymongo.Mongo().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+			_, err = gxymongo.Mongo().DeleteOne(sessCtx, FriendRelationCol, applyfilter)
 			if err != nil {
 				glog.Errorf(ctx, "delete friend apply failed: %v, filter: %s", err, util.FormatObject(applyfilter))
 				return nil, err
 			}
 
-			_, err = gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, applyedfilter)
+			_, err = gxymongo.Mongo().DeleteOne(sessCtx, FriendRelationCol, applyedfilter)
 			if err != nil {
 				glog.Errorf(ctx, "delete friend apply failed: %v, filter: %s", err, util.FormatObject(applyedfilter))
 				return nil, err
@@ -340,7 +342,7 @@ func (f *FriendController) DealApply(ctx context.Context, req *api.DealApplyReq)
 	return rsp, nil
 }
 
-func (f *FriendController) newFriend(roleID int64, friendID int64, source string) *api.FriendInfo {
+func (f *FriendServer) newFriend(roleID int64, friendID int64, source string) *api.FriendInfo {
 	return &api.FriendInfo{
 		RoleID:     roleID,
 		FriendID:   friendID,
@@ -351,7 +353,7 @@ func (f *FriendController) newFriend(roleID int64, friendID int64, source string
 }
 
 // Delete 删除好友
-func (f *FriendController) Delete(ctx context.Context, req *api.DeleteFriendReq) (*api.DeleteFriendRes, error) {
+func (f *FriendServer) Delete(ctx context.Context, req *api.DeleteFriendReq) (*api.DeleteFriendRes, error) {
 	// 检查是否是好友
 	friendData, err := f.getFriendData(ctx, req.RoleID)
 	if err != nil {
@@ -365,14 +367,14 @@ func (f *FriendController) Delete(ctx context.Context, req *api.DeleteFriendReq)
 	filter2 := bson.M{"role_id": req.FriendID, "friend_id": req.RoleID}
 
 	// 使用事务保证原子性
-	_, err = gxymongo.Client().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
-		_, terr := gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, filter1)
+	_, err = gxymongo.Mongo().WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
+		_, terr := gxymongo.Mongo().DeleteOne(sessCtx, FriendRelationCol, filter1)
 		if terr != nil {
 			glog.Errorf(ctx, "delete friend from role %d failed: %v", req.RoleID, err)
 			return nil, terr
 		}
 
-		result, terr := gxymongo.Client().DeleteOne(sessCtx, FriendRelationCol, filter2)
+		result, terr := gxymongo.Mongo().DeleteOne(sessCtx, FriendRelationCol, filter2)
 		if terr != nil {
 			glog.Errorf(ctx, "delete friend from role %d failed: %v", req.FriendID, terr)
 			return nil, terr
@@ -397,7 +399,7 @@ func (f *FriendController) Delete(ctx context.Context, req *api.DeleteFriendReq)
 }
 
 // GetFriendList 获取好友列表
-func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriendListReq) (*api.GetFriendListRes, error) {
+func (f *FriendServer) GetFriendList(ctx context.Context, req *api.GetFriendListReq) (*api.GetFriendListRes, error) {
 	// 查询用户的所有好友
 	friendData, err := f.getFriendData(ctx, req.RoleID)
 	if err != nil {
@@ -423,13 +425,13 @@ func (f *FriendController) GetFriendList(ctx context.Context, req *api.GetFriend
 	return &api.GetFriendListRes{FriendData: *data}, nil
 }
 
-func (f *FriendController) notifyFriend(ctx context.Context, roleID int64, notify *api.FriendNotify) {
+func (f *FriendServer) notifyFriend(ctx context.Context, roleID int64, notify *api.FriendNotify) {
 	lib.NotifyRoleMessageOnline(ctx, roleID, notify)
 }
 
-func (f *FriendController) updateCache(ctx context.Context, frdInfo *api.FriendInfo) {
+func (f *FriendServer) updateCache(ctx context.Context, frdInfo *api.FriendInfo) {
 	key := getFriendCacheKey(frdInfo.RoleID)
-	_, err := gxyredis.GetRedis().TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+	_, err := gxyredis.Redis().TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 		if err := pipe.HSet(ctx, key, frdInfo.FriendID, gjson.MustEncodeString(frdInfo)).Err(); err != nil {
 			return err
 		}
@@ -444,14 +446,14 @@ func (f *FriendController) updateCache(ctx context.Context, frdInfo *api.FriendI
 	}
 }
 
-func (f *FriendController) deleteCache(ctx context.Context, roleID int64, friendID int64) {
+func (f *FriendServer) deleteCache(ctx context.Context, roleID int64, friendID int64) {
 	key := getFriendCacheKey(roleID)
-	gxyredis.GetRedis().HDel(ctx, key, fmt.Sprintf("%d", friendID))
+	gxyredis.Redis().HDel(ctx, key, fmt.Sprintf("%d", friendID))
 }
 
-func (f *FriendController) clearCache(ctx context.Context, roleID int64) {
+func (f *FriendServer) clearCache(ctx context.Context, roleID int64) {
 	key := getFriendCacheKey(roleID)
-	gxyredis.GetRedis().Del(ctx, key)
+	gxyredis.Redis().Del(ctx, key)
 }
 
 // 错误定义

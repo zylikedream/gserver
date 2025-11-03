@@ -3,7 +3,7 @@ package gxyactor
 import "gserver/core/gxyservice"
 
 type ActorService struct {
-	gxyservice.PublicService
+	gxyservice.Service
 }
 
 func (s *ActorService) Host() string {

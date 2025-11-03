@@ -46,7 +46,7 @@ func (l *Locator) LocateNode(ctx context.Context, key string) (string, error) {
 
 // Locate 根据键查找对应的节点
 func (l *Locator) Locate(ctx context.Context, t string, key string) (string, error) {
-	redisCli := gxyredis.GetRedis()
+	redisCli := gxyredis.Redis()
 	redisKey := l.formatKey(t, key)
 	result, err := redisCli.Get(ctx, redisKey).Result()
 	if err != nil && err != redis.Nil {
@@ -66,7 +66,7 @@ func (l *Locator) RegisterNode(ctx context.Context, key string, node string, exp
 
 // Register 注册键和节点的映射关系
 func (l *Locator) Register(ctx context.Context, t string, key string, node string, expireTime time.Duration) error {
-	redisCli := gxyredis.GetRedis()
+	redisCli := gxyredis.Redis()
 	redisKey := l.formatKey(t, key)
 	_, err := redisCli.Set(ctx, redisKey, node, expireTime).Result()
 	if err != nil {
@@ -82,7 +82,7 @@ func (l *Locator) UnregisterNode(ctx context.Context, key string, node string) e
 
 func (l *Locator) Unregister(ctx context.Context, t string, key string, val string) error {
 	// 验证节点是否匹配
-	redisCli := gxyredis.GetRedis()
+	redisCli := gxyredis.Redis()
 	redisKey := l.formatKey(t, key)
 	_, err := UnregisterGrainNode(redisCli.Client, redisKey, val)
 	if err != nil {

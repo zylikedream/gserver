@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"gserver/core/gxymodule"
+	"gserver/core/gxyapp.go"
 
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/gcfg"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/glog"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,8 +18,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
-type mongoClient struct {
-	gxymodule.ModuleBase
+type mongoApp struct {
+	gxyapp.App
 	client *mongo.Client
 	conf   *mongoConfig
 }
@@ -35,26 +35,26 @@ type mongoConfig struct {
 	ReplicaSet     string        `toml:"replica_set"`
 }
 
-var mgoCli *mongoClient
+var mgoApp *mongoApp
 
-func Client() *mongoClient {
-	return mgoCli
+func Mongo() *mongoApp {
+	return mgoApp
 }
 
-func NewMongoClient(config string) *mongoClient {
-	cfg := gcfg.Instance(config)
+func newMongoApp() *mongoApp {
+	cfg := g.Cfg()
 	conf := &mongoConfig{}
 	ctx := gctx.New()
 	if err := util.CfgUnmarshalKey(ctx, cfg, "mongo", conf); err != nil {
 		glog.Fatal(ctx, err)
 	}
-	mgoCli = &mongoClient{
+	mgoApp = &mongoApp{
 		conf: conf,
 	}
-	return mgoCli
+	return mgoApp
 }
 
-func (m *mongoClient) OnModInit(ctx context.Context) error {
+func (m *mongoApp) OnModInit(ctx context.Context) error {
 	opt := options.Client()
 	conf := m.conf
 	opt.ApplyURI(conf.Addr)
@@ -76,7 +76,7 @@ func (m *mongoClient) OnModInit(ctx context.Context) error {
 	m.client = client
 	return nil
 }
-func (m *mongoClient) OnModStart(ctx context.Context) error {
+func (m *mongoApp) OnModStart(ctx context.Context) error {
 	// 创建一个带超时的context
 	// 这里可以使用配置中的连接超时时间，或自定义一个超时时间
 	pingTimeout := m.conf.ConnectTimeout
@@ -94,7 +94,7 @@ func (m *mongoClient) OnModStart(ctx context.Context) error {
 	return nil
 }
 
-func (m *mongoClient) OnModStop(ctx context.Context) error {
+func (m *mongoApp) OnModStop(ctx context.Context) error {
 	if m.client != nil {
 		if err := m.client.Disconnect(ctx); err != nil {
 			return err
@@ -104,16 +104,16 @@ func (m *mongoClient) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (m *mongoClient) GetDatabase(ctx context.Context) string {
+func (m *mongoApp) GetDatabase(ctx context.Context) string {
 	return m.conf.DataBase
 }
 
-func (m *mongoClient) FindOne(ctx context.Context, reply interface{}, Col string, filter interface{}, opts ...*options.FindOneOptions) error {
+func (m *mongoApp) FindOne(ctx context.Context, reply interface{}, Col string, filter interface{}, opts ...*options.FindOneOptions) error {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.FindOne(ctx, filter, opts...).Decode(reply)
 }
 
-func (m *mongoClient) Find(ctx context.Context, replys interface{}, Col string, filter interface{}, opts ...*options.FindOptions) error {
+func (m *mongoApp) Find(ctx context.Context, replys interface{}, Col string, filter interface{}, opts ...*options.FindOptions) error {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	csr, err := col.Find(ctx, filter, opts...)
 	if err != nil {
@@ -122,48 +122,48 @@ func (m *mongoClient) Find(ctx context.Context, replys interface{}, Col string, 
 	return csr.All(ctx, replys)
 }
 
-func (m *mongoClient) UpdateSetOne(ctx context.Context, Col string, filter interface{}, Set interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+func (m *mongoApp) UpdateSetOne(ctx context.Context, Col string, filter interface{}, Set interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.UpdateOne(ctx, filter, bson.M{"$set": Set}, opts...)
 }
 
-func (m *mongoClient) UpdateOne(ctx context.Context, Col string, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+func (m *mongoApp) UpdateOne(ctx context.Context, Col string, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.UpdateOne(ctx, filter, update, opts...)
 }
 
-func (m *mongoClient) UpdateMany(ctx context.Context, Col string, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+func (m *mongoApp) UpdateMany(ctx context.Context, Col string, filter interface{}, update interface{}, opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.UpdateMany(ctx, filter, update, opts...)
 }
 
-func (m *mongoClient) ReplaceOne(ctx context.Context, Col string, filter interface{}, update interface{}, opts ...*options.ReplaceOptions) (*mongo.UpdateResult, error) {
+func (m *mongoApp) ReplaceOne(ctx context.Context, Col string, filter interface{}, update interface{}, opts ...*options.ReplaceOptions) (*mongo.UpdateResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.ReplaceOne(ctx, filter, update, opts...)
 }
 
-func (m *mongoClient) InsertOne(ctx context.Context, Col string, doc interface{}, opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error) {
+func (m *mongoApp) InsertOne(ctx context.Context, Col string, doc interface{}, opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.InsertOne(ctx, doc, opts...)
 }
 
-func (m *mongoClient) InsertMany(ctx context.Context, Col string, docs []interface{}, opts ...*options.InsertManyOptions) (*mongo.InsertManyResult, error) {
+func (m *mongoApp) InsertMany(ctx context.Context, Col string, docs []interface{}, opts ...*options.InsertManyOptions) (*mongo.InsertManyResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.InsertMany(ctx, docs, opts...)
 }
 
-func (m *mongoClient) DeleteOne(ctx context.Context, Col string, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
+func (m *mongoApp) DeleteOne(ctx context.Context, Col string, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.DeleteOne(ctx, filter, opts...)
 }
 
-func (m *mongoClient) DeleteMany(ctx context.Context, Col string, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
+func (m *mongoApp) DeleteMany(ctx context.Context, Col string, filter interface{}, opts ...*options.DeleteOptions) (*mongo.DeleteResult, error) {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	return col.DeleteOne(ctx, filter, opts...)
 }
 
 // WithTransactionWithOptions 执行带选项的MongoDB事务
-func (m *mongoClient) WithTransaction(ctx context.Context, fn func(ctx mongo.SessionContext) (any, error), opts ...*options.TransactionOptions) (any, error) {
+func (m *mongoApp) WithTransaction(ctx context.Context, fn func(ctx mongo.SessionContext) (any, error), opts ...*options.TransactionOptions) (any, error) {
 	session, err := m.client.StartSession()
 	if err != nil {
 		return nil, err
@@ -173,12 +173,16 @@ func (m *mongoClient) WithTransaction(ctx context.Context, fn func(ctx mongo.Ses
 	return session.WithTransaction(ctx, fn, opts...)
 }
 
-func (m *mongoClient) EnsureIndexes(ctx context.Context, Col string, indexes []mongo.IndexModel) error {
+func (m *mongoApp) EnsureIndexes(ctx context.Context, Col string, indexes []mongo.IndexModel) error {
 	col := m.client.Database(m.GetDatabase(ctx)).Collection(Col)
 	_, err := col.Indexes().CreateMany(ctx, indexes)
 	return err
 }
 
-func (m *mongoClient) GetClient() *mongo.Client {
+func (m *mongoApp) GetClient() *mongo.Client {
 	return m.client
+}
+
+func init() {
+	gxyapp.RegisterApp(newMongoApp())
 }

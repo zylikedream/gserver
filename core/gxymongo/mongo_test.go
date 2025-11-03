@@ -4,12 +4,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/os/gcfg"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func TestReplaceOne(t *testing.T) {
-	client := NewMongoClient("config/db.test.toml")
+	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/db.test.toml")
+	client := newMongoApp()
 	if err := client.OnModInit(context.Background()); err != nil {
 		t.Fatalf("OnModInit failed: %v", err)
 	}

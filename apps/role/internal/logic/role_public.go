@@ -73,7 +73,7 @@ func getRolePublicKey(roleID int64) string {
 func GetRolePublicFromCache(ctx context.Context, roleID int64) *RolePublicState {
 	key := getRolePublicKey(roleID)
 	rolePublic := &RolePublicState{}
-	strPublic, err := gxyredis.GetRedis().Get(ctx, key).Result()
+	strPublic, err := gxyredis.Redis().Get(ctx, key).Result()
 	if err != nil {
 		if err != redis.Nil {
 			glog.Errorf(ctx, "get role public from cache failed, roleID: %d, err: %v", roleID, err)
@@ -94,7 +94,7 @@ func setRolePublicToCache(ctx context.Context, rolePublic *RolePublicState) {
 		glog.Errorf(ctx, "marshal role public to cache failed, roleID: %d, err: %v", rolePublic.RoleID, err)
 		return
 	}
-	if err := gxyredis.GetRedis().Set(ctx, key, strPublic, RolePublicCacheExpire).Err(); err != nil {
+	if err := gxyredis.Redis().Set(ctx, key, strPublic, RolePublicCacheExpire).Err(); err != nil {
 		glog.Errorf(ctx, "set role public to cache failed, roleID: %d, err: %v", rolePublic.RoleID, err)
 	}
 }

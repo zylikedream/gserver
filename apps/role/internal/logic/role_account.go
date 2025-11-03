@@ -19,7 +19,7 @@ func GetRoleIDByAccount(account string) (int64, error) {
 	roleAccount := &RoleAccount{
 		Account: account,
 	}
-	err := gxymongo.Client().FindOne(context.Background(), roleAccount, "role_account", bson.M{"account": account})
+	err := gxymongo.Mongo().FindOne(context.Background(), roleAccount, "role_account", bson.M{"account": account})
 	if err != nil && err != mongo.ErrNoDocuments {
 		return 0, err
 	} else if err == mongo.ErrNoDocuments {
@@ -28,7 +28,7 @@ func GetRoleIDByAccount(account string) (int64, error) {
 			return 0, err
 		}
 		roleAccount.RoleID = roleID
-		if _, err := gxymongo.Client().InsertOne(context.Background(), "role_account", roleAccount); err != nil {
+		if _, err := gxymongo.Mongo().InsertOne(context.Background(), "role_account", roleAccount); err != nil {
 			return 0, err
 		}
 	}
@@ -39,7 +39,7 @@ func GetAccountByRoleID(roleID int64) string {
 	roleAccount := &RoleAccount{
 		RoleID: roleID,
 	}
-	err := gxymongo.Client().FindOne(context.Background(), roleAccount, "role_account", bson.M{"role_id": roleID})
+	err := gxymongo.Mongo().FindOne(context.Background(), roleAccount, "role_account", bson.M{"role_id": roleID})
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
 			glog.Errorf(context.Background(), "check role exist error, roleID: %d, err: %v", roleID, err)

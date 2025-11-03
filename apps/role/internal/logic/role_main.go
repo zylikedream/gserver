@@ -189,7 +189,7 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 
 func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
 	colName := getColName(modState)
-	if err := gxymongo.Client().FindOne(ctx, modState, colName, bson.M{"role_id": roleID}); err != nil {
+	if err := gxymongo.Mongo().FindOne(ctx, modState, colName, bson.M{"role_id": roleID}); err != nil {
 		if err == mongo.ErrNoDocuments {
 			// 新创建的文档，设置初始版本号
 			modState.SetVersion(0)
@@ -202,7 +202,7 @@ func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) 
 
 func ensureModIndex(ctx context.Context, modState IPersistState) error {
 	colName := getColName(modState)
-	if err := gxymongo.Client().EnsureIndexes(ctx, colName, modState.GetIndexes()); err != nil {
+	if err := gxymongo.Mongo().EnsureIndexes(ctx, colName, modState.GetIndexes()); err != nil {
 		return err
 	}
 	return nil
@@ -312,7 +312,7 @@ func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo
 
 func (r *RoleMain) save(ctx context.Context, force bool) error {
 	var errStr string
-	client := gxymongo.Client()
+	client := gxymongo.Mongo()
 	for _, mod := range r.Modules() {
 		rmod, _ := mod.(IRoleModule)
 		if rmod == nil {

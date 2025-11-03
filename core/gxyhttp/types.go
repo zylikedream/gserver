@@ -11,15 +11,11 @@ import (
 )
 
 type HttpService struct {
-	gxyservice.PublicService
+	gxyservice.Service
 }
 
 func (h *HttpService) Host() string {
 	return httpSys.Address()
-}
-
-func (h *HttpService) OnModInit(ctx context.Context) error {
-	return nil
 }
 
 // 响应结构
@@ -42,7 +38,7 @@ func (h *HttpService) SetHandler(ctx context.Context, name string, handler any) 
 	})
 }
 
-func (h *HttpService) GetReqUri(req any) string {
+func GetReqUri(req any) string {
 	fs, _ := gstructs.TagFields(req, []string{"path"})
 	if len(fs) > 0 {
 		return fs[0].TagValue
