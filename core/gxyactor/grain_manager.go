@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	GrainLocateTTL            = 12 * time.Second
-	GrainLocateUpdateInterval = 8 * time.Second
+	GrainLocateTTL            = 40 * time.Second
+	GrainLocateUpdateInterval = 30 * time.Second
 )
 
 type grainInfo struct {
@@ -53,7 +53,7 @@ func NewGrainActivator(kind string, manager *grainManager) *grainActivator {
 		childs:  make(map[PID]string),
 	}
 	ctx := gxylog.NewContext(context.Background(), "grain_activator")
-	a.ActorBase = NewActorBasse(ctx, a)
+	a.ActorBase = NewActorBase(ctx, a)
 	return a
 }
 

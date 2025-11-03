@@ -62,7 +62,7 @@ type ActorBase struct {
 	msgHandler *util.MsgHandler
 }
 
-func NewActorBasse(ctx context.Context, actor IActor) *ActorBase {
+func NewActorBase(ctx context.Context, actor IActor) *ActorBase {
 	return &ActorBase{
 		ctx:        ctx,
 		actor:      actor,
@@ -242,7 +242,7 @@ func NewGrainBase(ctx context.Context, grain IGrain) *GrainBase {
 	base := &GrainBase{
 		grain: grain,
 	}
-	base.ActorBase = NewActorBasse(ctx, grain)
+	base.ActorBase = NewActorBase(ctx, grain)
 	return base
 }
 
