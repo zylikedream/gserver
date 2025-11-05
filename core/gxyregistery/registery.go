@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/container/gmap"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/gsvc"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -31,17 +32,19 @@ type registery struct {
 	seqs     *gmap.StrIntMap
 }
 
-func NewRegistery(t string, config string) (*registery, error) {
+func NewRegistery() (*registery, error) {
+	cfg := g.Cfg()
+	t := cfg.MustGet(context.Background(), "registery.type").String()
 	var err error
 	var r gsvc.Registry
 	switch t {
 	case REGISTERY_TYPE_ETCD:
-		r, err = newEtcdRegistery(config)
+		r, err = newEtcdRegistery(cfg)
 		if err != nil {
 			return nil, err
 		}
 	case REGISTERY_TYPE_CONSUL:
-		r, err = newConsulRegistery(config)
+		r, err = newConsulRegistery(cfg)
 	default:
 		return nil, errors.Errorf("not support registery type %s", t)
 	}

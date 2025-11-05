@@ -41,7 +41,7 @@ func Mongo() *mongoApp {
 	return mgoApp
 }
 
-func newMongoApp() *mongoApp {
+func NewMongoApp() *mongoApp {
 	cfg := g.Cfg()
 	conf := &mongoConfig{}
 	ctx := gctx.New()
@@ -181,8 +181,4 @@ func (m *mongoApp) EnsureIndexes(ctx context.Context, Col string, indexes []mong
 
 func (m *mongoApp) GetClient() *mongo.Client {
 	return m.client
-}
-
-func init() {
-	gxyapp.RegisterApp(newMongoApp())
 }

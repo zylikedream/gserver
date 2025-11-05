@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"gserver/core/gxymodule"
+	"gserver/core/gxyapp.go"
 	"gserver/protocol/pb"
 	"gserver/util"
 
@@ -17,9 +17,9 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-// actorSystem 基础Actor模块
-type actorSystem struct {
-	gxymodule.ModuleBase
+// actorApp 基础Actor模块
+type actorApp struct {
+	gxyapp.App
 	system   *actor.ActorSystem
 	remote   *remote.Remote
 	nodeName string
@@ -31,30 +31,30 @@ const (
 	CLUSTER_NAME = "gcluster"
 )
 
-var actorSys *actorSystem
+var app *actorApp
 
 // ActorSystem 获取基础Actor模块
-func ActorSystem() *actorSystem {
-	return actorSys
+func ActorSystem() *actorApp {
+	return app
 }
 
-func (a *actorSystem) NodeName() string {
+func (a *actorApp) NodeName() string {
 	return a.nodeName
 }
 
 // NewActorSystem创建基础Actor模块
-func NewActorSystem(nodeName string, host string) *actorSystem {
+func NewActorApp(nodeName string, host string) *actorApp {
 	// split host from nodeName(name@host)
-	actorSys = &actorSystem{
+	app = &actorApp{
 		nodeName: nodeName,
 		host:     host,
 	}
 
-	return actorSys
+	return app
 }
 
 // OnModInit Actor模块初始化 - 启动节点
-func (a *actorSystem) OnModInit(ctx context.Context) error {
+func (a *actorApp) OnModInit(ctx context.Context) error {
 	a.system = actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging))
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
@@ -64,33 +64,29 @@ func (a *actorSystem) OnModInit(ctx context.Context) error {
 	return nil
 }
 
-func (a *actorSystem) OnModStart(ctx context.Context) error {
+func (a *actorApp) OnModStart(ctx context.Context) error {
 	glog.Infof(ctx, "actor %s started at %s", a.nodeName, a.Address())
 	// 启动服务
 	return nil
 }
 
-func (a *actorSystem) GetActorSystem() *actor.ActorSystem {
-	return a.system
-}
-
-func (a *actorSystem) RegisterGrain(name string, prod GrainProducer) error {
+func (a *actorApp) RegisterGrain(name string, prod GrainProducer) error {
 	return a.grainMgr.RegisterGrain(name, prod)
 }
 
-func (a *actorSystem) DeRegisterGrain(name string) {
+func (a *actorApp) DeRegisterGrain(name string) {
 	a.grainMgr.DeRegisterGrain(name)
 }
 
 // OnModStop 停止Actor模块 - 停止节点
-func (a *actorSystem) OnModStop(ctx context.Context) error {
+func (a *actorApp) OnModStop(ctx context.Context) error {
 	a.system.Shutdown()
 	glog.Infof(ctx, "actor system stopped: %s", a.Address())
 	return nil
 }
 
 // SpawnRegister创建新的Actor
-func (a *actorSystem) SpawnNamed(name string, prod func() actor.Actor) (PID, error) {
+func (a *actorApp) SpawnNamed(name string, prod func() actor.Actor) (PID, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
@@ -104,7 +100,7 @@ func (a *actorSystem) SpawnNamed(name string, prod func() actor.Actor) (PID, err
 	return pid, nil
 }
 
-func (a *actorSystem) Spawn(prod func() actor.Actor) (pid PID, err error) {
+func (a *actorApp) Spawn(prod func() actor.Actor) (pid PID, err error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
@@ -120,7 +116,7 @@ func (a *actorSystem) Spawn(prod func() actor.Actor) (pid PID, err error) {
 }
 
 // Send 发送消息（异步）
-func (a *actorSystem) Send(pid PID, message any) error {
+func (a *actorApp) Send(pid PID, message any) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
@@ -128,7 +124,7 @@ func (a *actorSystem) Send(pid PID, message any) error {
 	return nil
 }
 
-func (a *actorSystem) Call(pid PID, message any) (any, error) {
+func (a *actorApp) Call(pid PID, message any) (any, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
@@ -144,7 +140,7 @@ func (a *actorSystem) Call(pid PID, message any) (any, error) {
 	return res, nil
 }
 
-func (a *actorSystem) RpcCall(pid PID, message proto.Message) (proto.Message, error) {
+func (a *actorApp) RpcCall(pid PID, message proto.Message) (proto.Message, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
@@ -164,7 +160,7 @@ func (a *actorSystem) RpcCall(pid PID, message proto.Message) (proto.Message, er
 	return pres, nil
 }
 
-func (a *actorSystem) Notify(pid PID, message any) error {
+func (a *actorApp) Notify(pid PID, message any) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
@@ -180,11 +176,11 @@ func (a *actorSystem) Notify(pid PID, message any) error {
 	return nil
 }
 
-func (a *actorSystem) GetNodeName() string {
+func (a *actorApp) GetNodeName() string {
 	return string(a.nodeName)
 }
 
-func (a *actorSystem) StopActor(pid PID) error {
+func (a *actorApp) StopActor(pid PID) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
@@ -192,15 +188,15 @@ func (a *actorSystem) StopActor(pid PID) error {
 	return nil
 }
 
-func (a *actorSystem) Host() string {
+func (a *actorApp) Host() string {
 	return a.host
 }
 
-func (a *actorSystem) Address() string {
+func (a *actorApp) Address() string {
 	return a.system.Address()
 }
 
-func (a *actorSystem) GetGrain(kind string, id string, spawn ...bool) (PID, error) {
+func (a *actorApp) GetGrain(kind string, id string, spawn ...bool) (PID, error) {
 	spawnFlag := true
 	if len(spawn) > 0 {
 		spawnFlag = spawn[0]
@@ -208,7 +204,7 @@ func (a *actorSystem) GetGrain(kind string, id string, spawn ...bool) (PID, erro
 	return a.grainMgr.getGrain(kind, id, spawnFlag)
 }
 
-func (a *actorSystem) GetGrainCount(kind string) int {
+func (a *actorApp) GetGrainCount(kind string) int {
 	return a.grainMgr.GetGrainCount(kind)
 }
 

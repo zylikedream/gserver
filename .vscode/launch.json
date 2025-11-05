@@ -10,7 +10,10 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/node/game/main.go",
+            "program": "${workspaceFolder}/node/main.go",
+            "args": [
+                "-config game.toml"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -18,7 +21,10 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/node/gateway/main.go",
+            "program": "${workspaceFolder}/node/main.go",
+            "args": [
+                "-config gate.toml"
+            ],
             "cwd": "${workspaceFolder}"
         },
         {

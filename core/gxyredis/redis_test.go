@@ -11,9 +11,10 @@ import (
 func TestGet(t *testing.T) {
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/redis.test.toml")
 	ctx := context.Background()
-	redisCli := newRedisApp()
+	redisApp := NewRedisApp()
 	key := "test_key"
 	value := "test_value"
+	redisCli := redisApp.client
 	redisCli.Set(ctx, key, value, 0)
 
 	result, err := redisCli.Get(ctx, "1").Result()

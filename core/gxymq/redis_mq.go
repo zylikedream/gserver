@@ -28,7 +28,7 @@ func NewRedisMQ(_ *gcfg.Config) (*RedisMQ, error) {
 
 func (mq *RedisMQ) Start(ctx context.Context) error {
 	// 初始化Redis客户端
-	mq.client = gxyredis.Redis().Client
+	mq.client = gxyredis.Redis()
 	return nil
 }
 

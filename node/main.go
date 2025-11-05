@@ -6,21 +6,16 @@ import (
 
 	"gserver/core/gxymodule"
 	"gserver/core/gxynode"
-	"gserver/service/role"
 
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gcmd"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/gproc"
+	"github.com/gogf/gf/v2/text/gstr"
 )
 
 var rootModule gxymodule.ModuleBase
 
 func Init() {
-	node := gxynode.InitNode("config/game.toml")
-	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/game.toml")
-	rootModule.AddModule(context.Background(), node)
 }
 
 func main() {
@@ -35,6 +30,11 @@ func run() {
 		Usage: "main",
 		Brief: "game server",
 		Func: func(ctx context.Context, parser *gcmd.Parser) (err error) {
+			config := parser.GetOpt("config", "").String()
+			node := gxynode.NewNode(gstr.Trim(config))
+			if err = rootModule.AddModule(context.Background(), node); err != nil {
+				glog.Fatalf(ctx, "init node failed: %+v", err)
+			}
 			if err = rootModule.StartModule(ctx); err != nil {
 				glog.Fatalf(ctx, "start game failed: %+v", err)
 			}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gogf/gf/v2/os/gcfg"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/glog"
@@ -18,15 +18,11 @@ const (
 
 var logger = glog.DefaultLogger()
 
-func InitLog(ctx context.Context, config string, logType string) error {
+func InitLog(ctx context.Context, logType string) error {
 	logger.SetFlags(glog.F_FILE_SHORT | glog.F_TIME_STD)
-	cfg := gcfg.Instance(config)
-
-	if cfg != nil {
-		conf := cfg.MustData(ctx)
-		if err := glog.SetConfigWithMap(conf); err != nil {
-			return err
-		}
+	conf := g.Cfg().MustGet(ctx, "log").Map()
+	if err := glog.SetConfigWithMap(conf); err != nil {
+		return err
 	}
 	logger.AppendCtxKeys(ContextKeyModType, ContextKeyRoleID)
 	logger.SetPath(gfile.Join(logger.GetConfig().Path, logType))

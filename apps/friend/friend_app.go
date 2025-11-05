@@ -19,20 +19,17 @@ type friendApp struct {
 	gxyhttp.HttpService
 }
 
-func newFriendApp() *friendApp {
-	return &friendApp{}
+func NewFriendApp() *friendApp {
+	app := &friendApp{}
+	return app
 }
 
 func (f *friendApp) OnModInit(ctx context.Context) error {
-	gxyservice.ServiceManager().LoadService(f)
+	gxyservice.ServiceApp().LoadService(f)
 	f.SetHandler(ctx, f.ServiceName(), logic.NewFriendServer())
 	return nil
 }
 
 func (f *friendApp) ServiceName() string {
 	return SERVICE_NAME
-}
-
-func init() {
-	gxyapp.RegisterApp(newFriendApp())
 }

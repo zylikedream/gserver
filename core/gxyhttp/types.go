@@ -15,7 +15,7 @@ type HttpService struct {
 }
 
 func (h *HttpService) Host() string {
-	return httpSys.Address()
+	return app.Address()
 }
 
 // 响应结构
@@ -26,7 +26,7 @@ type Response struct {
 }
 
 func (h *HttpService) SetHandler(ctx context.Context, name string, handler any) {
-	server := httpSys.server
+	server := app.server
 	if server.Status() == ghttp.ServerStatusRunning {
 		glog.Warningf(ctx, "http server is running, can not set handler")
 		return

@@ -50,7 +50,7 @@ func MessageQueue() *messageQueueApp {
 
 // NewMessageQueue 创建默认的消息队列实例
 // 默认使用Redis实现，如果Redis不可用则尝试使用Pulsar
-func newMessageQueueApp() *messageQueueApp {
+func NewMessageQueueApp() *messageQueueApp {
 	conf := &messageQueueConfig{}
 	cfg := g.Cfg()
 	if err := util.CfgUnmarshalKey(context.Background(), cfg, "mq", conf); err != nil {
@@ -182,8 +182,4 @@ func (mq *messageQueueApp) Close(ctx context.Context) error {
 	mq.closed = true
 	glog.Infof(ctx, "Redis message queue closed")
 	return nil
-}
-
-func init() {
-	gxyapp.RegisterApp(newMessageQueueApp())
 }

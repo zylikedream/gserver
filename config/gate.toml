@@ -1,0 +1,48 @@
+[node]
+    name = "gate"
+    host = "127.0.0.1"
+	apps = ["mongo", "redis", "friend", "gate"]
+[mongo]
+	addr = "mongodb://root:test@localhost:27017/admin?directConnection=true"
+	database = "galaxy"
+	pool_size = {min = 0, max = 20}
+	connect_timeout = "3s"
+	replica_set = "rs0"
+[redis]
+	addr = "localhost:6379"
+	password = "@zyc0131"
+	db = 10
+	dial_timeout = "5s"
+[log]
+	path = "./log"
+	level = "all"
+	file = "{Y-m-d}.log"
+	stStatus = 0
+[registery]
+	type = "consul"
+# [registery.etcd]	
+# 	etcd_servers = ["localhost:2379"]
+# 	update_interval = "10s"
+# 	log_level = "error"
+[registery.consul]	
+	address = "localhost:8500"
+	ttl = "10s"
+	refresh_ttl = "10s"
+[mq]
+	type = "redis"
+	worker_count = 2
+
+# 网络配置
+[gxynet]
+	peer = "tcp_server" # 网络节点名字
+[peer.tcp_server]
+	addr = ":10086"
+[processor]
+	packet = "ltpv" # 解包的解码器
+	codec = "protobuf" # 消息类型
+[packet.ltpv] # 解码配置
+	size_length = 2 #包大小字段的长度
+	type_length = 1 # 类型字段的长度
+	path_length = 1 # 消息id长度
+	byte_order = "little" # 字节序
+	max_size = 3145728 # 3M

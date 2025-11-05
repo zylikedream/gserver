@@ -2,37 +2,45 @@ package gxynode
 
 import (
 	"context"
+	"slices"
 
+	"gserver/apps/friend"
+	"gserver/apps/gateway"
+	"gserver/apps/role"
+	"gserver/core/gxyactor"
 	"gserver/core/gxyapp.go"
+	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
+	"gserver/core/gxymongo"
+	"gserver/core/gxymq"
+	"gserver/core/gxyredis"
+	"gserver/core/gxyservice"
+	"gserver/util"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
 type node struct {
 	gxymodule.ModuleBase
-	Name string `toml:"name"`
-	Host string `toml:"host" v:"ipv4"`
-	apps []string
+	config string
+	Name   string
+	Host   string
+	apps   []string
 }
 
-func InitNode(config string) *node {
-	n := &node{}
-	if err := n.init(config); err != nil {
-		glog.Fatalf(context.Background(), "init node err: %+v", err)
-		return nil
+func NewNode(config string) *node {
+	n := &node{
+		config: config,
 	}
 	return n
 }
 
-func (n *node) init(config string) error {
-	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName(config)
+func (n *node) OnModInit(ctx context.Context) error {
+	util.SetConfig(n.config)
 	cfg := g.Cfg()
-	ctx := context.Background()
 	n.Name = cfg.MustGet(ctx, "node.name").String()
 	n.Host = cfg.MustGet(ctx, "node.host").String()
 	n.apps = cfg.MustGet(ctx, "node.apps").Strings()
@@ -42,10 +50,10 @@ func (n *node) init(config string) error {
 	if err := g.Validator().Data(n).Run(ctx); err != nil {
 		return gerror.Newf("validate node err: %+v, check host is ipv4?", err)
 	}
-	logConfig, _ := cfg.Get(ctx, "log.config", "node/config/log.toml")
-	if err := gxylog.InitLog(ctx, logConfig.String(), n.Name); err != nil {
+	if err := gxylog.InitLog(ctx, n.Name); err != nil {
 		return gerror.Newf("init log err: %+v", err)
 	}
+	n.registerApps()
 
 	return nil
 }
@@ -54,32 +62,53 @@ func (a *node) GetModName() string {
 	return a.Name
 }
 
-func (n *node) OnModInit(ctx context.Context) error {
+func (n *node) OnModStart(ctx context.Context) error {
+	glog.Infof(context.Background(), "node %s starting....", n.Name)
+	loaded := map[string]bool{}
+	preloaded := []gxyapp.IApp{
+		gxyactor.NewActorApp(n.Name, n.Host),
+		gxyhttp.NewHttpApp(n.Name, n.Host),
+		gxyservice.NewServiceApp(n.Name),
+	}
+	needed := []gxyapp.IApp{}
 	for _, appName := range n.apps {
 		app := gxyapp.GetApp(appName)
+		if app == nil {
+			return gerror.Newf("app %s not found", appName)
+		}
+		loaded[appName] = true
+		needed = append(needed, app)
+	}
+	for _, app := range slices.Concat(preloaded, needed) {
 		if err := n.AddModule(ctx, app); err != nil {
-			return gerror.Newf("add module %s err: %+v", appName, err)
+			return gerror.Newf("add app %s err: %+v", app.AppName(), err)
 		}
 	}
 	return nil
 }
 
-func (a *node) OnModStart(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s starting....", a.Name)
+func (n *node) OnModStartAfter(ctx context.Context) error {
+	glog.Infof(context.Background(), "node %s start success", n.Name)
 	return nil
 }
 
-func (a *node) OnModStartAfter(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s start success", a.Name)
+func (n *node) OnModStopBefore(ctx context.Context) error {
+	glog.Infof(context.Background(), "node %s stopping...", n.Name)
 	return nil
 }
 
-func (a *node) OnModStopBefore(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s stopping...", a.Name)
+func (n *node) OnModStop(ctx context.Context) error {
+	glog.Infof(context.Background(), "node %s stop success", n.Name)
 	return nil
 }
 
-func (a *node) OnModStop(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s stop success", a.Name)
-	return nil
+func (n *node) registerApps() {
+
+	gxyapp.RegisterApp("role", role.NewRoleApp())
+	gxyapp.RegisterApp("friend", friend.NewFriendApp())
+	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
+	gxyapp.RegisterApp("mongo", gxymongo.NewMongoApp())
+	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
+	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.Name))
+	gxyapp.RegisterApp("gate", gateway.NewGateApp())
 }

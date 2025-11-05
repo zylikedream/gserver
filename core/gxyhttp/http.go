@@ -3,8 +3,8 @@ package gxyhttp
 import (
 	"context"
 	"fmt"
+	"gserver/core/gxyapp.go"
 	"gserver/core/gxylog"
-	"gserver/core/gxymodule"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"
 	"net/http"
@@ -16,56 +16,56 @@ import (
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
-var httpSys *httpSystem
+var app *httpApp
 
-func HttpSystem() *httpSystem {
-	return httpSys
+func HttpSystem() *httpApp {
+	return app
 }
 
-type httpSystem struct {
-	gxymodule.ModuleBase
+type httpApp struct {
+	gxyapp.App
 	nodeName string
 	host     string
 	server   *ghttp.Server
 	client   *gclient.Client
 }
 
-func NewHttpSystem(nodeName string, host string) *httpSystem {
+func NewHttpApp(nodeName string, host string) *httpApp {
 	svr := g.Server()
 	svr.SetAddr(fmt.Sprintf("%s:%d", host, 0))
 	svr.SetLogger(gxylog.GetLogger().Clone())
 	svr.SetLogLevel("debug")
-	httpSys = &httpSystem{
+	app = &httpApp{
 		nodeName: nodeName,
 		host:     host,
 		server:   svr,
 		client:   gclient.New(),
 	}
-	return httpSys
+	return app
 }
 
-func (h *httpSystem) Address() string {
+func (h *httpApp) Address() string {
 	return h.server.GetListenedAddress()
 }
 
-func (h *httpSystem) OnModStart(ctx context.Context) error {
+func (h *httpApp) OnModStart(ctx context.Context) error {
 	if err := h.server.Start(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (h *httpSystem) RegisterObject(ctx context.Context, obj any) error {
+func (h *httpApp) RegisterObject(ctx context.Context, obj any) error {
 	h.server.Shutdown()
 	return nil
 }
 
-func (h *httpSystem) Server() *ghttp.Server {
+func (h *httpApp) Server() *ghttp.Server {
 	return h.server
 }
 
-func (h *httpSystem) PostService(ctx context.Context, service string, uri string, msg ...any) (*Response, error) {
-	info := gxyservice.ServiceManager().GetServiceInfo(ctx, service, "", gxyregistery.RoundRobinSelector())
+func (h *httpApp) PostService(ctx context.Context, service string, uri string, msg ...any) (*Response, error) {
+	info := gxyservice.ServiceApp().GetServiceInfo(ctx, service, "", gxyregistery.RoundRobinSelector())
 	if info == nil {
 		return nil, gerror.Newf("service(%s) not found", service)
 	}
@@ -74,7 +74,7 @@ func (h *httpSystem) PostService(ctx context.Context, service string, uri string
 
 }
 
-func (h *httpSystem) Post(ctx context.Context, url string, msg ...any) (*Response, error) {
+func (h *httpApp) Post(ctx context.Context, url string, msg ...any) (*Response, error) {
 	rsp, err := h.client.Post(ctx, url, msg...)
 	if err != nil {
 		return nil, gerror.Newf("post error: %v ", err)
@@ -93,8 +93,8 @@ func (h *httpSystem) Post(ctx context.Context, url string, msg ...any) (*Respons
 	return result, nil
 }
 
-func (h *httpSystem) GetService(ctx context.Context, service string, msg ...any) (*Response, error) {
-	info := gxyservice.ServiceManager().GetServiceInfo(ctx, service, "", gxyregistery.RoundRobinSelector())
+func (h *httpApp) GetService(ctx context.Context, service string, msg ...any) (*Response, error) {
+	info := gxyservice.ServiceApp().GetServiceInfo(ctx, service, "", gxyregistery.RoundRobinSelector())
 	if info == nil {
 		return nil, gerror.Newf("service(%s) not found", service)
 	}
@@ -103,7 +103,7 @@ func (h *httpSystem) GetService(ctx context.Context, service string, msg ...any)
 
 }
 
-func (h *httpSystem) Get(ctx context.Context, url string, msg ...any) (*Response, error) {
+func (h *httpApp) Get(ctx context.Context, url string, msg ...any) (*Response, error) {
 	rsp, err := h.client.Get(ctx, url, msg...)
 	if err != nil {
 		return nil, gerror.Newf("get error: %v ", err)

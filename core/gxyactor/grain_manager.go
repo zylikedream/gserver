@@ -227,13 +227,13 @@ func (g *grainActivator) contextDecorator(ID string) actor.ContextDecorator {
 
 type grainManager struct {
 	gxymodule.ModuleBase
-	sys          *actorSystem
+	sys          *actorApp
 	grainLocator *gxylocator.Locator
 	grainInfos   map[string]*grainInfo
 	ctx          context.Context
 }
 
-func NewGrainManager(sys *actorSystem) *grainManager {
+func NewGrainManager(sys *actorApp) *grainManager {
 	return &grainManager{
 		sys:        sys,
 		grainInfos: make(map[string]*grainInfo),
@@ -323,7 +323,7 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 		return nil, nil
 	}
 
-	grainInfo := gxyservice.ServiceManager().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
+	grainInfo := gxyservice.ServiceApp().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
 
 	if grainInfo == nil || grainInfo.NodeHost == "" {
 		return nil, gerror.Newf("find grain node failed, kind: %s, id: %s", kind, id)

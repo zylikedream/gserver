@@ -19,14 +19,8 @@ type gateApp struct {
 	gxyapp.App
 }
 
-var gate = newGateApp()
-
-func newGateApp() *gateApp {
+func NewGateApp() *gateApp {
 	return &gateApp{}
-}
-
-func GateApp() *gateApp {
-	return gate
 }
 
 func (s *gateApp) OnModInit(ctx context.Context) error {
@@ -44,18 +38,18 @@ func (s *gateApp) OnModStart(ctx context.Context) error {
 func (s *gateApp) OnModStop(ctx context.Context) error {
 	sessions := logic.SessionMgr().All()
 	for _, pid := range sessions {
-		s.StopSession(pid, gerror.New("gateway service stop"))
+		StopSession(pid, gerror.New("gateway service stop"))
 	}
 	return nil
 }
 
-func (s *gateApp) SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
+func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
 	return gxyactor.ActorSystem().Spawn(func() actor.Actor {
 		return logic.NewSession(ep)
 	})
 }
 
-func (s *gateApp) StopSession(pid gxyactor.PID, err error) error {
+func StopSession(pid gxyactor.PID, err error) error {
 	return gxyactor.ActorSystem().Send(pid, &pb.ActorStop{
 		Reason: err.Error(),
 	})

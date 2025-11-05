@@ -12,7 +12,7 @@ import (
 
 func TestReplaceOne(t *testing.T) {
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/db.test.toml")
-	client := newMongoApp()
+	client := NewMongoApp()
 	if err := client.OnModInit(context.Background()); err != nil {
 		t.Fatalf("OnModInit failed: %v", err)
 	}

@@ -24,7 +24,7 @@ func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
 	glog.Debugf(context.Background(), "New connection: %s", connID)
 
 	// 通过SessionManager创建Session Actor
-	sessPid, err := GateService().SpawnSession(ep)
+	sessPid, err := SpawnSession(ep)
 	if err != nil {
 		glog.Errorf(context.Background(), "Failed to create session for %s: %+v", connID, err)
 		ep.Conn().Close()
@@ -49,6 +49,6 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 	sessPid, ok := ep.GetData().(gxyactor.PID)
 	if sessPid != nil && ok {
-		GateService().StopSession(sessPid, gerror.Newf("conn closed: %s", err))
+		StopSession(sessPid, gerror.Newf("conn closed: %s", err))
 	}
 }

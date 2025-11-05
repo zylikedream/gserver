@@ -25,17 +25,17 @@ type Client redis.UniversalClient
 
 type redisApp struct {
 	gxyapp.App
-	conf *redisConfig
-	Client
+	conf   *redisConfig
+	client Client
 }
 
-var redisCli *redisApp
+var app *redisApp
 
-func Redis() *redisApp {
-	return redisCli
+func Redis() Client {
+	return app.client
 }
 
-func newRedisApp() *redisApp {
+func NewRedisApp() *redisApp {
 	cfg := g.Cfg()
 	conf := &redisConfig{}
 	if err := util.CfgUnmarshalKey(context.Background(), cfg, "redis", conf); err != nil {
@@ -48,8 +48,8 @@ func newRedisApp() *redisApp {
 		DB:          r.conf.DB,
 		DialTimeout: r.conf.Timeout,
 	}
-	r.Client = redis.NewUniversalClient(redisConf)
-	redisCli = r
+	r.client = redis.NewUniversalClient(redisConf)
+	app = r
 	return r
 }
 
@@ -59,7 +59,7 @@ func (r *redisApp) OnModStart(ctx context.Context) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel() // 确保在函数结束时取消上下文
 
-	if err := r.Ping(timeoutCtx).Err(); err != nil {
+	if err := r.client.Ping(timeoutCtx).Err(); err != nil {
 		return err
 	}
 	glog.Infof(ctx, "[module]redis start success: %s", r.conf.Addr)
@@ -67,8 +67,8 @@ func (r *redisApp) OnModStart(ctx context.Context) error {
 }
 
 func (r *redisApp) OnModStop(ctx context.Context) error {
-	if r.Client != nil {
-		if err := r.Client.Close(); err != nil {
+	if r.client != nil {
+		if err := r.client.Close(); err != nil {
 			return err
 		}
 	}
@@ -77,9 +77,5 @@ func (r *redisApp) OnModStop(ctx context.Context) error {
 }
 
 func (r *redisApp) RunScript(ctx context.Context, script *redis.Script, keys []string, args ...any) *redis.Cmd {
-	return script.Run(ctx, r.Client, keys, args...)
-}
-
-func init() {
-	gxyapp.RegisterApp(newRedisApp())
+	return script.Run(ctx, r.client, keys, args...)
 }

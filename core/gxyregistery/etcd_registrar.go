@@ -25,10 +25,9 @@ type etcdRegisteryConfig struct {
 	LogLevel       string        `toml:"log_level"`
 }
 
-func newEtcdRegistery(config string) (*etcdRegistery, error) {
+func newEtcdRegistery(cfg *gcfg.Config) (*etcdRegistery, error) {
 	conf := &etcdRegisteryConfig{}
 	logger := glog.New()
-	cfg := gcfg.Instance(config)
 	if err := util.CfgUnmarshalKey(context.Background(), cfg, "registery.etcd", conf); err != nil {
 		return nil, err
 	}

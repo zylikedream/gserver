@@ -1,0 +1,33 @@
+[node]
+    name = "game"
+    host = "127.0.0.1"
+	apps = ["mongo", "redis", "role"]
+[mongo]
+	addr = "mongodb://root:test@localhost:27017/admin?directConnection=true"
+	database = "galaxy"
+	pool_size = {min = 0, max = 20}
+	connect_timeout = "3s"
+	replica_set = "rs0"
+[redis]
+	addr = "localhost:6379"
+	password = "@zyc0131"
+	db = 10
+	dial_timeout = "5s"
+[log]
+	path = "./log"
+	level = "all"
+	file = "{Y-m-d}.log"
+	stStatus = 0
+# [registery.etcd]	
+# 	etcd_servers = ["localhost:2379"]
+# 	update_interval = "10s"
+# 	log_level = "error"
+[registery]
+	type = "consul"
+[registery.consul]	
+	address = "localhost:8500"
+	ttl = "10s"
+	refresh_ttl = "10s"
+[mq]
+	type = "redis"
+	worker_count = 2

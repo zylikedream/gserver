@@ -22,12 +22,11 @@ type consulRegisteryConfig struct {
 	RefreshTTL time.Duration `toml:"refresh_ttl"`
 }
 
-func newConsulRegistery(config string) (*consulRegistery, error) {
+func newConsulRegistery(cfg *gcfg.Config) (*consulRegistery, error) {
 	conf := &consulRegisteryConfig{
 		TTL:        time.Second * 20,
 		RefreshTTL: time.Second * 10,
 	}
-	cfg := gcfg.Instance(config)
 	if err := util.CfgUnmarshalKey(context.Background(), cfg, "registery.consul", conf); err != nil {
 		return nil, err
 	}

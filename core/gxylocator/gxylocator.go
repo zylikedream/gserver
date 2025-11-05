@@ -84,7 +84,7 @@ func (l *Locator) Unregister(ctx context.Context, t string, key string, val stri
 	// 验证节点是否匹配
 	redisCli := gxyredis.Redis()
 	redisKey := l.formatKey(t, key)
-	_, err := UnregisterGrainNode(redisCli.Client, redisKey, val)
+	_, err := UnregisterGrainNode(redisCli, redisKey, val)
 	if err != nil {
 		return gerror.Wrap(err, "Failed to unregister key in Redis")
 	}

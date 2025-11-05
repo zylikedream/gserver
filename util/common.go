@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/gogf/gf/v2/encoding/gjson"
+	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogf/gf/v2/os/glog"
@@ -91,4 +92,8 @@ func DecodeMsg(msgData []byte, msg any) error {
 	default:
 		return gjson.Unmarshal(msgData, v)
 	}
+}
+
+func SetConfig(config string) {
+	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName(config)
 }

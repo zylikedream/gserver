@@ -1,6 +1,0 @@
-[server]
-	open_time = "2022-2-10 9:00:00"
-[node]
-    name = "game"
-    host = "127.0.0.1"
-    

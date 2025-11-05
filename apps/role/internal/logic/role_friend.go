@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"gserver/apps/api"
+	"gserver/apps/friend"
 	"gserver/protocol/pb"
 	"time"
 
@@ -40,7 +41,7 @@ func (r *RoleFriend) PersistState() IPersistState {
 }
 
 func (r *RoleFriend) getFriendInfo(ctx context.Context) *api.FriendData {
-	friendInfo, err := friend.FriendService().GetFriendInfo(ctx, r.RoleID)
+	friendInfo, err := friend.GetFriendInfo(ctx, r.RoleID)
 	if err != nil {
 		glog.Errorf(ctx, "get friend info failed, roleID: %d, err: %+v", r.RoleID, err)
 		return nil
@@ -134,7 +135,7 @@ func (r *RoleFriend) applyFriendSingle(ctx context.Context, friendID int64, sour
 	if friendID == r.RoleID {
 		return nil, gerror.New("can not apply self")
 	}
-	rsp, err := friend.FriendService().FriendApply(ctx, r.RoleID, friendID, source)
+	rsp, err := friend.FriendApply(ctx, r.RoleID, friendID, source)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "%d apply friend failed", friendID)
 	}
@@ -178,7 +179,7 @@ func (r *RoleFriend) dealApplySingle(ctx context.Context, friendID int64, deal i
 	if friendID == r.RoleID {
 		return nil, gerror.New("can not deal self")
 	}
-	rsp, err := friend.FriendService().DealApply(ctx, r.RoleID, friendID, deal)
+	rsp, err := friend.DealApply(ctx, r.RoleID, friendID, deal)
 	if err != nil {
 		return nil, gerror.Wrapf(err, "%d deal apply failed", friendID)
 	}
@@ -219,7 +220,7 @@ func (r *RoleFriend) ReqFriendDelete(ctx context.Context, req *pb.ReqFriendDelet
 }
 
 func (r *RoleFriend) deleteFriendSingle(ctx context.Context, friendID int64) (int64, error) {
-	_, err := friend.FriendService().FriendDelete(ctx, r.RoleID, friendID)
+	_, err := friend.FriendDelete(ctx, r.RoleID, friendID)
 	if err != nil {
 		return 0, gerror.Wrapf(err, "%d delete friend failed", friendID)
 	}
