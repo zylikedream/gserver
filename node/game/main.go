@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"gserver/core/gxymodule"
-	"gserver/core/gxymongo"
 	"gserver/core/gxynode"
 	"gserver/service/role"
 
@@ -21,8 +20,6 @@ var rootModule gxymodule.ModuleBase
 func Init() {
 	node := gxynode.InitNode("config/game.toml")
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName("config/game.toml")
-	node.LoadModule(gxymongo.NewMongoClient("node/config/db.toml"))
-	node.LoadService(role.RoleService())
 	rootModule.AddModule(context.Background(), node)
 }
 

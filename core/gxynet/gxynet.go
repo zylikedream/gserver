@@ -12,21 +12,21 @@ import (
 
 type Network struct {
 	gxymodule.ModuleBase
-	config  string
+	cfg     *gcfg.Config
 	peer    peer.Peer
 	handler endpoint.EventHandler
 }
 
-func NewNetwork(config string, h endpoint.EventHandler) *Network {
+func NewNetwork(cfg *gcfg.Config, h endpoint.EventHandler) *Network {
 	net := &Network{
-		config:  config,
+		cfg:     cfg,
 		handler: h,
 	}
 	return net
 }
 
 func (net *Network) OnModStart(ctx context.Context) error {
-	cfg := gcfg.Instance(net.config)
+	cfg := net.cfg
 	peer, err := peer.NewPeer(cfg.MustGet(ctx, "gxynet.peer").String(), cfg)
 	if err != nil {
 		return err

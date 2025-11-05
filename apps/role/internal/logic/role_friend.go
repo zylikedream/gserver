@@ -2,9 +2,8 @@ package logic
 
 import (
 	"context"
+	"gserver/apps/api"
 	"gserver/protocol/pb"
-	"gserver/service/api"
-	"gserver/service/friend"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"

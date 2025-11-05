@@ -3,9 +3,9 @@ package logic
 import (
 	"context"
 
+	"gserver/apps/role/internal/logic/bag"
 	"gserver/gameconfig"
 	cfg "gserver/gameconfig/src"
-	"gserver/service/role/internal/logic/bag"
 
 	"gserver/protocol/pb"
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"gserver/apps/role"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
@@ -12,7 +13,6 @@ import (
 	"gserver/core/gxytimer"
 	"gserver/lib"
 	"gserver/protocol/pb"
-	"gserver/service/role"
 	"gserver/util"
 
 	"github.com/asynkron/protoactor-go/actor"

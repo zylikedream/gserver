@@ -2,50 +2,46 @@ package gateway
 
 import (
 	"context"
+	"gserver/apps/gateway/internal/logic"
 	"gserver/core/gxyactor"
+	"gserver/core/gxyapp.go"
 	"gserver/core/gxynet"
 	"gserver/core/gxynet/endpoint"
-	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
-	"gserver/service"
-	"gserver/service/gateway/internal/logic"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 // sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
-type gateService struct {
-	gxyservice.InnerService
+type gateApp struct {
+	gxyapp.App
 }
 
-var gate = newGateService()
+var gate = newGateApp()
 
-func newGateService() *gateService {
-	return &gateService{}
+func newGateApp() *gateApp {
+	return &gateApp{}
 }
 
-func GateService() *gateService {
+func GateApp() *gateApp {
 	return gate
 }
 
-func (s *gateService) Name() string {
-	return service.GATE_SERVICE
-}
-
-func (s *gateService) OnModInit(ctx context.Context) error {
-	network := gxynet.NewNetwork("config/gate.net.toml", NewGateHandler())
+func (s *gateApp) OnModInit(ctx context.Context) error {
+	network := gxynet.NewNetwork(g.Cfg(), NewGateHandler())
 	s.AddModule(ctx, network)
 	logic.NewSessionMgr()
 	return nil
 }
 
-func (s *gateService) OnModStart(ctx context.Context) error {
+func (s *gateApp) OnModStart(ctx context.Context) error {
 	// 启动会话管理器
 	return nil
 }
 
-func (s *gateService) OnModStop(ctx context.Context) error {
+func (s *gateApp) OnModStop(ctx context.Context) error {
 	sessions := logic.SessionMgr().All()
 	for _, pid := range sessions {
 		s.StopSession(pid, gerror.New("gateway service stop"))
@@ -53,13 +49,13 @@ func (s *gateService) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (s *gateService) SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
+func (s *gateApp) SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
 	return gxyactor.ActorSystem().Spawn(func() actor.Actor {
 		return logic.NewSession(ep)
 	})
 }
 
-func (s *gateService) StopSession(pid gxyactor.PID, err error) error {
+func (s *gateApp) StopSession(pid gxyactor.PID, err error) error {
 	return gxyactor.ActorSystem().Send(pid, &pb.ActorStop{
 		Reason: err.Error(),
 	})
