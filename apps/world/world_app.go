@@ -4,37 +4,51 @@ import (
 	"context"
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp.go"
+	"gserver/core/gxylog"
 	"gserver/util"
 	"reflect"
 
 	"github.com/asynkron/protoactor-go/actor"
 )
 
+const (
+	ACTIVITY_SERVER = "activity_server"
+)
+
 type worldApp struct {
 	gxyapp.App
-	servers []gxyactor.IActor
+	servers []actor.Producer
 }
 
 func NewWorldApp() *worldApp {
 	return &worldApp{
-		servers: []gxyactor.IActor{
-			&ActivityServer{},
+		servers: []actor.Producer{
+			func() actor.Actor {
+				return NewActivityServer()
+			},
 		},
 	}
 }
 
-func (w *worldApp) OnModInit(ctx context.Context) error {
+func (w *worldApp) OnModStart(ctx context.Context) error {
 	for _, server := range w.servers {
 		serverName := util.GetObjectName(server)
 		gxyactor.ActorSystem().SpawnNamed(serverName, func() actor.Actor {
-			return util.NewObject(reflect.TypeOf(server)).(gxyactor.IActor)
+			return reflect.ValueOf(server).Call([]reflect.Value{})[0].Interface().(gxyactor.IActor)
 		})
 	}
 	return nil
 }
 
 type ActivityServer struct {
-	gxyactor.ActorBase
+	*gxyactor.ActorBase
+}
+
+func NewActivityServer() *ActivityServer {
+	ctx := gxylog.NewContext(context.Background(), ACTIVITY_SERVER)
+	return &ActivityServer{
+		ActorBase: gxyactor.NewActorBase(ctx, nil),
+	}
 }
 
 func (a *ActivityServer) HandleMessage(ctx context.Context, msg any) error {
