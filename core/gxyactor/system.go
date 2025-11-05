@@ -91,7 +91,7 @@ func (a *actorApp) SpawnNamed(name string, prod func() actor.Actor) (PID, error)
 		return nil, fmt.Errorf("node not initialized")
 	}
 	actor.WithOnInit()
-	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
+	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()), actor.WithContextDecorator())
 	pid, err := a.system.Root.SpawnNamed(props, name)
 	if err != nil {
 		return nil, gerror.Wrap(err, "failed to spawn actor")

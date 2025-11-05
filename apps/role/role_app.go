@@ -9,12 +9,7 @@ import (
 	"gserver/protocol/pb"
 )
 
-const (
-	ROLE_SERVICE = "role"
-)
-
 type roleApp struct {
-	gxyactor.ActorService
 	gxyapp.App
 }
 
@@ -31,20 +26,8 @@ func (r *roleApp) Weight() int {
 }
 
 func (r *roleApp) OnModInit(ctx context.Context) error {
-	gxyservice.ServiceApp().LoadService(r)
+	gxyservice.ServiceApp().LoadService(ctx, NewRoleGrainService())
 	r.AddModule(ctx, logic.NewRoleDBIndex())
-	return nil
-}
-
-func (r *roleApp) OnModStart(ctx context.Context) error {
-	gxyactor.ActorSystem().RegisterGrain(r.ServiceName(), func() gxyactor.IGrain {
-		return logic.NewRoleMain()
-	})
-	return nil
-}
-
-func (r *roleApp) OnModStop(ctx context.Context) error {
-	gxyactor.ActorSystem().DeRegisterGrain(r.ServiceName())
 	return nil
 }
 

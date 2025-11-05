@@ -34,8 +34,9 @@ func (s *serviceApp) GetServices() []IService {
 	return s.Services
 }
 
-func (s *serviceApp) LoadService(service IService) {
+func (s *serviceApp) LoadService(ctx context.Context, service IService) {
 	s.Services = append(s.Services, service)
+	s.AddModule(ctx, service)
 }
 
 func (s *serviceApp) OnModInit(ctx context.Context) error {

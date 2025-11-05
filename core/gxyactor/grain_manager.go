@@ -71,7 +71,7 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 	case *pb.ActorActive:
 		props := a.grainInfos.Props.Clone()
 		pid, err := a.SpawnNamed(props.Configure(
-			actor.WithContextDecorator(a.contextDecorator(msg.Id)),
+			actor.WithContextDecorator(ContextDecorator(msg.Id, a.kind)),
 			actor.WithReceiverMiddleware(a.grainReciveMiddleware())),
 			msg.Id)
 		if err != nil {
@@ -166,19 +166,10 @@ func (g *grainActivator) grainReciveMiddleware() actor.ReceiverMiddleware {
 					return
 				}
 			case *actor.Stopped:
-				self := ctx.Self()
-				grainCtx, ok := ctx.(*GrainContext)
-				if !ok {
-					glog.Errorf(g.ctx, "grain context type error")
-					next(ctx, envelope)
-					return
-				}
-				key := getGrainLocateKey(grainCtx.Kind, grainCtx.ID)
-				err := g.DeregisterGrainNode(g.ctx, key, self)
+				err := g.deregisterGrain(ctx)
 				if err != nil {
 					glog.Errorf(g.ctx, "unregister grain node failed: %v", err)
 				}
-				glog.Debugf(g.ctx, "deregister grain node %s:%s", key, self.String())
 			}
 			next(ctx, envelope)
 		}
@@ -191,11 +182,13 @@ func (g *grainActivator) registerGrain(ctx actor.ReceiverContext) error {
 		return gerror.New("actor type error")
 	}
 	self := ctx.Self()
-	grainCtx, ok := ctx.(*GrainContext)
+	actorCtx, ok := ctx.(*ActorContext)
 	if !ok {
 		return gerror.New("grain context type error")
 	}
-	key := getGrainLocateKey(grainCtx.Kind, grainCtx.ID)
+	id := actorCtx.InitArgs[0].(string)
+	kind := actorCtx.InitArgs[1].(string)
+	key := getGrainLocateKey(kind, id)
 	err := g.registerGrainNode(g.ctx, key, self)
 	if err != nil {
 		return err
@@ -213,16 +206,21 @@ func (g *grainActivator) registerGrain(ctx actor.ReceiverContext) error {
 	return nil
 }
 
-func (g *grainActivator) contextDecorator(ID string) actor.ContextDecorator {
-	return func(next actor.ContextDecoratorFunc) actor.ContextDecoratorFunc {
-		return func(ctx actor.Context) actor.Context {
-			return &GrainContext{
-				Context: ctx,
-				ID:      ID,
-				Kind:    g.kind,
-			}
-		}
+func (g *grainActivator) deregisterGrain(ctx actor.ReceiverContext) error {
+	self := ctx.Self()
+	actorCtx, ok := ctx.(*ActorContext)
+	if !ok {
+		return gerror.New("grain context type error")
 	}
+
+	id := actorCtx.InitArgs[0].(string)
+	kind := actorCtx.InitArgs[1].(string)
+	key := getGrainLocateKey(kind, id)
+	err := g.DeregisterGrainNode(g.ctx, key, self)
+	if err != nil {
+		return gerror.Newf("unregister grain node failed: %v", err)
+	}
+	return nil
 }
 
 type grainManager struct {

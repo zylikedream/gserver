@@ -30,10 +30,9 @@ type ActorInternalError struct {
 	err error
 }
 
-type GrainContext struct {
+type ActorContext struct {
 	actor.Context
-	ID   string
-	Kind string
+	InitArgs []any
 }
 
 type GrainProducer func() IGrain
@@ -203,6 +202,9 @@ func (a *ActorBase) DelayInit(ctx context.Context) error {
 	return nil
 }
 
+func (a *ActorBase) Terminate(ctx context.Context, err error) {
+}
+
 func (a *ActorBase) Respond(msg any) {
 	if a.Actx.Sender() == nil {
 		glog.Infof(a.ctx, "respond sender is nil, msg: %v", msg)
@@ -253,8 +255,19 @@ func (g *GrainBase) GrainID() string {
 func (g *GrainBase) Receive(ctx actor.Context) {
 	switch ctx.Message().(type) {
 	case *actor.Started:
-		grainCtx := ctx.(*GrainContext)
-		g.grainID = grainCtx.ID
+		actorCtx := ctx.(*ActorContext)
+		g.grainID = actorCtx.InitArgs[0].(string)
 	}
 	g.ActorBase.Receive(ctx)
+}
+
+func ContextDecorator(args ...any) actor.ContextDecorator {
+	return func(next actor.ContextDecoratorFunc) actor.ContextDecoratorFunc {
+		return func(ctx actor.Context) actor.Context {
+			return &ActorContext{
+				Context:  ctx,
+				InitArgs: args,
+			}
+		}
+	}
 }

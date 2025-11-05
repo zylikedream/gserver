@@ -3,7 +3,6 @@ package friend
 import (
 	"context"
 
-	service "gserver/apps"
 	"gserver/apps/friend/internal/logic"
 	"gserver/core/gxyapp.go"
 	"gserver/core/gxyhttp"
@@ -11,12 +10,11 @@ import (
 )
 
 const (
-	SERVICE_NAME = service.FRIEND_SERVICE
+	SERVICE_NAME = "friend"
 )
 
 type friendApp struct {
 	gxyapp.App
-	gxyhttp.HttpService
 }
 
 func NewFriendApp() *friendApp {
@@ -25,11 +23,23 @@ func NewFriendApp() *friendApp {
 }
 
 func (f *friendApp) OnModInit(ctx context.Context) error {
-	gxyservice.ServiceApp().LoadService(f)
-	f.SetHandler(ctx, f.ServiceName(), logic.NewFriendServer())
+	gxyservice.ServiceApp().LoadService(ctx, NewFriendService())
 	return nil
 }
 
-func (f *friendApp) ServiceName() string {
+type friendService struct {
+	gxyhttp.HttpService
+}
+
+func NewFriendService() *friendService {
+	return &friendService{}
+}
+
+func (f *friendService) ServiceName() string {
 	return SERVICE_NAME
+}
+
+func (f *friendService) OnModInit(ctx context.Context) error {
+	f.SetHandler(ctx, f.ServiceName(), logic.NewFriendServer())
+	return nil
 }
