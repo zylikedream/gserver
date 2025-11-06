@@ -47,9 +47,10 @@ func NewCron(name, pattern string) *Cron {
 const (
 	DAY_REFRESH_HOUR = 5 // 5点刷新
 
-	CRON_NAME_DAY_REFRESH   = "day_refresh"
-	CRON_NAME_WEEK_REFRESH  = "week_refresh"
-	CRON_NAME_MONTH_REFRESH = "month_refresh"
+	CRON_NAME_DAY_REFRESH    = "day_refresh"
+	CRON_NAME_WEEK_REFRESH   = "week_refresh"
+	CRON_NAME_MONTH_REFRESH  = "month_refresh"
+	CRON_NAME_MINUTE_REFRESH = "minute_refresh"
 )
 
 var DayRefresh = &Cron{
@@ -67,4 +68,10 @@ var WeekRefresh = &Cron{
 var MonthRefresh = &Cron{
 	Name:    CRON_NAME_MONTH_REFRESH,
 	Pattern: fmt.Sprintf("0 0 %d 1 * *", DAY_REFRESH_HOUR),
+}
+
+// 分钟刷新点
+var MinuteRefresh = &Cron{
+	Name:    CRON_NAME_MINUTE_REFRESH,
+	Pattern: "0 0 * * * *",
 }

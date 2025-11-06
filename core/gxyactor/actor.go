@@ -97,7 +97,12 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 			return gerror.Wrap(err, "delay init actor error")
 		}
 	case ActorTimerMsg:
-		a.timer.Active(a.ctx, msg)
+		err := gutil.Try(a.ctx, func(ctx context.Context) {
+			a.timer.Active(a.ctx, msg)
+		})
+		if err != nil {
+			glog.Errorf(a.ctx, "timer active error, msg:%s, error:%+v", msg.Name, err)
+		}
 	case *pb.RpcMessage:
 		rsp, err := a.handleRpcMsg(a.ctx, msg)
 		if err != nil {

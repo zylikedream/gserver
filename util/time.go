@@ -8,6 +8,10 @@ import (
 	"github.com/gogf/gf/v2/os/gtime"
 )
 
+var (
+	MAX_TIME = time.Date(2100, 12, 31, 23, 59, 59, 999999999, time.Local)
+)
+
 func DayRefreshTime(ctx context.Context, tm time.Time) time.Time {
 	dayRefreshHour := g.Cfg().MustGet(ctx, "server.day_refresh").Int()
 	refreshTime := gtime.NewFromTime(tm).StartOfDay().Add(time.Duration(dayRefreshHour) * time.Hour)

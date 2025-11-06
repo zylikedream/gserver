@@ -97,3 +97,10 @@ func DecodeMsg(msgData []byte, msg any) error {
 func SetConfig(config string) {
 	g.Cfg().GetAdapter().(*gcfg.AdapterFile).SetFileName(config)
 }
+
+func If[T any](condition bool, trueValue, falseValue T) T {
+	if condition {
+		return trueValue
+	}
+	return falseValue
+}
