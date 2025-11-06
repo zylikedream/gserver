@@ -41,7 +41,7 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 		glog.Errorf(context.Background(), "Failed to get session from endpoint data")
 		return nil
 	}
-	gxyactor.ActorSystem().Send(sess, msg)
+	gxyactor.Send(sess, msg)
 	// 消息将直接由Session Actor处理
 	return nil
 }

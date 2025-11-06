@@ -70,19 +70,19 @@ func (a *actorApp) OnModStart(ctx context.Context) error {
 	return nil
 }
 
+// OnModStop 停止Actor模块 - 停止节点
+func (a *actorApp) OnModStop(ctx context.Context) error {
+	a.system.Shutdown()
+	glog.Infof(ctx, "actor system stopped: %s", a.Address())
+	return nil
+}
+
 func (a *actorApp) RegisterGrain(name string, prod GrainProducer) error {
 	return a.grainMgr.RegisterGrain(name, prod)
 }
 
 func (a *actorApp) DeRegisterGrain(name string) {
 	a.grainMgr.DeRegisterGrain(name)
-}
-
-// OnModStop 停止Actor模块 - 停止节点
-func (a *actorApp) OnModStop(ctx context.Context) error {
-	a.system.Shutdown()
-	glog.Infof(ctx, "actor system stopped: %s", a.Address())
-	return nil
 }
 
 // SpawnRegister创建新的Actor

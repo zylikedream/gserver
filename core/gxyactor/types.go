@@ -7,5 +7,5 @@ type ActorService struct {
 }
 
 func (s *ActorService) Host() string {
-	return ActorSystem().Address()
+	return Address()
 }

@@ -23,17 +23,17 @@ func (r *roleService) ServiceName() string {
 }
 
 func (r *roleService) Weight() int {
-	return gxyactor.ActorSystem().GetGrainCount(r.ServiceName())
+	return gxyactor.GetGrainCount(r.ServiceName())
 }
 
 func (r *roleService) OnModStart(ctx context.Context) error {
-	gxyactor.ActorSystem().RegisterGrain(r.ServiceName(), func() gxyactor.IGrain {
+	gxyactor.RegisterGrain(r.ServiceName(), func() gxyactor.IGrain {
 		return logic.NewRoleMain()
 	})
 	return nil
 }
 
 func (r *roleService) OnModStop(ctx context.Context) error {
-	gxyactor.ActorSystem().DeRegisterGrain(r.ServiceName())
+	gxyactor.DeRegisterGrain(r.ServiceName())
 	return nil
 }

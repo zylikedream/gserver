@@ -10,7 +10,7 @@ const (
 )
 
 func GetRoleGrain(roleID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
-	pid, err := gxyactor.ActorSystem().GetGrain(ROLE_GRAIN_TYPE, strconv.Itoa(int(roleID)), spawnIfNotExist...)
+	pid, err := gxyactor.GetGrain(ROLE_GRAIN_TYPE, strconv.Itoa(int(roleID)), spawnIfNotExist...)
 	if err != nil {
 		return nil, err
 	}

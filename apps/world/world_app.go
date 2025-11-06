@@ -33,7 +33,7 @@ func NewWorldApp() *worldApp {
 func (w *worldApp) OnModStart(ctx context.Context) error {
 	for _, server := range w.servers {
 		serverName := util.GetObjectName(server)
-		gxyactor.ActorSystem().SpawnNamed(serverName, func() actor.Actor {
+		gxyactor.SpawnNamed(serverName, func() actor.Actor {
 			return reflect.ValueOf(server).Call([]reflect.Value{})[0].Interface().(gxyactor.IActor)
 		})
 	}

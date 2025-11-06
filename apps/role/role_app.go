@@ -22,7 +22,7 @@ func (r *roleApp) ServiceName() string {
 }
 
 func (r *roleApp) Weight() int {
-	return gxyactor.ActorSystem().GetGrainCount(r.ServiceName())
+	return gxyactor.GetGrainCount(r.ServiceName())
 }
 
 func (r *roleApp) OnModInit(ctx context.Context) error {

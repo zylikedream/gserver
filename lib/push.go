@@ -22,7 +22,7 @@ func notifyRoleMessage(ctx context.Context, roleID int64, message any, anywhere 
 		return false
 	}
 
-	if err := gxyactor.ActorSystem().Notify(pid, message); err != nil {
+	if err := gxyactor.Notify(pid, message); err != nil {
 		glog.Errorf(ctx, "notify failed, roleID:%d message:%v err:%+v", roleID, message, err)
 		return false
 	}

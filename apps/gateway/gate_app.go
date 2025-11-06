@@ -44,13 +44,13 @@ func (s *gateApp) OnModStop(ctx context.Context) error {
 }
 
 func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
-	return gxyactor.ActorSystem().Spawn(func() actor.Actor {
+	return gxyactor.Spawn(func() actor.Actor {
 		return logic.NewSession(ep)
 	})
 }
 
 func StopSession(pid gxyactor.PID, err error) error {
-	return gxyactor.ActorSystem().Send(pid, &pb.ActorStop{
+	return gxyactor.Send(pid, &pb.ActorStop{
 		Reason: err.Error(),
 	})
 }
