@@ -7,7 +7,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-package gameconfig;
+package gametable;
 
 type JsonLoader func(string) ([]map[string]interface{}, error)
 

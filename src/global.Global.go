@@ -7,7 +7,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-package gameconfig;
+package gametable;
 
 
 import "errors"
