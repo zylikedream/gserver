@@ -12,12 +12,15 @@ import (
 	"context"
 	"time"
 
+	"gserver/apps/role/internal/event"
 	"gserver/core/gxytimer"
 	"gserver/gameconfig"
 	cfg "gserver/gameconfig/src"
+	gametable "gserver/gameconfig/src"
 	"gserver/protocol/pb"
 	"gserver/util"
 
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/gookit/goutil/arrutil"
 	"github.com/pkg/errors"
@@ -42,6 +45,18 @@ var _ IRoleModule = (*RoleSign)(nil)
 
 func (s *RoleSign) PersistState() IPersistState {
 	return &s.RoleSignState
+}
+
+func (s *RoleSign) OnModInit(ctx context.Context) error {
+	s.Role.eventBus.Subscribe(MakeActivityOpenEvent(gametable.ActivityEActivityType_ACTIVITY_TYPE_SIGNUP), func(event event.EventParam) {
+		s.reset(ctx)
+	})
+	return nil
+}
+
+func (s *RoleSign) reset(ctx context.Context) {
+	glog.Debugf(ctx, "reset sign state")
+	s.RoleSignState = RoleSignState{}
 }
 
 // 刷新的时候自动签到(玩家上线，或者刷新点的时候在线，都算签到一次)

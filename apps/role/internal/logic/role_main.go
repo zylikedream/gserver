@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"fmt"
+	"gserver/apps/role/internal/event"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
@@ -78,6 +79,7 @@ type RoleMain struct {
 	session           gxyactor.PID
 	state             RoleState
 	sessionActiveTime time.Time
+	eventBus          event.IEventBus
 }
 
 func NewRoleMain() *RoleMain {
@@ -105,6 +107,7 @@ func (r *RoleMain) Init(ctx context.Context) error {
 }
 
 func (r *RoleMain) DelayInit(ctx context.Context) error {
+	r.eventBus = event.NewEventBus()
 	if err := r.initRole(ctx); err != nil {
 		return gerror.Wrapf(err, "init role error, roleID: %d", r.RoleID)
 	}
