@@ -1,6 +1,9 @@
 package gxyactor
 
 import (
+	"gserver/protocol/pb"
+	"time"
+
 	"github.com/asynkron/protoactor-go/actor"
 	"google.golang.org/protobuf/proto"
 )
@@ -14,29 +17,31 @@ func DeRegisterGrain(name string) {
 }
 
 // SpawnRegister创建新的Actor
-func SpawnNamed(name string, prod func() actor.Actor) (PID, error) {
-	return app.SpawnNamed(name, prod)
+func SpawnNamed(name string, props *actor.Props) (PID, error) {
+	return app.spawnNamed(name, props)
 }
 
-func Spawn(prod func() actor.Actor) (pid PID, err error) {
-	return app.Spawn(prod)
+func SpawnNamedFunc(name string, prod func() actor.Actor) (PID, error) {
+	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
+	return app.spawnNamed(name, props)
+}
+
+func Spawn(props *actor.Props) (pid PID, err error) {
+	return app.spawn(props)
+}
+
+func SpawnFunc(prod func() actor.Actor) (pid PID, err error) {
+	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
+	return app.spawn(props)
 }
 
 // Send 发送消息（异步）
-func Send(pid PID, message any) error {
-	return app.Send(pid, message)
+func Send(pid PID, message proto.Message) error {
+	return app.send(pid, message)
 }
 
-func Call(pid PID, message any) (any, error) {
-	return app.Call(pid, message)
-}
-
-func RpcCall(pid PID, message proto.Message) (proto.Message, error) {
-	return app.RpcCall(pid, message)
-}
-
-func Notify(pid PID, message any) error {
-	return app.Notify(pid, message)
+func Call(pid PID, message proto.Message, timeout time.Duration) (any, error) {
+	return app.call(pid, message, timeout)
 }
 
 func GetNodeName() string {
@@ -61,4 +66,10 @@ func GetGrain(kind string, id string, spawn ...bool) (PID, error) {
 
 func GetGrainCount(kind string) int {
 	return app.GetGrainCount(kind)
+}
+
+func ActorError(reason string) *pb.ActorError {
+	return &pb.ActorError{
+		Reason: reason,
+	}
 }

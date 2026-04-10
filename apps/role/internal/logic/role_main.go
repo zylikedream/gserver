@@ -55,7 +55,7 @@ type RoleState int32
 
 const (
 	RoleStateInit    RoleState = iota
-	RoleStateStart             // 角色已初始化，等待登录
+	RoleStateLoad              // 角色已初始化，等待登录
 	RoleStateLogined           // 角色已登录, 开始正常处理消息
 	RoleStateLogout            // 角色已登出
 )
@@ -124,7 +124,7 @@ func (r *RoleMain) initRole(ctx context.Context) error {
 	}
 	r.initTimer(ctx)
 	r.initMsgHandler()
-	r.state = RoleStateStart
+	r.state = RoleStateLoad
 	glog.Debugf(ctx, "init role success, roleID: %d", r.RoleID)
 	return nil
 }
@@ -211,49 +211,33 @@ func ensureModIndex(ctx context.Context, modState IPersistState) error {
 	return nil
 }
 
-func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
-	switch msg := msg.(type) {
-	case *pb.ClientMsg:
-		pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
-		if err != nil {
-			return gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
+func canHandleMsg(state RoleState, msg proto.Message) bool {
+	if _, ok := msg.(*pb.ReqAccountLogin); ok {
+		if state != RoleStateInit { // 只有init状态下不能处理登录消息
+			return true
 		}
-		err = r.handleClientMsg(ctx, msg.Path, pbmsg)
-		if err != nil {
-			return err
-		}
-	default:
-		glog.Warningf(ctx, "recv unknown msg, roleID: %d, msg: %v", r.RoleID, msg)
+		return false
 	}
-	return nil
+	// 普通消息只有login状态下才能处理,
+	if state != RoleStateLogined {
+		return false
+	}
+	return false
 }
 
-func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.Message) error {
+func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
+	path := climsg.Path
+	pbmsg, err := anypb.UnmarshalNew(climsg.GetMsg(), proto.UnmarshalOptions{})
+	if err != nil {
+		return nil, gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
+	}
 	r.sessionActiveTime = time.Now()
-	switch msg := msg.(type) {
-	case *pb.ReqAccountLogin:
-		if r.state == RoleStateLogined {
-			glog.Warningf(ctx, "role already login, roleID: %d", r.RoleID)
-			r.Respond(&pb.ActorError{
-				Reason: "role already login",
-			})
-			return nil
-		}
-	default:
-		switch r.state {
-		case RoleStateInit:
-			glog.Warningf(ctx, "role recv msg in init state, ignore it  roleID: %d, msg: %s", r.RoleID, util.FormatObject(msg))
-			return nil
-		case RoleStateLogout:
-			glog.Warningf(ctx, "role recv msg in logout state, ignore it  roleID: %d, msg: %s", r.RoleID, util.FormatObject(msg))
-			r.Respond(&pb.ActorError{
-				Reason: "role logout, can not handle msg",
-			})
-			return nil
-		}
+	if !canHandleMsg(r.state, pbmsg) {
+		glog.Warningf(ctx, "role recv msg in state %d, ignore it  msg: %s", r.state, util.FormatObject(pbmsg))
+		return nil, nil
 	}
 	var rsp proto.Message
-	res, err := r.HandleProtobufMsg(ctx, msg)
+	res, err := r.HandleProtobufMsg(ctx, pbmsg)
 	if err != nil {
 		res = &pb.Ack{
 			Code:   1,
@@ -264,15 +248,11 @@ func (r *RoleMain) handleClientMsg(ctx context.Context, path string, msg proto.M
 	if res != nil {
 		svrMsg, err := r.newServerMsg(res)
 		if err != nil {
-			return gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
+			return nil, gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 		}
 		rsp = svrMsg
-
 	}
-	if rsp != nil {
-		r.Respond(rsp)
-	}
-	return nil
+	return rsp, nil
 }
 
 func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
@@ -295,6 +275,7 @@ func (r *RoleMain) initTimer(ctx context.Context) {
 }
 
 func (r *RoleMain) initMsgHandler() {
+	// 把各个模块的handle也添加到msgHandler中,方便自动处理协议
 	for _, mod := range r.Modules() {
 		r.AddMsgHandler(mod)
 	}
@@ -381,25 +362,22 @@ func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 }
 
 func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (*pb.RspAccountLogin, error) {
-	if r.state == RoleStateLogined {
-		return nil, gerror.New("role already login")
-	}
-	sender := r.Sender()
-	if r.session != nil && !gxyactor.PidEqual(r.session, sender) { // 表示重复登录
+	newSession := r.Sender()
+	if r.state == RoleStateLogined && !gxyactor.PidEqual(r.session, newSession) { // 表示重复登录
 		// 断开旧连接
 		r.Send(r.session, &pb.ActorStop{
-			Reason: "duplicate login",
+			Reason: "multi login",
 		})
 	}
-	r.session = sender
+	r.session = newSession
 	firstLogin := false
 	now := time.Now()
 	if r.Basic.CreateTm.IsZero() {
-		firstLogin = true
-		r.Basic.CreateTm = now
 		if err := r.OnRoleCreated(ctx); err != nil {
 			return nil, err
 		}
+		firstLogin = true
+		r.Basic.CreateTm = now
 	}
 	r.Basic.LoginTm = now
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {

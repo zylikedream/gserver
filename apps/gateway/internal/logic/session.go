@@ -178,7 +178,7 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 			s.Stop(gerror.New("client account logout"))
 		default:
 			glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.FormatObject(pbmsg))
-			if err := s.SendDataMsg(pbmsg, msg.Path); err != nil {
+			if err := s.SendRoleMsg(pbmsg, msg.Path); err != nil {
 				return gerror.Wrap(err, "send data msg error")
 			}
 		}
@@ -188,7 +188,7 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 	return nil
 }
 
-func (s *Session) SendDataMsg(msg proto.Message, path string) error {
+func (s *Session) SendRoleMsg(msg proto.Message, path string) error {
 	req := &pb.ClientMsg{
 		Path: path,
 		Msg:  &anypb.Any{},
@@ -196,7 +196,7 @@ func (s *Session) SendDataMsg(msg proto.Message, path string) error {
 	if err := anypb.MarshalFrom(req.Msg, msg, proto.MarshalOptions{}); err != nil {
 		return gerror.Newf("marshal req error, err: %v", err)
 	}
-	s.Request(s.sessionInfo.RolePid, req)
+	s.CallSync(s.sessionInfo.RolePid, req)
 	return nil
 }
 
@@ -231,7 +231,7 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		msg := &pb.ReqAccountLogout{
 			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
 		}
-		s.SendDataMsg(msg, util.GetObjectName(msg))
+		s.SendRoleMsg(msg, util.GetObjectName(msg))
 	}
 	s.state = StateDisconnected
 

@@ -11,10 +11,6 @@ func NotifyRoleMessageOnline(ctx context.Context, roleID int64, message any) boo
 	return notifyRoleMessage(ctx, roleID, message, false)
 }
 
-func NotifyRoleMessageAnywhere(ctx context.Context, roleID int64, message any) bool {
-	return notifyRoleMessage(ctx, roleID, message, true)
-}
-
 func notifyRoleMessage(ctx context.Context, roleID int64, message any, anywhere bool) bool {
 	pid, _ := GetRoleGrain(roleID, anywhere)
 	if pid == nil {
@@ -22,7 +18,7 @@ func notifyRoleMessage(ctx context.Context, roleID int64, message any, anywhere 
 		return false
 	}
 
-	if err := gxyactor.Notify(pid, message); err != nil {
+	if err := gxyactor.Send(pid, message); err != nil {
 		glog.Errorf(ctx, "notify failed, roleID:%d message:%v err:%+v", roleID, message, err)
 		return false
 	}

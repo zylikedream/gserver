@@ -39,7 +39,6 @@ type GrainProducer func() IGrain
 type IActor interface {
 	Init(ctx context.Context) error
 	DelayInit(ctx context.Context) error
-	HandleMessage(ctx context.Context, msg any) error
 	Terminate(ctx context.Context, err error)
 	Timer() *ActorTimer
 	Self() PID
@@ -90,7 +89,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if err := a.actor.Init(a.ctx); err != nil {
 			return gerror.Wrap(err, "init actor error")
 		}
-		a.SendSelf(&ActorInitMsg{})
+		a.Send(a.self, &ActorInitMsg{})
 	case *ActorInitMsg:
 		a.msgHandler.AddHandler(a.actor)
 		if err := a.actor.DelayInit(a.ctx); err != nil {
@@ -103,8 +102,8 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if err != nil {
 			glog.Errorf(a.ctx, "timer active error, msg:%s, error:%+v", msg.Name, err)
 		}
-	case *pb.RpcMessage:
-		rsp, err := a.handleRpcMsg(a.ctx, msg)
+	case *pb.ActorCallMessage:
+		rsp, err := a.handleCallMsg(a.ctx, msg)
 		if err != nil {
 			glog.Errorf(a.ctx, "handle rpc msg failed, msg:%s, error:%+v", msg.Msg.String(), err)
 			a.Respond(&pb.ActorError{
@@ -115,11 +114,6 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if rsp != nil {
 			a.Respond(rsp)
 		}
-	case *pb.PushMessage:
-		if err := a.handlePushMsg(a.ctx, msg); err != nil {
-			glog.Errorf(a.ctx, "handle push msg failed, error:%+v", err)
-			return nil
-		}
 	case *pb.ActorStop:
 		a.Stop(gerror.New(msg.Reason))
 	case *actor.Stopping:
@@ -128,7 +122,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		a.timer.Stop(a.ctx)
 		a.actor.Terminate(a.ctx, a.stopErr)
 	default:
-		return a.actor.HandleMessage(a.ctx, ctx.Message())
+		glog.Errorf(a.ctx, "handle ")
 	}
 	return nil
 }
@@ -150,10 +144,10 @@ func (a *ActorBase) handlePushMsg(ctx context.Context, msg *pb.PushMessage) erro
 	return nil
 }
 
-func (a *ActorBase) handleRpcMsg(ctx context.Context, msg *pb.RpcMessage) (proto.Message, error) {
+func (a *ActorBase) handleCallMsg(ctx context.Context, msg *pb.ActorCallMessage) (proto.Message, error) {
 	pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
 	if err != nil {
-		return nil, gerror.Wrapf(err, "unmarshal rpc msg error, msg: %s", msg.String())
+		return nil, gerror.Wrapf(err, "unmarshal call msg error(msg must be protobuf msg), msg: %s", msg.String())
 	}
 	return a.HandleProtobufMsg(ctx, pbmsg)
 }
@@ -179,18 +173,6 @@ func (a *ActorBase) Stop(err error) {
 	a.Actx.Stop(a.self)
 }
 
-func (a *ActorBase) SendSelf(msg any) {
-	a.Send(a.self, msg)
-}
-
-func (a *ActorBase) Sender() PID {
-	return a.Actx.Sender()
-}
-
-func (a *ActorBase) Send(pid PID, msg any) {
-	a.Actx.Send(pid, msg)
-}
-
 func (a *ActorBase) Timer() *ActorTimer {
 	return a.timer
 }
@@ -210,6 +192,7 @@ func (a *ActorBase) DelayInit(ctx context.Context) error {
 func (a *ActorBase) Terminate(ctx context.Context, err error) {
 }
 
+// 回应CallSync方法
 func (a *ActorBase) Respond(msg any) {
 	if a.Actx.Sender() == nil {
 		glog.Infof(a.ctx, "respond sender is nil, msg: %v", msg)
@@ -218,12 +201,29 @@ func (a *ActorBase) Respond(msg any) {
 	a.Actx.Respond(msg)
 }
 
-func (a *ActorBase) Request(pid PID, msg any) {
+// 发送请求里带了sender，所以接收方可以调用respond回应消息
+func (a *ActorBase) CallSync(pid PID, msg proto.Message) {
 	a.Actx.Request(pid, msg)
+}
+
+func (a *ActorBase) Call(pid PID, msg proto.Message, timeout time.Duration) (any, error) {
+	return a.Actx.RequestFuture(pid, msg, timeout).Result()
+}
+
+func (a *ActorBase) Send(pid PID, msg proto.Message) {
+	a.Actx.Send(pid, msg)
+}
+
+func (a *ActorBase) Sender() PID {
+	return a.Actx.Sender()
 }
 
 func (a *ActorBase) SpawnNamed(props *actor.Props, name string) (PID, error) {
 	return a.Actx.SpawnNamed(props, name)
+}
+
+func (a *ActorBase) Spawn(props *actor.Props) PID {
+	return a.Actx.Spawn(props)
 }
 
 func (a *ActorBase) SetLogValue(key string, val any) *ActorBase {

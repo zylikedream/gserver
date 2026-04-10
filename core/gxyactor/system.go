@@ -6,15 +6,12 @@ import (
 	"time"
 
 	"gserver/core/gxyapp.go"
-	"gserver/protocol/pb"
-	"gserver/util"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // actorApp 基础Actor模块
@@ -34,7 +31,7 @@ const (
 var app *actorApp
 
 // ActorSystem 获取基础Actor模块
-func ActorSystem() *actorApp {
+func ActorApp() *actorApp {
 	return app
 }
 
@@ -59,7 +56,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
-	a.grainMgr = NewGrainManager(a)
+	a.grainMgr = NewGrainManager()
 	a.AddModule(ctx, a.grainMgr)
 	return nil
 }
@@ -86,37 +83,22 @@ func (a *actorApp) DeRegisterGrain(name string) {
 }
 
 // SpawnRegister创建新的Actor
-func (a *actorApp) SpawnNamed(name string, prod func() actor.Actor) (PID, error) {
+func (a *actorApp) spawnNamed(name string, props *actor.Props) (PID, error) {
+	return a.system.Root.SpawnNamed(props, name)
+}
+
+func (a *actorApp) spawn(props *actor.Props) (PID, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
-	actor.WithOnInit()
-	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()), actor.WithContextDecorator())
-	pid, err := a.system.Root.SpawnNamed(props, name)
-	if err != nil {
-		return nil, gerror.Wrap(err, "failed to spawn actor")
-	}
-
-	return pid, nil
+	return a.system.Root.Spawn(props), nil
 }
 
-func (a *actorApp) Spawn(prod func() actor.Actor) (pid PID, err error) {
-	if a.system == nil {
-		return nil, fmt.Errorf("node not initialized")
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			glog.Errorf(context.Background(), "actor spawn panicked: %v", r)
-			err = gerror.New("spawn error")
-		}
-	}()
-	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	pid = a.system.Root.Spawn(props)
-	return
-}
+// notice root调用request没有意义，,因为无法处理root进程的消息，就是接收方调用respond也无法处理(其实root进程的request和send方法时一样的)
 
+// Send, call都是用于非actor向actor发送消息
 // Send 发送消息（异步）
-func (a *actorApp) Send(pid PID, message any) error {
+func (a *actorApp) send(pid PID, message proto.Message) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
@@ -124,56 +106,12 @@ func (a *actorApp) Send(pid PID, message any) error {
 	return nil
 }
 
-func (a *actorApp) Call(pid PID, message any) (any, error) {
+func (a *actorApp) call(pid PID, message proto.Message, timeout time.Duration) (any, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
 
-	future := a.system.Root.RequestFuture(pid, message, 1115*time.Second)
-	res, err := future.Result()
-	if err != nil {
-		return nil, gerror.Wrap(err, "call error")
-	}
-	if err, ok := res.(*pb.ActorError); ok {
-		return nil, gerror.New(err.Reason)
-	}
-	return res, nil
-}
-
-func (a *actorApp) RpcCall(pid PID, message proto.Message) (proto.Message, error) {
-	if a.system == nil {
-		return nil, fmt.Errorf("node not initialized")
-	}
-
-	rpc := &pb.RpcMessage{
-		Msg: &anypb.Any{},
-	}
-
-	if err := anypb.MarshalFrom(rpc.Msg, message, proto.MarshalOptions{}); err != nil {
-		return nil, gerror.Newf("marshal rpc req error, err: %v", err)
-	}
-	res, err := a.Call(pid, rpc)
-	if err != nil {
-		return nil, gerror.Wrap(err, "rpc call error")
-	}
-	pres, _ := res.(proto.Message)
-	return pres, nil
-}
-
-func (a *actorApp) Notify(pid PID, message any) error {
-	if a.system == nil {
-		return fmt.Errorf("node not initialized")
-	}
-	msgData, err := util.EncodeMsg(message)
-	if err != nil {
-		return gerror.Wrapf(err, "encode message error, msg: %v", message)
-	}
-	msg := &pb.PushMessage{
-		MsgName: util.GetObjectName(message),
-		MsgData: string(msgData),
-	}
-	a.system.Root.Send(pid, msg)
-	return nil
+	return a.system.Root.RequestFuture(pid, message, timeout).Result()
 }
 
 func (a *actorApp) GetNodeName() string {

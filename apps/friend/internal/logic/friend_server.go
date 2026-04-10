@@ -120,7 +120,7 @@ func (f *FriendServer) getFriendData(ctx context.Context, roleID int64) (*friend
 			friendInfo := api.FriendInfo{}
 			err := gjson.Unmarshal([]byte(friendStr), &friendInfo)
 			if err != nil {
-				glog.Errorf(ctx, "unmarshal friend info failed: %v, friendID: %d", err, friendID)
+				glog.Errorf(ctx, "unmarshal friend info failed: %v, friendID: %s", err, friendID)
 				continue
 			}
 			friendInfoList = append(friendInfoList, &friendInfo)
