@@ -8,6 +8,8 @@
 	pool_size = {min = 0, max = 20}
 	connect_timeout = "3s"
 	replica_set = "rs0"
+[postgres]
+	url = "postgres://gserver:password@localhost:5432/gserver?pool_max_conns=20&pool_min_conns=5"
 [redis]
 	addr = "localhost:6379"
 	password = "@zyc0131"
