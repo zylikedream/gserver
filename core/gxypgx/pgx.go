@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type pgxApp struct {
+type PGXApp struct {
 	gxyapp.App
 	pool *pgxpool.Pool
 	conf *pgxConfig
@@ -22,24 +22,24 @@ type pgxConfig struct {
 	URL string `toml:"url"`
 }
 
-var pgxAppInstance *pgxApp
+var pgxAppInstance *PGXApp
 
-func PGX() *pgxApp {
+func PGX() *PGXApp {
 	return pgxAppInstance
 }
 
-func NewPGXApp() *pgxApp {
+func NewPGXApp() *PGXApp {
 	cfg := g.Cfg()
 	conf := &pgxConfig{}
 	ctx := gctx.New()
 	if err := util.CfgUnmarshalKey(ctx, cfg, "postgres", conf); err != nil {
 		glog.Fatal(ctx, err)
 	}
-	pgxAppInstance = &pgxApp{conf: conf}
+	pgxAppInstance = &PGXApp{conf: conf}
 	return pgxAppInstance
 }
 
-func (p *pgxApp) OnModInit(ctx context.Context) error {
+func (p *PGXApp) OnModInit(ctx context.Context) error {
 	poolConfig, err := pgxpool.ParseConfig(p.conf.URL)
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (p *pgxApp) OnModInit(ctx context.Context) error {
 	return nil
 }
 
-func (p *pgxApp) OnModStart(ctx context.Context) error {
+func (p *PGXApp) OnModStart(ctx context.Context) error {
 	if err := p.pool.Ping(ctx); err != nil {
 		glog.Fatal(ctx, err)
 	}
@@ -59,7 +59,7 @@ func (p *pgxApp) OnModStart(ctx context.Context) error {
 	return nil
 }
 
-func (p *pgxApp) OnModStop(ctx context.Context) error {
+func (p *PGXApp) OnModStop(ctx context.Context) error {
 	if p.pool != nil {
 		p.pool.Close()
 	}
@@ -67,6 +67,6 @@ func (p *pgxApp) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (p *pgxApp) GetPool() *pgxpool.Pool {
+func (p *PGXApp) GetPool() *pgxpool.Pool {
 	return p.pool
 }

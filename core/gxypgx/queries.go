@@ -7,35 +7,35 @@ import (
 )
 
 // InsertOne inserts a single row
-func (p *pgxApp) InsertOne(ctx context.Context, tableName string, columns []string, values []interface{}) error {
+func (p *PGXApp) InsertOne(ctx context.Context, tableName string, columns []string, values []interface{}) error {
 	query := p.buildInsertQuery(tableName, columns)
 	_, err := p.pool.Exec(ctx, query, values...)
 	return err
 }
 
 // FindOne queries a single row
-func (p *pgxApp) FindOne(ctx context.Context, tableName string, dest interface{}, where string, args ...interface{}) error {
+func (p *PGXApp) FindOne(ctx context.Context, tableName string, dest interface{}, where string, args ...interface{}) error {
 	query := "SELECT * FROM " + tableName + " WHERE " + where
 	row := p.pool.QueryRow(ctx, query, args...)
 	return row.Scan(dest)
 }
 
 // Update updates data
-func (p *pgxApp) Update(ctx context.Context, tableName string, set string, where string, args ...interface{}) error {
+func (p *PGXApp) Update(ctx context.Context, tableName string, set string, where string, args ...interface{}) error {
 	query := "UPDATE " + tableName + " SET " + set + " WHERE " + where
 	_, err := p.pool.Exec(ctx, query, args...)
 	return err
 }
 
 // Delete deletes data
-func (p *pgxApp) Delete(ctx context.Context, tableName string, where string, args ...interface{}) error {
+func (p *PGXApp) Delete(ctx context.Context, tableName string, where string, args ...interface{}) error {
 	query := "DELETE FROM " + tableName + " WHERE " + where
 	_, err := p.pool.Exec(ctx, query, args...)
 	return err
 }
 
 // buildInsertQuery builds INSERT statement (placeholders format $1, $2, ...)
-func (p *pgxApp) buildInsertQuery(tableName string, columns []string) string {
+func (p *PGXApp) buildInsertQuery(tableName string, columns []string) string {
 	var query strings.Builder
 	placeholderCount := len(columns)
 

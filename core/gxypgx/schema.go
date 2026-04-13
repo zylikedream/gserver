@@ -5,19 +5,19 @@ import (
 )
 
 // CreateTable executes CREATE TABLE statement
-func (p *pgxApp) CreateTable(ctx context.Context, sql string) error {
+func (p *PGXApp) CreateTable(ctx context.Context, sql string) error {
 	_, err := p.pool.Exec(ctx, sql)
 	return err
 }
 
 // CreateIndex executes CREATE INDEX statement
-func (p *pgxApp) CreateIndex(ctx context.Context, sql string) error {
+func (p *PGXApp) CreateIndex(ctx context.Context, sql string) error {
 	_, err := p.pool.Exec(ctx, sql)
 	return err
 }
 
 // TableExists checks if a table exists
-func (p *pgxApp) TableExists(ctx context.Context, tableName string) (bool, error) {
+func (p *PGXApp) TableExists(ctx context.Context, tableName string) (bool, error) {
 	var exists bool
 	query := `
         SELECT EXISTS (
@@ -31,7 +31,7 @@ func (p *pgxApp) TableExists(ctx context.Context, tableName string) (bool, error
 }
 
 // IndexExists checks if an index exists
-func (p *pgxApp) IndexExists(ctx context.Context, indexName string) (bool, error) {
+func (p *PGXApp) IndexExists(ctx context.Context, indexName string) (bool, error) {
 	var exists bool
 	query := `
         SELECT EXISTS (
