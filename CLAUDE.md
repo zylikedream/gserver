@@ -63,7 +63,7 @@ TOML files in `config/`. Node startup reads `game.toml` which declares which app
 ### Project-Scoped Libraries
 
 - `core/gxynet/` — TCP networking (gnet v2), packet codec, endpoints, connections
-- `core/gxymongo/` — MongoDB wrapper
+- `core/gxymongo/` — MongoDB wrapper (已移除)
 - `core/gxyredis/` — Redis wrapper
 - `core/gxyhttp/` — HTTP utilities
 - `core/gxylocator/` — Service/script locator

@@ -30,7 +30,7 @@
 │  gxyactor   — Actor 系统（ActorBase, GrainBase, 定位器）   │
 │  gxymodule  — 模块系统（树状结构、生命周期管理）             │
 │  gxynet     — 网络层（TCP server, endpoint, message）      │
-│  gxymongo   — MongoDB 封装                               │
+│  gxymongo   — MongoDB 封装 (已移除)                       │
 │  gxyredis   — Redis 封装                                 │
 │  gxytimer   — 定时器系统                                  │
 │  gxylocator — 分布式定位器                                │

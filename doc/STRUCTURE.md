@@ -10,7 +10,7 @@ gserver/
 │   ├── gxyactor/            # Actor 系统
 │   ├── gxymodule/           # 模块系统
 │   ├── gxynet/              # 网络层
-│   ├── gxymongo/            # MongoDB 封装
+│   ├── gxymongo/            # MongoDB 封装 (已移除)
 │   ├── gxyredis/            # Redis 封装
 │   ├── gxytimer/            # 定时器
 │   ├── gxylocator/          # 分布式定位器

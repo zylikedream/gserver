@@ -6,7 +6,6 @@
 
 | 文件 | 测试内容 |
 |------|---------|
-| `core/gxymongo/mongo_test.go` | MongoDB ReplaceOne + Upsert 功能验证 |
 | `apps/role/internal/logic/rolemod_test.go` | 角色模块初始化验证 |
 
 ## 测试框架
@@ -31,7 +30,7 @@
 
 ### 需要集成测试的部分
 
-4. **core/gxymongo/** — 需要 MongoDB 实例
+4. **core/gxypgx/** — 需要 PostgreSQL 实例
 5. **core/gxyredis/** — 需要 Redis 实例
 6. **core/gxylocator/** — 需要 Redis 实例
 

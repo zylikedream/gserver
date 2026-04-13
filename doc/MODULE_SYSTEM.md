@@ -173,7 +173,6 @@ func GetApp(appName string) IApp         // 获取 App
 func (n *node) registerApps() {
     gxyapp.RegisterApp("role", role.NewRoleApp())
     gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
-    gxyapp.RegisterApp("mongo", gxymongo.NewMongoApp())
     gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
     gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.Name))
     gxyapp.RegisterApp("gate", gateway.NewGateApp())
@@ -354,7 +353,7 @@ rootModule (ModuleBase)
      │
      ├─ redisApp (gxyredis.redisApp)
      │
-     ├─ mongoApp (gxymongo.mongoApp)
+
      │
      └─ mqApp (gxymq.messageQueueApp)
 ```

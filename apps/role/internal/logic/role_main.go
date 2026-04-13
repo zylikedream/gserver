@@ -9,7 +9,6 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
-	"gserver/core/gxymongo"
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
@@ -194,14 +193,6 @@ func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) 
 		return nil
 	}
 	return err
-}
-
-func ensureModIndex(ctx context.Context, modState IPersistState) error {
-	colName := getColName(modState)
-	if err := gxymongo.Mongo().EnsureIndexes(ctx, colName, modState.GetIndexes()); err != nil {
-		return err
-	}
-	return nil
 }
 
 func canHandleMsg(state RoleState, msg proto.Message) bool {

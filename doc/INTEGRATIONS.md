@@ -1,18 +1,16 @@
 # External Integrations
 
-## MongoDB
+## PostgreSQL
 
 ### 连接配置
-- 连接串从 GoFrame 配置文件读取
-- 数据库名: `galaxy`
-- 连接池: min/max 配置
-- 连接超时: 3s
-- 副本集: `rs0`
+- 连接串从 GoFrame 配置文件读取 (game.toml)
+- 连接池: min 5, max 20
+- 数据库: gserver
 
-### 数据模型 (Collections)
+### 数据模型 (Tables)
 
-| Collection | 用途 | 主键 |
-|-----------|------|------|
+| Table | 用途 | 主键 |
+|-------|------|------|
 | `role_account` | 账号-角色映射 | `account` (unique), `role_id` (unique) |
 | `role_persist_state` | 角色基础信息 | `role_id` (unique) |
 | `role_sign_state` | 签到数据 | `role_id` (unique) |
@@ -23,12 +21,12 @@
 
 ### 操作模式
 - **读取**: `FindOne` by `role_id`
-- **写入**: `ReplaceOne` with upsert + 乐观锁 (version 字段)
-- **脏检查**: 对象 hash 对比，跳过未变更的模块
+- **写入**: `UpsertOne` with JSONB + 乐观锁 (version 字段)
+- **脏检查**: JSONB 合并，跳过未变更的模块
 - **定时保存**: 5s 间隔 Tick，登出/停止时强制保存
 
 ### 代码入口
-- 封装层: `core/gxymongo/mongo.go` → `mongoApp` struct
+- 封装层: `core/gxypgx/pgx.go` → `PGXApp` struct
 - 使用方: `apps/role/internal/logic/role_main.go` (save/load)
 - 账号管理: `apps/role/internal/logic/role_account.go`
 
