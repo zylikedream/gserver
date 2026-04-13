@@ -19,9 +19,9 @@
 - 适配后的 `IPersistState` 接口
 
 **Plans:**
-- [ ] 01-01-PLAN.md — 创建 PostgreSQL 连接基础设施（core/gxypgx 包、连接池、配置）
+- [x] 01-01-PLAN.md — 创建 PostgreSQL 连接基础设施（core/gxypgx 包、连接池、配置）
 - [ ] 01-02-PLAN.md — 创建 6 个角色模块的 PostgreSQL 表结构
-- [ ] 01-03-PLAN.md — 适配 IPersistState 接口到 PostgreSQL
+- [x] 01-03-PLAN.md — 适配 IPersistState 接口到 PostgreSQL
 
 ---
 
