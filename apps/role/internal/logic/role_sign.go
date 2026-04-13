@@ -28,12 +28,12 @@ import (
 
 // --------------------proto handlers start-------------
 type RoleSignState struct {
-	RolePersistState `bson:"inline"`
-	DrawTime         time.Time `bson:"sign_time"`        // 当日领取签到奖励
-	SignDay          int       `bson:"sign_day"`         // 当月签到天数
-	AccumDrawStage   []int     `bson:"accum_draw_stage"` // 累积奖励阶段
-	DrawDay          int       `bson:"reward_day"`       // 当月领取奖励的天数
-	Patch            int       `bason:"patch"`           // 补签天数
+	RolePersistState `db:"inline"`
+	DrawTime         time.Time `db:"sign_time"`        // 当日领取签到奖励
+	SignDay          int       `db:"sign_day"`         // 当月签到天数
+	AccumDrawStage   []int     `db:"accum_draw_stage"` // 累积奖励阶段
+	DrawDay          int       `db:"reward_day"`       // 当月领取奖励的天数
+	Patch            int       `db:"patch"`            // 补签天数
 }
 
 type RoleSign struct {

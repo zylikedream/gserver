@@ -21,10 +21,10 @@ var (
 )
 
 type RoleBagState struct {
-	RolePersistState `bson:"inline"`
-	Items            map[int]*bag.BagItem     `bson:"items"`
-	Currencies       map[int]*bag.BagCurrency `bson:"currencies"`
-	GridUse          int                      `bson:"grid_use"`
+	RolePersistState `db:"inline"`
+	Items            map[int]*bag.BagItem     `db:"items"`
+	Currencies       map[int]*bag.BagCurrency `db:"currencies"`
+	GridUse          int                      `db:"grid_use"`
 }
 
 type RoleBag struct {

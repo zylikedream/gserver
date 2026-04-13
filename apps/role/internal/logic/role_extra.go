@@ -6,12 +6,12 @@ import (
 )
 
 type RoleExtraPersistState struct {
-	RolePersistState `bson:"inline"`
-	CronTm           time.Time `bson:"cron_tm"`
+	RolePersistState `db:"inline"`
+	CronTm           time.Time `db:"cron_tm"`
 }
 
 type RoleExtra struct {
-	RoleModule `bson:"inline"`
+	RoleModule `db:"inline"`
 	RoleExtraPersistState
 }
 

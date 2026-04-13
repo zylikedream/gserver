@@ -12,12 +12,12 @@ import (
 )
 
 type RoleActivityPersistState struct {
-	RolePersistState `bson:"inline"`
-	Activitys        map[int32]server.ActivityData `bson:"activitys"`
+	RolePersistState `db:"inline"`
+	Activitys        map[int32]server.ActivityData `db:"activitys"`
 }
 
 type RoleActivity struct {
-	RoleModule `bson:"inline"`
+	RoleModule `db:"inline"`
 	RoleActivityPersistState
 }
 

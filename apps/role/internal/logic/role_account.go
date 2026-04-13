@@ -11,8 +11,8 @@ import (
 )
 
 type RoleAccount struct {
-	RoleID  int64  `bson:"role_id"`
-	Account string `bson:"account"`
+	RoleID  int64  `db:"role_id"`
+	Account string `db:"account"`
 }
 
 func GetRoleIDByAccount(account string) (int64, error) {
