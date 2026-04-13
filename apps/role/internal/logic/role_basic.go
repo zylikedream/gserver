@@ -8,13 +8,13 @@ import (
 )
 
 type RoleBasicState struct {
-	RolePersistState `bson:"inline"`
-	RoleName         string    `bson:"role_name"`
-	Head             string    `bson:"head"`
-	LoginTm          time.Time `bson:"login_tm"`
-	LogoutTm         time.Time `bson:"logout_tm"`
-	CreateTm         time.Time `bson:"create_tm"` // 创角时间
-	VipLv            int       `bson:"vip_lv"`
+	RolePersistState `db:"inline"`
+	RoleName         string    `db:"role_name"`
+	Head             string    `db:"head"`
+	LoginTm          time.Time `db:"login_tm"`
+	LogoutTm         time.Time `db:"logout_tm"`
+	CreateTm         time.Time `db:"create_tm"` // 创角时间
+	VipLv            int       `db:"vip_lv"`
 }
 
 type RoleBasic struct {
