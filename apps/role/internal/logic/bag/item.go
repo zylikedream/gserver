@@ -3,10 +3,10 @@ package bag
 import "time"
 
 type BagItem struct {
-	PropID     int       `bson:"prop_id"`
-	Num        uint64    `bson:"num"`
-	Grid       uint64    `bson:"grid"` // 占用的格子数
-	UpdateTime time.Time `bson:"update_time"`
+	PropID     int       `db:"prop_id"`
+	Num        uint64    `db:"num"`
+	Grid       uint64    `db:"grid"` // 占用的格子数
+	UpdateTime time.Time `db:"update_time"`
 }
 
 type Item struct {

@@ -3,9 +3,9 @@ package bag
 import "time"
 
 type BagCurrency struct {
-	PropID     int       `bson:"prop_id"`
-	Num        uint64    `bson:"num"`
-	UpdateTime time.Time `bson:"update_time"`
+	PropID     int       `db:"prop_id"`
+	Num        uint64    `db:"num"`
+	UpdateTime time.Time `db:"update_time"`
 }
 
 type Currency struct {
