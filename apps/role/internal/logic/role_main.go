@@ -2,12 +2,14 @@ package logic
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"gserver/apps/role/internal/event"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
-	"gserver/core/gxymongo"
+	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"gserver/util"
@@ -17,10 +19,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
-	"github.com/pkg/errors"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -179,8 +177,6 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 		if err := loadModuleState(ctx, roleID, modState); err != nil {
 			return err
 		}
-		modState.SetRoleID(roleID)
-		r.modsHash[getColName(modState)] = util.GetObjectHash(modState)
 	}
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
@@ -191,15 +187,12 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 
 func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
 	colName := getColName(modState)
-	if err := gxymongo.Mongo().FindOne(ctx, modState, colName, bson.M{"role_id": roleID}); err != nil {
-		if err == mongo.ErrNoDocuments {
-			// 新创建的文档，设置初始版本号
-			modState.SetVersion(0)
-		} else {
-			return err
-		}
+	err := gxypgx.PGX().FindOne(ctx, colName, modState, "role_id=$1", roleID)
+	if errors.Is(err, sql.ErrNoRows) {
+		modState.SetRoleID(roleID)
+		return nil
 	}
-	return nil
+	return err
 }
 
 func ensureModIndex(ctx context.Context, modState IPersistState) error {
@@ -295,7 +288,6 @@ func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo
 
 func (r *RoleMain) save(ctx context.Context, force bool) error {
 	var errStr string
-	client := gxymongo.Mongo()
 	for _, mod := range r.Modules() {
 		rmod, _ := mod.(IRoleModule)
 		if rmod == nil {
@@ -306,40 +298,14 @@ func (r *RoleMain) save(ctx context.Context, force bool) error {
 			continue
 		}
 		colName := getColName(modState)
-		// 计算modhash时要除开版本号
-		modHash := util.GetObjectHash(modState)
-		if modHash == r.modsHash[colName] && !force {
-			continue
-		}
-
-		// 获取当前版本号用于乐观锁
-		currentVersion := modState.GetVersion()
-
-		// 准备更新操作，添加版本号条件
-		filter := bson.M{
-			"role_id": r.RoleID,
-			"version": currentVersion,
-		}
-
-		// 设置新版本号为当前时间戳
-		modState.SetVersion(currentVersion + 1)
 		modState.SetUpdateAt(time.Now())
 
-		// 执行更新操作，只有当版本号匹配时才会成功
-		result, err := client.ReplaceOne(ctx, colName, filter, modState,
-			options.Replace().SetUpsert(true))
+		err := gxypgx.PGX().UpsertOne(ctx, colName, modState, "role_id=$1", r.RoleID)
 		if err != nil {
-			if mongo.IsDuplicateKeyError(err) { // 重复键错误，说明版本号不匹配导致了插入操作失败
-				glog.Warning(ctx, result)
-				glog.Errorf(ctx, "optimistic lock error: version conflict for mod %s, roleID: %d, currentVersion: %d", colName, r.RoleID, currentVersion)
-				return ErrVersionConflict
-			}
 			errStr += fmt.Sprintf("save mod %s failed: %s", colName, err)
 			continue
 		}
-		glog.Debugf(ctx, "save mod %s success, roleID: %d, version: %d", colName, r.RoleID, modState.GetVersion())
-
-		r.modsHash[colName] = modHash
+		glog.Debugf(ctx, "save mod %s success, roleID: %d", colName, r.RoleID)
 	}
 	if errStr != "" {
 		return errors.New(errStr)
