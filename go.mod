@@ -13,6 +13,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/gookit/goutil v0.7.1
 	github.com/hashicorp/consul/api v1.32.4
+	github.com/jackc/pgx/v5 v5.9.1
 	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/panjf2000/gnet/v2 v2.9.3
 	github.com/pkg/errors v0.9.1
@@ -51,20 +52,14 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-<<<<<<< HEAD
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
-=======
-	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/glog v1.2.0 // indirect
->>>>>>> worktree-agent-a541ab86
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/grokify/html-strip-tags-go v0.1.0 // indirect
-<<<<<<< HEAD
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -78,17 +73,12 @@ require (
 	github.com/hashicorp/serf v0.10.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.9.1 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/lithammer/shortuuid/v4 v4.2.0 // indirect
 	github.com/lmittmann/tint v1.1.2 // indirect
-=======
-	github.com/hashicorp/protoc-gen-go-binary v0.1.0 // indirect
-	github.com/klauspost/compress v1.16.7 // indirect
->>>>>>> worktree-agent-a541ab86
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

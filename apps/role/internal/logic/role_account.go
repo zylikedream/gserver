@@ -2,12 +2,12 @@ package logic
 
 import (
 	"context"
-	"gserver/core/gxymongo"
+	"database/sql"
+	"errors"
+	"gserver/core/gxypgx"
 	"gserver/util/uid"
 
 	"github.com/gogf/gf/v2/os/glog"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type RoleAccount struct {
@@ -19,16 +19,20 @@ func GetRoleIDByAccount(account string) (int64, error) {
 	roleAccount := &RoleAccount{
 		Account: account,
 	}
-	err := gxymongo.Mongo().FindOne(context.Background(), roleAccount, "role_account", bson.M{"account": account})
-	if err != nil && err != mongo.ErrNoDocuments {
+	err := gxypgx.PGX().FindOne(context.Background(), "role_account", roleAccount, "account=$1", account)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, err
-	} else if err == mongo.ErrNoDocuments {
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		// Account not found, create new role
 		roleID, err := genRoleID()
 		if err != nil {
 			return 0, err
 		}
 		roleAccount.RoleID = roleID
-		if _, err := gxymongo.Mongo().InsertOne(context.Background(), "role_account", roleAccount); err != nil {
+		// Use UpsertOne to insert
+		err = gxypgx.PGX().UpsertOne(context.Background(), "role_account", roleAccount, "role_id=$1", roleID)
+		if err != nil {
 			return 0, err
 		}
 	}
@@ -39,9 +43,9 @@ func GetAccountByRoleID(roleID int64) string {
 	roleAccount := &RoleAccount{
 		RoleID: roleID,
 	}
-	err := gxymongo.Mongo().FindOne(context.Background(), roleAccount, "role_account", bson.M{"role_id": roleID})
+	err := gxypgx.PGX().FindOne(context.Background(), "role_account", roleAccount, "role_id=$1", roleID)
 	if err != nil {
-		if err != mongo.ErrNoDocuments {
+		if !errors.Is(err, sql.ErrNoRows) {
 			glog.Errorf(context.Background(), "check role exist error, roleID: %d, err: %v", roleID, err)
 		}
 		return ""
