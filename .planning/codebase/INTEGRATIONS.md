@@ -1,108 +1,72 @@
 # External Integrations
 
-**Analysis Date:** 2026-04-13
+## MongoDB
 
-## APIs & External Services
+### 连接配置
+- 连接串从 GoFrame 配置文件读取
+- 数据库名: `galaxy`
+- 连接池: min/max 配置
+- 连接超时: 3s
+- 副本集: `rs0`
 
-**Message Queue:**
-- Apache Pulsar - High-performance distributed messaging
-  - SDK: github.com/apache/pulsar-client-go v0.11.0
-  - Config: Configurable via `mq.type = "pulsar"` in config files
+### 数据模型 (Collections)
 
-- Redis - Message queuing and pub/sub
-  - SDK: github.com/redis/go-redis/v9 v9.14.0
-  - Config: `mq.type = "redis"`, Redis credentials in configuration
+| Collection | 用途 | 主键 |
+|-----------|------|------|
+| `role_account` | 账号-角色映射 | `account` (unique), `role_id` (unique) |
+| `role_persist_state` | 角色基础信息 | `role_id` (unique) |
+| `role_sign_state` | 签到数据 | `role_id` (unique) |
+| `role_bag_state` | 背包数据 | `role_id` (unique) |
+| `role_public_state` | 角色公开信息 | `role_id` (unique) |
+| `role_extra_persist_state` | 角色扩展数据（定时器状态） | `role_id` (unique) |
+| `role_activity_persist_state` | 活动数据 | `role_id` (unique) |
 
-**Service Discovery:**
-- Consul - Service registry and discovery
-  - SDK: github.com/hashicorp/consul/api v1.32.4
-  - Config: `registery.type = "consul"`, address in config
+### 操作模式
+- **读取**: `FindOne` by `role_id`
+- **写入**: `ReplaceOne` with upsert + 乐观锁 (version 字段)
+- **脏检查**: 对象 hash 对比，跳过未变更的模块
+- **定时保存**: 5s 间隔 Tick，登出/停止时强制保存
 
-- Etcd - Distributed key-value store for service discovery
-  - SDK: go.etcd.io/etcd/client/v3 v3.6.5
-  - Config: Optional, can be enabled in configuration files
+### 代码入口
+- 封装层: `core/gxymongo/mongo.go` → `mongoApp` struct
+- 使用方: `apps/role/internal/logic/role_main.go` (save/load)
+- 账号管理: `apps/role/internal/logic/role_account.go`
 
-## Data Storage
+## Redis
 
-**Databases:**
-- MongoDB - Primary data persistence
-  - Connection: `mongodb://root:test@localhost:27017/admin`
-  - Database: "galaxy"
-  - Client: go.mongodb.org/mongo-driver v1.17.4
-  - Features: Replica set support, connection pooling
+### 用途 1: Grain Locator (定位器)
+- **Key 格式**: `gserver:locate:node:actor:{kind}:{id}`
+- **Value**: PID 的 JSON 序列化 (`pb.ActorPid`)
+- **TTL**: 40 秒
+- **刷新间隔**: 30 秒
+- **代码**: `core/gxylocator/gxylocator.go`
 
-**File Storage:**
-- Local filesystem - File storage
-  - No external cloud storage detected
+### 用途 2: Service Registry (服务注册)
+- **操作**: 注册/注销/查询服务节点
+- **选择器**: 一致性哈希 (ConsistentHash)
+- **代码**: `core/gxyregistery/`, `core/gxyservice/service_app.go`
 
-**Caching:**
-- Redis - In-memory caching
-  - Connection: localhost:6379
-  - Client: github.com/redis/go-redis/v9 v9.14.0
-  - DB: 10 (separate database)
+### 用途 3: UID Generator
+- **分布式自增 ID**: 基于 Redis INCR
+- **用途**: 角色ID生成 (`role` key)
+- **代码**: `util/uid/uid.go`
 
-## Authentication & Identity
+### 连接管理
+- 封装层: `core/gxyredis/`
+- 全局访问: `gxyredis.Redis()`
 
-**Auth Provider:**
-- Custom authentication implementation
-  - Implementation: Custom auth system in role service
-  - No external OAuth providers detected
+## Protoactor-go Remote
 
-## Monitoring & Observability
+### 跨节点通信
+- Actor System 启动时绑定 `host:port`
+- 远程消息通过 protobuf 序列化传输
+- `ActorCallMessage` — 远程 RPC 调用消息
+- `PushMessage` — 远程推送消息
 
-**Error Tracking:**
-- Zap logging - Structured logging
-  - SDK: go.uber.org/zap v1.27.0
-  - Config: File-based logging with rotation
-
-**Logs:**
-- File-based logging with rotation
-  - Path: ./log directory
-  - Format: Date-based files ({Y-m-d}.log)
-  - Framework: GoFrame logging + Zap
-
-## CI/CD & Deployment
-
-**Hosting:**
-- Self-hosted containerized deployment
-  - Platform: Container-based (Docker)
-
-**CI Pipeline:**
-- No external CI/CD tools detected
-  - Custom build scripts
-
-## Environment Configuration
-
-**Required env vars:**
-- Configuration managed through TOML files
-- Database credentials in configuration files
-- No external secrets management system detected
-
-**Secrets location:**
-- Configuration files (TOML)
-- Hardcoded in some configuration examples
-
-## Webhooks & Callbacks
-
-**Incoming:**
-- WebSocket endpoints - Game client connections
-- HTTP endpoints - Health checks and management APIs
-
-**Outgoing:**
-- Event bus - Internal event system
-- Message queue - Cross-service communication
-- No external webhooks detected
-
-## Protocol Buffers
-
-**Message Serialization:**
-- Protocol Buffers v3 - Message serialization
-  - SDK: google.golang.org/protobuf v1.36.9
-  - SDK: github.com/gogo/protobuf v1.3.2
-  - Files: protocol/pb/*.pb.go
-  - Usage: Inter-service communication and client-server messaging
+### 集群配置
+- 集群名: `gcluster`
+- 节点发现: 通过 Redis Service Registry
+- 消息路由: protoactor-go 内置 PID 路由
 
 ---
-
-*Integration audit: 2026-04-13*
-```
+*Last updated: 2026-04-13*
