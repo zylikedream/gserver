@@ -9,6 +9,7 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
+	"gserver/core/gxymongo"
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
@@ -217,6 +218,11 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 	return false
 }
 
+func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
+	_, err := r.AutoHandleMsg(ctx, msg)
+	return err
+}
+
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
 	path := climsg.Path
 	pbmsg, err := anypb.UnmarshalNew(climsg.GetMsg(), proto.UnmarshalOptions{})
@@ -229,7 +235,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		return nil, nil
 	}
 	var rsp proto.Message
-	res, err := r.HandleProtobufMsg(ctx, pbmsg)
+	res, err := r.CallMsgHandler(ctx, pbmsg)
 	if err != nil {
 		res = &pb.Ack{
 			Code:   1,
@@ -238,7 +244,11 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		}
 	}
 	if res != nil {
-		svrMsg, err := r.newServerMsg(res)
+		pbmsg, ok := res.(proto.Message)
+		if !ok {
+			return nil, gerror.Wrapf(err, "res is not proto.Message, roleID: %d", r.RoleID)
+		}
+		svrMsg, err := r.newServerMsg(pbmsg)
 		if err != nil {
 			return nil, gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 		}

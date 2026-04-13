@@ -13,7 +13,6 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gutil"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // 类型别名 - 抽象层，隐藏具体实现但保持兼容性
@@ -42,6 +41,7 @@ type IActor interface {
 	Terminate(ctx context.Context, err error)
 	Timer() *ActorTimer
 	Self() PID
+	HandleMessage(ctx context.Context, msg any) error
 	actor.Actor
 }
 
@@ -102,18 +102,6 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if err != nil {
 			glog.Errorf(a.ctx, "timer active error, msg:%s, error:%+v", msg.Name, err)
 		}
-	case *pb.ActorCallMessage:
-		rsp, err := a.handleCallMsg(a.ctx, msg)
-		if err != nil {
-			glog.Errorf(a.ctx, "handle rpc msg failed, msg:%s, error:%+v", msg.Msg.String(), err)
-			a.Respond(&pb.ActorError{
-				Reason: err.Error(),
-			})
-			return nil
-		}
-		if rsp != nil {
-			a.Respond(rsp)
-		}
 	case *pb.ActorStop:
 		a.Stop(gerror.New(msg.Reason))
 	case *actor.Stopping:
@@ -127,32 +115,22 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	return nil
 }
 
-func (a *ActorBase) handlePushMsg(ctx context.Context, msg *pb.PushMessage) error {
-	meta := a.msgHandler.GetMethodMetaByName(msg.MsgName)
-	if meta == nil {
-		return gerror.Newf("method not found for msg %s", msg.MsgName)
-	}
-	arg := util.NewObject(meta.ArgType)
-	if err := util.DecodeMsg([]byte(msg.MsgData), arg); err != nil {
-		return gerror.Wrapf(err, "unmarshal push msg error, msg: %s", msg.MsgName)
-	}
-	// push 没有返回值
-	_, err := a.CallHandlerMsg(ctx, arg)
+func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
+	rsp, err := a.CallMsgHandler(a.ctx, msg)
 	if err != nil {
-		return err
+		glog.Errorf(a.ctx, "handle rpc msg failed, msg:%v, error:%+v", msg, err)
+		a.Respond(&pb.ActorError{
+			Reason: err.Error(),
+		})
+		return nil, nil
 	}
-	return nil
+	if rsp != nil {
+		a.Respond(rsp)
+	}
+	return rsp, nil
 }
 
-func (a *ActorBase) handleCallMsg(ctx context.Context, msg *pb.ActorCallMessage) (proto.Message, error) {
-	pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
-	if err != nil {
-		return nil, gerror.Wrapf(err, "unmarshal call msg error(msg must be protobuf msg), msg: %s", msg.String())
-	}
-	return a.HandleProtobufMsg(ctx, pbmsg)
-}
-
-func (a *ActorBase) HandleProtobufMsg(ctx context.Context, msg proto.Message) (proto.Message, error) {
+func (a *ActorBase) CallMsgHandler(ctx context.Context, msg any) (any, error) {
 	tm := time.Now()
 	glog.Debugf(ctx, "handle msg start, msg: %v", util.FormatObject(msg))
 	result, err := a.CallHandlerMsg(ctx, msg)
@@ -161,11 +139,7 @@ func (a *ActorBase) HandleProtobufMsg(ctx context.Context, msg proto.Message) (p
 	if err != nil {
 		return nil, err
 	}
-	var rsp proto.Message
-	if result != nil {
-		rsp, _ = result.(proto.Message)
-	}
-	return rsp, nil
+	return result, nil
 }
 
 func (a *ActorBase) Stop(err error) {
