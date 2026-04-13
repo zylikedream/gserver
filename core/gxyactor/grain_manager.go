@@ -92,7 +92,7 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 			// touch actor to check if it is started
 			// Notice: don't use actor ctx in goroutine, especially respond method, because sender will be cleared after recieve!!
 			_, err = a.Call(pid, &actor.Touch{}, 2*time.Second)
-			Send(a.Self(), &ActorCheckResult{
+			LocalSend(a.Self(), &ActorCheckResult{
 				ID:     msg.Id,
 				Pid:    pid,
 				Err:    err,

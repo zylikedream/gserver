@@ -40,6 +40,10 @@ func Send(pid PID, message proto.Message) error {
 	return app.send(pid, message)
 }
 
+func LocalSend(pid PID, message any) {
+	app.localSend(pid, message)
+}
+
 func Call(pid PID, message proto.Message, timeout time.Duration) (any, error) {
 	return app.call(pid, message, timeout)
 }

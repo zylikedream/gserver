@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 
-	"gserver/apps/friend"
 	"gserver/apps/gateway"
 	"gserver/apps/role"
 	"gserver/core/gxyactor"
@@ -105,7 +104,6 @@ func (n *node) OnModStop(ctx context.Context) error {
 func (n *node) registerApps() {
 
 	gxyapp.RegisterApp("role", role.NewRoleApp())
-	gxyapp.RegisterApp("friend", friend.NewFriendApp())
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("mongo", gxymongo.NewMongoApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())

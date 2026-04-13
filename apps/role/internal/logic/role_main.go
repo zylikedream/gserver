@@ -66,7 +66,6 @@ type roleModules struct {
 	Basic  *RoleBasic
 	Public *RolePublic
 	Extra  *RoleExtra
-	Friend *RoleFriend
 }
 
 type RoleMain struct {

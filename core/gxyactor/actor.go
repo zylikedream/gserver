@@ -89,7 +89,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if err := a.actor.Init(a.ctx); err != nil {
 			return gerror.Wrap(err, "init actor error")
 		}
-		a.Send(a.self, &ActorInitMsg{})
+		a.LocalSend(a.self, &ActorInitMsg{})
 	case *ActorInitMsg:
 		a.msgHandler.AddHandler(a.actor)
 		if err := a.actor.DelayInit(a.ctx); err != nil {
@@ -210,7 +210,13 @@ func (a *ActorBase) Call(pid PID, msg proto.Message, timeout time.Duration) (any
 	return a.Actx.RequestFuture(pid, msg, timeout).Result()
 }
 
+// Send是发送消息给可能在远程的actor, 所以必须走序列化，所以只能发送proto.Message
 func (a *ActorBase) Send(pid PID, msg proto.Message) {
+	a.Actx.Send(pid, msg)
+}
+
+// LocalSend是发送消息给本地actor, 不经过序列化, 所以可以发送any
+func (a *ActorBase) LocalSend(pid PID, msg any) {
 	a.Actx.Send(pid, msg)
 }
 
