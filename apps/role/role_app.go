@@ -30,7 +30,6 @@ func (r *roleApp) OnModInit(ctx context.Context) error {
 	logic.InitRoleSchema(ctx)
 
 	gxyservice.ServiceApp().LoadService(ctx, NewRoleGrainService())
-	r.AddModule(ctx, logic.NewRoleDBIndex())
 	return nil
 }
 

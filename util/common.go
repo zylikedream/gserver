@@ -11,21 +11,9 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/gfile"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogo/protobuf/proto"
-	"github.com/mitchellh/hashstructure/v2"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 )
-
-func GetObjectHash(obj interface{}) uint64 {
-	hash, err := hashstructure.Hash(obj, hashstructure.FormatV2, nil)
-	if err != nil {
-		glog.Error(context.Background(), "hash object err", zap.Any("obj", obj), zap.Error(err))
-		return 0
-	}
-	return hash
-}
 
 func CfgToViper(ctx context.Context, c *gcfg.Config) *viper.Viper {
 	vp := viper.New()
