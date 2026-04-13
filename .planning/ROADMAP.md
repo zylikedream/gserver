@@ -67,9 +67,9 @@
 - 编译验证报告
 
 **Plans:**
-- [ ] 03-01-PLAN.md — 移除 MongoDB 依赖和导入
-- [ ] 03-02-PLAN.md — 清理 MongoDB 配置
-- [ ] 03-03-PLAN.md — 编译验证和修复
+- [x] 03-01-PLAN.md — 移除 MongoDB 依赖和导入
+- [x] 03-02-PLAN.md — 清理 MongoDB 配置
+- [x] 03-03-PLAN.md — 编译验证和修复
 
 ---
 
