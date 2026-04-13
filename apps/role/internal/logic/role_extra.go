@@ -10,6 +10,10 @@ type RoleExtraPersistState struct {
 	CronTm           time.Time `db:"cron_tm"`
 }
 
+func (r *RoleExtraPersistState) GetIndexes() []string {
+	return []string{"update_at"}
+}
+
 type RoleExtra struct {
 	RoleModule `db:"inline"`
 	RoleExtraPersistState

@@ -27,6 +27,10 @@ type RoleBagState struct {
 	GridUse          int                      `db:"grid_use"`
 }
 
+func (r *RoleBagState) GetIndexes() []string {
+	return []string{"update_at"}
+}
+
 type RoleBag struct {
 	RoleModule
 	RoleBagState

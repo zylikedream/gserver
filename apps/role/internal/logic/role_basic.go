@@ -17,6 +17,10 @@ type RoleBasicState struct {
 	VipLv            int       `db:"vip_lv"`
 }
 
+func (r *RoleBasicState) GetIndexes() []string {
+	return []string{"update_at"}
+}
+
 type RoleBasic struct {
 	RoleModule
 	RoleBasicState

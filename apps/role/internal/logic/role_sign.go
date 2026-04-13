@@ -36,6 +36,10 @@ type RoleSignState struct {
 	Patch            int       `db:"patch"`            // 补签天数
 }
 
+func (r *RoleSignState) GetIndexes() []string {
+	return []string{"update_at"}
+}
+
 type RoleSign struct {
 	RoleModule
 	RoleSignState

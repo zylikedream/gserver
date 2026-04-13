@@ -16,6 +16,10 @@ type RoleActivityPersistState struct {
 	Activitys        map[int32]server.ActivityData `db:"activitys"`
 }
 
+func (r *RoleActivityPersistState) GetIndexes() []string {
+	return []string{"update_at"}
+}
+
 type RoleActivity struct {
 	RoleModule `db:"inline"`
 	RoleActivityPersistState
