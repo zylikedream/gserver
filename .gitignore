@@ -16,5 +16,6 @@ temp/
 temp.yaml
 bin
 **/config/config.yaml
+.planning/
 log/
 *.test.toml
