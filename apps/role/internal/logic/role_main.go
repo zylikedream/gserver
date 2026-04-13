@@ -25,7 +25,7 @@ import (
 
 const (
 	SESSION_ALIVE_INTERVAL = 10 * time.Minute
-	PERSIST_INTERVAL       = 5 * time.Second
+	PERSIST_INTERVAL       = 600 * time.Second
 	SINGLE_ALIVE_INTERVAL  = 10 * time.Minute
 	PUBLIC_UPDATE_INTERVAL = 8 * time.Minute
 )
@@ -275,7 +275,7 @@ func (r *RoleMain) initMsgHandler() {
 }
 
 func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
-	if err := r.save(ctx, false); err != nil {
+	if err := r.save(ctx); err != nil {
 		glog.Errorf(ctx, "save error, roleID: %d, err: %+v", r.RoleID, err)
 		// 终止当前进程
 		r.Stop(err)
@@ -287,7 +287,7 @@ func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo
 	r.Sign.SignDayRrefresh(ctx, info)
 }
 
-func (r *RoleMain) save(ctx context.Context, force bool) error {
+func (r *RoleMain) save(ctx context.Context) error {
 	var errStr string
 	for _, mod := range r.Modules() {
 		rmod, _ := mod.(IRoleModule)
@@ -366,7 +366,7 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	}
 	r.Public.UpdateRolePublic(ctx)
 	// 建号强制保存一次
-	if err := r.save(ctx, true); err != nil {
+	if err := r.save(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -403,7 +403,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
 	r.Public.UpdateRolePublic(ctx)
-	if err := r.save(ctx, false); err != nil {
+	if err := r.save(ctx); err != nil {
 		return err
 	}
 	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
@@ -418,7 +418,7 @@ func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	if serr := r.StopModule(ctx); serr != nil {
 		glog.Errorf(ctx, "stop module error, roleID: %d, err: %v", r.RoleID, err)
 	}
-	if serr := r.save(ctx, true); serr != nil {
+	if serr := r.save(ctx); serr != nil {
 		glog.Errorf(ctx, "save error, roleID: %d, err: %+v", r.RoleID, serr)
 	}
 	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
