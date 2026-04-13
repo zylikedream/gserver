@@ -26,6 +26,9 @@ func (r *roleApp) Weight() int {
 }
 
 func (r *roleApp) OnModInit(ctx context.Context) error {
+	// 初始化 PostgreSQL 表结构
+	logic.InitRoleSchema(ctx)
+
 	gxyservice.ServiceApp().LoadService(ctx, NewRoleGrainService())
 	r.AddModule(ctx, logic.NewRoleDBIndex())
 	return nil
