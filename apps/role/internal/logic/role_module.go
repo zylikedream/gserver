@@ -7,9 +7,6 @@ import (
 	"time"
 
 	"github.com/gogf/gf/v2/text/gstr"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type IRoleModule interface {
@@ -21,29 +18,18 @@ type IRoleModule interface {
 
 type IPersistState interface {
 	SetRoleID(roleID int64)
-	GetVersion() int64
-	SetVersion(version int64)
 	GetUpdateAt() time.Time
 	SetUpdateAt(updateAt time.Time)
-	GetIndexes() []mongo.IndexModel
+	GetIndexes() []string
 }
 
 type RolePersistState struct {
-	RoleID   int64     `bson:"role_id"`
-	UpdateAt time.Time `bson:"update_at" hash:"-"`
-	Version  int64     `bson:"version" hash:"-"`
+	RoleID   int64     `db:"role_id"`
+	UpdateAt time.Time `db:"update_at"`
 }
 
 func (r *RolePersistState) SetRoleID(roleID int64) {
 	r.RoleID = roleID
-}
-
-func (r *RolePersistState) GetVersion() int64 {
-	return r.Version
-}
-
-func (r *RolePersistState) SetVersion(version int64) {
-	r.Version = version
 }
 
 func (r *RolePersistState) GetUpdateAt() time.Time {
@@ -54,23 +40,18 @@ func (r *RolePersistState) SetUpdateAt(updateAt time.Time) {
 	r.UpdateAt = updateAt
 }
 
+func (r *RolePersistState) GetIndexes() []string {
+	return []string{"update_at"}
+}
+
 func getColName(mod IPersistState) string {
 	return gstr.CaseSnake(util.GetObjectName(mod))
 }
 
-func (r *RolePersistState) GetIndexes() []mongo.IndexModel {
-	return []mongo.IndexModel{
-		{
-			Keys:    bson.D{{Key: "role_id", Value: 1}},
-			Options: options.Index().SetUnique(true),
-		},
-	}
-}
-
 type RoleModule struct {
-	gxymodule.ModuleBase `bson:"-"`
+	gxymodule.ModuleBase `db:"-"`
 	RoleID               int64
-	Role                 *RoleMain `bson:"-" hash:"-"`
+	Role                 *RoleMain `db:"-"`
 }
 
 func (r *RoleModule) SetRole(role *RoleMain) {
