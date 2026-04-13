@@ -17,10 +17,14 @@ const (
 )
 
 type RolePublicState struct {
-	RolePersistState `bson:"inline"`
-	Name             string    `bson:"name"`
-	Head             string    `bson:"head"`
-	CreateTime       time.Time `bson:"create_time"`
+	RolePersistState `db:"inline"`
+	Name             string    `db:"name"`
+	Head             string    `db:"head"`
+	CreateTime       time.Time `db:"create_time"`
+}
+
+func (r *RolePublicState) GetIndexes() []string {
+	return []string{"update_at"}
 }
 
 type RolePublic struct {
