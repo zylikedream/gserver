@@ -58,12 +58,12 @@ func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 	return chg, nil
 }
 
-func (r *RoleBag) GetItem(propid int) bag.Item {
-	bagItem := r.Items[propid]
-	return bag.Item{
-		ID:  propid,
-		Num: bagItem.Num,
+func (r *RoleBag) GetItem(propID int) bag.Item {
+	good := r.Goods[propID]
+	if good == nil {
+		return bag.Item{ID: propID, Num: 0}
 	}
+	return bag.Item{ID: propID, Num: good.Num}
 }
 
 func (r *RoleBag) isGridFull(add int) bool {
@@ -95,7 +95,7 @@ func (r *RoleBag) AddItemRc(ctx context.Context, itemRcList []*cfg.ItemItemRC) e
 }
 
 func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
-	var chgs []*bag.ItemChange
+	var chgs []*bag.BagChange
 	itemList = r.ClassifyItemList(itemList)
 	for _, item := range itemList {
 		if chg, err := r.AddSingleItem(ctx, item); err != nil {
@@ -105,7 +105,7 @@ func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
 			chgs = append(chgs, chg)
 		}
 	}
-	r.notifyItemUpdate(ctx, chgs)
+	r.notifyBagUpdate(ctx, chgs)
 	glog.Debug(ctx, "add item success", zap.Any("item", itemList), zap.Any("chgs", chgs))
 	return nil
 }
@@ -143,7 +143,7 @@ func (r *RoleBag) DecItem(ctx context.Context, itemList []bag.Item) error {
 		return nil
 	}
 	itemList = r.ClassifyItemList(itemList)
-	var chgs []*bag.ItemChange
+	var chgs []*bag.BagChange
 	for _, item := range itemList {
 		if chg, err := r.DecSingleItem(ctx, item); err != nil {
 			return err
@@ -151,20 +151,20 @@ func (r *RoleBag) DecItem(ctx context.Context, itemList []bag.Item) error {
 			chgs = append(chgs, chg)
 		}
 	}
-	r.notifyItemUpdate(ctx, chgs)
+	r.notifyBagUpdate(ctx, chgs)
 	glog.Debug(ctx, "dec item success", zap.Any("item", itemList), zap.Any("griddec ", chgs))
 	return nil
 }
 
-func (r *RoleBag) notifyItemUpdate(ctx context.Context, chgs []*bag.ItemChange) {
+func (r *RoleBag) notifyBagUpdate(ctx context.Context, chgs []*bag.BagChange) {
 	// sess := ctx.GetSession()
 	msg := &pb.NotifyItemUpdate{
 		Items: []*pb.PItemUpdate{},
 	}
 	linq.From(chgs).Select(func(i any) any {
 		return &pb.PItemUpdate{
-			PropId: int32(i.(*bag.ItemChange).PropID),
-			Num:    int64(i.(*bag.ItemChange).Num),
+			PropId: int32(i.(*bag.BagChange).PropID),
+			Num:    int64(i.(*bag.BagChange).Num),
 		}
 	}).ToSlice(&msg.Items)
 	r.Role.SendClient(ctx, msg)
