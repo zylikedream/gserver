@@ -49,7 +49,7 @@ type BagChange struct {
 ```go
 type RoleBagState struct {
     RolePersistState `db:"inline"`
-    Entries          map[int]*BagGood `db:"entries"` // key=PropID
+    Goods           map[int]*BagGood  `db:"goods"`  // key=PropID
 }
 ```
 
@@ -66,7 +66,7 @@ type RoleBagState struct {
 
 ```go
 func (r *RoleBag) OnModInit(ctx context.Context) error {
-    r.Entries = make(map[int]*BagGood)
+    r.Goods = make(map[int]*BagGood)
     return nil
 }
 ```
@@ -78,17 +78,17 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 - 移除 `isGridFull` 调用
 - 移除 `MaxOverlap` 计算和 `Grid` 字段更新
 - 移除 `GridUse` 计数更新
-- 直接操作 `Entries[PropID]`，无限堆叠
+- 直接操作 `Goods[PropID]`，无限堆叠
 
 ### DecSingleItem
 
 - 同样移除格子相关逻辑
-- 直接操作 `Entries[PropID]`
+- 直接操作 `Goods[PropID]`
 
 ### GetItem / GetCurrency
 
-- 统一为 `GetEntry(propID int) *BagGood`
-- 或保留两个方法，内部都读 `Entries`
+- 统一为 `GetGood(propID int) *BagGood`
+- 或保留两个方法，内部都读 `Goods`
 
 ### 格子检查相关
 
