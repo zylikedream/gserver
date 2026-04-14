@@ -17,5 +17,6 @@ temp.yaml
 bin
 **/config/config.yaml
 .planning/
+.worktrees/
 log/
 *.test.toml
