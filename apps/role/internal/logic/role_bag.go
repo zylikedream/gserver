@@ -150,13 +150,13 @@ func (r *RoleBag) DecItem(ctx context.Context, itemList []bag.Item) error {
 }
 
 func (r *RoleBag) notifyBagUpdate(ctx context.Context, chgs []*bag.BagChange) {
-	// sess := ctx.GetSession()
 	msg := &pb.NotifyItemUpdate{
-		Items: []*pb.PItemUpdate{},
+		Items: []*pb.PBagGoodUpdate{},
 	}
 	linq.From(chgs).Select(func(i any) any {
-		return &pb.PItemUpdate{
+		return &pb.PBagGoodUpdate{
 			PropId: int32(i.(*bag.BagChange).PropID),
+			PreNum: int64(i.(*bag.BagChange).PreNum),
 			Num:    int64(i.(*bag.BagChange).Num),
 		}
 	}).ToSlice(&msg.Items)
