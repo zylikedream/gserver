@@ -45,21 +45,16 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.ItemChange, error) {
-	itemTable := gameconfig.GameConfig().TbItem
-	itemconf := itemTable.Get(int32(item.ID))
-	have := r.Items[item.ID]
-	newGrid := (have.Num + item.Num - 1) / uint64(itemconf.MaxOverlap)
-	gridAdd := int(newGrid - have.Grid)
-	if newGrid > have.Grid && r.isGridFull(gridAdd) {
-		return nil, errors.Wrapf(ErrItemAddNoGrid, "item_num:%d grid_use:%d ", item.Num, r.GridUse)
+func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
+	have := r.Goods[item.ID]
+	if have == nil {
+		have = &bag.BagGood{
+			Type:   bag.GoodTypeItem,
+			PropID: item.ID,
+		}
+		r.Goods[item.ID] = have
 	}
-	if itemconf.AutoUse {
-		// todo 自动使用物品
-		return nil, nil
-	}
-	chg := have.Update(item.ID, have.Num+item.Num, newGrid)
-	r.GridUse += gridAdd
+	chg := have.Update(have.Num + item.Num)
 	return chg, nil
 }
 
