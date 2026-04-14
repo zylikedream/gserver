@@ -16,7 +16,6 @@ import (
 )
 
 var (
-	ErrItemAddNoGrid        = errors.New("bag full no grid to add item")
 	ErrItemDecItemNotEnough = errors.New("dec item not enough")
 )
 
@@ -64,11 +63,6 @@ func (r *RoleBag) GetItem(propID int) bag.Item {
 		return bag.Item{ID: propID, Num: 0}
 	}
 	return bag.Item{ID: propID, Num: good.Num}
-}
-
-func (r *RoleBag) isGridFull(add int) bool {
-	bagMaxGrid := gameconfig.GameConfig().TbGlobal.Get().MaxGrid
-	return int32(r.GridUse+add) > bagMaxGrid
 }
 
 func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
