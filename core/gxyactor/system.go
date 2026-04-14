@@ -74,8 +74,8 @@ func (a *actorApp) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (a *actorApp) RegisterGrain(name string, prod GrainProducer) error {
-	return a.grainMgr.RegisterGrain(name, prod)
+func (a *actorApp) RegisterGrainProducer(name string, prod GrainProducer) error {
+	return a.grainMgr.RegisterGrainProducer(name, prod)
 }
 
 func (a *actorApp) DeRegisterGrain(name string) {
@@ -83,7 +83,7 @@ func (a *actorApp) DeRegisterGrain(name string) {
 }
 
 // SpawnRegister创建新的Actor
-func (a *actorApp) spawnNamed(name string, props *actor.Props) (PID, error) {
+func (a *actorApp) spawnNamed(props *actor.Props, name string) (PID, error) {
 	return a.system.Root.SpawnNamed(props, name)
 }
 

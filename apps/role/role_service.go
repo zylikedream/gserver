@@ -27,7 +27,7 @@ func (r *roleService) Weight() int {
 }
 
 func (r *roleService) OnModStart(ctx context.Context) error {
-	gxyactor.RegisterGrain(r.ServiceName(), func() gxyactor.IGrain {
+	gxyactor.RegisterGrainProducer(r.ServiceName(), func() gxyactor.IGrain {
 		return logic.NewRoleMain()
 	})
 	return nil

@@ -35,7 +35,7 @@ func TestLocate(t *testing.T) {
 		key := fmt.Sprintf("%s%d", prefix, i)
 		id := fmt.Sprintf("node1@actor_%d", i)
 		pidInfo := newPIDInfo("127.0.0.1", id)
-		if err := locator.RegisterNode(ctx, key, string(pidInfo), time.Hour); err != nil {
+		if err := locator.MustRegisterActor(ctx, key, string(pidInfo), time.Hour); err != nil {
 			t.Errorf("Failed to register node %s, error:%v", key, err)
 			return
 		}
@@ -48,7 +48,7 @@ func TestLocate(t *testing.T) {
 	newPid := newPIDInfo("127.0.0.1", "node1@actor_new")
 
 	newWriteStart := time.Now()
-	locator.RegisterNode(ctx, newKey, newPid, time.Hour)
+	locator.MustRegisterActor(ctx, newKey, newPid, time.Hour)
 	newWriteTime := time.Since(newWriteStart)
 	t.Logf("写入单个新pid耗时: %v", newWriteTime)
 

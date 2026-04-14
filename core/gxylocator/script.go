@@ -11,21 +11,36 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var CommonScript *redis.Script
+var locateScript *redis.Script
+var batchRegisterScript *redis.Script
 
 func init() {
 	dir := util.GetCurrenDir()
-	commonScriptPath := filepath.Join(dir, "script", "common.lua")
-	commonScriptSrc, err := os.ReadFile(commonScriptPath)
-	glog.Debugf(context.Background(), "common script path: %s", commonScriptPath)
+	locateScriptPath := filepath.Join(dir, "script", "locate.lua")
+	locateScriptSrc, err := os.ReadFile(locateScriptPath)
+	glog.Debugf(context.Background(), "common script path: %s", locateScriptPath)
 	if err != nil {
 		panic(err)
 	}
-	CommonScript = redis.NewScript(string(commonScriptSrc))
+	locateScript = redis.NewScript(string(locateScriptSrc))
+	batchRegisterScript = redis.NewScript(`
+		local keys = KEYS
+		local ttl = tonumber(ARGV[1])
+		for i = 1, #keys, 2 do
+			redis.call('SETEX', keys[i], ttl, keys[i+1])
+		end
+		return #keys / 2
+	`)
+
 }
 
-func UnregisterGrainNode(rdb gxyredis.Client, id string, node string) (int64, error) {
+func ScriptUnregisterGrainNode(rdb gxyredis.Client, id string, node string) (int64, error) {
 	keys := []string{"func", "id", "node"}
 	args := []string{"unregister_grain_node", id, node}
-	return CommonScript.Run(context.Background(), rdb, keys, args).Int64()
+	return locateScript.Run(context.Background(), rdb, keys, args).Int64()
 }
+
+func ScriptRegisterGrainNode(ctx context.Context, rdb gxyredis.Client, keys []string, ttl int64) (int64, error) {
+	return batchRegisterScript.Run(ctx, rdb, keys, ttl).Int64()
+}
+

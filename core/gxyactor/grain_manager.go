@@ -34,11 +34,10 @@ type grainMeta struct {
 
 type grainActivator struct {
 	*ActorBase
-	kind         string
-	manager      *grainManager
-	childs       map[PID]string
-	meta         *grainMeta
-	timerStarted bool
+	kind    string
+	manager *grainManager
+	childs  map[PID]string
+	meta    *grainMeta
 }
 
 type ActorCheckResult struct {
@@ -65,6 +64,12 @@ func (a *grainActivator) DelayInit(ctx context.Context) error {
 		return fmt.Errorf("grain kind %s not registered", a.kind)
 	}
 	a.meta = ginfo
+	a.Timer().AddTick(a.ctx, &gxytimer.Tick{
+		Name:     "locate_tick",
+		Interval: GrainLocateUpdateInterval,
+	}, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+		a.rerentAllGrain(ctx)
+	})
 	return nil
 }
 
@@ -72,9 +77,8 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *pb.ActorActive:
 		props := a.meta.Props.Clone()
-		pid, err := a.SpawnNamed(props.Configure(
-			actor.WithContextDecorator(ContextDecorator(msg.Id, a.kind)),
-			actor.WithReceiverMiddleware(a.grainReciveMiddleware())),
+		pid, err := SpawnNamed(props.Configure(
+			actor.WithContextDecorator(ContextDecorator(msg.Id, a.kind))),
 			msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
@@ -87,7 +91,7 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 
 		// 立即注册 Redis（SETNX 语义）
 		key := getGrainLocateKey(a.kind, msg.Id)
-		if err := a.registerGrainNode(a.ctx, key, pid); err != nil {
+		if err := a.registerActor(a.ctx, key, pid); err != nil {
 			// key 已被抢，停止本地 actor
 			StopActor(pid)
 			a.Respond(&pb.ActorError{Reason: "registration failed, key taken by another node"})
@@ -97,17 +101,6 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 		// 注册成功，加入 childs
 		a.childs[pid] = msg.Id
 		a.meta.mgr.Add(msg.Id, pid)
-
-		// 启动 timer（只启动一次）
-		if !a.timerStarted {
-			a.timerStarted = true
-			a.Timer().AddTick(a.ctx, &gxytimer.Tick{
-				Name:     "locate_tick",
-				Interval: GrainLocateUpdateInterval,
-			}, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
-				a.renewAllGrainNodes(ctx)
-			})
-		}
 
 		// Touch 确认（异步，不影响注册流程）
 		sender := a.Actx.Sender()
@@ -122,18 +115,20 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 		// 注册已在 ActorActive 中同步完成，Touch 结果不影响注册状态
 		return nil
 
+	// 父actor spawn出来的子actor在terminate后会，给父actor发送Terminate消息
 	case *actor.Terminated:
 		child := msg.Who
 		if child == nil {
 			return nil
 		}
+		a.Actx.Children()
 		id := a.childs[child]
 		if id == "" {
 			return nil
 		}
 		key := getGrainLocateKey(a.kind, id)
 		// 立即删除 Redis key，不等 TTL 过期
-		if err := a.DeregisterGrainNode(a.ctx, key, child); err != nil {
+		if err := a.deRegisterActor(a.ctx, key, child); err != nil {
 			glog.Errorf(a.ctx, "deregister grain node %s failed: %v", key, err)
 		}
 		a.meta.mgr.Remove(id)
@@ -147,93 +142,20 @@ func (a *grainActivator) Terminate(ctx context.Context, err error) {
 	glog.Info(ctx, "grain activator actor stopped")
 }
 
-func (a *grainActivator) registerGrainNode(ctx context.Context, key string, pid PID) error {
+func (a *grainActivator) registerActor(ctx context.Context, key string, pid PID) error {
 	pidInfo, _ := protojson.Marshal(&pb.ActorPid{
 		Address: pid.Address,
 		Id:      pid.Id,
 	})
-	return a.manager.grainLocator.RegisterNode(ctx, key, string(pidInfo), GrainLocateTTL)
+	return a.manager.grainLocator.MustRegisterActor(ctx, key, string(pidInfo), GrainLocateTTL)
 }
 
-func (a *grainActivator) DeregisterGrainNode(ctx context.Context, key string, pid PID) error {
+func (a *grainActivator) deRegisterActor(ctx context.Context, key string, pid PID) error {
 	pidInfo, _ := protojson.Marshal(&pb.ActorPid{
 		Address: pid.Address,
 		Id:      pid.Id,
 	})
-	return a.manager.grainLocator.UnregisterNode(ctx, key, string(pidInfo))
-}
-
-func (g *grainActivator) grainReciveMiddleware() actor.ReceiverMiddleware {
-	return func(next actor.ReceiverFunc) actor.ReceiverFunc {
-		return func(ctx actor.ReceiverContext, envelope *actor.MessageEnvelope) {
-
-			switch envelope.Message.(type) {
-			case *ActorInitMsg:
-				err := g.registerGrain(ctx)
-				if err != nil {
-					glog.Errorf(g.ctx, "register grain node failed: %v", err)
-					envelope.Message = &ActorInternalError{
-						err: err,
-					}
-					next(ctx, envelope)
-					return
-				}
-			case *actor.Stopped:
-				err := g.deregisterGrain(ctx)
-				if err != nil {
-					glog.Errorf(g.ctx, "unregister grain node failed: %v", err)
-				}
-			}
-			next(ctx, envelope)
-		}
-	}
-}
-
-func (g *grainActivator) registerGrain(ctx actor.ReceiverContext) error {
-	act, ok := ctx.Actor().(IActor)
-	if !ok {
-		return gerror.New("actor type error")
-	}
-	self := ctx.Self()
-	actorCtx, ok := ctx.(*ActorContext)
-	if !ok {
-		return gerror.New("grain context type error")
-	}
-	id := actorCtx.InitArgs[0].(string)
-	kind := actorCtx.InitArgs[1].(string)
-	key := getGrainLocateKey(kind, id)
-	err := g.registerGrainNode(g.ctx, key, self)
-	if err != nil {
-		return err
-	}
-	act.Timer().AddTick(g.ctx, &gxytimer.Tick{
-		Name:     "locate_tick",
-		Interval: GrainLocateUpdateInterval,
-	}, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
-		err := g.registerGrainNode(g.ctx, key, self)
-		if err != nil {
-			glog.Errorf(g.ctx, "register grain %s node failed: %v", key, err)
-		}
-	})
-	glog.Debugf(g.ctx, "register grain node %s:%s", key, self.String())
-	return nil
-}
-
-func (g *grainActivator) deregisterGrain(ctx actor.ReceiverContext) error {
-	self := ctx.Self()
-	actorCtx, ok := ctx.(*ActorContext)
-	if !ok {
-		return gerror.New("grain context type error")
-	}
-
-	id := actorCtx.InitArgs[0].(string)
-	kind := actorCtx.InitArgs[1].(string)
-	key := getGrainLocateKey(kind, id)
-	err := g.DeregisterGrainNode(g.ctx, key, self)
-	if err != nil {
-		return gerror.Newf("unregister grain node failed: %v", err)
-	}
-	return nil
+	return a.manager.grainLocator.UnregisterActor(ctx, key, string(pidInfo))
 }
 
 type grainManager struct {
@@ -266,7 +188,7 @@ func (g *grainManager) getManagerName(kind string) string {
 	return fmt.Sprintf("%s_%s", "GrainManager", kind)
 }
 
-func (g *grainManager) RegisterGrain(kind string, props GrainProducer) error {
+func (g *grainManager) RegisterGrainProducer(kind string, props GrainProducer) error {
 	grainProps := actor.PropsFromProducer(func() actor.Actor {
 		return props()
 	}, actor.WithSupervisor(newSupervisor()))
@@ -275,10 +197,10 @@ func (g *grainManager) RegisterGrain(kind string, props GrainProducer) error {
 		Props: grainProps,
 	}
 	g.grainMetas[kind] = gmeta
-	pid, err := SpawnNamed(g.getManagerName(kind),
+	pid, err := SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
 			return NewGrainActivator(kind, g)
-		})))
+		})), g.getManagerName(kind))
 	if err != nil {
 		g.grainMetas[kind] = nil
 		return err
@@ -340,23 +262,26 @@ func (g *grainManager) getGrain(kind string, id string, spawn bool) (PID, error)
 	return g.spawnGrain(grainInfo.NodeHost, kind, id)
 }
 
-// renewAllGrainNodes 批量续约所有 child grain（使用 Lua 脚本）
-func (a *grainActivator) renewAllGrainNodes(ctx context.Context) {
+// rerentAllGrain 批量续约所有 child grain（使用 Lua 脚本）
+func (a *grainActivator) rerentAllGrain(ctx context.Context) {
 	if len(a.childs) == 0 {
 		return
 	}
 	// 构建 key-value 交替数组
-	keys := make([]string, 0, len(a.childs)*2)
+	keys := make([]string, 0, len(a.childs))
+	pidInfos := make([]string, 0, len(a.childs))
+
 	for pid, id := range a.childs {
 		key := getGrainLocateKey(a.kind, id)
 		pidInfo, _ := protojson.Marshal(&pb.ActorPid{
 			Address: pid.Address,
 			Id:      pid.Id,
 		})
-		keys = append(keys, key, string(pidInfo))
+		keys = append(keys, key)
+		pidInfos = append(pidInfos, string(pidInfo))
 	}
 	// Lua 脚本批量 SETEX
-	if err := a.manager.grainLocator.RegisterBatch(ctx, keys, int64(GrainLocateTTL/time.Second)); err != nil {
+	if err := a.manager.grainLocator.RegisterBatchActor(ctx, keys, pidInfos, GrainLocateTTL); err != nil {
 		glog.Errorf(ctx, "renewAllGrainNodes failed: %v", err)
 	}
 }

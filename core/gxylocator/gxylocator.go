@@ -60,15 +60,10 @@ func (l *Locator) Locate(ctx context.Context, t string, key string) (string, err
 	return result, nil
 }
 
-func (l *Locator) RegisterNode(ctx context.Context, key string, node string, expireTime time.Duration) error {
-	return l.Register(ctx, LocatorTypeNode, key, node, expireTime)
-}
-
-// Register 注册键和节点的映射关系（SETNX 语义：只有 key 不存在时才写入）
-func (l *Locator) Register(ctx context.Context, t string, key string, node string, expireTime time.Duration) error {
+func (l *Locator) MustRegisterActor(ctx context.Context, key string, pidInfo string, expireTime time.Duration) error {
 	redisCli := gxyredis.Redis()
-	redisKey := l.formatKey(t, key)
-	ok, err := redisCli.SetNX(ctx, redisKey, node, expireTime).Result()
+	redisKey := l.formatKey(LocatorTypeNode, key)
+	ok, err := redisCli.SetNX(ctx, redisKey, pidInfo, expireTime).Result()
 	if err != nil {
 		return gerror.Wrapf(err, "failed to register key %s in Redis", redisKey)
 	}
@@ -78,42 +73,30 @@ func (l *Locator) Register(ctx context.Context, t string, key string, node strin
 	return nil
 }
 
-// RegisterBatch 批量注册/续约多个 key（使用 Lua 脚本保证原子性）
-// keys: 格式 "key1", "val1", "key2", "val2", ... (交替)
-// expireSeconds: TTL 秒数
-func (l *Locator) RegisterBatch(ctx context.Context, keys []string, expireSeconds int64) error {
-	if len(keys) == 0 {
-		return nil
-	}
+func (l *Locator) RegisterBatchActor(ctx context.Context, keys []string, pidInfos []string, expireTime time.Duration) error {
 	redisCli := gxyredis.Redis()
-	redisKey := l.formatKey(LocatorTypeNode, "batch")
+	redisKeys := make([]string, 0, len(keys))
+	for i, key := range keys {
+		redisKeys = append(redisKeys, l.formatKey(LocatorTypeNode, key))
+		redisKeys = append(redisKeys, pidInfos[i])
+	}
 
-	// Lua 脚本: 遍历所有 key-val 对，SETEX 每个
-	script := redis.NewScript(`
-		local keys = KEYS
-		local ttl = tonumber(ARGV[1])
-		for i = 1, #keys, 2 do
-			redis.call('SETEX', keys[i], ttl, keys[i+1])
-		end
-		return #keys / 2
-	`)
-
-	_, err := script.Run(ctx, redisCli, []string{redisKey}, expireSeconds).Result()
+	_, err := ScriptRegisterGrainNode(ctx, redisCli, redisKeys, int64(expireTime.Seconds()))
 	if err != nil {
 		return gerror.Wrapf(err, "RegisterBatch failed")
 	}
 	return nil
 }
 
-func (l *Locator) UnregisterNode(ctx context.Context, key string, node string) error {
-	return l.Unregister(ctx, LocatorTypeNode, key, node)
+func (l *Locator) UnregisterActor(ctx context.Context, key string, pidInfo string) error {
+	return l.Unregister(ctx, LocatorTypeNode, key, pidInfo)
 }
 
 func (l *Locator) Unregister(ctx context.Context, t string, key string, val string) error {
 	// 验证节点是否匹配
 	redisCli := gxyredis.Redis()
 	redisKey := l.formatKey(t, key)
-	_, err := UnregisterGrainNode(redisCli, redisKey, val)
+	_, err := ScriptUnregisterGrainNode(redisCli, redisKey, val)
 	if err != nil {
 		return gerror.Wrap(err, "Failed to unregister key in Redis")
 	}

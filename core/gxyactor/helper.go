@@ -8,8 +8,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func RegisterGrain(name string, prod GrainProducer) error {
-	return app.RegisterGrain(name, prod)
+func RegisterGrainProducer(name string, prod GrainProducer) error {
+	return app.RegisterGrainProducer(name, prod)
 }
 
 func DeRegisterGrain(name string) {
@@ -17,13 +17,13 @@ func DeRegisterGrain(name string) {
 }
 
 // SpawnRegister创建新的Actor
-func SpawnNamed(name string, props *actor.Props) (PID, error) {
-	return app.spawnNamed(name, props)
+func SpawnNamed(props *actor.Props, name string) (PID, error) {
+	return app.spawnNamed(props, name)
 }
 
 func SpawnNamedFunc(name string, prod func() actor.Actor) (PID, error) {
 	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	return app.spawnNamed(name, props)
+	return app.spawnNamed(props, name)
 }
 
 func Spawn(props *actor.Props) (pid PID, err error) {
