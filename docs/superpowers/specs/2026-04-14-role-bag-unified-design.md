@@ -2,11 +2,11 @@
 
 ## 概述
 
-统一 `BagItem` 和 `BagCurrency` 为单一 `BagEntry` 结构，移除 `Grid` 字段和格子数检查，实现无限堆叠。
+统一 `BagItem` 和 `BagCurrency` 为单一 `BagGood` 结构，移除 `Grid` 字段和格子数检查，实现无限堆叠。
 
 ## 改动范围
 
-- `apps/role/internal/logic/bag/item.go` — 删除，重写为 `BagEntry`
+- `apps/role/internal/logic/bag/item.go` — 删除，重写为 `BagGood`
 - `apps/role/internal/logic/bag/currency.go` — 删除
 - `apps/role/internal/logic/role_bag.go` — 简化状态和逻辑
 - `apps/role/internal/event/bag.go` — 更新事件结构
@@ -16,10 +16,10 @@
 
 ## 新数据结构
 
-### BagEntry（替换 BagItem + BagCurrency）
+### BagGood（替换 BagItem + BagCurrency）
 
 ```go
-type BagEntry struct {
+type BagGood struct {
     Type       int       `db:"type"`        // 0=Item, 1=Currency, extensible int
     PropID     int       `db:"prop_id"`    // 配置表ID，作为map的key
     Num        uint64    `db:"num"`        // 无限堆叠
@@ -49,7 +49,7 @@ type BagChange struct {
 ```go
 type RoleBagState struct {
     RolePersistState `db:"inline"`
-    Entries          map[int]*BagEntry `db:"entries"` // key=PropID
+    Entries          map[int]*BagGood `db:"entries"` // key=PropID
 }
 ```
 
@@ -66,7 +66,7 @@ type RoleBagState struct {
 
 ```go
 func (r *RoleBag) OnModInit(ctx context.Context) error {
-    r.Entries = make(map[int]*BagEntry)
+    r.Entries = make(map[int]*BagGood)
     return nil
 }
 ```
@@ -87,7 +87,7 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 
 ### GetItem / GetCurrency
 
-- 统一为 `GetEntry(propID int) *BagEntry`
+- 统一为 `GetEntry(propID int) *BagGood`
 - 或保留两个方法，内部都读 `Entries`
 
 ### 格子检查相关
@@ -115,7 +115,7 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 
 ## 实现顺序
 
-1. 新增 `BagEntry`、`BagChange` 结构
+1. 新增 `BagGood`、`BagChange` 结构
 2. 修改 `RoleBagState`，移除旧字段（`Items`、`Currencies`、`GridUse`）
 3. 简化 `AddSingleItem` / `DecSingleItem` 逻辑（移除格子检查）
 4. 更新 `RoleBag` 的 `OnModInit` 初始化
