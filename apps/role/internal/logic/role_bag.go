@@ -22,9 +22,7 @@ var (
 
 type RoleBagState struct {
 	RolePersistState `db:"inline"`
-	Items            map[int]*bag.BagItem     `db:"items"`
-	Currencies       map[int]*bag.BagCurrency `db:"currencies"`
-	GridUse          int                      `db:"grid_use"`
+	Goods            map[int]*bag.BagGood `db:"goods"`
 }
 
 func (r *RoleBagState) GetIndexes() []string {
@@ -43,8 +41,7 @@ func (r *RoleBag) PersistState() IPersistState {
 }
 
 func (r *RoleBag) OnModInit(ctx context.Context) error {
-	r.Items = make(map[int]*bag.BagItem)
-	r.Currencies = make(map[int]*bag.BagCurrency)
+	r.Goods = make(map[int]*bag.BagGood)
 	return nil
 }
 
