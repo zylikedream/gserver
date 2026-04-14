@@ -64,15 +64,44 @@ func (l *Locator) RegisterNode(ctx context.Context, key string, node string, exp
 	return l.Register(ctx, LocatorTypeNode, key, node, expireTime)
 }
 
-// Register 注册键和节点的映射关系
+// Register 注册键和节点的映射关系（SETNX 语义：只有 key 不存在时才写入）
 func (l *Locator) Register(ctx context.Context, t string, key string, node string, expireTime time.Duration) error {
 	redisCli := gxyredis.Redis()
 	redisKey := l.formatKey(t, key)
-	_, err := redisCli.Set(ctx, redisKey, node, expireTime).Result()
+	ok, err := redisCli.SetNX(ctx, redisKey, node, expireTime).Result()
 	if err != nil {
-		return gerror.Wrap(err, "Failed to register key in Redis")
+		return gerror.Wrapf(err, "failed to register key %s in Redis", redisKey)
 	}
+	if !ok {
+		return gerror.Newf("key %s already registered by another node", redisKey)
+	}
+	return nil
+}
 
+// RegisterBatch 批量注册/续约多个 key（使用 Lua 脚本保证原子性）
+// keys: 格式 "key1", "val1", "key2", "val2", ... (交替)
+// expireSeconds: TTL 秒数
+func (l *Locator) RegisterBatch(ctx context.Context, keys []string, expireSeconds int64) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	redisCli := gxyredis.Redis()
+	redisKey := l.formatKey(LocatorTypeNode, "batch")
+
+	// Lua 脚本: 遍历所有 key-val 对，SETEX 每个
+	script := redis.NewScript(`
+		local keys = KEYS
+		local ttl = tonumber(ARGV[1])
+		for i = 1, #keys, 2 do
+			redis.call('SETEX', keys[i], ttl, keys[i+1])
+		end
+		return #keys / 2
+	`)
+
+	_, err := script.Run(ctx, redisCli, []string{redisKey}, expireSeconds).Result()
+	if err != nil {
+		return gerror.Wrapf(err, "RegisterBatch failed")
+	}
 	return nil
 }
 
