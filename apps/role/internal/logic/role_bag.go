@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"gserver/apps/role/internal/logic/bag"
-	"gserver/gameconfig"
 	cfg "gserver/gameconfig/src"
 
 	"gserver/protocol/pb"
@@ -191,19 +190,22 @@ func (r *RoleBag) ItemRC2Item(itemRcList []*cfg.ItemItemRC) ([]bag.Item, error) 
 
 func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBagInfo, error) {
 	msg := &pb.RspBagInfo{
-		Items: []*pb.PItemInfo{},
+		Items:      []*pb.PItemInfo{},
+		Currencys:  []*pb.PCurrencyInfo{},
 	}
-	linq.From(r.Items).Select(func(i any) any {
-		return &pb.PItemInfo{
-			PropId: int32(i.(*bag.BagItem).PropID),
-			Num:    int64(i.(*bag.BagItem).Num),
+	for _, good := range r.Goods {
+		switch good.Type {
+		case bag.GoodTypeItem:
+			msg.Items = append(msg.Items, &pb.PItemInfo{
+				PropId: int32(good.PropID),
+				Num:    int64(good.Num),
+			})
+		case bag.GoodTypeCurrency:
+			msg.Currencys = append(msg.Currencys, &pb.PCurrencyInfo{
+				Id:  int32(good.PropID),
+				Num: int64(good.Num),
+			})
 		}
-	}).ToSlice(&msg.Items)
-	linq.From(r.Currencies).Select(func(i any) any {
-		return &pb.PCurrencyInfo{
-			Id:  int32(i.(*bag.BagCurrency).PropID),
-			Num: int64(i.(*bag.BagCurrency).Num),
-		}
-	}).ToSlice(&msg.Currencys)
+	}
 	return msg, nil
 }
