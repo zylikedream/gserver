@@ -109,48 +109,16 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 
 ## 数据库兼容
 
-**迁移逻辑（在 `OnModInit` 中一次性处理）：**
-
-```go
-func (r *RoleBag) MigrateLegacyData() {
-    // Items → Type 0, Currencies → Type 1
-    if len(r.Items) > 0 {
-        for propID, item := range r.Items {
-            r.Entries[propID] = &BagEntry{
-                Type:       0, // Item
-                PropID:     propID,
-                Num:        item.Num,
-                UpdateTime: item.UpdateTime,
-            }
-        }
-        r.Items = nil // 释放旧map引用
-    }
-    if len(r.Currencies) > 0 {
-        for propID, cur := range r.Currencies {
-            r.Entries[propID] = &BagEntry{
-                Type:       1, // Currency
-                PropID:     propID,
-                Num:        cur.Num,
-                UpdateTime: cur.UpdateTime,
-            }
-        }
-        r.Currencies = nil
-    }
-}
-```
-
-- `OnModInit` 调用 `MigrateLegacyData()`，只在旧数据存在时执行
-- 迁移后 `Items`/`Currencies` 置 nil，JSONB 序列化时自动省略
-- 单次迁移，不反复执行
+无迁移需求。项目处于开发阶段，数据随时可清空重置。
 
 ---
 
 ## 实现顺序
 
 1. 新增 `BagEntry`、`BagChange` 结构
-2. 修改 `RoleBagState`，移除旧字段
-3. 实现 `MigrateLegacyData()` 在 `OnModInit` 中调用（处理未迁移的旧数据）
-4. 简化 `AddSingleItem` / `DecSingleItem` 逻辑
+2. 修改 `RoleBagState`，移除旧字段（`Items`、`Currencies`、`GridUse`）
+3. 简化 `AddSingleItem` / `DecSingleItem` 逻辑（移除格子检查）
+4. 更新 `RoleBag` 的 `OnModInit` 初始化
 5. 更新事件结构
 6. 检查并更新 protobuf 定义
 7. 删除废弃的 `bag/item.go`、`bag/currency.go`
