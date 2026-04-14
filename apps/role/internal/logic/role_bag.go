@@ -150,8 +150,8 @@ func (r *RoleBag) DecItem(ctx context.Context, itemList []bag.Item) error {
 }
 
 func (r *RoleBag) notifyBagUpdate(ctx context.Context, chgs []*bag.BagChange) {
-	msg := &pb.NotifyItemUpdate{
-		Items: []*pb.PBagGoodUpdate{},
+	msg := &pb.NotifyBagUpdate{
+		Goods: []*pb.PBagGoodUpdate{},
 	}
 	linq.From(chgs).Select(func(i any) any {
 		return &pb.PBagGoodUpdate{
@@ -159,7 +159,7 @@ func (r *RoleBag) notifyBagUpdate(ctx context.Context, chgs []*bag.BagChange) {
 			PreNum: int64(i.(*bag.BagChange).PreNum),
 			Num:    int64(i.(*bag.BagChange).Num),
 		}
-	}).ToSlice(&msg.Items)
+	}).ToSlice(&msg.Goods)
 	r.Role.SendClient(ctx, msg)
 }
 
@@ -190,22 +190,13 @@ func (r *RoleBag) ItemRC2Item(itemRcList []*cfg.ItemItemRC) ([]bag.Item, error) 
 
 func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBagInfo, error) {
 	msg := &pb.RspBagInfo{
-		Items:      []*pb.PItemInfo{},
-		Currencys:  []*pb.PCurrencyInfo{},
+		Goods: []*pb.PGoodInfo{},
 	}
 	for _, good := range r.Goods {
-		switch good.Type {
-		case bag.GoodTypeItem:
-			msg.Items = append(msg.Items, &pb.PItemInfo{
-				PropId: int32(good.PropID),
-				Num:    int64(good.Num),
-			})
-		case bag.GoodTypeCurrency:
-			msg.Currencys = append(msg.Currencys, &pb.PCurrencyInfo{
-				Id:  int32(good.PropID),
-				Num: int64(good.Num),
-			})
-		}
+		msg.Goods = append(msg.Goods, &pb.PGoodInfo{
+			PropId: int32(good.PropID),
+			Num:    int64(good.Num),
+		})
 	}
 	return msg, nil
 }
