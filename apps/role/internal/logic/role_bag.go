@@ -71,22 +71,15 @@ func (r *RoleBag) isGridFull(add int) bool {
 	return int32(r.GridUse+add) > bagMaxGrid
 }
 
-func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.ItemChange, error) {
-	have := r.Items[item.ID]
-	if item.Num > have.Num {
+func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
+	have := r.Goods[item.ID]
+	if have == nil || item.Num > have.Num {
 		return nil, errors.Wrapf(ErrItemDecItemNotEnough, "have:%v, need:%v", have, item)
 	}
-	itemTable := gameconfig.GameConfig().TbItem
-	itemconf := itemTable.Get(int32(item.ID))
-	newGrid := (have.Num - item.Num - 1) / uint64(itemconf.MaxOverlap)
-	gridDec := int(newGrid - have.Grid)
-
-	chg := have.Update(item.ID, have.Num-item.Num, newGrid)
-
-	if newGrid == 0 {
-		delete(r.Items, item.ID)
+	chg := have.Update(have.Num - item.Num)
+	if have.Num == 0 {
+		delete(r.Goods, item.ID)
 	}
-	r.GridUse -= gridDec
 	return chg, nil
 }
 
