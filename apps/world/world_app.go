@@ -4,7 +4,7 @@ import (
 	"context"
 	"gserver/apps/world/server"
 	"gserver/core/gxyactor"
-	"gserver/core/gxyapp.go"
+	"gserver/core/gxyapp"
 
 	"github.com/asynkron/protoactor-go/actor"
 )

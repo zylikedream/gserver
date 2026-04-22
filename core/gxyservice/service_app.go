@@ -2,7 +2,7 @@ package gxyservice
 
 import (
 	"context"
-	"gserver/core/gxyapp.go"
+	"gserver/core/gxyapp"
 	"gserver/core/gxyregistery"
 	"gserver/util"
 

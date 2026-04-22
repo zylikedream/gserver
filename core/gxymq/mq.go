@@ -2,7 +2,7 @@ package gxymq
 
 import (
 	"context"
-	"gserver/core/gxyapp.go"
+	"gserver/core/gxyapp"
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/frame/g"

@@ -7,11 +7,12 @@ import (
 	"gserver/apps/gateway"
 	"gserver/apps/role"
 	"gserver/core/gxyactor"
-	"gserver/core/gxyapp.go"
+	"gserver/core/gxyapp"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
+	"gserver/core/gxypgx"
 	"gserver/core/gxyredis"
 	"gserver/core/gxyservice"
 	"gserver/util"
@@ -104,6 +105,7 @@ func (n *node) registerApps() {
 
 	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
+	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
 	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.Name))
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())

@@ -3,7 +3,7 @@ package gxyhttp
 import (
 	"context"
 	"fmt"
-	"gserver/core/gxyapp.go"
+	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"

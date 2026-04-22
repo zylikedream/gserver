@@ -4,7 +4,7 @@ import (
 	"context"
 	"gserver/apps/role/internal/logic"
 	"gserver/core/gxyactor"
-	"gserver/core/gxyapp.go"
+	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 )

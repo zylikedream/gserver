@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"gserver/core/gxyapp.go"
+	"gserver/core/gxyapp"
 
 	"google.golang.org/protobuf/proto"
 
