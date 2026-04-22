@@ -2,7 +2,6 @@ package gxynode
 
 import (
 	"context"
-	"slices"
 
 	"gserver/apps/gateway"
 	"gserver/apps/role"
@@ -63,27 +62,35 @@ func (a *node) GetModName() string {
 
 func (n *node) OnModStart(ctx context.Context) error {
 	glog.Infof(context.Background(), "node %s starting....", n.Name)
+
 	loaded := map[string]bool{}
-	preloaded := []gxyapp.IApp{
-		gxyactor.NewActorApp(n.Name, n.Host),
-		gxyhttp.NewHttpApp(n.Name, n.Host),
-		gxyservice.NewServiceApp(n.Name),
-	}
-	needed := []gxyapp.IApp{}
 	for _, appName := range n.apps {
-		app := gxyapp.GetApp(appName)
-		if app == nil {
-			return gerror.Newf("app %s not found", appName)
-		}
-		loaded[appName] = true
-		needed = append(needed, app)
-	}
-	for _, app := range slices.Concat(preloaded, needed) {
-		if err := n.AddModule(ctx, app); err != nil {
-			return gerror.Newf("add app %s err: %+v", app.AppName(), err)
+		if err := n.loadApp(ctx, appName, loaded); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// loadApp 递归加载 app 及其依赖，保证依赖先于使用者初始化
+func (n *node) loadApp(ctx context.Context, appName string, loaded map[string]bool) error {
+	if loaded[appName] {
+		return nil
+	}
+	app := gxyapp.GetApp(appName)
+	if app == nil {
+		return gerror.Newf("app %s not found", appName)
+	}
+
+	// 先加载依赖
+	for _, dep := range app.Deps() {
+		if err := n.loadApp(ctx, dep, loaded); err != nil {
+			return err
+		}
+	}
+
+	loaded[appName] = true
+	return n.AddModule(ctx, app)
 }
 
 func (n *node) OnModStartAfter(ctx context.Context) error {
@@ -102,11 +109,12 @@ func (n *node) OnModStop(ctx context.Context) error {
 }
 
 func (n *node) registerApps() {
-
-	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
+	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.Host))
+	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp(n.Name, n.Host))
 	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.Name))
+	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())
 }

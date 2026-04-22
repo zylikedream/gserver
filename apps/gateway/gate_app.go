@@ -23,6 +23,10 @@ func NewGateApp() *gateApp {
 	return &gateApp{}
 }
 
+func (s *gateApp) Deps() []string {
+	return []string{"redis", "actor", "service"}
+}
+
 func (s *gateApp) OnModInit(ctx context.Context) error {
 	network := gxynet.NewNetwork(g.Cfg(), NewGateHandler())
 	s.AddModule(ctx, network)

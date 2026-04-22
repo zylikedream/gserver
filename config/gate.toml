@@ -1,7 +1,7 @@
 [node]
     name = "gate"
     host = "127.0.0.1"
-	apps = ["redis", "gate"]
+	apps = ["gate"]
 [redis]
 	addr = "localhost:6379"
 	password = "@zyc0131"

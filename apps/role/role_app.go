@@ -17,6 +17,10 @@ func NewRoleApp() *roleApp {
 	return &roleApp{}
 }
 
+func (r *roleApp) Deps() []string {
+	return []string{"redis", "pgx", "actor", "service"}
+}
+
 func (r *roleApp) ServiceName() string {
 	return ROLE_SERVICE
 }
