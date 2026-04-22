@@ -78,8 +78,8 @@
         └─────────────┘    └───────────────┘
 
         ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │ HttpApp  │ │ MongoApp │ │ RedisApp │
-        │ MQApp    │ │          │ │          │
+        │ HttpApp  │ │  PGXApp  │ │ RedisApp │
+        │ MQApp    │ │ (pgx/v5) │ │          │
         └──────────┘ └──────────┘ └──────────┘
 ```
 
@@ -144,8 +144,9 @@
                           │  ┌────────┐  │
                           │  │Locator │  │  Grain 位置映射
                           │  │        │  │  actor:role:100 → PID(node1)
-                          │  │TTL=40s │  │  actor:role:101 → PID(node2)
-                          │  └────────┘  │  actor:role:102 → PID(node3)
+                          │  │SETNX   │  │  actor:role:101 → PID(node2)
+                          │  │TTL=40s │  │  actor:role:102 → PID(node3)
+                          │  └────────┘  │
                           │              │
                           │  ┌────────┐  │
                           │  │Service │  │  服务节点注册
@@ -159,8 +160,15 @@
     → 找到 → 返回 PID(node1)
     → 未找到 → Service Registry 一致性哈希选节点
     → 向选中节点的 Activator 发送 ActorActive
-    → Activator spawn Grain, 注册到 Locator
+    → Activator spawn Grain, SETNX 注册到 Locator
     → 返回 PID
+
+续约流程:
+  grainActivator (30s tick)
+    → Lua 批量 SETEX 续约所有 child grains
+
+注销流程:
+  actor.Terminated → Lua 条件删除 (校验值匹配)
 ```
 
 ## 数据持久化模型
@@ -175,8 +183,9 @@
    │  │  for each module:                       │    │
    │  │    1. 计算 hash(modState)               │    │
    │  │    2. hash != lastHash ?                │    │
-   │  │       YES → ReplaceOne with upsert      │    │
-   │  │              filter: {role_id, version}  │    │
+   │  │       YES → UpsertOne                   │    │
+   │  │              INSERT ON CONFLICT UPDATE   │    │
+   │  │              WHERE role_id AND version   │    │
    │  │              version++                   │    │
    │  │       NO  → skip (无变更)                │    │
    │  └────────────────┬────────────────────────┘    │
@@ -184,12 +193,12 @@
                         │
                         ▼
    ┌─────────────────────────────────────────────────┐
-   │                 MongoDB                         │
+   │                PostgreSQL                       │
    │                                                 │
    │  ┌──────────────────┐  role_id (unique)         │
    │  │ role_persist_state│  version (乐观锁)        │
    │  │ role_name         │  update_at               │
-   │  │ head, login_tm... │                          │
+   │  │ head, login_tm... │  (JSONB columns)         │
    │  └──────────────────┘                          │
    │                                                 │
    │  ┌──────────────────┐  role_id (unique)         │
@@ -198,8 +207,8 @@
    │  └──────────────────┘                          │
    │                                                 │
    │  ┌──────────────────┐  role_id (unique)         │
-   │  │ role_bag_state    │  items (map)             │
-   │  │                   │  currencies (map)        │
+   │  │ role_bag_state    │  items (JSONB map)       │
+   │  │                   │  currencies (JSONB map)  │
    │  │                   │  grid_use                │
    │  └──────────────────┘                          │
    │                                                 │
@@ -213,7 +222,7 @@
    │  └──────────────────────┘                       │
    │                                                 │
    │  ┌──────────────────────┐  role_id (unique)     │
-   │  │ role_activity_persist │  activitys (map)      │
+   │  │ role_activity_persist │  activitys (JSONB)    │
    │  │ _state                │                       │
    │  └──────────────────────┘                       │
    │                                                 │
@@ -260,4 +269,4 @@
 ```
 
 ---
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-22*

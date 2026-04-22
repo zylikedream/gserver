@@ -20,3 +20,5 @@ bin
 .worktrees/
 log/
 *.test.toml
+.claude/
+graphify-out/

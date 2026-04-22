@@ -308,9 +308,9 @@ type IRoleModule interface {
 
 // 基类
 type RoleModule struct {
-    gxymodule.ModuleBase `bson:"-"`
+    gxymodule.ModuleBase `db:"-"`
     RoleID   int64
-    Role     *RoleMain  `bson:"-" hash:"-"`
+    Role     *RoleMain  `db:"-" hash:"-"`
 }
 
 // 具体实现示例
@@ -398,7 +398,7 @@ RoleMain (GrainBase + ModuleBase)
 ### 模式 5: 配置驱动加载
 - Node 通过配置文件决定加载哪些 App
 - 不同配置产生不同类型的节点（网关节点、角色节点、世界节点）
-- 基础设施 App（Actor、Redis、Mongo）总是预加载
+- 基础设施 App（Actor、Redis、PGX）总是预加载
 
 ---
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-22*

@@ -8,18 +8,26 @@ gserver/
 │   └── main.go              # main 函数，启动 Node
 ├── core/                    # 框架核心层
 │   ├── gxyactor/            # Actor 系统
+│   │   ├── actor.go         # ActorBase, GrainBase, PID 类型, 消息API
+│   │   ├── system.go        # ActorApp, ActorSystem 初始化
+│   │   ├── grain_manager.go # GrainManager, GrainActivator
+│   │   ├── actor_timer.go   # ActorTimer (Tick/Once/Cron)
+│   │   ├── types.go         # ActorService 类型
+│   │   └── logger.go        # protoactor 日志适配器
 │   ├── gxymodule/           # 模块系统
-│   ├── gxynet/              # 网络层
-│   ├── gxymongo/            # MongoDB 封装 (已移除)
+│   ├── gxynet/              # 网络层 (gnet v2, LTPV codec)
+│   ├── gxypgx/              # PostgreSQL 封装 (pgx/v5)
 │   ├── gxyredis/            # Redis 封装
 │   ├── gxytimer/            # 定时器
-│   ├── gxylocator/          # 分布式定位器
+│   ├── gxylocator/          # 分布式定位器 (Lua 脚本)
+│   │   └── script/
+│   │       └── locate.lua   # Redis Lua 脚本
 │   ├── gxyservice/          # 服务注册/发现
-│   ├── gxyregistery/        # 注册中心实现
+│   ├── gxyregistery/        # 注册中心实现 (Consul/etcd)
 │   ├── gxyhttp/             # HTTP 服务
 │   ├── gxylog/              # 日志系统
 │   ├── gxyapp.go/           # 应用基类
-│   └── gxymq/               # 消息队列
+│   └── gxymq/               # 消息队列 (Redis Pub/Sub / Pulsar)
 ├── apps/                    # 业务应用层
 │   ├── gateway/             # 网关应用
 │   │   ├── gate_app.go      # 网关 App 定义
@@ -52,7 +60,7 @@ gserver/
 │       ├── world_app.go      # 世界 App 定义
 │       └── server/           # 全局服务器
 │           └── activity_server.go # 活动服务器
-├── protocol/                # 协议定义
+├── protocol/                # 协议定义 (git submodule)
 │   └── pb/                  # Protobuf 生成代码
 │       ├── message.go       # 消息类型常量
 │       ├── login.pb.go      # 登录协议
@@ -68,14 +76,14 @@ gserver/
 │   └── grain.go             # Grain 辅助函数 (GetRoleGrain)
 ├── util/                    # 通用工具
 │   ├── common.go            # 通用工具函数
-│   ├── reflect.go           # 反射工具
+│   ├── reflect.go           # 反射工具 (GetObjectHash, NewObject)
 │   ├── time.go              # 时间工具
 │   ├── msg_handler.go       # 消息路由处理器
 │   ├── ets/                 # 内存表
 │   │   └── ets.go
 │   └── uid/                 # UID 生成器
 │       └── uid.go
-├── gameconfig/              # 游戏配置表
+├── gameconfig/              # 游戏配置表 (git submodule)
 │   ├── gameconfig.go        # 配置加载器
 │   └── src/                 # Excel 导出的配置结构体
 │       ├── Tables.go
@@ -84,7 +92,7 @@ gserver/
 │       ├── activity.*.go    # 活动配置
 │       ├── global.*.go      # 全局配置
 │       └── controller.*.go  # 时间控制器配置
-├── config/                  # 配置文件目录
+├── config/                  # 配置文件目录 (TOML)
 ├── hack/                    # 开发工具脚本
 ├── log/                     # 日志目录
 ├── .vscode/                 # VS Code 配置
@@ -102,9 +110,12 @@ gserver/
 ### 框架核心
 - `core/gxyactor/actor.go` — Actor 系统 API 入口（Send, Call, GetGrain, Spawn 等）
 - `core/gxyactor/system.go` — ActorApp 定义，protoactor-go ActorSystem/Remote 初始化
-- `core/gxyactor/grain_manager.go` — Grain 管理器，Grain 的注册、定位、创建、销毁
+- `core/gxyactor/grain_manager.go` — Grain 管理器，Grain 的注册（SETNX）、定位、创建、销毁
+- `core/gxylocator/gxylocator.go` — Redis 定位器，SETNX 注册、Lua 批量续约、条件注销
+- `core/gxylocator/script/locate.lua` — Redis Lua 脚本（条件删除）
+- `core/gxypgx/pgx.go` — PostgreSQL 封装，pgxpool 连接池、反射 CRUD
 - `core/gxymodule/module.go` — 模块系统，IModule 接口和 ModuleBase 树状结构
-- `core/gxynet/` — TCP 网络层
+- `core/gxynet/` — TCP 网络层（gnet v2）
 
 ### 业务核心
 - `apps/role/internal/logic/role_main.go` — 角色主逻辑，最核心的业务文件
@@ -130,4 +141,4 @@ gserver/
 | `snake_case` 文件名 | Go 惯例 | role_main.go, grain_manager.go |
 
 ---
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-22*

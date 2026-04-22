@@ -2,7 +2,7 @@
 
 ## 现状
 
-项目测试覆盖极低，仅有 2 个测试文件：
+项目测试覆盖极低，仅有 1 个测试文件：
 
 | 文件 | 测试内容 |
 |------|---------|
@@ -30,14 +30,14 @@
 
 ### 需要集成测试的部分
 
-4. **core/gxypgx/** — 需要 PostgreSQL 实例
+4. **core/gxypgx/** — 需要 PostgreSQL 实例（可用 testcontainers-go）
 5. **core/gxyredis/** — 需要 Redis 实例
-6. **core/gxylocator/** — 需要 Redis 实例
+6. **core/gxylocator/** — 需要 Redis 实例，测试 Lua 脚本正确性
 
 ### 难以测试的部分
 
 7. **core/gxyactor/** — 强依赖 protoactor-go ActorSystem，需要进程内启动
-8. **apps/role/internal/logic/** — 依赖 Actor 上下文、MongoDB、Redis
+8. **apps/role/internal/logic/** — 依赖 Actor 上下文、PostgreSQL、Redis
 9. **apps/gateway/** — 依赖网络层和 Actor 系统
 
 ## 测试建议
@@ -54,10 +54,10 @@ gameconfig/gameconfig_test.go — 配置加载
 ### 接口 Mock 测试
 
 ```
-// 将 MongoDB/Redis 操作抽象为接口
+// 将 PostgreSQL 操作抽象为接口
 type IDB interface {
-    FindOne(ctx, reply, col, filter) error
-    ReplaceOne(ctx, col, filter, update, opts) error
+    FindOne(ctx, reply, table, filter) error
+    UpsertOne(ctx, table, data, conflictCols) error
 }
 
 // 业务代码依赖接口而非具体实现
@@ -67,7 +67,7 @@ type IDB interface {
 ### 集成测试
 
 ```
-// 使用 testcontainers-go 启动 MongoDB/Redis 容器
+// 使用 testcontainers-go 启动 PostgreSQL/Redis 容器
 // 或使用 docker-compose 管理测试依赖
 ```
 
@@ -86,5 +86,15 @@ func TestRoleMain_Login(t *testing.T) {
 }
 ```
 
+## 测试优先级建议
+
+按影响面排序：
+
+1. **gxylocator Lua 脚本** — 核心定位逻辑，SETNX 注册和条件注销的正确性
+2. **gxyactor grain_manager** — Grain 激活/续约/注销流程
+3. **gxypgx UpsertOne** — 乐观锁和 JSONB 映射
+4. **util/msg_handler** — 消息路由正确性
+5. **apps/role 业务逻辑** — 角色模块核心逻辑
+
 ---
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-22*

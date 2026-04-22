@@ -22,22 +22,23 @@
 │  role     — 角色服务（Grain 注册、业务逻辑）                │
 │  world    — 世界服务（全局单例 Actor，如活动系统）           │
 │  redis    — Redis 客户端模块                              │
-│  mongo    — MongoDB 客户端模块                            │
+│  pgx      — PostgreSQL 客户端模块                         │
 │  mq       — 消息队列模块                                  │
 │  service  — 服务注册/发现模块                              │
 ├─────────────────────────────────────────────────────────┤
 │                    Core (框架层)                          │
 │  gxyactor   — Actor 系统（ActorBase, GrainBase, 定位器）   │
 │  gxymodule  — 模块系统（树状结构、生命周期管理）             │
-│  gxynet     — 网络层（TCP server, endpoint, message）      │
-│  gxymongo   — MongoDB 封装 (已移除)                       │
+│  gxynet     — 网络层（gnet v2 TCP server, LTPV codec）     │
+│  gxypgx     — PostgreSQL 封装 (pgx/v5 pool, 反射 CRUD)    │
 │  gxyredis   — Redis 封装                                 │
 │  gxytimer   — 定时器系统                                  │
-│  gxylocator — 分布式定位器                                │
+│  gxylocator — 分布式定位器（Lua 脚本原子操作）              │
 │  gxyservice — 服务注册/发现                               │
-│  gxyregistery— 注册中心实现                               │
+│  gxyregistery— 注册中心实现（Consul / etcd）               │
 │  gxyhttp    — HTTP 服务                                   │
 │  gxylog     — 日志系统                                    │
+│  gxymq      — 消息队列（Redis Pub/Sub / Pulsar）          │
 ├─────────────────────────────────────────────────────────┤
 │                    Util (工具层)                          │
 │  msg_handler — 基于反射的消息路由                          │
@@ -63,22 +64,23 @@ IActor (gxyactor 接口)
   - Init(ctx) error
   - DelayInit(ctx) error
   - Terminate(ctx, err)
+  - HandleMessage(ctx, msg) — 应用层消息处理
   - Timer() *ActorTimer
   - Self() PID
     ↓
 ActorBase (基础实现)
   - 消息接收分发 (doReceive)
   - Send/Call/LocalSend 消息发送
-  - 定时器管理
-  - MsgHandler 反射路由
-  - Supervisor 策略 (OneForOne, 10次/3秒)
+  - 定时器管理 (ActorTimer)
+  - MsgHandler 反射路由 (AutoHandleMsg)
+  - Supervisor 策略 (OneForOne, StopDirective)
     ↓
 IGrain (虚拟 Actor 接口)
   - GrainID() string
     ↓
 GrainBase (Grain 实现)
   - 从 ActorContext.InitArgs 提取 GrainID
-  - 注册/注销到 Redis Locator
+  - ContextDecorator 注入 initArgs
 ```
 
 ### Grain 生命周期
@@ -89,16 +91,18 @@ GrainBase (Grain 实现)
    a. 找到 → 返回已有 PID
    b. 未找到 → 通过 Service Registry 选择节点
 3. 向目标节点的 grainActivator 发送 ActorActive 消息
-4. grainActivator 创建新 Actor:
+4. grainActivator 处理激活:
    a. SpawnNamed (带 ContextDecorator 传递 grainID)
-   b. Touch 验证 Actor 已启动
-   c. 注册 PID 到 Redis Locator (TTL 40s)
+   b. SETNX 原子注册 PID 到 Redis Locator (TTL 40s)
+   c. 注册失败 → StopActor，防止重复激活
    d. 返回 PID
 5. Actor 接收消息处理业务逻辑
-6. Actor 停止时:
-   a. 从 Redis Locator 注销
-   b. 从 grainActivator 的 childs map 移除
-   c. 触发 Terminate 回调（保存数据）
+6. 定时续约 (30s 间隔，Lua 批量 SETEX)
+7. Actor 停止时:
+   a. 接收 Terminated 通知
+   b. Lua 脚本条件注销（校验值匹配后删除）
+   c. 从 grainActivator 的 childs map 和 ActorMgr 移除
+   d. 触发 Terminate 回调（保存数据）
 ```
 
 ### GrainActivator 路由
@@ -120,6 +124,7 @@ ModuleBase
 
 IModule 接口:
   - GetModName() string
+  - GetModID() string
   - OnModInit(ctx) error       // 初始化
   - OnModStart(ctx) error      // 启动
   - OnModStartAfter(ctx) error // 启动后（依赖其他模块时使用）
@@ -147,8 +152,8 @@ Stop 阶段（逆序）:
 
 ```
 Client (TCP)
-  → gxynet (endpoint 接收)
-  → GateHandler.OnMessage
+  → gxynet (gnet v2 endpoint 接收)
+  → GateHandler.OnMessage (LTPV 解包)
   → Session Actor (LocalSend, 不经过序列化)
   → Session.OnHandleClientMessage
     → handshake: 本地处理，获取 RoleGrain PID
@@ -183,7 +188,6 @@ IPersistState interface {
     SetRoleID(roleID int64)
     GetVersion() int64 / SetVersion(version int64)
     GetUpdateAt() time.Time / SetUpdateAt(time.Time)
-    GetIndexes() []mongo.IndexModel
 }
 ```
 
@@ -191,20 +195,22 @@ IPersistState interface {
 
 ```go
 RolePersistState struct {
-    RoleID   int64     `bson:"role_id"`
-    UpdateAt time.Time `bson:"update_at" hash:"-"`
-    Version  int64     `bson:"version" hash:"-"`
+    RoleID   int64     `db:"role_id"`
+    UpdateAt time.Time `db:"update_at" hash:"-"`
+    Version  int64     `db:"version" hash:"-"`
 }
 ```
 
+- `db:"snake_case"` 标签：PostgreSQL 列映射
 - `hash:"-"` 标签：从脏检查 hash 计算中排除
-- `bson:"inline"` 标签：嵌入到子结构体时继承字段
+- `db:"inline"` 标签：嵌入到子结构体时继承字段
+- Map 和 slice 字段自动映射到 JSONB 列
 
 ### 保存策略
 
 1. **脏检查**: 计算模块状态 hash，与上次保存的 hash 对比
-2. **乐观锁**: `filter = {role_id, version}`，保存时 version+1
-3. **Upsert**: 不存在则插入，存在则替换
+2. **乐观锁**: `WHERE role_id = ? AND version = ?`，保存时 version+1
+3. **Upsert**: `INSERT ... ON CONFLICT (role_id) DO UPDATE SET ...`
 4. **定时保存**: 5s 间隔 Tick
 5. **强制保存**: 建号、登出、Actor 停止时
 
@@ -212,21 +218,21 @@ RolePersistState struct {
 
 ### Layer 1: Service Registry
 - **作用**: 服务节点注册与发现
-- **存储**: Redis Hash
+- **后端**: Consul（默认）或 etcd
 - **选择**: 一致性哈希 (ConsistentHashSelector)
 - **流程**: ServiceApp.OnModStartAfter → 注册所有 IService
 
 ### Layer 2: Grain Locator
 - **作用**: Grain 实例的精确位置
-- **存储**: Redis KV (TTL 40s)
-- **流程**: Grain 创建时注册，停止时注销，30s 心跳刷新
+- **存储**: Redis KV (SETNX 原子注册, TTL 40s)
+- **流程**: Grain spawn 时 SETNX 注册，停止时 Lua 条件注销，30s Lua 批量续约
 
 ### 查找流程
 
 ```
 GetGrain(kind, id)
   → Redis Locator 查找 → 找到 → 返回 PID
-  → 未找到 → Service Registry 选择节点 → spawnGrain → 注册 Locator → 返回 PID
+  → 未找到 → Service Registry 选择节点 → spawnGrain → SETNX 注册 Locator → 返回 PID
 ```
 
 ## 角色内部架构
@@ -242,10 +248,10 @@ RoleMain (Grain)
 每个模块:
   - 实现 IRoleModule 接口
   - 继承 RoleModule (内嵌 ModuleBase)
-  - 持有独立的 PersistState (独立 MongoDB collection)
+  - 持有独立的 PersistState (独立 PostgreSQL table)
   - 通过 MsgHandler 自动路由 protobuf 消息到方法
   - 通过 EventBus 发布/订阅内部事件
 ```
 
 ---
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-22*

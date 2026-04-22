@@ -41,10 +41,11 @@
 - 私有方法/字段：小写开头
 
 ### 结构体标签
-- MongoDB 字段：`bson:"snake_case"`
+- PostgreSQL 列：`db:"snake_case"`
 - hash 排除：`hash:"-"`（version、update_at 等不参与脏检查的字段）
-- 内嵌继承：`bson:"inline"`（RolePersistState 嵌入子结构体）
-- 模块字段排除：`bson:"-"`（ModuleBase、Role 等非持久化字段）
+- 内嵌继承：`db:"inline"`（RolePersistState 嵌入子结构体）
+- 非持久化字段：`db:"-"`（ModuleBase、Role 等非持久化字段）
+- Map/slice 字段自动映射到 JSONB 列
 
 ### 消息处理模式
 ```go
@@ -84,10 +85,10 @@ r.eventBus.Subscribe(event.EventType("item_add"), func(param event.EventParam) {
 ```
 
 ## 配置约定
-- 配置文件通过 `--config` 命令行参数指定
+- 配置文件通过 `--config` 命令行参数指定（TOML 格式）
 - 使用 GoFrame 的 `g.Cfg()` 读取
 - 节点配置：`node.name`, `node.host`, `node.apps`
-- 数据库配置：MongoDB 连接串、Redis 地址等
+- 数据库配置：PostgreSQL 连接串、Redis 地址、服务发现后端等
 
 ## 包组织约定
 - 每个包一个目录
@@ -96,4 +97,4 @@ r.eventBus.Subscribe(event.EventType("item_add"), func(param event.EventParam) {
 - 游戏配置表放在 `gameconfig/src/`，由工具自动生成
 
 ---
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-22*

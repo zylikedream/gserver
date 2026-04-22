@@ -3,7 +3,7 @@
 ## Language & Runtime
 
 - **Language:** Go (Golang)
-- **Go Version:** 1.23+ (inferred from go.mod dependencies)
+- **Go Version:** 1.25.1
 - **Module Path:** `gserver`
 
 ## Core Frameworks
@@ -24,33 +24,47 @@
 ## Data Storage
 
 ### Primary Database
-- **MongoDB** (`go.mongodb.org/mongo-driver`) — 角色数据持久化
-  - 使用 `ReplaceOne` + Upsert 模式保存
+- **PostgreSQL** (`github.com/jackc/pgx/v5`) — 角色数据持久化
+  - 使用 `INSERT ... ON CONFLICT DO UPDATE` (UpsertOne) 模式保存
+  - JSONB 列存储复杂结构（map、slice 自动映射）
   - 乐观锁（version 字段）防止并发冲突
   - 脏检查（对象 hash 对比）减少不必要的写入
+  - 连接池管理（pgxpool）
 
 ### Cache & Location
-- **Redis** (`github.com/redis/go-redis/v9`) — 双重用途
-  1. **Grain Locator** — 存储 Grain 类型+ID → PID 的映射关系（TTL 40s，30s 刷新）
+- **Redis** (`github.com/redis/go-redis/v9`) — 三重用途
+  1. **Grain Locator** — 存储 Grain 类型+ID → PID 的映射关系（TTL 40s，30s 批量续约，SETNX 原子注册）
   2. **Service Registry** — 服务注册与发现（一致性哈希选择器）
   3. **UID Generator** — 分布式自增 ID 生成
 
 ## Network
 
 ### TCP Server
-- **自定义网络层** (`core/gxynet`) — 基于 Go 标准库 `net` 实现的 TCP 长连接服务器
+- **gnet v2** (`github.com/panjf2000/gnet/v2`) — 高性能事件驱动网络框架
+  - LTPV 自定义封包协议 (Length + Type + Path + Value)
   - Endpoint 抽象连接端点
-  - Message 封装消息帧
   - BaseEventHandler 事件回调接口
 
 ### Remote Communication
 - **protoactor-go/remote** — Actor 跨节点通信，基于 protobuf 序列化
 - Actor System 启动时绑定 host:port，通过 `remote.Configure` 配置
 
+## Service Discovery
+
+- **Consul** (`github.com/hashicorp/consul/api`) — 服务注册与发现（默认）
+- **etcd** (`go.etcd.io/etcd/client/v3`) — 可选的服务注册与发现后端
+- 通过 `core/gxyregistery/` 统一抽象，配置选择后端
+
+## Message Queue
+
+- **Redis Pub/Sub** — 基于 Redis 的消息发布订阅（`core/gxymq/`）
+- **Apache Pulsar** — 可选的高吞吐消息队列后端
+- 优先级处理：Critical / High / Normal
+
 ## Utilities
 
 ### UID Generation
-- **自定义 UID 生成器** (`util/uid`) — 基于 Redis 的分布式自增 ID 生成
+- **自定义 UID 生成器** (`util/uid`) — 基于 Redis INCR 的分布式自增 ID 生成
 
 ### Timer
 - **自定义定时器** (`core/gxytimer`) — Actor 内置定时器系统
@@ -58,19 +72,19 @@
   - 定时器状态可持久化恢复（CronState 接口）
 
 ### ETS (Erlang Term Storage)
-- **util/ets** — 类似 Erlang ETS 的内存表，用于高效键值查找
+- **util/ets** — 类似 Erlang ETS 的内存表（sync.Map 封装），用于高效键值查找
 
 ## Build & Tooling
 
-- **Makefile** — 构建入口
-- **Git** — 版本控制
+- **Makefile** — 构建入口（`make build`、`make pb`）
+- **Git** — 版本控制（含 submodule: `protocol/`、`gameconfig/`）
 - **Protocol Buffers** — `.proto` 文件编译生成 Go 代码（`protocol/pb/`）
 
 ## Configuration
 
-- **GoFrame 配置系统** — 通过 `g.Cfg()` 读取配置文件
+- **GoFrame 配置系统** — 通过 `g.Cfg()` 读取 TOML 配置文件
 - **命令行参数** — 通过 `gcmd` 解析 `--config` 参数指定配置文件路径
-- 配置项包括：节点名称、主机地址、应用列表、MongoDB 连接串、Redis 地址等
+- 配置项包括：节点名称、主机地址、应用列表、PostgreSQL 连接串、Redis 地址、服务发现后端等
 
 ---
-*Last updated: 2026-04-13*
+*Last updated: 2026-04-22*
