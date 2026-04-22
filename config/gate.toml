@@ -2,8 +2,6 @@
     name = "gate"
     host = "127.0.0.1"
 	apps = ["redis", "gate"]
-[postgres]
-	url = "postgresql://postgres.roepimjsbdawvohntmfq:%40Supabase252525@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require&pool_max_conns=20&pool_min_conns=5"
 [redis]
 	addr = "localhost:6379"
 	password = "@zyc0131"
@@ -24,9 +22,6 @@
 	address = "localhost:8500"
 	ttl = "10s"
 	refresh_ttl = "10s"
-[mq]
-	type = "redis"
-	worker_count = 2
 
 # 网络配置
 [gxynet]

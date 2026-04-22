@@ -24,6 +24,3 @@
 	address = "localhost:8500"
 	ttl = "10s"
 	refresh_ttl = "10s"
-[mq]
-	type = "redis"
-	worker_count = 2

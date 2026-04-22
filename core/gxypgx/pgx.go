@@ -7,7 +7,6 @@ import (
 	"gserver/util"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gctx"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -29,18 +28,18 @@ func PGX() *PGXApp {
 }
 
 func NewPGXApp() *PGXApp {
-	cfg := g.Cfg()
-	conf := &pgxConfig{}
-	ctx := gctx.New()
-	if err := util.CfgUnmarshalKey(ctx, cfg, "postgres", conf); err != nil {
-		glog.Fatal(ctx, err)
-	}
-	pgxAppInstance = &PGXApp{conf: conf}
+	pgxAppInstance = &PGXApp{}
 	return pgxAppInstance
 }
 
 func (p *PGXApp) OnModInit(ctx context.Context) error {
-	poolConfig, err := pgxpool.ParseConfig(p.conf.URL)
+	conf := &pgxConfig{}
+	if err := util.CfgUnmarshalKey(ctx, g.Cfg(), "postgres", conf); err != nil {
+		return err
+	}
+	p.conf = conf
+
+	poolConfig, err := pgxpool.ParseConfig(conf.URL)
 	if err != nil {
 		return err
 	}

@@ -36,28 +36,28 @@ func Redis() Client {
 }
 
 func NewRedisApp() *redisApp {
-	cfg := g.Cfg()
+	app = &redisApp{}
+	return app
+}
+
+func (r *redisApp) OnModInit(ctx context.Context) error {
 	conf := &redisConfig{}
-	if err := util.CfgUnmarshalKey(context.Background(), cfg, "redis", conf); err != nil {
-		glog.Fatal(context.Background(), err)
+	if err := util.CfgUnmarshalKey(ctx, g.Cfg(), "redis", conf); err != nil {
+		return err
 	}
-	r := &redisApp{conf: conf}
-	redisConf := &redis.UniversalOptions{
-		Addrs:       []string{r.conf.Addr},
-		Password:    r.conf.Password,
-		DB:          r.conf.DB,
-		DialTimeout: r.conf.Timeout,
-	}
-	r.client = redis.NewUniversalClient(redisConf)
-	app = r
-	return r
+	r.conf = conf
+	r.client = redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs:       []string{conf.Addr},
+		Password:    conf.Password,
+		DB:          conf.DB,
+		DialTimeout: conf.Timeout,
+	})
+	return nil
 }
 
 func (r *redisApp) OnModStart(ctx context.Context) error {
-	// 创建一个带有超时的上下文，这里设置为5秒超时
-	// 可以根据需要调整超时时间长度
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel() // 确保在函数结束时取消上下文
+	defer cancel()
 
 	if err := r.client.Ping(timeoutCtx).Err(); err != nil {
 		return err

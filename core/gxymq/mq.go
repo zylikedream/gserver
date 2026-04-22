@@ -48,16 +48,29 @@ func MessageQueue() *messageQueueApp {
 	return mqApp
 }
 
-// NewMessageQueue 创建默认的消息队列实例
-// 默认使用Redis实现，如果Redis不可用则尝试使用Pulsar
+// NewMessageQueueApp 创建消息队列实例，延迟初始化到 OnModInit
 func NewMessageQueueApp() *messageQueueApp {
-	conf := &messageQueueConfig{}
-	cfg := g.Cfg()
-	if err := util.CfgUnmarshalKey(context.Background(), cfg, "mq", conf); err != nil {
-		glog.Fatalf(context.Background(), "Failed to unmarshal message queue config: %+v", err)
+	mqApp = &messageQueueApp{
+		priorityCh: make([]chan PriorityData, TOPIC_PRIORITY_MAX),
+		subs:       make(map[string]*SubInfo),
+		stopCh:     make(chan struct{}),
 	}
+	for i := range int(TOPIC_PRIORITY_MAX) {
+		mqApp.priorityCh[i] = make(chan PriorityData, 1000)
+	}
+	return mqApp
+}
+
+func (mq *messageQueueApp) OnModInit(ctx context.Context) error {
+	conf := &messageQueueConfig{}
+	if err := util.CfgUnmarshalKey(ctx, g.Cfg(), "mq", conf); err != nil {
+		return err
+	}
+	mq.config = conf
+
 	var err error
 	var queue IMessageQueue
+	cfg := g.Cfg()
 	switch conf.Type {
 	case MQTypePulsar:
 		queue, err = NewPulsarMQ(cfg)
@@ -67,19 +80,10 @@ func NewMessageQueueApp() *messageQueueApp {
 		queue, err = NewRedisMQ(cfg)
 	}
 	if err != nil {
-		glog.Fatalf(context.Background(), "Failed to create message queue: %+v", err)
+		return err
 	}
-	// 首先尝试创建Redis消息队列
-	mqApp = &messageQueueApp{
-		priorityCh: make([]chan PriorityData, TOPIC_PRIORITY_MAX),
-		config:     conf,
-		queue:      queue,
-	}
-	for i := range int(TOPIC_PRIORITY_MAX) {
-		mqApp.priorityCh[i] = make(chan PriorityData, 1000)
-	}
-
-	return mqApp
+	mq.queue = queue
+	return nil
 }
 
 func (mq *messageQueueApp) OnModStart(ctx context.Context) error {
