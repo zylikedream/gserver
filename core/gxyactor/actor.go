@@ -110,7 +110,9 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		a.timer.Stop(a.ctx)
 		a.actor.Terminate(a.ctx, a.stopErr)
 	default:
-		glog.Errorf(a.ctx, "handle ")
+		if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
+			glog.Errorf(a.ctx, "handle msg failed, msg:%v, error:%+v", msg, err)
+		}
 	}
 	return nil
 }
@@ -241,6 +243,10 @@ func (g *GrainBase) Receive(ctx actor.Context) {
 	switch ctx.Message().(type) {
 	case *actor.Started:
 		actorCtx := ctx.(*ActorContext)
+		if len(actorCtx.InitArgs) == 0 {
+			glog.Errorf(g.ctx, "grain id is empty")
+			return
+		}
 		g.grainID = actorCtx.InitArgs[0].(string)
 	}
 	g.ActorBase.Receive(ctx)

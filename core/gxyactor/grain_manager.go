@@ -40,13 +40,6 @@ type grainActivator struct {
 	meta    *grainMeta
 }
 
-type ActorCheckResult struct {
-	ID     string
-	Pid    PID
-	Err    error
-	Sender PID
-}
-
 func NewGrainActivator(kind string, manager *grainManager) *grainActivator {
 	a := &grainActivator{
 		kind:    kind,
@@ -109,10 +102,6 @@ func (a *grainActivator) HandleMessage(ctx context.Context, msg any) error {
 			a.Send(sender, &remote.ActorPidResponse{Pid: pid})
 		}()
 
-		return nil
-
-	case *ActorCheckResult:
-		// 注册已在 ActorActive 中同步完成，Touch 结果不影响注册状态
 		return nil
 
 	// 父actor spawn出来的子actor在terminate后会，给父actor发送Terminate消息
