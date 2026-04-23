@@ -138,9 +138,9 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		return gerror.Wrapf(err, "get role id error, account: %s", firstpacket.AccountUid)
 	}
 	s.SetLogValue(gxylog.ContextKeyRoleID, roleID)
-	rolePid, err := lib.GetRoleGrain(roleID)
+	rolePid, err := lib.ActivateRole(roleID)
 	if err != nil {
-		return gerror.Wrapf(err, "get role grain error, role: %d", roleID)
+		return gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
 	}
 	glog.Infof(ctx, "get role pid: %v", rolePid)
 	s.sessionInfo.RolePid = rolePid

@@ -34,7 +34,7 @@ type ActorContext struct {
 	InitArgs []any
 }
 
-type GrainProducer func() IGrain
+type ActorProducer func() IVirtualActor
 type IActor interface {
 	Init(ctx context.Context) error
 	DelayInit(ctx context.Context) error
@@ -45,9 +45,9 @@ type IActor interface {
 	actor.Actor
 }
 
-type IGrain interface {
+type IVirtualActor interface {
 	IActor
-	GrainID() string
+	ActorKey() string
 }
 
 type ActorBase struct {
@@ -72,11 +72,11 @@ func (a *ActorBase) Receive(actx actor.Context) {
 	a.Actx = actx
 	gutil.TryCatch(a.ctx, func(ctx context.Context) {
 		if err := a.doReceive(actx); err != nil {
-			glog.Errorf(a.ctx, "grain error, %+v", err)
+			glog.Errorf(a.ctx, "actor error, %+v", err)
 			a.Stop(err)
 		}
 	}, func(ctx context.Context, exception error) {
-		glog.Errorf(a.ctx, "role internal error, %+v", exception)
+		glog.Errorf(a.ctx, "actor internal error, %+v", exception)
 		a.Stop(exception)
 	})
 }
@@ -221,33 +221,33 @@ func (a *ActorBase) CallHandlerMsg(ctx context.Context, msg any) (any, error) {
 	return a.msgHandler.CallWithMsg(ctx, msg)
 }
 
-type GrainBase struct {
-	grainID string
+type VirtualActor struct {
+	actorKey string
 	*ActorBase
-	grain IGrain
+	virtualActor IVirtualActor
 }
 
-func NewGrainBase(ctx context.Context, grain IGrain) *GrainBase {
-	base := &GrainBase{
-		grain: grain,
+func NewVirtualActor(ctx context.Context, va IVirtualActor) *VirtualActor {
+	base := &VirtualActor{
+		virtualActor: va,
 	}
-	base.ActorBase = NewActorBase(ctx, grain)
+	base.ActorBase = NewActorBase(ctx, va)
 	return base
 }
 
-func (g *GrainBase) GrainID() string {
-	return g.grainID
+func (g *VirtualActor) ActorKey() string {
+	return g.actorKey
 }
 
-func (g *GrainBase) Receive(ctx actor.Context) {
+func (g *VirtualActor) Receive(ctx actor.Context) {
 	switch ctx.Message().(type) {
 	case *actor.Started:
 		actorCtx := ctx.(*ActorContext)
 		if len(actorCtx.InitArgs) == 0 {
-			glog.Errorf(g.ctx, "grain id is empty")
+			glog.Errorf(g.ctx, "actor key is empty")
 			return
 		}
-		g.grainID = actorCtx.InitArgs[0].(string)
+		g.actorKey = actorCtx.InitArgs[0].(string)
 	}
 	g.ActorBase.Receive(ctx)
 }

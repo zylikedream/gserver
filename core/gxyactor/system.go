@@ -17,11 +17,11 @@ import (
 // actorApp 基础Actor模块
 type actorApp struct {
 	gxyapp.App
-	system   *actor.ActorSystem
-	remote   *remote.Remote
-	nodeName string
-	host     string
-	grainMgr *grainManager
+	system        *actor.ActorSystem
+	remote        *remote.Remote
+	nodeName      string
+	host          string
+	activatorMgr *activatorManager
 }
 
 const (
@@ -56,8 +56,8 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
-	a.grainMgr = NewGrainManager()
-	a.AddModule(ctx, a.grainMgr)
+	a.activatorMgr = NewActivatorManager()
+	a.AddModule(ctx, a.activatorMgr)
 	return nil
 }
 
@@ -74,12 +74,12 @@ func (a *actorApp) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (a *actorApp) RegisterGrainProducer(name string, prod GrainProducer) error {
-	return a.grainMgr.RegisterGrainProducer(name, prod)
+func (a *actorApp) RegisterActorKind(name string, prod ActorProducer) error {
+	return a.activatorMgr.RegisterActorKind(name, prod)
 }
 
-func (a *actorApp) DeRegisterGrain(name string) {
-	a.grainMgr.DeRegisterGrain(name)
+func (a *actorApp) DeregisterActorKind(name string) {
+	a.activatorMgr.DeregisterActorKind(name)
 }
 
 // SpawnRegister创建新的Actor
@@ -142,16 +142,16 @@ func (a *actorApp) Address() string {
 	return a.system.Address()
 }
 
-func (a *actorApp) GetGrain(kind string, id string, spawn ...bool) (PID, error) {
+func (a *actorApp) ActivateActor(kind string, id string, spawn ...bool) (PID, error) {
 	spawnFlag := true
 	if len(spawn) > 0 {
 		spawnFlag = spawn[0]
 	}
-	return a.grainMgr.getGrain(kind, id, spawnFlag)
+	return a.activatorMgr.getActor(kind, id, spawnFlag)
 }
 
-func (a *actorApp) GetGrainCount(kind string) int {
-	return a.grainMgr.GetGrainCount(kind)
+func (a *actorApp) GetActorCount(kind string) int {
+	return a.activatorMgr.GetActorCount(kind)
 }
 
 func newSupervisor() actor.SupervisorStrategy {

@@ -25,7 +25,7 @@ func TestLocate(t *testing.T) {
 
 	// 1. 模拟写入200w个pid
 	const count = 2000000
-	const prefix = "actor:test:grain:"
+	const prefix = "actor:test:actor:"
 
 	t.Logf("开始写入 %d 个pid...", count)
 	startTime := time.Now()

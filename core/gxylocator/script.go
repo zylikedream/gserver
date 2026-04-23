@@ -34,13 +34,13 @@ func init() {
 
 }
 
-func ScriptUnregisterGrainNode(rdb gxyredis.Client, id string, node string) (int64, error) {
+func ScriptUnregisterActorNode(rdb gxyredis.Client, id string, node string) (int64, error) {
 	keys := []string{"func", "id", "node"}
-	args := []string{"unregister_grain_node", id, node}
+	args := []string{"unregister_actor_node", id, node}
 	return locateScript.Run(context.Background(), rdb, keys, args).Int64()
 }
 
-func ScriptRegisterGrainNode(ctx context.Context, rdb gxyredis.Client, keys []string, ttl int64) (int64, error) {
+func ScriptRegisterActorNode(ctx context.Context, rdb gxyredis.Client, keys []string, ttl int64) (int64, error) {
 	return batchRegisterScript.Run(ctx, rdb, keys, ttl).Int64()
 }
 

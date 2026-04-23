@@ -26,14 +26,14 @@ func (r *roleApp) ServiceName() string {
 }
 
 func (r *roleApp) Weight() int {
-	return gxyactor.GetGrainCount(r.ServiceName())
+	return gxyactor.GetActorCount(r.ServiceName())
 }
 
 func (r *roleApp) OnModInit(ctx context.Context) error {
 	// 初始化 PostgreSQL 表结构
 	logic.InitRoleSchema(ctx)
 
-	gxyservice.ServiceApp().LoadService(ctx, NewRoleGrainService())
+	gxyservice.ServiceApp().LoadService(ctx, NewRoleActorService())
 	return nil
 }
 

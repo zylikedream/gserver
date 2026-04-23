@@ -14,7 +14,7 @@ type roleService struct {
 	gxyactor.ActorService
 }
 
-func NewRoleGrainService() *roleService {
+func NewRoleActorService() *roleService {
 	return &roleService{}
 }
 
@@ -23,17 +23,17 @@ func (r *roleService) ServiceName() string {
 }
 
 func (r *roleService) Weight() int {
-	return gxyactor.GetGrainCount(r.ServiceName())
+	return gxyactor.GetActorCount(r.ServiceName())
 }
 
 func (r *roleService) OnModStart(ctx context.Context) error {
-	gxyactor.RegisterGrainProducer(r.ServiceName(), func() gxyactor.IGrain {
+	gxyactor.RegisterActorKind(r.ServiceName(), func() gxyactor.IVirtualActor {
 		return logic.NewRoleMain()
 	})
 	return nil
 }
 
 func (r *roleService) OnModStop(ctx context.Context) error {
-	gxyactor.DeRegisterGrain(r.ServiceName())
+	gxyactor.DeregisterActorKind(r.ServiceName())
 	return nil
 }

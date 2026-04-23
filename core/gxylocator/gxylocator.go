@@ -81,7 +81,7 @@ func (l *Locator) RegisterBatchActor(ctx context.Context, keys []string, pidInfo
 		redisKeys = append(redisKeys, pidInfos[i])
 	}
 
-	_, err := ScriptRegisterGrainNode(ctx, redisCli, redisKeys, int64(expireTime.Seconds()))
+	_, err := ScriptRegisterActorNode(ctx, redisCli, redisKeys, int64(expireTime.Seconds()))
 	if err != nil {
 		return gerror.Wrapf(err, "RegisterBatch failed")
 	}
@@ -96,7 +96,7 @@ func (l *Locator) Unregister(ctx context.Context, t string, key string, val stri
 	// 验证节点是否匹配
 	redisCli := gxyredis.Redis()
 	redisKey := l.formatKey(t, key)
-	_, err := ScriptUnregisterGrainNode(redisCli, redisKey, val)
+	_, err := ScriptUnregisterActorNode(redisCli, redisKey, val)
 	if err != nil {
 		return gerror.Wrap(err, "Failed to unregister key in Redis")
 	}

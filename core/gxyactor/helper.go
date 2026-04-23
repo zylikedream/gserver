@@ -8,12 +8,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func RegisterGrainProducer(name string, prod GrainProducer) error {
-	return app.RegisterGrainProducer(name, prod)
+func RegisterActorKind(name string, prod ActorProducer) error {
+	return app.RegisterActorKind(name, prod)
 }
 
-func DeRegisterGrain(name string) {
-	app.DeRegisterGrain(name)
+func DeregisterActorKind(name string) {
+	app.DeregisterActorKind(name)
 }
 
 // SpawnRegister创建新的Actor
@@ -64,12 +64,12 @@ func Address() string {
 	return app.Address()
 }
 
-func GetGrain(kind string, id string, spawn ...bool) (PID, error) {
-	return app.GetGrain(kind, id, spawn...)
+func ActivateActor(kind string, id string, spawn ...bool) (PID, error) {
+	return app.ActivateActor(kind, id, spawn...)
 }
 
-func GetGrainCount(kind string) int {
-	return app.GetGrainCount(kind)
+func GetActorCount(kind string) int {
+	return app.GetActorCount(kind)
 }
 
 func ActorError(reason string) *pb.ActorError {
