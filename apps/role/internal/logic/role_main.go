@@ -69,7 +69,7 @@ type roleModules struct {
 type RoleMain struct {
 	gxymodule.ModuleBase
 	roleModules
-	*gxyactor.VirtualActor
+	*gxyactor.ActorBase
 	RoleID int64
 
 	modsHash          map[string]uint64
@@ -85,14 +85,17 @@ func NewRoleMain() *RoleMain {
 		state:    RoleStateInit,
 	}
 	ctx := gxylog.NewContext(context.Background(), "role")
-	r.VirtualActor = gxyactor.NewVirtualActor(ctx, r)
+	r.ActorBase = gxyactor.NewActorBase(ctx, r)
 	return r
 }
 
-func (r *RoleMain) Init(ctx context.Context) error {
-	r.RoleID = gconv.Int64(r.ActorKey())
+func (r *RoleMain) Init(ctx context.Context, args []any) error {
+	if len(args) == 0 {
+		return gerror.New("roleID is required in init args")
+	}
+	r.RoleID = gconv.Int64(args[0])
 	if r.RoleID == 0 {
-		return gerror.Newf("roleID is invalid, roleID: %s", r.ActorKey())
+		return gerror.Newf("roleID is invalid, roleID: %v", args[0])
 	}
 	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
 	// 验证角色账号是否存在

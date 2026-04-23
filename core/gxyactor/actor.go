@@ -34,20 +34,15 @@ type ActorContext struct {
 	InitArgs []any
 }
 
-type ActorProducer func() IVirtualActor
+type ActorProducer func() IActor
 type IActor interface {
-	Init(ctx context.Context) error
+	Init(ctx context.Context, args []any) error
 	DelayInit(ctx context.Context) error
 	Terminate(ctx context.Context, err error)
 	Timer() *ActorTimer
 	Self() PID
 	HandleMessage(ctx context.Context, msg any) error
 	actor.Actor
-}
-
-type IVirtualActor interface {
-	IActor
-	ActorKey() string
 }
 
 type ActorBase struct {
@@ -86,7 +81,11 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	case *actor.Started:
 		a.self = ctx.Self()
 		a.timer = NewActorTimer(a.self)
-		if err := a.actor.Init(a.ctx); err != nil {
+		var initArgs []any
+		if actorCtx, ok := ctx.(*ActorContext); ok {
+			initArgs = actorCtx.InitArgs
+		}
+		if err := a.actor.Init(a.ctx, initArgs); err != nil {
 			return gerror.Wrap(err, "init actor error")
 		}
 		a.LocalSend(a.self, &ActorInitMsg{})
@@ -157,7 +156,7 @@ func (a *ActorBase) Self() PID {
 	return a.self
 }
 
-func (a *ActorBase) Init(ctx context.Context) error {
+func (a *ActorBase) Init(ctx context.Context, args []any) error {
 	return nil
 }
 
@@ -200,11 +199,17 @@ func (a *ActorBase) Sender() PID {
 	return a.Actx.Sender()
 }
 
-func (a *ActorBase) SpawnNamed(props *actor.Props, name string) (PID, error) {
+func (a *ActorBase) SpawnNamed(props *actor.Props, name string, initArgs ...any) (PID, error) {
+	if len(initArgs) > 0 {
+		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
+	}
 	return a.Actx.SpawnNamed(props, name)
 }
 
-func (a *ActorBase) Spawn(props *actor.Props) PID {
+func (a *ActorBase) Spawn(props *actor.Props, initArgs ...any) PID {
+	if len(initArgs) > 0 {
+		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
+	}
 	return a.Actx.Spawn(props)
 }
 
@@ -219,37 +224,6 @@ func (a *ActorBase) AddMsgHandler(handler any, prefix ...string) {
 
 func (a *ActorBase) CallHandlerMsg(ctx context.Context, msg any) (any, error) {
 	return a.msgHandler.CallWithMsg(ctx, msg)
-}
-
-type VirtualActor struct {
-	actorKey string
-	*ActorBase
-	virtualActor IVirtualActor
-}
-
-func NewVirtualActor(ctx context.Context, va IVirtualActor) *VirtualActor {
-	base := &VirtualActor{
-		virtualActor: va,
-	}
-	base.ActorBase = NewActorBase(ctx, va)
-	return base
-}
-
-func (g *VirtualActor) ActorKey() string {
-	return g.actorKey
-}
-
-func (g *VirtualActor) Receive(ctx actor.Context) {
-	switch ctx.Message().(type) {
-	case *actor.Started:
-		actorCtx := ctx.(*ActorContext)
-		if len(actorCtx.InitArgs) == 0 {
-			glog.Errorf(g.ctx, "actor key is empty")
-			return
-		}
-		g.actorKey = actorCtx.InitArgs[0].(string)
-	}
-	g.ActorBase.Receive(ctx)
 }
 
 func ContextDecorator(args ...any) actor.ContextDecorator {

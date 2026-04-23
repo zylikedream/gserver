@@ -83,13 +83,19 @@ func (a *actorApp) DeregisterActorKind(name string) {
 }
 
 // SpawnRegister创建新的Actor
-func (a *actorApp) spawnNamed(props *actor.Props, name string) (PID, error) {
+func (a *actorApp) spawnNamed(props *actor.Props, name string, initArgs ...any) (PID, error) {
+	if len(initArgs) > 0 {
+		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
+	}
 	return a.system.Root.SpawnNamed(props, name)
 }
 
-func (a *actorApp) spawn(props *actor.Props) (PID, error) {
+func (a *actorApp) spawn(props *actor.Props, initArgs ...any) (PID, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
+	}
+	if len(initArgs) > 0 {
+		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
 	}
 	return a.system.Root.Spawn(props), nil
 }

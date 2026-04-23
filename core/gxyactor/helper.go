@@ -16,23 +16,23 @@ func DeregisterActorKind(name string) {
 	app.DeregisterActorKind(name)
 }
 
-// SpawnRegister创建新的Actor
-func SpawnNamed(props *actor.Props, name string) (PID, error) {
-	return app.spawnNamed(props, name)
+// SpawnNamed 创建具名Actor，initArgs 通过 ContextDecorator 传递给 Actor 的 Init
+func SpawnNamed(props *actor.Props, name string, initArgs ...any) (PID, error) {
+	return app.spawnNamed(props, name, initArgs...)
 }
 
-func SpawnNamedFunc(name string, prod func() actor.Actor) (PID, error) {
+func SpawnNamedFunc(name string, prod func() actor.Actor, initArgs ...any) (PID, error) {
 	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	return app.spawnNamed(props, name)
+	return app.spawnNamed(props, name, initArgs...)
 }
 
-func Spawn(props *actor.Props) (pid PID, err error) {
-	return app.spawn(props)
+func Spawn(props *actor.Props, initArgs ...any) (pid PID, err error) {
+	return app.spawn(props, initArgs...)
 }
 
-func SpawnFunc(prod func() actor.Actor) (pid PID, err error) {
+func SpawnFunc(prod func() actor.Actor, initArgs ...any) (pid PID, err error) {
 	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	return app.spawn(props)
+	return app.spawn(props, initArgs...)
 }
 
 // Send 发送消息（异步）

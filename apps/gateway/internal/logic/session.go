@@ -91,7 +91,7 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 
 // NewSession 创建会话
 // OnModInit Actor初始化
-func (s *Session) Init(ctx context.Context) error {
+func (s *Session) Init(ctx context.Context, args []any) error {
 	s.sessionInfo = &SessionInfo{
 		ConnectTime:      time.Now(),
 		ClientLastActive: time.Now(),

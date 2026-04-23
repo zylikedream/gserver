@@ -70,9 +70,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *pb.ActorActive:
 		props := a.meta.Props.Clone()
-		pid, err := SpawnNamed(props.Configure(
-			actor.WithContextDecorator(ContextDecorator(msg.Id, a.kind))),
-			msg.Id)
+		pid, err := SpawnNamed(props, msg.Id, msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
 				a.Respond(&remote.ActorPidResponse{Pid: pid})
@@ -149,9 +147,9 @@ func (a *actorActivator) deRegisterActor(ctx context.Context, key string, pid PI
 
 type activatorManager struct {
 	gxymodule.ModuleBase
-	locator         *gxylocator.Locator
-	activatorMetas  map[string]*activatorMeta
-	ctx             context.Context
+	locator        *gxylocator.Locator
+	activatorMetas map[string]*activatorMeta
+	ctx            context.Context
 }
 
 func NewActivatorManager() *activatorManager {
