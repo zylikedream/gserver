@@ -1,0 +1,26 @@
+[
+  {
+    "id": 1,
+    "name": "大力丸",
+    "max_overlap": 999999,
+    "type": 4,
+    "auto_use": false,
+    "quality": 3
+  },
+  {
+    "id": 2,
+    "name": "切糕",
+    "max_overlap": 99,
+    "type": 4,
+    "auto_use": false,
+    "quality": 4
+  },
+  {
+    "id": 1000001,
+    "name": "金币",
+    "max_overlap": 999999,
+    "type": 1,
+    "auto_use": false,
+    "quality": 1
+  }
+]
