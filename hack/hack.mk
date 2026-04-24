@@ -66,6 +66,20 @@ deploy: cli.install
 	fi;
 
 
+# Update subtree: protocol
+.PHONY: upproto
+upproto:
+	@git stash -q 2>/dev/null; \
+	git subtree pull --prefix=protocol git@gitee.com:zylikedream/mahong-protocol.git master; \
+	git stash pop -q 2>/dev/null; true
+
+# Update subtree: gameconfig
+.PHONY: upcfg
+upcfg:
+	@git stash -q 2>/dev/null; \
+	git subtree pull --prefix=gameconfig git@gitee.com:zylikedream/config_server_go.git master; \
+	git stash pop -q 2>/dev/null; true
+
 # Parsing protobuf files and generating go files.
 .PHONY: pbraw
 pbraw: cli.install
