@@ -27,9 +27,9 @@
 - **PostgreSQL** (`github.com/jackc/pgx/v5`) — 角色数据持久化
   - 使用 `INSERT ... ON CONFLICT DO UPDATE` (UpsertOne) 模式保存
   - JSONB 列存储复杂结构（map、slice 自动映射）
-  - 乐观锁（version 字段）防止并发冲突
   - 脏检查（对象 hash 对比）减少不必要的写入
   - 连接池管理（pgxpool）
+  - 依赖 Actor 单例保证，无需乐观锁
 
 ### Cache & Location
 - **Redis** (`github.com/redis/go-redis/v9`) — 三重用途

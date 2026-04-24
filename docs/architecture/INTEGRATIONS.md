@@ -22,9 +22,9 @@
 ### 操作模式
 - **读取**: `FindOne` by `role_id` — pgx 查询单行，反射填充结构体
 - **写入**: `UpsertOne` — `INSERT ... ON CONFLICT (role_id) DO UPDATE SET ...`，JSONB 列存储复杂结构
-- **乐观锁**: `WHERE version = ?` 条件，保存时 version+1
 - **脏检查**: JSONB 合并，跳过未变更的模块
 - **定时保存**: 5s 间隔 Tick，登出/停止时强制保存
+- **并发安全**: 依赖 Actor 单例保证（Redis SETNX + TTL），无需乐观锁
 
 ### 结构体映射
 - `db:"snake_case"` — 列名映射
