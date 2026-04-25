@@ -102,12 +102,39 @@ pb: cli.install
 	@$(MAKE) pbraw
 	@echo "Removing omitempty tags from generated protobuf files..."
 	@find protocol/pb -name "*.pb.go" -type f -exec sed -i 's/,omitempty"/"/' {} \;
-	@for f in protocol/pb/[0-9]*.pb.go; do \
-		newname=$$(echo "$$f" | sed -E 's|protocol/pb/[0-9]+([a-zA-Z])|protocol/pb/\1|'); \
-		if [ "$$f" != "$$newname" ]; then \
-			mv "$$f" "$$newname"; \
+
+# 列出每个proto文件的消息ID范围
+.PHONY: pbids
+pbids:
+	@for f in protocol/client/*.proto; do \
+		max=$$(grep "option (msg_id)" "$$f" 2>/dev/null | sed 's/.*= *//;s/;//' | sort -n | tail -1); \
+		if [ -n "$$max" ]; then \
+			printf "%-30s %s\n" "$$(basename $$f)" "$$max"; \
 		fi; \
-	done
+	done | sort -t' ' -k2 -n; \
+	max=$$(grep -rh "option (msg_id)" protocol/client/*.proto | sed 's/.*= *//;s/;//' | sort -n | tail -1); \
+	prefix=$$(((max / 1000 + 1)*10)); \
+	echo "---"; \
+	echo "max: $$max"; \
+	echo "next range: $${prefix}01~$${prefix}99";
+
+# 新建协议文件，用法: make newproto MOD=xxx
+.PHONY: newproto
+newproto:
+	@test -n "$(MOD)" || (echo "usage: make newproto MOD=xxx" && false)
+	@prefix=$$(grep -rh "option (msg_id)" protocol/client/*.proto | sed 's/.*= *//;s/;//' | sort -n | tail -1 | sed 's/^0*//'); \
+	prefix=$$(grep -rh "option (msg_id)" protocol/client/*.proto | sed 's/.*= *//;s/;//' | sort -n | tail -1 | sed 's/^0*//'); \
+	prefix=$$((($$prefix / 1000 + 1) * 10)); \
+	file="protocol/client/$(MOD).proto"; \
+	test -f "$$file" && (echo "file exists: $$file" && exit 1) || true; \
+	echo "// ID: $${prefix}01~$${prefix}99" > $$file; \
+	echo 'syntax = "proto3";' >> $$file; \
+	echo 'option go_package="./pb;pb";' >> $$file; \
+	echo 'package galaxy.protocol;' >> $$file; \
+	echo '' >> $$file; \
+	echo 'import "msg_options.proto";' >> $$file; \
+	echo "" >> $$file; \
+	echo "created: $$file (ID range: $${prefix}01~$${prefix}99)"
 
 # Generate protobuf files for database tables.
 .PHONY: pbentity

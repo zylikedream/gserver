@@ -29,3 +29,42 @@
 | 230 | 好友 | 23001~23099 |
 | 240 | 麻将 | 24001~24099 |
 
+## 消息ID获取方式
+
+每条消息的 ID 在 proto 文件中通过 `option (msg_id) = XXXXX` 声明，定义在 `msg_options.proto`：
+
+```proto
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+    uint32 msg_id = 50000;
+}
+```
+
+各消息使用方式：
+
+```proto
+message ReqHandShake {
+    option (msg_id) = 10001;
+    string account_uid = 1;
+}
+```
+
+客户端生成代码后，通过 message descriptor 读取 `msg_id` option 获取消息ID。不同语言示例：
+
+**C#:**
+```csharp
+uint msgId = (uint)ReqHandShake.Descriptor.CustomOptions[MsgOptions.MsgId];
+```
+
+**Python:**
+```python
+msg_id = ReqHandShake.DESCRIPTOR.GetOptions().msg_id
+```
+
+**TypeScript (protobufjs):**
+```typescript
+const msgId = root.lookupType("ReqHandShake").options["(msg_id)"];
+```
+
+
