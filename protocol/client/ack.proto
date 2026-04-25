@@ -1,0 +1,9 @@
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+message Ack{
+    int32 code = 1;
+    string path = 2;
+    string Reason = 3;
+}
