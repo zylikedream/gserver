@@ -97,9 +97,17 @@ pbraw: cli.install
 
 # 生成不带omitempty标签的protobuf代码
 .PHONY: pb
-pb: cli.install pbraw
+pb: cli.install
+	@find protocol -name "*.pb.go" -delete
+	@$(MAKE) pbraw
 	@echo "Removing omitempty tags from generated protobuf files..."
 	@find protocol/pb -name "*.pb.go" -type f -exec sed -i 's/,omitempty"/"/' {} \;
+	@for f in protocol/pb/[0-9]*.pb.go; do \
+		newname=$$(echo "$$f" | sed -E 's|protocol/pb/[0-9]+([a-zA-Z])|protocol/pb/\1|'); \
+		if [ "$$f" != "$$newname" ]; then \
+			mv "$$f" "$$newname"; \
+		fi; \
+	done
 
 # Generate protobuf files for database tables.
 .PHONY: pbentity

@@ -7,6 +7,7 @@ import (
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
+	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 	"gserver/core/gxytimer"
@@ -231,7 +232,7 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		msg := &pb.ReqAccountLogout{
 			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
 		}
-		s.SendRoleMsg(msg, gxyutil.GetObjectName(msg))
+		s.SendRoleMsg(msg, codec.MessageMetaByMsg(msg).ID)
 	}
 	s.state = StateDisconnected
 

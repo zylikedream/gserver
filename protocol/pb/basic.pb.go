@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.26.0
 // 	protoc        v4.22.0
-// source: basic.proto
+// source: 200basic.proto
 
 package pb
 
@@ -31,7 +31,7 @@ type ReqBasicSetName struct {
 func (x *ReqBasicSetName) Reset() {
 	*x = ReqBasicSetName{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_basic_proto_msgTypes[0]
+		mi := &file__200basic_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -44,7 +44,7 @@ func (x *ReqBasicSetName) String() string {
 func (*ReqBasicSetName) ProtoMessage() {}
 
 func (x *ReqBasicSetName) ProtoReflect() protoreflect.Message {
-	mi := &file_basic_proto_msgTypes[0]
+	mi := &file__200basic_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +57,7 @@ func (x *ReqBasicSetName) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReqBasicSetName.ProtoReflect.Descriptor instead.
 func (*ReqBasicSetName) Descriptor() ([]byte, []int) {
-	return file_basic_proto_rawDescGZIP(), []int{0}
+	return file__200basic_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ReqBasicSetName) GetName() string {
@@ -78,7 +78,7 @@ type RspBasicSetName struct {
 func (x *RspBasicSetName) Reset() {
 	*x = RspBasicSetName{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_basic_proto_msgTypes[1]
+		mi := &file__200basic_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -91,7 +91,7 @@ func (x *RspBasicSetName) String() string {
 func (*RspBasicSetName) ProtoMessage() {}
 
 func (x *RspBasicSetName) ProtoReflect() protoreflect.Message {
-	mi := &file_basic_proto_msgTypes[1]
+	mi := &file__200basic_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -104,7 +104,7 @@ func (x *RspBasicSetName) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RspBasicSetName.ProtoReflect.Descriptor instead.
 func (*RspBasicSetName) Descriptor() ([]byte, []int) {
-	return file_basic_proto_rawDescGZIP(), []int{1}
+	return file__200basic_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RspBasicSetName) GetName() string {
@@ -123,7 +123,7 @@ type ReqBasicInfo struct {
 func (x *ReqBasicInfo) Reset() {
 	*x = ReqBasicInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_basic_proto_msgTypes[2]
+		mi := &file__200basic_proto_msgTypes[2]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -136,7 +136,7 @@ func (x *ReqBasicInfo) String() string {
 func (*ReqBasicInfo) ProtoMessage() {}
 
 func (x *ReqBasicInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_basic_proto_msgTypes[2]
+	mi := &file__200basic_proto_msgTypes[2]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -149,7 +149,7 @@ func (x *ReqBasicInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReqBasicInfo.ProtoReflect.Descriptor instead.
 func (*ReqBasicInfo) Descriptor() ([]byte, []int) {
-	return file_basic_proto_rawDescGZIP(), []int{2}
+	return file__200basic_proto_rawDescGZIP(), []int{2}
 }
 
 type RspBasicInfo struct {
@@ -166,7 +166,7 @@ type RspBasicInfo struct {
 func (x *RspBasicInfo) Reset() {
 	*x = RspBasicInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_basic_proto_msgTypes[3]
+		mi := &file__200basic_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -179,7 +179,7 @@ func (x *RspBasicInfo) String() string {
 func (*RspBasicInfo) ProtoMessage() {}
 
 func (x *RspBasicInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_basic_proto_msgTypes[3]
+	mi := &file__200basic_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -192,7 +192,7 @@ func (x *RspBasicInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RspBasicInfo.ProtoReflect.Descriptor instead.
 func (*RspBasicInfo) Descriptor() ([]byte, []int) {
-	return file_basic_proto_rawDescGZIP(), []int{3}
+	return file__200basic_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RspBasicInfo) GetRoleId() int64 {
@@ -234,7 +234,7 @@ type ReqBasicSetHead struct {
 func (x *ReqBasicSetHead) Reset() {
 	*x = ReqBasicSetHead{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_basic_proto_msgTypes[4]
+		mi := &file__200basic_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -247,7 +247,7 @@ func (x *ReqBasicSetHead) String() string {
 func (*ReqBasicSetHead) ProtoMessage() {}
 
 func (x *ReqBasicSetHead) ProtoReflect() protoreflect.Message {
-	mi := &file_basic_proto_msgTypes[4]
+	mi := &file__200basic_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -260,7 +260,7 @@ func (x *ReqBasicSetHead) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReqBasicSetHead.ProtoReflect.Descriptor instead.
 func (*ReqBasicSetHead) Descriptor() ([]byte, []int) {
-	return file_basic_proto_rawDescGZIP(), []int{4}
+	return file__200basic_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ReqBasicSetHead) GetHead() string {
@@ -281,7 +281,7 @@ type RspBasicSetHead struct {
 func (x *RspBasicSetHead) Reset() {
 	*x = RspBasicSetHead{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_basic_proto_msgTypes[5]
+		mi := &file__200basic_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -294,7 +294,7 @@ func (x *RspBasicSetHead) String() string {
 func (*RspBasicSetHead) ProtoMessage() {}
 
 func (x *RspBasicSetHead) ProtoReflect() protoreflect.Message {
-	mi := &file_basic_proto_msgTypes[5]
+	mi := &file__200basic_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -307,7 +307,7 @@ func (x *RspBasicSetHead) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RspBasicSetHead.ProtoReflect.Descriptor instead.
 func (*RspBasicSetHead) Descriptor() ([]byte, []int) {
-	return file_basic_proto_rawDescGZIP(), []int{5}
+	return file__200basic_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RspBasicSetHead) GetHead() string {
@@ -317,46 +317,51 @@ func (x *RspBasicSetHead) GetHead() string {
 	return ""
 }
 
-var File_basic_proto protoreflect.FileDescriptor
+var File__200basic_proto protoreflect.FileDescriptor
 
-var file_basic_proto_rawDesc = []byte{
-	0x0a, 0x0b, 0x62, 0x61, 0x73, 0x69, 0x63, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x0f, 0x67,
-	0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x22, 0x25,
-	0x0a, 0x0f, 0x52, 0x65, 0x71, 0x42, 0x61, 0x73, 0x69, 0x63, 0x53, 0x65, 0x74, 0x4e, 0x61, 0x6d,
-	0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x25, 0x0a, 0x0f, 0x52, 0x73, 0x70, 0x42, 0x61, 0x73, 0x69,
-	0x63, 0x53, 0x65, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x0e, 0x0a, 0x0c,
-	0x52, 0x65, 0x71, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x22, 0x6c, 0x0a, 0x0c,
-	0x52, 0x73, 0x70, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x17, 0x0a, 0x07,
-	0x72, 0x6f, 0x6c, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x06, 0x72,
-	0x6f, 0x6c, 0x65, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x63, 0x72, 0x65,
-	0x61, 0x74, 0x65, 0x5f, 0x74, 0x6d, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x08, 0x63, 0x72,
-	0x65, 0x61, 0x74, 0x65, 0x54, 0x6d, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x65, 0x61, 0x64, 0x18, 0x04,
-	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x65, 0x61, 0x64, 0x22, 0x25, 0x0a, 0x0f, 0x52, 0x65,
-	0x71, 0x42, 0x61, 0x73, 0x69, 0x63, 0x53, 0x65, 0x74, 0x48, 0x65, 0x61, 0x64, 0x12, 0x12, 0x0a,
-	0x04, 0x68, 0x65, 0x61, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x65, 0x61,
-	0x64, 0x22, 0x25, 0x0a, 0x0f, 0x52, 0x73, 0x70, 0x42, 0x61, 0x73, 0x69, 0x63, 0x53, 0x65, 0x74,
-	0x48, 0x65, 0x61, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x65, 0x61, 0x64, 0x18, 0x01, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x04, 0x68, 0x65, 0x61, 0x64, 0x42, 0x09, 0x5a, 0x07, 0x2e, 0x2f, 0x70, 0x62,
-	0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+var file__200basic_proto_rawDesc = []byte{
+	0x0a, 0x0e, 0x32, 0x30, 0x30, 0x62, 0x61, 0x73, 0x69, 0x63, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x12, 0x0f, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f,
+	0x6c, 0x1a, 0x11, 0x6d, 0x73, 0x67, 0x5f, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x2e, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x22, 0x2d, 0x0a, 0x0f, 0x52, 0x65, 0x71, 0x42, 0x61, 0x73, 0x69, 0x63,
+	0x53, 0x65, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x3a, 0x06, 0x80, 0xb5, 0x18,
+	0xa1, 0x9c, 0x01, 0x22, 0x2d, 0x0a, 0x0f, 0x52, 0x73, 0x70, 0x42, 0x61, 0x73, 0x69, 0x63, 0x53,
+	0x65, 0x74, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x3a, 0x06, 0x80, 0xb5, 0x18, 0xa2,
+	0x9c, 0x01, 0x22, 0x16, 0x0a, 0x0c, 0x52, 0x65, 0x71, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e,
+	0x66, 0x6f, 0x3a, 0x06, 0x80, 0xb5, 0x18, 0xa3, 0x9c, 0x01, 0x22, 0x74, 0x0a, 0x0c, 0x52, 0x73,
+	0x70, 0x42, 0x61, 0x73, 0x69, 0x63, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x17, 0x0a, 0x07, 0x72, 0x6f,
+	0x6c, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x06, 0x72, 0x6f, 0x6c,
+	0x65, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x1b, 0x0a, 0x09, 0x63, 0x72, 0x65, 0x61, 0x74,
+	0x65, 0x5f, 0x74, 0x6d, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x08, 0x63, 0x72, 0x65, 0x61,
+	0x74, 0x65, 0x54, 0x6d, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x65, 0x61, 0x64, 0x18, 0x04, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x04, 0x68, 0x65, 0x61, 0x64, 0x3a, 0x06, 0x80, 0xb5, 0x18, 0xa4, 0x9c, 0x01,
+	0x22, 0x2d, 0x0a, 0x0f, 0x52, 0x65, 0x71, 0x42, 0x61, 0x73, 0x69, 0x63, 0x53, 0x65, 0x74, 0x48,
+	0x65, 0x61, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x65, 0x61, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x04, 0x68, 0x65, 0x61, 0x64, 0x3a, 0x06, 0x80, 0xb5, 0x18, 0xa5, 0x9c, 0x01, 0x22,
+	0x2d, 0x0a, 0x0f, 0x52, 0x73, 0x70, 0x42, 0x61, 0x73, 0x69, 0x63, 0x53, 0x65, 0x74, 0x48, 0x65,
+	0x61, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x65, 0x61, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x04, 0x68, 0x65, 0x61, 0x64, 0x3a, 0x06, 0x80, 0xb5, 0x18, 0xa6, 0x9c, 0x01, 0x42, 0x09,
+	0x5a, 0x07, 0x2e, 0x2f, 0x70, 0x62, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
-	file_basic_proto_rawDescOnce sync.Once
-	file_basic_proto_rawDescData = file_basic_proto_rawDesc
+	file__200basic_proto_rawDescOnce sync.Once
+	file__200basic_proto_rawDescData = file__200basic_proto_rawDesc
 )
 
-func file_basic_proto_rawDescGZIP() []byte {
-	file_basic_proto_rawDescOnce.Do(func() {
-		file_basic_proto_rawDescData = protoimpl.X.CompressGZIP(file_basic_proto_rawDescData)
+func file__200basic_proto_rawDescGZIP() []byte {
+	file__200basic_proto_rawDescOnce.Do(func() {
+		file__200basic_proto_rawDescData = protoimpl.X.CompressGZIP(file__200basic_proto_rawDescData)
 	})
-	return file_basic_proto_rawDescData
+	return file__200basic_proto_rawDescData
 }
 
-var file_basic_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_basic_proto_goTypes = []interface{}{
+var file__200basic_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file__200basic_proto_goTypes = []interface{}{
 	(*ReqBasicSetName)(nil), // 0: galaxy.protocol.ReqBasicSetName
 	(*RspBasicSetName)(nil), // 1: galaxy.protocol.RspBasicSetName
 	(*ReqBasicInfo)(nil),    // 2: galaxy.protocol.ReqBasicInfo
@@ -364,7 +369,7 @@ var file_basic_proto_goTypes = []interface{}{
 	(*ReqBasicSetHead)(nil), // 4: galaxy.protocol.ReqBasicSetHead
 	(*RspBasicSetHead)(nil), // 5: galaxy.protocol.RspBasicSetHead
 }
-var file_basic_proto_depIdxs = []int32{
+var file__200basic_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -372,13 +377,14 @@ var file_basic_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_basic_proto_init() }
-func file_basic_proto_init() {
-	if File_basic_proto != nil {
+func init() { file__200basic_proto_init() }
+func file__200basic_proto_init() {
+	if File__200basic_proto != nil {
 		return
 	}
+	file_msg_options_proto_init()
 	if !protoimpl.UnsafeEnabled {
-		file_basic_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file__200basic_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ReqBasicSetName); i {
 			case 0:
 				return &v.state
@@ -390,7 +396,7 @@ func file_basic_proto_init() {
 				return nil
 			}
 		}
-		file_basic_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+		file__200basic_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*RspBasicSetName); i {
 			case 0:
 				return &v.state
@@ -402,7 +408,7 @@ func file_basic_proto_init() {
 				return nil
 			}
 		}
-		file_basic_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+		file__200basic_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ReqBasicInfo); i {
 			case 0:
 				return &v.state
@@ -414,7 +420,7 @@ func file_basic_proto_init() {
 				return nil
 			}
 		}
-		file_basic_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+		file__200basic_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*RspBasicInfo); i {
 			case 0:
 				return &v.state
@@ -426,7 +432,7 @@ func file_basic_proto_init() {
 				return nil
 			}
 		}
-		file_basic_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+		file__200basic_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ReqBasicSetHead); i {
 			case 0:
 				return &v.state
@@ -438,7 +444,7 @@ func file_basic_proto_init() {
 				return nil
 			}
 		}
-		file_basic_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+		file__200basic_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*RspBasicSetHead); i {
 			case 0:
 				return &v.state
@@ -455,18 +461,18 @@ func file_basic_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_basic_proto_rawDesc,
+			RawDescriptor: file__200basic_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_basic_proto_goTypes,
-		DependencyIndexes: file_basic_proto_depIdxs,
-		MessageInfos:      file_basic_proto_msgTypes,
+		GoTypes:           file__200basic_proto_goTypes,
+		DependencyIndexes: file__200basic_proto_depIdxs,
+		MessageInfos:      file__200basic_proto_msgTypes,
 	}.Build()
-	File_basic_proto = out.File
-	file_basic_proto_rawDesc = nil
-	file_basic_proto_goTypes = nil
-	file_basic_proto_depIdxs = nil
+	File__200basic_proto = out.File
+	file__200basic_proto_rawDesc = nil
+	file__200basic_proto_goTypes = nil
+	file__200basic_proto_depIdxs = nil
 }

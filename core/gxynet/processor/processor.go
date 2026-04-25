@@ -54,11 +54,14 @@ func (p *processor) Decode(data []byte) (uint64, *message.Message, error) {
 	if err == packet.ErrPkgBodyNotEnough || err == packet.ErrPkgHeadNotEnough { // 数据不足够，不算错误
 		return 0, nil, nil
 	}
-	meta := codec.MessageMetaByName(msg.Path)
+	meta := codec.MessageMetaByID(msg.Path)
+	if meta == nil {
+		meta = codec.MessageMetaByName(msg.Path)
+	}
 	if meta == nil {
 		return 0, nil, gerror.Newf("message meta not found: %s", msg.Path)
 	}
-	msg.Msg = codec.MessageMetaByName(msg.Path).NewInstance()
+	msg.Msg = meta.NewInstance()
 	if err = p.msgCodec.Decode(msg.Msg, msg.Payload); err != nil {
 		return 0, nil, err
 	}

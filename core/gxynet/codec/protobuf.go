@@ -1,6 +1,10 @@
 package codec
 
 import (
+	"strconv"
+
+	pb "gserver/protocol/pb"
+
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
@@ -14,22 +18,16 @@ func newProtobuf() (*ProtoBuf, error) {
 }
 
 func (p *ProtoBuf) Decode(msg interface{}, data []byte) error {
-	// 处理包装器类型
 	return proto.Unmarshal(data, msg.(proto.Message))
 }
 
 func (p *ProtoBuf) Encode(raw interface{}) ([]byte, error) {
-	// 处理包装器类型
-	// 处理原生proto消息
 	return proto.Marshal(raw.(proto.Message))
 }
 
-// 更新初始化函数，使用包装器来处理Protocol Buffers消息的EDF注册
 func init() {
-	// 遍历protofile，使用edf.RegisterType进行注册
 	protoregistry.GlobalFiles.RangeFiles(func(fd protoreflect.FileDescriptor) bool {
 		if fd.FullName() == "galaxy.protocol" {
-			// 只保留basic.proto这种鸡蛋
 			msgs := fd.Messages()
 			simpleMgs := []protoreflect.MessageDescriptor{}
 			nestedMgs := []protoreflect.MessageDescriptor{}
@@ -39,7 +37,7 @@ func init() {
 				for i := 0; i < msgDesc.Fields().Len(); i++ {
 					field := msgDesc.Fields().Get(i)
 					fieldType := field.Kind().String()
-					if fieldType == protoreflect.MessageKind.String() { // 嵌套类型
+					if fieldType == protoreflect.MessageKind.String() {
 						neseted = true
 						break
 					}
@@ -56,6 +54,16 @@ func init() {
 					continue
 				}
 				msgIns := msgType.New().Interface()
+
+				// 读取 msg_id option，如果有则用数字 ID 注册
+				opts := msgDesc.Options()
+				if opts != nil {
+					if id := proto.GetExtension(opts, pb.E_MsgId).(uint32); id > 0 {
+						RegisterMessageMeta(strconv.FormatUint(uint64(id), 10), msgIns)
+						continue
+					}
+				}
+				// 没有 msg_id 的消息（如服务端内部消息），用类型名注册
 				RegisterMessageMeta(string(msgDesc.Name()), msgIns)
 			}
 		}

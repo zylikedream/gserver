@@ -2,6 +2,7 @@ syntax = "proto3";
 option go_package="./pb;pb";
 package galaxy.protocol;
 
+import "msg_options.proto";
 import "role.proto";
 
 message PMahongRuleInfo {
@@ -12,32 +13,39 @@ message PMahongRuleInfo {
 }
 
 message ReqMahongCreateRoom {
+    option (msg_id) = 24001;
     PMahongRuleInfo rule = 1;
 }
 
 message RspMahongCreateRoom {
+    option (msg_id) = 24002;
 	int64 room_id = 1;
 }
 
 message ReqMahongJoinRoom {
+    option (msg_id) = 24003;
     int64 room_id = 1;
     int32 identify = 2;
 }
 
 message RspMahongJoinRoom {
+    option (msg_id) = 24004;
     int64 room_id = 1;
 }
 
 message ReqMahongOperate {
+    option (msg_id) = 24005;
     int32 cmd = 1; // 命令类型
     int32 val = 2;
 }
 
 message ReqMahongSetReady {
+    option (msg_id) = 24006;
     int32 ready = 1;
 }
 
 message NotfiyMahongGameStart {
+    option (msg_id) = 24007;
 	int32 die_point = 1; // 筛子点数
 	int32 game_count    = 2;     // 游戏局数
 }
@@ -62,6 +70,7 @@ message PMahongTableCardInfo {
 }
 
 message NotifyMahongSeatCardInfo {
+    option (msg_id) = 24008;
     repeated PMahongMbrCardInfo mbr_card = 1;
     PMahongTableCardInfo table_card = 2;
 }
@@ -76,18 +85,19 @@ message PMahongMemberInfo{
 message PMahongRoomInfo {
 	int64 room_id = 1;
 	PMahongRuleInfo rule = 2;
-	int64 start_time = 3;              
+	int64 start_time = 3;
 	repeated PMahongMemberInfo mbrs = 4;
 }
 
 message NotifyMahongRoomInfo {
+    option (msg_id) = 24009;
     PMahongRoomInfo room_info = 1;
 }
 
 message NotifyMahongJoinRoom {
+    option (msg_id) = 24010;
     PMahongMemberInfo mbr = 1;
 }
-
 
 message PMahongCommand {
     int32 cmd = 1; // 命令类型
@@ -98,11 +108,13 @@ message PMahongCommand {
 
 // 下发某个玩家的操作
 message NotifyMahongOperate {
+    option (msg_id) = 24011;
     string role_id = 1;
     PMahongCommand cmd = 2;
 }
 
 message NotifyMahongOperateRevert {
+    option (msg_id) = 24012;
     string role_id = 1;
     PMahongCommand cmd = 2;
 }
@@ -140,15 +152,18 @@ message PMahongRoomStat {
 }
 
 message NotfiyMahongRoomEnd {
+    option (msg_id) = 24013;
 	repeated PMahongRoomStat stats = 1; // 统计信息
 }
 
 message NotifyMahongGameEnd {
+    option (msg_id) = 24014;
 	int32 games  = 1; // 局数
 	repeated PMahongGameStat stats = 2;
 }
 
 message NotifyMahongTurnSeat {
+    option (msg_id) = 24015;
 	int32 turn = 1;
 }
 
@@ -158,16 +173,19 @@ message PMahongDingqueInfo {
 }
 
 message NotifyMahongDingqueFinish {
+    option (msg_id) = 24016;
     repeated PMahongDingqueInfo dingque = 1;
 }
 
 message NotifyMahongMbrReady {
+    option (msg_id) = 24017;
     string role_id = 1;
     bool ready = 2;
 }
 
 // 通知玩家合法的操作
 message NotifyMahongValidCmd {
+    option (msg_id) = 24018;
     repeated PMahongValidCommand cmds = 1;
 }
 
@@ -177,5 +195,6 @@ message PMahongValidCommand {
 }
 
 message NotifyMahongTimeout {
+    option (msg_id) = 24019;
     int64 timeout = 1;
 }

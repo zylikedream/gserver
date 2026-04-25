@@ -1,12 +1,15 @@
-
 syntax = "proto3";
 option go_package="./pb;pb";
 package galaxy.protocol;
 
+import "msg_options.proto";
+
 message ReqBagInfo{
+    option (msg_id) = 21001;
 }
 
 message RspBagInfo{
+    option (msg_id) = 21002;
     repeated PGoodInfo goods = 1;
 }
 
@@ -16,6 +19,7 @@ message PGoodInfo{
 }
 
 message NotifyBagUpdate{
+    option (msg_id) = 21003;
     repeated PBagGoodUpdate goods = 1;
 }
 
