@@ -1,3 +1,4 @@
+// ID: 23001~23099
 syntax = "proto3";
 option go_package="./pb;pb";
 package galaxy.protocol;
