@@ -218,7 +218,7 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 }
 
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
-	path := climsg.Path
+	id := climsg.Id
 	pbmsg, err := anypb.UnmarshalNew(climsg.GetMsg(), proto.UnmarshalOptions{})
 	if err != nil {
 		return nil, gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
@@ -233,7 +233,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	if err != nil {
 		res = &pb.Ack{
 			Code:   1,
-			Path:   path,
+			Id:     id,
 			Reason: err.Error(),
 		}
 	}

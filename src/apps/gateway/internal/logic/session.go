@@ -189,10 +189,10 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 	return nil
 }
 
-func (s *Session) SendRoleMsg(msg proto.Message, path string) error {
+func (s *Session) SendRoleMsg(msg proto.Message, id string) error {
 	req := &pb.ClientMsg{
-		Path: path,
-		Msg:  &anypb.Any{},
+		Id:  id,
+		Msg: &anypb.Any{},
 	}
 	if err := anypb.MarshalFrom(req.Msg, msg, proto.MarshalOptions{}); err != nil {
 		return gerror.Newf("marshal req error, err: %v", err)
