@@ -70,8 +70,13 @@ deploy: cli.install
 .PHONY: upproto
 upproto:
 	@git stash -q 2>/dev/null; \
-	git subtree pull --prefix=protocol git@gitee.com:zylikedream/mahong-protocol.git master; \
+	git subtree pull --prefix=protocol/client git@gitee.com:zylikedream/mahong-protocol.git master; \
 	git stash pop -q 2>/dev/null; true
+
+# Push protocol changes to remote
+.PHONY: pushproto
+pushproto:
+	@git subtree push --prefix=protocol/client git@gitee.com:zylikedream/mahong-protocol.git master
 
 # Update subtree: gameconfig
 .PHONY: upcfg
@@ -83,11 +88,12 @@ upcfg:
 # Parsing protobuf files and generating go files.
 .PHONY: pbraw
 pbraw: cli.install
-	@proto_dir=protocol; \
-	for file in `ls $$proto_dir/*.proto`; do \
-    	echo "Generating $$file"; \
-    	protoc --proto_path=$$proto_dir/ -I $$proto_dir/ -I /usr/local/include --go_out=$$proto_dir/ $$file; \
-    done;
+	@for dir in protocol/client protocol/server; do \
+		for file in `ls $$dir/*.proto 2>/dev/null`; do \
+			echo "Generating $$file"; \
+			protoc --proto_path=$$dir/ -I $$dir/ -I protocol/client/ -I protocol/server/ -I /usr/local/include --go_out=protocol/ $$file; \
+		done; \
+	done;
 
 # 生成不带omitempty标签的protobuf代码
 .PHONY: pb
