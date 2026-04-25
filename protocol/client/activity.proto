@@ -1,7 +1,0 @@
-// ID: 25001~25099
-syntax = "proto3";
-option go_package="./pb;pb";
-package galaxy.protocol;
-
-import "msg_options.proto";
-
