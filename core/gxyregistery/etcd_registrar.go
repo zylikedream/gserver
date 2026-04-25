@@ -2,9 +2,8 @@ package gxyregistery
 
 import (
 	"context"
+	"gserver/core/gxyutil"
 	"time"
-
-	"gserver/util"
 
 	"github.com/gogf/gf/contrib/registry/etcd/v2"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -28,7 +27,7 @@ type etcdRegisteryConfig struct {
 func newEtcdRegistery(cfg *gcfg.Config) (*etcdRegistery, error) {
 	conf := &etcdRegisteryConfig{}
 	logger := glog.New()
-	if err := util.CfgUnmarshalKey(context.Background(), cfg, "registery.etcd", conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(context.Background(), cfg, "registery.etcd", conf); err != nil {
 		return nil, err
 	}
 	logger.SetLevelStr(conf.LogLevel)

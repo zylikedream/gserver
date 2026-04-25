@@ -2,7 +2,7 @@ package world
 
 import (
 	"context"
-	"gserver/apps/world/server"
+	"gserver/src/apps/world/server"
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
 

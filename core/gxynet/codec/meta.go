@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gookit/goutil/reflects"
 )
@@ -34,7 +34,7 @@ func (m *MessageMeta) NewInstance() interface{} {
 	if m.Type == nil {
 		return nil
 	}
-	return util.NewObject(m.Type)
+	return gxyutil.NewObject(m.Type)
 }
 
 func RegisterMessageMeta(ID string, msg any) *MessageMeta {
@@ -87,5 +87,5 @@ func MessageMetaByMsg(msg any) *MessageMeta {
 		return nil
 	}
 
-	return MessageMetaByName(util.GetObjectName(msg))
+	return MessageMetaByName(gxyutil.GetObjectName(msg))
 }

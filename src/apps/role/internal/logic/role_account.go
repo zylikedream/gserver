@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"gserver/core/gxypgx"
-	"gserver/util/uid"
+	"gserver/src/util/uid"
 
 	"github.com/gogf/gf/v2/os/glog"
 )

@@ -2,7 +2,7 @@ package gateway
 
 import (
 	"context"
-	"gserver/apps/gateway/internal/logic"
+	"gserver/src/apps/gateway/internal/logic"
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
 	"gserver/core/gxynet"

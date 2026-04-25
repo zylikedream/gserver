@@ -15,7 +15,7 @@
 - **风险**: 中等 — 应区分可恢复错误与致命错误，对有状态 Grain 的重启策略需特殊处理
 
 ### 3. 无消息重试机制
-- **位置**: `apps/gateway/internal/logic/session.go:199`
+- **位置**: `src/apps/gateway/internal/logic/session.go:199`
 - **问题**: Session 向 RoleGrain 发送消息使用 `CallSync`（fire-and-forget），如果 RoleGrain 暂时不可用（正在迁移、重启），消息会丢失
 - **风险**: 中等 — 客户端请求可能丢失，需要客户端重试或服务端消息队列
 
@@ -37,19 +37,19 @@
 ## 数据层面
 
 ### 7. 保存失败直接停止 Actor
-- **位置**: `apps/role/internal/logic/role_main.go`
+- **位置**: `src/apps/role/internal/logic/role_main.go`
 - **问题**: 定时保存失败时直接调用 `r.Stop(err)` 终止 Actor。如果是临时性数据库故障，会导致大量角色被踢下线
 - **风险**: 中等 — 应考虑重试机制或降级策略
 
 ### 8. 脏检查 hash 碰撞风险
-- **位置**: `util/reflect.go` → `GetObjectHash`
+- **位置**: `src/util/reflect.go` → `GetObjectHash`
 - **问题**: 使用对象 hash 判断是否需要保存。理论上存在 hash 碰撞可能（虽然极低），且 hash 计算性能取决于结构体大小
 - **风险**: 极低 — 实际碰撞概率可忽略
 
 ## 并发安全
 
 ### 9. SessionMgr 非线程安全
-- **位置**: `apps/gateway/internal/logic/session_mgr.go`
+- **位置**: `src/apps/gateway/internal/logic/session_mgr.go`
 - **问题**: SessionMgr 管理 roleID → sessionPID 映射，需要确认 Add/Remove/All 操作是否在 Actor 上下文中调用（Actor 串行处理则安全）
 - **风险**: 低 — 如果仅在 Actor 内调用则安全
 

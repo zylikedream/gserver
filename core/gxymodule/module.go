@@ -2,7 +2,7 @@ package gxymodule
 
 import (
 	"context"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/os/glog"
 )
@@ -73,7 +73,7 @@ func (m *ModuleBase) GetModule(id string) IModule {
 
 func (m *ModuleBase) AddModule(ctx context.Context, mod IModule) error {
 	base := mod.BaseModule()
-	base.name = util.GetObjectName(mod)
+	base.name = gxyutil.GetObjectName(mod)
 	base.self = mod
 	base.parent = m.self
 	if err := mod.OnModInit(ctx); err != nil {

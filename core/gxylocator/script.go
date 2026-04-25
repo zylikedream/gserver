@@ -3,7 +3,7 @@ package gxylocator
 import (
 	"context"
 	"gserver/core/gxyredis"
-	"gserver/util"
+	"gserver/core/gxyutil"
 	"os"
 	"path/filepath"
 
@@ -15,7 +15,7 @@ var locateScript *redis.Script
 var batchRegisterScript *redis.Script
 
 func init() {
-	dir := util.GetCurrenDir()
+	dir := gxyutil.GetCurrenDir()
 	locateScriptPath := filepath.Join(dir, "script", "locate.lua")
 	locateScriptSrc, err := os.ReadFile(locateScriptPath)
 	glog.Debugf(context.Background(), "common script path: %s", locateScriptPath)
@@ -43,4 +43,3 @@ func ScriptUnregisterActorNode(rdb gxyredis.Client, id string, node string) (int
 func ScriptRegisterActorNode(ctx context.Context, rdb gxyredis.Client, keys []string, ttl int64) (int64, error) {
 	return batchRegisterScript.Run(ctx, rdb, keys, ttl).Int64()
 }
-

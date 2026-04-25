@@ -64,7 +64,7 @@
 ## Utilities
 
 ### UID Generation
-- **自定义 UID 生成器** (`util/uid`) — 基于 Redis INCR 的分布式自增 ID 生成
+- **自定义 UID 生成器** (`src/util/uid`) — 基于 Redis INCR 的分布式自增 ID 生成
 
 ### Timer
 - **自定义定时器** (`core/gxytimer`) — Actor 内置定时器系统
@@ -72,7 +72,7 @@
   - 定时器状态可持久化恢复（CronState 接口）
 
 ### ETS (Erlang Term Storage)
-- **util/ets** — 类似 Erlang ETS 的内存表（sync.Map 封装），用于高效键值查找
+- **src/util/ets** — 类似 Erlang ETS 的内存表（sync.Map 封装），用于高效键值查找
 
 ## Build & Tooling
 

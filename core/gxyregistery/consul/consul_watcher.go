@@ -89,7 +89,7 @@ func (w *Watcher) watch() {
 			return
 		}
 		// Get current services
-		// glog.Infof(context.Background(), "watcher %s got service entries:%s", w.key, util.FormatObject(entries))
+		// glog.Infof(context.Background(), "watcher %s got service entries:%s", w.key, gxyutil.FormatObject(entries))
 		services, _ := w.Services(entries)
 
 		// Update services

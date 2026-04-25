@@ -4,8 +4,8 @@ import (
 	"context"
 	"gserver/core/gxylog"
 	"gserver/core/gxytimer"
+	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"gserver/util"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -52,14 +52,14 @@ type ActorBase struct {
 	ctx        context.Context
 	actor      IActor
 	stopErr    error
-	msgHandler *util.MsgHandler
+	msgHandler *gxyutil.MsgHandler
 }
 
 func NewActorBase(ctx context.Context, actor IActor) *ActorBase {
 	return &ActorBase{
 		ctx:        ctx,
 		actor:      actor,
-		msgHandler: util.NewMsgHandler(),
+		msgHandler: gxyutil.NewMsgHandler(),
 	}
 }
 
@@ -133,10 +133,10 @@ func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 
 func (a *ActorBase) CallMsgHandler(ctx context.Context, msg any) (any, error) {
 	tm := time.Now()
-	glog.Debugf(ctx, "handle msg start, msg: %v", util.FormatObject(msg))
+	glog.Debugf(ctx, "handle msg start, msg: %v", gxyutil.FormatObject(msg))
 	result, err := a.CallHandlerMsg(ctx, msg)
 	glog.Debugf(ctx, "handle msg end, msg: %s, result: %s, err %+v, cost: %vms",
-		util.FormatObject(msg), util.FormatObject(result), err, time.Since(tm).Milliseconds())
+		gxyutil.FormatObject(msg), gxyutil.FormatObject(result), err, time.Since(tm).Milliseconds())
 	if err != nil {
 		return nil, err
 	}

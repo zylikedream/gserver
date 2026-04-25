@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"gserver/apps/role"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 	"gserver/core/gxytimer"
-	"gserver/lib"
+	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"gserver/util"
+	"gserver/src/apps/role"
+	"gserver/src/lib"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -171,13 +171,13 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		// 转发消息给角色actor
 		pbmsg, ok := msg.Msg.(proto.Message)
 		if !ok {
-			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", util.FormatObject(pbmsg))
+			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", gxyutil.FormatObject(pbmsg))
 		}
 		switch pbmsg.(type) {
 		case *pb.ReqAccountLogout:
 			s.Stop(gerror.New("client account logout"))
 		default:
-			glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, util.FormatObject(pbmsg))
+			glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, gxyutil.FormatObject(pbmsg))
 			if err := s.SendRoleMsg(pbmsg, msg.Path); err != nil {
 				return gerror.Wrap(err, "send data msg error")
 			}
@@ -231,7 +231,7 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		msg := &pb.ReqAccountLogout{
 			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
 		}
-		s.SendRoleMsg(msg, util.GetObjectName(msg))
+		s.SendRoleMsg(msg, gxyutil.GetObjectName(msg))
 	}
 	s.state = StateDisconnected
 

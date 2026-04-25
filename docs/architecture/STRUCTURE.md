@@ -28,7 +28,7 @@ gserver/
 │   ├── gxylog/              # 日志系统
 │   ├── gxyapp.go/           # 应用基类
 │   └── gxymq/               # 消息队列 (Redis Pub/Sub / Pulsar)
-├── apps/                    # 业务应用层
+├── src/apps/                    # 业务应用层
 │   ├── gateway/             # 网关应用
 │   │   ├── gate_app.go      # 网关 App 定义
 │   │   ├── gate_handler.go  # 连接事件处理
@@ -72,9 +72,9 @@ gserver/
 │       ├── basic.pb.go      # 基础协议
 │       ├── ack.pb.go        # 响应协议
 │       └── gactor.pb.go     # Actor 通信协议
-├── lib/                     # 业务公共库
+├── src/lib/                     # 业务公共库
 │   └── grain.go             # Grain 辅助函数 (GetRoleGrain)
-├── util/                    # 通用工具
+├── src/util/                    # 通用工具
 │   ├── common.go            # 通用工具函数
 │   ├── reflect.go           # 反射工具 (GetObjectHash, NewObject)
 │   ├── time.go              # 时间工具
@@ -118,12 +118,12 @@ gserver/
 - `core/gxynet/` — TCP 网络层（gnet v2）
 
 ### 业务核心
-- `apps/role/internal/logic/role_main.go` — 角色主逻辑，最核心的业务文件
-- `apps/role/internal/logic/role_module.go` — 角色模块接口和持久化基类
-- `apps/gateway/internal/logic/session.go` — 会话 Actor，处理客户端连接和消息转发
+- `src/apps/role/internal/logic/role_main.go` — 角色主逻辑，最核心的业务文件
+- `src/apps/role/internal/logic/role_module.go` — 角色模块接口和持久化基类
+- `src/apps/gateway/internal/logic/session.go` — 会话 Actor，处理客户端连接和消息转发
 
 ### 消息路由
-- `util/msg_handler.go` — 基于反射的 protobuf 消息路由，按消息类型名自动分发
+- `src/util/msg_handler.go` — 基于反射的 protobuf 消息路由，按消息类型名自动分发
 
 ## 命名约定
 

@@ -5,9 +5,10 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxytimer"
+	"gserver/core/gxyutil"
 	"gserver/gameconfig"
-	"gserver/util"
-	"gserver/util/ets"
+	"gserver/src/util"
+	"gserver/src/util/ets"
 	"time"
 
 	"github.com/gogf/gf/v2/os/glog"
@@ -76,7 +77,7 @@ func (a *ActivityServer) updateActivity(ctx context.Context) error {
 			}
 		}
 	}
-	minCheckTime := util.If(minStartTime.Before(minEndTime), minStartTime, minEndTime)
+	minCheckTime := gxyutil.If(minStartTime.Before(minEndTime), minStartTime, minEndTime)
 	a.Timer().AddOnce(ctx, &gxytimer.Once{
 		Name:  ACTIVITY_CHECK_TIMER,
 		After: minCheckTime.Sub(now.Time),

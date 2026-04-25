@@ -7,7 +7,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/logger"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
@@ -31,7 +31,7 @@ var ctx = gxylog.NewContext(context.Background(), "TcpServer")
 func newTcpServer(c *gcfg.Config) (*TcpServer, error) {
 	server := &TcpServer{}
 	conf := &tcpServerConfig{}
-	if err := util.CfgUnmarshalKey(ctx, c, server.Type(), conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(ctx, c, server.Type(), conf); err != nil {
 		return nil, err
 	}
 	conf.Addr = fmt.Sprintf("tcp://%s", conf.Addr)

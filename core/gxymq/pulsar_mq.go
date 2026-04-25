@@ -2,7 +2,7 @@ package gxymq
 
 import (
 	"context"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -29,7 +29,7 @@ type pulsarMQConfig struct {
 func NewPulsarMQ(cfg *gcfg.Config) (*PulsarMQ, error) {
 	// 创建Pulsar客户端
 	conf := &pulsarMQConfig{}
-	if err := util.CfgUnmarshalKey(context.Background(), cfg, "mq.pulsar", conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(context.Background(), cfg, "mq.pulsar", conf); err != nil {
 		return nil, err
 	}
 	return &PulsarMQ{

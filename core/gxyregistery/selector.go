@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
-	"gserver/util"
+	"gserver/core/gxyutil"
 	"math/rand"
 
 	"github.com/gogf/gf/v2/container/gmap"
@@ -134,7 +134,7 @@ func (s *consistentHashSelector) Select(ctx context.Context, service string, key
 		s.rebuildRing(ring, services)
 		s.hashs.Set(ringKey, hservices.Hash)
 		glog.Debugf(ctx, "consistentHashSelector rebuild ring, ring: %s, hash: %s, services: %s",
-			ringKey, hservices.Hash, util.FormatObject(services))
+			ringKey, hservices.Hash, gxyutil.FormatObject(services))
 	}
 
 	// 计算服务的哈希值

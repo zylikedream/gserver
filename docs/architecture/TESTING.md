@@ -6,7 +6,7 @@
 
 | 文件 | 测试内容 |
 |------|---------|
-| `apps/role/internal/logic/rolemod_test.go` | 角色模块初始化验证 |
+| `src/apps/role/internal/logic/rolemod_test.go` | 角色模块初始化验证 |
 
 ## 测试框架
 
@@ -19,10 +19,10 @@
 
 ### 容易测试的部分
 
-1. **util/ 层** — 纯函数，无外部依赖
-   - `util/msg_handler.go` — 消息路由，可通过 mock handler 验证
-   - `util/reflect.go` — 反射工具，纯函数
-   - `util/ets/ets.go` — 内存表，可独立测试
+1. **src/util/ 层** — 纯函数，无外部依赖
+   - `src/util/msg_handler.go` — 消息路由，可通过 mock handler 验证
+   - `src/util/reflect.go` — 反射工具，纯函数
+   - `src/util/ets/ets.go` — 内存表，可独立测试
 
 2. **gameconfig/** — 配置加载和校验
 
@@ -37,17 +37,17 @@
 ### 难以测试的部分
 
 7. **core/gxyactor/** — 强依赖 protoactor-go ActorSystem，需要进程内启动
-8. **apps/role/internal/logic/** — 依赖 Actor 上下文、PostgreSQL、Redis
-9. **apps/gateway/** — 依赖网络层和 Actor 系统
+8. **src/apps/role/internal/logic/** — 依赖 Actor 上下文、PostgreSQL、Redis
+9. **src/apps/gateway/** — 依赖网络层和 Actor 系统
 
 ## 测试建议
 
 ### 单元测试（优先）
 
 ```
-util/msg_handler_test.go     — 消息路由正确性
-util/ets/ets_test.go         — 内存表 CRUD
-util/uid/uid_test.go         — UID 生成
+src/util/msg_handler_test.go     — 消息路由正确性
+src/util/ets/ets_test.go         — 内存表 CRUD
+src/util/uid/uid_test.go         — UID 生成
 gameconfig/gameconfig_test.go — 配置加载
 ```
 
@@ -93,8 +93,8 @@ func TestRoleMain_Login(t *testing.T) {
 1. **gxylocator Lua 脚本** — 核心定位逻辑，SETNX 注册和条件注销的正确性
 2. **gxyactor grain_manager** — Grain 激活/续约/注销流程
 3. **gxypgx UpsertOne** — 乐观锁和 JSONB 映射
-4. **util/msg_handler** — 消息路由正确性
-5. **apps/role 业务逻辑** — 角色模块核心逻辑
+4. **src/util/msg_handler** — 消息路由正确性
+5. **src/apps/role 业务逻辑** — 角色模块核心逻辑
 
 ---
 *Last updated: 2026-04-22*

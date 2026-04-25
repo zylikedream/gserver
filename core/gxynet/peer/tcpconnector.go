@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"gserver/core/gxynet/endpoint"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/os/glog"
@@ -26,7 +26,7 @@ func newTcpConnector(cfg *gcfg.Config) (*TcpConnector, error) {
 	server := &TcpConnector{}
 	conf := &tcpConnectorConfig{}
 	ctx := context.Background()
-	if err := util.CfgUnmarshalKey(ctx, cfg, server.Type(), conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(ctx, cfg, server.Type(), conf); err != nil {
 		return nil, err
 	}
 	server.conf = conf

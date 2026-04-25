@@ -4,8 +4,8 @@
 
 ### 框架与业务分离
 - `core/` 目录只放框架通用代码，不依赖任何业务模块
-- `apps/` 目录放业务代码，可依赖 core 但不能互相依赖
-- `lib/` 放业务公共工具（如 `GetRoleGrain`），可被多个 app 引用
+- `src/apps/` 目录放业务代码，可依赖 core 但不能互相依赖
+- `src/lib/` 放业务公共工具（如 `GetRoleGrain`），可被多个 app 引用
 
 ### 模块化设计
 - 所有组件都实现 `IModule` 接口，通过 `ModuleBase` 管理生命周期
@@ -92,7 +92,7 @@ r.eventBus.Subscribe(event.EventType("item_add"), func(param event.EventParam) {
 
 ## 包组织约定
 - 每个包一个目录
-- `internal/` 子包放私有实现（如 `apps/role/internal/logic/`, `apps/gateway/internal/logic/`）
+- `internal/` 子包放私有实现（如 `src/apps/role/internal/logic/`, `src/apps/gateway/internal/logic/`）
 - protobuf 生成代码放在 `protocol/pb/`
 - 游戏配置表放在 `gameconfig/src/`，由工具自动生成
 

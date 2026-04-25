@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"gserver/core/gxyapp"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/glog"
@@ -34,7 +34,7 @@ func NewPGXApp() *PGXApp {
 
 func (p *PGXApp) OnModInit(ctx context.Context) error {
 	conf := &pgxConfig{}
-	if err := util.CfgUnmarshalKey(ctx, g.Cfg(), "postgres", conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(ctx, g.Cfg(), "postgres", conf); err != nil {
 		return err
 	}
 	p.conf = conf

@@ -15,7 +15,7 @@ make pb
 go test ./...
 
 # Run a single test
-go test ./apps/role/internal/logic/ -run TestRoleModule
+go test ./src/apps/role/internal/logic/ -run TestRoleModule
 
 # Run the server
 go run node/main.go --config config/game.toml
@@ -54,9 +54,9 @@ Services are actors that register for service discovery (Consul or etcd via `cor
 
 ### Apps (Microservices)
 
-- **gateway** (`apps/gateway/`): TCP network entry point using gnet v2. Manages client sessions as actors. LTPV packet codec (Length+Type+Path+Value). Sessions handle handshake, then route protobuf messages to role grains.
-- **role** (`apps/role/`): Player data service. Each player is a grain with sub-modules (Basic, Bag, Sign, Activity, Account, Public, Extra). Uses **PostgreSQL** for persistence with JSONB columns. In-process event bus (`internal/event/eventbus.go`) for cross-module events.
-- **world** (`apps/world/`): Singleton server actors (e.g., ActivityServer). Spawns named actors on startup. Uses sync.Map (ETS wrapper) for shared state.
+- **gateway** (`src/apps/gateway/`): TCP network entry point using gnet v2. Manages client sessions as actors. LTPV packet codec (Length+Type+Path+Value). Sessions handle handshake, then route protobuf messages to role grains.
+- **role** (`src/apps/role/`): Player data service. Each player is a grain with sub-modules (Basic, Bag, Sign, Activity, Account, Public, Extra). Uses **PostgreSQL** for persistence with JSONB columns. In-process event bus (`internal/event/eventbus.go`) for cross-module events.
+- **world** (`src/apps/world/`): Singleton server actors (e.g., ActivityServer). Spawns named actors on startup. Uses sync.Map (ETS wrapper) for shared state.
 
 ### Startup Flow
 
@@ -64,8 +64,8 @@ Services are actors that register for service discovery (Consul or etcd via `cor
 
 ### Key Patterns
 
-- **Message dispatch** (`util/msg_handler.go`): Reflection-based handler registration. Scans exported methods with signature `Fn(ctx, *ReqType) (*RspType, error)` or `Fn(ctx, *ReqType) error`, maps them by `ArgType.Name()`. Actors call `AddHandler(self)` in `DelayInit` to auto-register.
-- **Grain pattern** (`lib/grain.go`): `GetRoleGrain(roleID)` wraps `GetGrain("role", id)`. The role app registers its grain producer at startup.
+- **Message dispatch** (`src/util/msg_handler.go`): Reflection-based handler registration. Scans exported methods with signature `Fn(ctx, *ReqType) (*RspType, error)` or `Fn(ctx, *ReqType) error`, maps them by `ArgType.Name()`. Actors call `AddHandler(self)` in `DelayInit` to auto-register.
+- **Grain pattern** (`src/lib/grain.go`): `GetRoleGrain(roleID)` wraps `GetGrain("role", id)`. The role app registers its grain producer at startup.
 - **Persistence** (`core/gxypgx/`): PostgreSQL via pgx/v5. `UpsertOne` uses `INSERT ... ON CONFLICT DO UPDATE`. Struct fields use `db:"column_name"` tags; embedded state uses `db:"inline"`. Map and slice fields auto-map to JSONB columns.
 - **Locator** (`core/gxylocator/`): Redis-based actor PID lookup with TTL-based registration and Lua scripts for atomic unregister.
 - **Service discovery**: Consul (default) or etcd via `core/gxyregistery/`. Configured in `[registery]` TOML section.
@@ -90,8 +90,8 @@ TOML files in `config/`. `game.toml` declares apps to load, PostgreSQL/Redis con
 - `core/gxytimer/` — Cron scheduling (robfig/cron)
 - `core/gxymq/` — Message queue abstraction (Redis/Pulsar) with priority workers
 - `core/gxyregistery/` — Service registry (Consul/etcd) with selector strategies
-- `util/` — Reflection-based message dispatch, UID generation, time utilities
-- `lib/` — Application-level helpers (e.g., `GetRoleGrain`)
+- `src/util/` — Reflection-based message dispatch, UID generation, time utilities
+- `src/lib/` — Application-level helpers (e.g., `GetRoleGrain`)
 - `gameconfig/` — Git submodule: auto-generated config structs from game design tables
 
 ## graphify

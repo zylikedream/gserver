@@ -5,14 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"gserver/apps/role/internal/event"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
+	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"gserver/util"
+	"gserver/src/apps/role/internal/event"
 	"reflect"
 	"time"
 
@@ -140,7 +140,7 @@ func (r *RoleMain) afterInitRole(ctx context.Context) error {
 func (r *RoleMain) initRoleModules(ctx context.Context) {
 	// 使用反射获取继承了IRoleModule的字段, 并初始化
 	modules := &r.roleModules
-	t := util.TypeReal(modules)
+	t := gxyutil.TypeReal(modules)
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if !field.IsExported() {
@@ -152,7 +152,7 @@ func (r *RoleMain) initRoleModules(ctx context.Context) {
 		if !field.Type.Implements(reflect.TypeFor[IRoleModule]()) {
 			continue
 		}
-		rmod := util.NewObject(field.Type.Elem())
+		rmod := gxyutil.NewObject(field.Type.Elem())
 		reflect.ValueOf(modules).Elem().Field(i).Set(reflect.ValueOf(rmod))
 		r.AddModule(ctx, rmod.(IRoleModule))
 	}
@@ -225,7 +225,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	}
 	r.sessionActiveTime = time.Now()
 	if !canHandleMsg(r.state, pbmsg) {
-		glog.Warningf(ctx, "role recv msg in state %d, ignore it  msg: %s", r.state, util.FormatObject(pbmsg))
+		glog.Warningf(ctx, "role recv msg in state %d, ignore it  msg: %s", r.state, gxyutil.FormatObject(pbmsg))
 		return nil, nil
 	}
 	var rsp proto.Message

@@ -12,13 +12,13 @@ import (
 	"context"
 	"time"
 
-	"gserver/apps/role/internal/event"
+	"gserver/src/apps/role/internal/event"
 	"gserver/core/gxytimer"
 	"gserver/gameconfig"
 	cfg "gserver/gameconfig/src"
 	gametable "gserver/gameconfig/src"
 	"gserver/protocol/pb"
-	"gserver/util"
+	"gserver/src/util"
 
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"

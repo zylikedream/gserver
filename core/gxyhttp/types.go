@@ -3,7 +3,7 @@ package gxyhttp
 import (
 	"context"
 	"gserver/core/gxyservice"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/glog"
@@ -43,7 +43,7 @@ func GetReqUri(req any) string {
 	if len(fs) > 0 {
 		return fs[0].TagValue
 	}
-	return util.GetObjectName(req)
+	return gxyutil.GetObjectName(req)
 }
 
 func NewErrCode(code int, msg string) *ErrCode {

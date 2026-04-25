@@ -2,14 +2,14 @@ package gxyregistery
 
 import (
 	"context"
-	"gserver/util"
+	"gserver/core/gxyutil"
 	"testing"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
 )
 
 func TestRegistery_Search(t *testing.T) {
-	util.SetConfig("config/service.test.toml")
+	gxyutil.SetConfig("config/service.test.toml")
 	registry, err := NewRegistery()
 	if err != nil {
 		t.Errorf("new registery failed:%+v", err)

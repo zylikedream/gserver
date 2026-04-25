@@ -6,7 +6,7 @@ import (
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"
 	"gserver/core/gxynet/packet"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -34,7 +34,7 @@ func NewProcessor(c *gcfg.Config) (Processor, error) {
 	proc := &processor{}
 	conf := &processorConfig{}
 	var err error
-	if err = util.CfgUnmarshalKey(ctx, c, "processor", conf); err != nil {
+	if err = gxyutil.CfgUnmarshalKey(ctx, c, "processor", conf); err != nil {
 		return nil, err
 	}
 	proc.conf = conf

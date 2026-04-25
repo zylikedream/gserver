@@ -3,7 +3,7 @@ package logic
 import (
 	"context"
 	"gserver/core/gxymodule"
-	"gserver/util"
+	"gserver/core/gxyutil"
 	"time"
 
 	"github.com/gogf/gf/v2/text/gstr"
@@ -45,7 +45,7 @@ func (r *RolePersistState) GetIndexes() []string {
 }
 
 func getColName(mod IPersistState) string {
-	return gstr.CaseSnake(util.GetObjectName(mod))
+	return gstr.CaseSnake(gxyutil.GetObjectName(mod))
 }
 
 type RoleModule struct {

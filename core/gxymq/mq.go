@@ -3,7 +3,7 @@ package gxymq
 import (
 	"context"
 	"gserver/core/gxyapp"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/glog"
@@ -63,7 +63,7 @@ func NewMessageQueueApp() *messageQueueApp {
 
 func (mq *messageQueueApp) OnModInit(ctx context.Context) error {
 	conf := &messageQueueConfig{}
-	if err := util.CfgUnmarshalKey(ctx, g.Cfg(), "mq", conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(ctx, g.Cfg(), "mq", conf); err != nil {
 		return err
 	}
 	mq.config = conf

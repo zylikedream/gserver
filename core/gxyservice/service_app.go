@@ -4,7 +4,7 @@ import (
 	"context"
 	"gserver/core/gxyapp"
 	"gserver/core/gxyregistery"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/os/glog"
 )
@@ -89,6 +89,6 @@ func (s *serviceApp) GetServiceInfo(ctx context.Context, name string, key string
 		glog.Errorf(ctx, "get service(%s:%s) failed:%+v", name, key, err)
 		return nil
 	}
-	glog.Debugf(ctx, "get service(%s:%s) success, services: %s", name, key, util.FormatObject(services))
+	glog.Debugf(ctx, "get service(%s:%s) success, services: %s", name, key, gxyutil.FormatObject(services))
 	return selector.Select(ctx, name, key, services)
 }

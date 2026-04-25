@@ -2,7 +2,7 @@ package gxyregistery
 
 import (
 	"context"
-	"gserver/util"
+	"gserver/core/gxyutil"
 	"sort"
 	"time"
 
@@ -207,7 +207,7 @@ func (r *registery) updateServices(name string, services []*ServiceInfo) {
 	newSeq := r.seqs.GetOrSet(name, 0) + 1
 	r.seqs.Set(name, newSeq)
 	glog.Infof(context.Background(), "Updating services for %s, count: %d, seq: %d, services: %s", name,
-		len(services), newSeq, util.FormatObject(services))
+		len(services), newSeq, gxyutil.FormatObject(services))
 }
 
 func (r *registery) GetHashServices(ctx context.Context, name string) (HashServices, error) {

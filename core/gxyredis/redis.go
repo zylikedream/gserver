@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"gserver/core/gxyapp"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/frame/g"
 
@@ -42,7 +42,7 @@ func NewRedisApp() *redisApp {
 
 func (r *redisApp) OnModInit(ctx context.Context) error {
 	conf := &redisConfig{}
-	if err := util.CfgUnmarshalKey(ctx, g.Cfg(), "redis", conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(ctx, g.Cfg(), "redis", conf); err != nil {
 		return err
 	}
 	r.conf = conf

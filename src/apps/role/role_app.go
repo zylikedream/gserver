@@ -2,7 +2,7 @@ package role
 
 import (
 	"context"
-	"gserver/apps/role/internal/logic"
+	"gserver/src/apps/role/internal/logic"
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"

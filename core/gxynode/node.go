@@ -3,8 +3,6 @@ package gxynode
 import (
 	"context"
 
-	"gserver/apps/gateway"
-	"gserver/apps/role"
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
 	"gserver/core/gxyhttp"
@@ -14,7 +12,9 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/core/gxyredis"
 	"gserver/core/gxyservice"
-	"gserver/util"
+	"gserver/core/gxyutil"
+	"gserver/src/apps/gateway"
+	"gserver/src/apps/role"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -37,7 +37,7 @@ func NewNode(config string) *node {
 }
 
 func (n *node) OnModInit(ctx context.Context) error {
-	util.SetConfig(n.config)
+	gxyutil.SetConfig(n.config)
 	cfg := g.Cfg()
 	n.Name = cfg.MustGet(ctx, "node.name").String()
 	n.Host = cfg.MustGet(ctx, "node.host").String()

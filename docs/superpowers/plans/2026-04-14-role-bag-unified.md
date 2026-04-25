@@ -14,9 +14,9 @@
 
 | 文件 | 操作 |
 |------|------|
-| `apps/role/internal/logic/bag/item.go` | 重写为 `BagGood`、`BagChange` |
-| `apps/role/internal/logic/bag/currency.go` | 删除 |
-| `apps/role/internal/logic/role_bag.go` | 修改 `RoleBagState`、简化 `AddSingleItem`/`DecSingleItem` |
+| `src/apps/role/internal/logic/bag/item.go` | 重写为 `BagGood`、`BagChange` |
+| `src/apps/role/internal/logic/bag/currency.go` | 删除 |
+| `src/apps/role/internal/logic/role_bag.go` | 修改 `RoleBagState`、简化 `AddSingleItem`/`DecSingleItem` |
 | `protocol/bag.proto` | 合并 `PItemUpdate`/`PCurrencyUpdate` 为 `PBagGoodUpdate` |
 
 ---
@@ -24,7 +24,7 @@
 ## Task 1: 重写 bag/item.go
 
 **文件:**
-- 修改: `apps/role/internal/logic/bag/item.go`
+- 修改: `src/apps/role/internal/logic/bag/item.go`
 
 删除 `BagItem`、`BagCurrency`、`Item`、`Currency`、`ItemChange`、`CurrencyChange`。
 新增统一结构：
@@ -73,18 +73,18 @@ func (g *BagGood) Update(num uint64) *BagChange {
 
 - [ ] **Step 1: 备份并重写 `bag/item.go`**
 
-将上述代码写入 `apps/role/internal/logic/bag/item.go`
+将上述代码写入 `src/apps/role/internal/logic/bag/item.go`
 
 - [ ] **Step 2: 删除 `bag/currency.go`**
 
 ```bash
-rm apps/role/internal/logic/bag/currency.go
+rm src/apps/role/internal/logic/bag/currency.go
 ```
 
 - [ ] **Step 3: 验证编译**
 
 ```bash
-go build ./apps/role/... 2>&1
+go build ./src/apps/role/... 2>&1
 ```
 
 预期: 失败（`role_bag.go` 还在引用旧的 `bag.BagItem` 等类型），这是正常的。
@@ -94,7 +94,7 @@ go build ./apps/role/... 2>&1
 ## Task 2: 修改 RoleBagState
 
 **文件:**
-- 修改: `apps/role/internal/logic/role_bag.go:23-28`
+- 修改: `src/apps/role/internal/logic/role_bag.go:23-28`
 
 ```go
 type RoleBagState struct {
@@ -121,7 +121,7 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 ## Task 3: 简化 AddSingleItem
 
 **文件:**
-- 修改: `apps/role/internal/logic/role_bag.go:51-67`
+- 修改: `src/apps/role/internal/logic/role_bag.go:51-67`
 
 移除所有格子检查逻辑。
 
@@ -147,7 +147,7 @@ func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 - [ ] **Step 2: 验证编译**
 
 ```bash
-go build ./apps/role/... 2>&1
+go build ./src/apps/role/... 2>&1
 ```
 
 ---
@@ -155,7 +155,7 @@ go build ./apps/role/... 2>&1
 ## Task 4: 简化 DecSingleItem
 
 **文件:**
-- 修改: `apps/role/internal/logic/role_bag.go:82-99`
+- 修改: `src/apps/role/internal/logic/role_bag.go:82-99`
 
 ```go
 func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
@@ -178,7 +178,7 @@ func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 - [ ] **Step 2: 验证编译**
 
 ```bash
-go build ./apps/role/... 2>&1
+go build ./src/apps/role/... 2>&1
 ```
 
 ---
@@ -186,7 +186,7 @@ go build ./apps/role/... 2>&1
 ## Task 5: 简化辅助方法
 
 **文件:**
-- 修改: `apps/role/internal/logic/role_bag.go`
+- 修改: `src/apps/role/internal/logic/role_bag.go`
 
 - [ ] **Step 1: 修改 `GetItem`**
 
@@ -226,7 +226,7 @@ func (r *RoleBag) notifyBagUpdate(ctx context.Context, chgs []*bag.BagChange) {
 - [ ] **Step 5: 验证编译**
 
 ```bash
-go build ./apps/role/... 2>&1
+go build ./src/apps/role/... 2>&1
 ```
 
 ---
@@ -234,7 +234,7 @@ go build ./apps/role/... 2>&1
 ## Task 6: 删除废弃代码
 
 **文件:**
-- 修改: `apps/role/internal/logic/role_bag.go`
+- 修改: `src/apps/role/internal/logic/role_bag.go`
 
 - [ ] **Step 1: 删除 `ErrItemAddNoGrid` 错误变量**
 
@@ -251,7 +251,7 @@ go build ./apps/role/... 2>&1
 - [ ] **Step 4: 验证编译**
 
 ```bash
-go build ./apps/role/... 2>&1
+go build ./src/apps/role/... 2>&1
 ```
 
 ---

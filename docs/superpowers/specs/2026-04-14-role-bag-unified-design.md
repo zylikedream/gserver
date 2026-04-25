@@ -6,10 +6,10 @@
 
 ## 改动范围
 
-- `apps/role/internal/logic/bag/item.go` — 删除，重写为 `BagGood`
-- `apps/role/internal/logic/bag/currency.go` — 删除
-- `apps/role/internal/logic/role_bag.go` — 简化状态和逻辑
-- `apps/role/internal/event/bag.go` — 更新事件结构
+- `src/apps/role/internal/logic/bag/item.go` — 删除，重写为 `BagGood`
+- `src/apps/role/internal/logic/bag/currency.go` — 删除
+- `src/apps/role/internal/logic/role_bag.go` — 简化状态和逻辑
+- `src/apps/role/internal/event/bag.go` — 更新事件结构
 - protobuf 消息定义 — 检查并更新 `BagChange` 相关协议
 
 ---

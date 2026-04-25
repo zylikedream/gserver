@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 
 	"gserver/core/gxynet/message"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -32,7 +32,7 @@ var ctx = context.Background()
 func newLtiv(c *gcfg.Config) (*ltiv, error) {
 	l := &ltiv{}
 	conf := &ltivConfig{}
-	if err := util.CfgUnmarshalKey(ctx, c, l.Type(), conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(ctx, c, l.Type(), conf); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	if conf.ByteOrder == "little" {

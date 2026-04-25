@@ -166,7 +166,7 @@ registerGrain 时启动 TimerTick:
 
 **外部调用**:
 ```go
-// lib/grain.go
+// src/lib/grain.go
 GetRoleGrain(roleID int64, spawnIfNotExist ...bool) PID
   → gxyactor.GetGrain("role", strconv.Itoa(roleID), spawnIfNotExist...)
 ```

@@ -3,8 +3,8 @@ package logic
 import (
 	"context"
 	"fmt"
-	"gserver/apps/role/internal/event"
-	"gserver/apps/world/server"
+	"gserver/src/apps/role/internal/event"
+	"gserver/src/apps/world/server"
 	"time"
 
 	"github.com/ahmetb/go-linq"

@@ -34,8 +34,8 @@
 
 ### 代码入口
 - 封装层: `core/gxypgx/pgx.go` → `PGXApp` struct (pgxpool 连接池管理)
-- 使用方: `apps/role/internal/logic/role_main.go` (save/load)
-- 账号管理: `apps/role/internal/logic/role_account.go`
+- 使用方: `src/apps/role/internal/logic/role_main.go` (save/load)
+- 账号管理: `src/apps/role/internal/logic/role_account.go`
 
 ## Redis
 
@@ -56,7 +56,7 @@
 ### 用途 3: UID Generator
 - **分布式自增 ID**: 基于 Redis INCR
 - **用途**: 角色ID生成 (`role` key)
-- **代码**: `util/uid/uid.go`
+- **代码**: `src/util/uid/uid.go`
 
 ### 连接管理
 - 封装层: `core/gxyredis/`

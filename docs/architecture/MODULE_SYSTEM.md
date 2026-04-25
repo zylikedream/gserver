@@ -244,7 +244,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 ### 示例 3: Gateway App 添加网络模块
 
 ```go
-// apps/gateway/gate_app.go
+// src/apps/gateway/gate_app.go
 
 func (s *gateApp) OnModInit(ctx context.Context) error {
     network := gxynet.NewNetwork(g.Cfg(), NewGateHandler())
@@ -259,7 +259,7 @@ func (s *gateApp) OnModInit(ctx context.Context) error {
 RoleMain 同时是 Grain 和 Module 容器，内嵌了多个业务子模块：
 
 ```go
-// apps/role/internal/logic/role_main.go
+// src/apps/role/internal/logic/role_main.go
 
 type RoleMain struct {
     gxymodule.ModuleBase       // 继承模块基类（作为容器）
@@ -297,7 +297,7 @@ func (r *RoleMain) initRoleModules(ctx context.Context) {
 ### 示例 5: IRoleModule 接口（业务模块标准）
 
 ```go
-// apps/role/internal/logic/role_module.go
+// src/apps/role/internal/logic/role_module.go
 
 type IRoleModule interface {
     gxymodule.IModule          // 继承模块接口

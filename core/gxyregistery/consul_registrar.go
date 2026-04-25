@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"gserver/core/gxyregistery/consul"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/net/gsvc"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -27,7 +27,7 @@ func newConsulRegistery(cfg *gcfg.Config) (*consulRegistery, error) {
 		TTL:        time.Second * 20,
 		RefreshTTL: time.Second * 10,
 	}
-	if err := util.CfgUnmarshalKey(context.Background(), cfg, "registery.consul", conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(context.Background(), cfg, "registery.consul", conf); err != nil {
 		return nil, err
 	}
 	regist := &consulRegistery{}

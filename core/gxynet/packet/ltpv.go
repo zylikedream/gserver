@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 
 	"gserver/core/gxynet/message"
-	"gserver/util"
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/encoding/gbinary"
 	"github.com/gogf/gf/v2/os/gcfg"
@@ -30,7 +30,7 @@ type ltpvConfig struct {
 func newLtpv(c *gcfg.Config) (*ltpv, error) {
 	l := &ltpv{}
 	conf := &ltpvConfig{}
-	if err := util.CfgUnmarshalKey(ctx, c, l.Type(), conf); err != nil {
+	if err := gxyutil.CfgUnmarshalKey(ctx, c, l.Type(), conf); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	if conf.ByteOrder == "little" {
