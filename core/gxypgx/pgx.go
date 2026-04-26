@@ -8,12 +8,13 @@ import (
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/glog"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type PGXApp struct {
 	gxyapp.App
-	pool *pgxpool.Pool
+	db   *gorm.DB
 	conf *pgxConfig
 }
 
@@ -24,10 +25,14 @@ type pgxConfig struct {
 var pgxAppInstance *PGXApp
 
 func PGX() *PGXApp {
-	if pgxAppInstance.conf == nil {
+	if pgxAppInstance.db == nil {
 		glog.Error(context.Background(), "pgx not init, miss config")
 	}
 	return pgxAppInstance
+}
+
+func DB() *gorm.DB {
+	return pgxAppInstance.db
 }
 
 func NewPGXApp() *PGXApp {
@@ -46,36 +51,36 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 	glog.Debugf(ctx, "conf = %v", conf)
 	p.conf = conf
 
-	poolConfig, err := pgxpool.ParseConfig(conf.URL)
+	db, err := gorm.Open(postgres.Open(conf.URL), &gorm.Config{})
 	if err != nil {
 		return err
 	}
-	p.pool, err = pgxpool.NewWithConfig(ctx, poolConfig)
-	if err != nil {
-		return err
-	}
+	p.db = db
 	return nil
 }
 
 func (p *PGXApp) OnModStart(ctx context.Context) error {
-	if p.pool == nil {
+	if p.db == nil {
 		return nil
 	}
-	if err := p.pool.Ping(ctx); err != nil {
+	sqlDB, err := p.db.DB()
+	if err != nil {
+		return err
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
 		glog.Fatal(ctx, err)
 	}
-	glog.Infof(ctx, "[module]postgres start success: %s", p.conf.URL)
+	glog.Infof(ctx, "[module]postgres(gorm) start success: %s", p.conf.URL)
 	return nil
 }
 
 func (p *PGXApp) OnModStop(ctx context.Context) error {
-	if p.pool != nil {
-		p.pool.Close()
+	if p.db != nil {
+		sqlDB, err := p.db.DB()
+		if err == nil {
+			sqlDB.Close()
+		}
 	}
 	glog.Info(ctx, "[module]postgres stop success")
 	return nil
-}
-
-func (p *PGXApp) GetPool() *pgxpool.Pool {
-	return p.pool
 }
