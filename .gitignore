@@ -22,3 +22,5 @@ log/
 *.test.toml
 .claude/
 graphify-out/
+.playwright/
+.playwright-cli/

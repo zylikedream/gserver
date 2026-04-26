@@ -64,6 +64,12 @@ func (n *node) OnModStart(ctx context.Context) error {
 	glog.Infof(context.Background(), "node %s starting....", n.Name)
 
 	loaded := map[string]bool{}
+	deps := []string{"redis", "pgx", "actor", "service"}
+	for _, dep := range deps {
+		if err := n.loadApp(ctx, dep, loaded); err != nil {
+			return err
+		}
+	}
 	for _, appName := range n.apps {
 		if err := n.loadApp(ctx, appName, loaded); err != nil {
 			return err
@@ -80,13 +86,6 @@ func (n *node) loadApp(ctx context.Context, appName string, loaded map[string]bo
 	app := gxyapp.GetApp(appName)
 	if app == nil {
 		return gerror.Newf("app %s not found", appName)
-	}
-
-	// 先加载依赖
-	for _, dep := range app.Deps() {
-		if err := n.loadApp(ctx, dep, loaded); err != nil {
-			return err
-		}
 	}
 
 	loaded[appName] = true

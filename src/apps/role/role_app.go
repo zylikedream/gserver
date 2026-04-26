@@ -2,11 +2,11 @@ package role
 
 import (
 	"context"
-	"gserver/src/apps/role/internal/logic"
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/logic"
 )
 
 type roleApp struct {
@@ -15,10 +15,6 @@ type roleApp struct {
 
 func NewRoleApp() *roleApp {
 	return &roleApp{}
-}
-
-func (r *roleApp) Deps() []string {
-	return []string{"redis", "pgx", "actor", "service"}
 }
 
 func (r *roleApp) ServiceName() string {

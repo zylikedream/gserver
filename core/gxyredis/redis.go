@@ -32,6 +32,9 @@ type redisApp struct {
 var app *redisApp
 
 func Redis() Client {
+	if app.conf == nil {
+		glog.Error(context.Background(), "redis not init, miss config")
+	}
 	return app.client
 }
 
@@ -42,8 +45,12 @@ func NewRedisApp() *redisApp {
 
 func (r *redisApp) OnModInit(ctx context.Context) error {
 	conf := &redisConfig{}
+	// 判断配置文件是否存在
 	if err := gxyutil.CfgUnmarshalKey(ctx, g.Cfg(), "redis", conf); err != nil {
 		return err
+	}
+	if conf.Addr == "" {
+		return nil
 	}
 	r.conf = conf
 	r.client = redis.NewUniversalClient(&redis.UniversalOptions{
@@ -56,6 +63,9 @@ func (r *redisApp) OnModInit(ctx context.Context) error {
 }
 
 func (r *redisApp) OnModStart(ctx context.Context) error {
+	if r.client == nil {
+		return nil
+	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 

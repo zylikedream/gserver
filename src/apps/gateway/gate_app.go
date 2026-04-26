@@ -2,12 +2,12 @@ package gateway
 
 import (
 	"context"
-	"gserver/src/apps/gateway/internal/logic"
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
 	"gserver/core/gxynet"
 	"gserver/core/gxynet/endpoint"
 	"gserver/protocol/pb"
+	"gserver/src/apps/gateway/internal/logic"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -21,10 +21,6 @@ type gateApp struct {
 
 func NewGateApp() *gateApp {
 	return &gateApp{}
-}
-
-func (s *gateApp) Deps() []string {
-	return []string{"redis", "actor", "service"}
 }
 
 func (s *gateApp) OnModInit(ctx context.Context) error {

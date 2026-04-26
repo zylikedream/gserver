@@ -24,6 +24,9 @@ type pgxConfig struct {
 var pgxAppInstance *PGXApp
 
 func PGX() *PGXApp {
+	if pgxAppInstance.conf == nil {
+		glog.Error(context.Background(), "pgx not init, miss config")
+	}
 	return pgxAppInstance
 }
 
@@ -37,6 +40,10 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 	if err := gxyutil.CfgUnmarshalKey(ctx, g.Cfg(), "postgres", conf); err != nil {
 		return err
 	}
+	if conf.URL == "" {
+		return nil
+	}
+	glog.Debugf(ctx, "conf = %v", conf)
 	p.conf = conf
 
 	poolConfig, err := pgxpool.ParseConfig(conf.URL)
@@ -51,6 +58,9 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 }
 
 func (p *PGXApp) OnModStart(ctx context.Context) error {
+	if p.pool == nil {
+		return nil
+	}
 	if err := p.pool.Ping(ctx); err != nil {
 		glog.Fatal(ctx, err)
 	}

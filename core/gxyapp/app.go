@@ -20,7 +20,6 @@ func GetApp(appName string) IApp {
 
 type IApp interface {
 	gxymodule.IModule
-	Deps() []string
 	AppName() string
 	SetAppName(name string)
 }

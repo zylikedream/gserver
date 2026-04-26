@@ -141,11 +141,8 @@ func createRoleActivityTable(ctx context.Context, pgx *gxypgx.PGXApp) error {
 func createRoleAccountTable(ctx context.Context, pgx *gxypgx.PGXApp) error {
 	sql := `
 	CREATE TABLE IF NOT EXISTS role_account (
-		role_id BIGINT PRIMARY KEY,
-		account_id BIGINT NOT NULL,
-		server_id INT NOT NULL,
-		update_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-		UNIQUE(account_id, server_id)
+		account VARCHAR(300) PRIMARY KEY,
+		role_id BIGINT 
 	)`
 
 	if err := pgx.CreateTable(ctx, sql); err != nil {
@@ -154,19 +151,13 @@ func createRoleAccountTable(ctx context.Context, pgx *gxypgx.PGXApp) error {
 
 	// update_at 索引
 	indexSQL1 := `
-	CREATE INDEX IF NOT EXISTS idx_role_account_update_at
-	ON role_account(update_at)
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_role_account_role_id
+	ON role_account(role_id)
 	`
 	if err := pgx.CreateIndex(ctx, indexSQL1); err != nil {
 		return err
 	}
-
-	// account_id + server_id 联合索引（用于按账号查询角色）
-	indexSQL2 := `
-	CREATE INDEX IF NOT EXISTS idx_role_account_account_server
-	ON role_account(account_id, server_id)
-	`
-	return pgx.CreateIndex(ctx, indexSQL2)
+	return nil
 }
 
 // createRoleExtraTable 创建扩展数据表
