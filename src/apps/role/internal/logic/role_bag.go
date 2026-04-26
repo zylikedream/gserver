@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 
 	"gserver/src/apps/role/internal/logic/bag"
 	cfg "gserver/gameconfig/src"
@@ -33,6 +34,7 @@ func (r *RoleBagState) GetIndexes() []string {
 type RoleBag struct {
 	RoleModule
 	RoleBagState
+	goodsMap map[int]*bag.BagGood
 }
 
 var _ IRoleModule = (*RoleBag)(nil)
@@ -42,25 +44,37 @@ func (r *RoleBag) PersistState() IPersistState {
 }
 
 func (r *RoleBag) OnModInit(ctx context.Context) error {
-	r.Goods = make(map[int]*bag.BagGood)
+	r.goodsMap = make(map[int]*bag.BagGood)
 	return nil
 }
 
+func (r *RoleBag) OnModStart(ctx context.Context) error {
+	if len(r.Goods) > 0 {
+		json.Unmarshal(r.Goods, &r.goodsMap)
+	}
+	return nil
+}
+
+func (r *RoleBag) SyncToPersist() {
+	data, _ := json.Marshal(r.goodsMap)
+	r.Goods = data
+}
+
 func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
-	have := r.Goods[item.ID]
+	have := r.goodsMap[item.ID]
 	if have == nil {
 		have = &bag.BagGood{
 			Type:   bag.GoodTypeItem,
 			PropID: item.ID,
 		}
-		r.Goods[item.ID] = have
+		r.goodsMap[item.ID] = have
 	}
 	chg := have.Update(have.Num + item.Num)
 	return chg, nil
 }
 
 func (r *RoleBag) GetItem(propID int) bag.Item {
-	good := r.Goods[propID]
+	good := r.goodsMap[propID]
 	if good == nil {
 		return bag.Item{ID: propID, Num: 0}
 	}
@@ -68,13 +82,13 @@ func (r *RoleBag) GetItem(propID int) bag.Item {
 }
 
 func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
-	have := r.Goods[item.ID]
+	have := r.goodsMap[item.ID]
 	if have == nil || item.Num > have.Num {
 		return nil, errors.Wrapf(ErrItemDecItemNotEnough, "have:%v, need:%v", have, item)
 	}
 	chg := have.Update(have.Num - item.Num)
 	if have.Num == 0 {
-		delete(r.Goods, item.ID)
+		delete(r.goodsMap, item.ID)
 	}
 	return chg, nil
 }
@@ -195,7 +209,7 @@ func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBa
 	msg := &pb.RspBagInfo{
 		Goods: []*pb.PGoodInfo{},
 	}
-	for _, good := range r.Goods {
+	for _, good := range r.goodsMap {
 		msg.Goods = append(msg.Goods, &pb.PGoodInfo{
 			PropId: int32(good.PropID),
 			Num:    int64(good.Num),

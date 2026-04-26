@@ -307,6 +307,11 @@ func (r *RoleMain) save(ctx context.Context) error {
 		}
 		modState.SetUpdateAt(time.Now())
 
+		// Sync JSONB fields from internal maps to datatypes.JSON
+		if syncer, ok := rmod.(interface{ SyncToPersist() }); ok {
+			syncer.SyncToPersist()
+		}
+
 		if err := gxypgx.DB().Save(modState).Error; err != nil {
 			tableName := modState.(tabler).TableName()
 			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
