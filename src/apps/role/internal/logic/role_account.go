@@ -2,37 +2,36 @@ package logic
 
 import (
 	"context"
-	"database/sql"
 	"errors"
+
 	"gserver/core/gxypgx"
 	"gserver/src/util/uid"
 
 	"github.com/gogf/gf/v2/os/glog"
+	"gorm.io/gorm"
 )
 
 type RoleAccount struct {
-	RoleID  int64  `db:"role_id"`
-	Account string `db:"account"`
+	RoleID  int64  `gorm:"column:role_id;uniqueIndex"`
+	Account string `gorm:"column:account;primaryKey"`
 }
 
+func (RoleAccount) TableName() string { return "role_account" }
+
 func GetRoleIDByAccount(account string) (int64, error) {
-	roleAccount := &RoleAccount{
-		Account: account,
-	}
-	err := gxypgx.PGX().FindOne(context.Background(), "role_account", roleAccount, "account=$1", account)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	roleAccount := &RoleAccount{}
+	err := gxypgx.DB().Where("account = ?", account).First(roleAccount).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return 0, err
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		// Account not found, create new role
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		roleID, err := genRoleID()
 		if err != nil {
 			return 0, err
 		}
 		roleAccount.RoleID = roleID
-		// Use UpsertOne to insert
-		err = gxypgx.PGX().UpsertOne(context.Background(), "role_account", roleAccount, "role_id=$1", roleID)
-		if err != nil {
+		roleAccount.Account = account
+		if err := gxypgx.DB().Save(roleAccount).Error; err != nil {
 			return 0, err
 		}
 	}
@@ -40,12 +39,10 @@ func GetRoleIDByAccount(account string) (int64, error) {
 }
 
 func GetAccountByRoleID(roleID int64) string {
-	roleAccount := &RoleAccount{
-		RoleID: roleID,
-	}
-	err := gxypgx.PGX().FindOne(context.Background(), "role_account", roleAccount, "role_id=$1", roleID)
+	roleAccount := &RoleAccount{}
+	err := gxypgx.DB().Where("role_id = ?", roleID).First(roleAccount).Error
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			glog.Errorf(context.Background(), "check role exist error, roleID: %d, err: %v", roleID, err)
 		}
 		return ""

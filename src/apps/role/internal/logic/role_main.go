@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"gserver/core/gxyactor"
@@ -21,6 +20,7 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
+	"gorm.io/gorm"
 )
 
 const (
@@ -194,8 +194,8 @@ type tabler interface {
 
 func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
 	tableName := modState.(tabler).TableName()
-	err := gxypgx.PGX().FindOne(ctx, tableName, modState, "role_id=$1", roleID)
-	if errors.Is(err, sql.ErrNoRows) {
+	err := gxypgx.DB().Table(tableName).Where("role_id = ?", roleID).First(modState).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		modState.SetRoleID(roleID)
 		return nil
 	}
@@ -305,15 +305,13 @@ func (r *RoleMain) save(ctx context.Context) error {
 		if modState == nil {
 			continue
 		}
-		tableName := modState.(tabler).TableName()
 		modState.SetUpdateAt(time.Now())
 
-		err := gxypgx.PGX().UpsertOne(ctx, tableName, modState, "role_id=$1", r.RoleID)
-		if err != nil {
+		if err := gxypgx.DB().Save(modState).Error; err != nil {
+			tableName := modState.(tabler).TableName()
 			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
 			continue
 		}
-		glog.Debugf(ctx, "save mod %s success, roleID: %d", tableName, r.RoleID)
 	}
 	if errStr != "" {
 		return errors.New(errStr)
