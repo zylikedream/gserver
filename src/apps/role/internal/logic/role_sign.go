@@ -28,13 +28,15 @@ import (
 
 // --------------------proto handlers start-------------
 type RoleSignState struct {
-	RolePersistState `db:"inline"`
-	DrawTime         time.Time `db:"sign_time"`        // 当日领取签到奖励
-	SignDay          int       `db:"sign_day"`         // 当月签到天数
-	AccumDrawStage   []int     `db:"accum_draw_stage"` // 累积奖励阶段
-	DrawDay          int       `db:"reward_day"`       // 当月领取奖励的天数
-	Patch            int       `db:"patch"`            // 补签天数
+	RolePersistState
+	DrawTime       time.Time `gorm:"column:draw_time"`          // 当日领取签到奖励
+	SignDay        int       `gorm:"column:sign_day"`           // 当月签到天数
+	AccumDrawStage []int     `gorm:"column:accum_draw_stage;type:int[];serializer:json"` // 累积奖励阶段
+	DrawDay        int       `gorm:"column:draw_day"`           // 当月领取奖励的天数
+	Patch          int       `gorm:"column:patch"`              // 补签天数
 }
+
+func (RoleSignState) TableName() string { return "role_sign" }
 
 func (r *RoleSignState) GetIndexes() []string {
 	return []string{"update_at"}

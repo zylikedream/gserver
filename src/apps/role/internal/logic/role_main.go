@@ -188,9 +188,13 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 	return nil
 }
 
+type tabler interface {
+	TableName() string
+}
+
 func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
-	colName := getColName(modState)
-	err := gxypgx.PGX().FindOne(ctx, colName, modState, "role_id=$1", roleID)
+	tableName := modState.(tabler).TableName()
+	err := gxypgx.PGX().FindOne(ctx, tableName, modState, "role_id=$1", roleID)
 	if errors.Is(err, sql.ErrNoRows) {
 		modState.SetRoleID(roleID)
 		return nil
@@ -301,15 +305,15 @@ func (r *RoleMain) save(ctx context.Context) error {
 		if modState == nil {
 			continue
 		}
-		colName := getColName(modState)
+		tableName := modState.(tabler).TableName()
 		modState.SetUpdateAt(time.Now())
 
-		err := gxypgx.PGX().UpsertOne(ctx, colName, modState, "role_id=$1", r.RoleID)
+		err := gxypgx.PGX().UpsertOne(ctx, tableName, modState, "role_id=$1", r.RoleID)
 		if err != nil {
-			errStr += fmt.Sprintf("save mod %s failed: %s", colName, err)
+			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
 			continue
 		}
-		glog.Debugf(ctx, "save mod %s success, roleID: %d", colName, r.RoleID)
+		glog.Debugf(ctx, "save mod %s success, roleID: %d", tableName, r.RoleID)
 	}
 	if errStr != "" {
 		return errors.New(errStr)

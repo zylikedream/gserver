@@ -8,14 +8,16 @@ import (
 )
 
 type RoleBasicState struct {
-	RolePersistState `db:"inline"`
-	RoleName         string    `db:"role_name"`
-	Head             string    `db:"head"`
-	LoginTm          time.Time `db:"login_tm"`
-	LogoutTm         time.Time `db:"logout_tm"`
-	CreateTm         time.Time `db:"create_tm"` // 创角时间
-	VipLv            int       `db:"vip_lv"`
+	RolePersistState
+	RoleName string    `gorm:"column:role_name"`
+	Head     string    `gorm:"column:head"`
+	LoginTm  time.Time `gorm:"column:login_tm"`
+	LogoutTm time.Time `gorm:"column:logout_tm"`
+	CreateTm time.Time `gorm:"column:create_tm"` // 创角时间
+	VipLv    int       `gorm:"column:vip_lv"`
 }
+
+func (RoleBasicState) TableName() string { return "role_basic" }
 
 func (r *RoleBasicState) GetIndexes() []string {
 	return []string{"update_at"}

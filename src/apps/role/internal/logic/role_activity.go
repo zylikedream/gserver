@@ -9,19 +9,22 @@ import (
 
 	"github.com/ahmetb/go-linq"
 	"github.com/gogf/gf/v2/os/glog"
+	"gorm.io/datatypes"
 )
 
 type RoleActivityPersistState struct {
-	RolePersistState `db:"inline"`
-	Activitys        map[int32]server.ActivityData `db:"activitys"`
+	RolePersistState
+	Activitys datatypes.JSON `gorm:"column:activitys;type:jsonb"`
 }
+
+func (RoleActivityPersistState) TableName() string { return "role_activity" }
 
 func (r *RoleActivityPersistState) GetIndexes() []string {
 	return []string{"update_at"}
 }
 
 type RoleActivity struct {
-	RoleModule `db:"inline"`
+	RoleModule
 	RoleActivityPersistState
 }
 

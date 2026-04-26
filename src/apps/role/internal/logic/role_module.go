@@ -3,10 +3,7 @@ package logic
 import (
 	"context"
 	"gserver/core/gxymodule"
-	"gserver/core/gxyutil"
 	"time"
-
-	"github.com/gogf/gf/v2/text/gstr"
 )
 
 type IRoleModule interface {
@@ -24,8 +21,8 @@ type IPersistState interface {
 }
 
 type RolePersistState struct {
-	RoleID   int64     `db:"role_id"`
-	UpdateAt time.Time `db:"update_at"`
+	RoleID   int64     `gorm:"column:role_id;primaryKey"`
+	UpdateAt time.Time `gorm:"column:update_at;autoUpdateTime"`
 }
 
 func (r *RolePersistState) SetRoleID(roleID int64) {
@@ -44,14 +41,10 @@ func (r *RolePersistState) GetIndexes() []string {
 	return []string{"update_at"}
 }
 
-func getColName(mod IPersistState) string {
-	return gstr.CaseSnake(gxyutil.GetObjectName(mod))
-}
-
 type RoleModule struct {
-	gxymodule.ModuleBase `db:"-"`
-	RoleID               int64
-	Role                 *RoleMain `db:"-"`
+	gxymodule.ModuleBase
+	RoleID int64
+	Role   *RoleMain
 }
 
 func (r *RoleModule) SetRole(role *RoleMain) {

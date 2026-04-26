@@ -12,6 +12,7 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 )
 
 var (
@@ -19,9 +20,11 @@ var (
 )
 
 type RoleBagState struct {
-	RolePersistState `db:"inline"`
-	Goods            map[int]*bag.BagGood `db:"goods"`
+	RolePersistState
+	Goods datatypes.JSON `gorm:"column:goods;type:jsonb"`
 }
+
+func (RoleBagState) TableName() string { return "role_bag" }
 
 func (r *RoleBagState) GetIndexes() []string {
 	return []string{"update_at"}

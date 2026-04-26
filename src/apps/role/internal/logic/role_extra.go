@@ -6,16 +6,18 @@ import (
 )
 
 type RoleExtraPersistState struct {
-	RolePersistState `db:"inline"`
-	CronTm           time.Time `db:"cron_tm"`
+	RolePersistState
+	CronTm time.Time `gorm:"column:cron_tm"`
 }
+
+func (RoleExtraPersistState) TableName() string { return "role_extra" }
 
 func (r *RoleExtraPersistState) GetIndexes() []string {
 	return []string{"update_at"}
 }
 
 type RoleExtra struct {
-	RoleModule `db:"inline"`
+	RoleModule
 	RoleExtraPersistState
 }
 

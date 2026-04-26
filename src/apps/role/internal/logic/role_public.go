@@ -17,11 +17,13 @@ const (
 )
 
 type RolePublicState struct {
-	RolePersistState `db:"inline"`
-	Name             string    `db:"name"`
-	Head             string    `db:"head"`
-	CreateTime       time.Time `db:"create_time"`
+	RolePersistState
+	Name       string    `gorm:"column:name"`
+	Head       string    `gorm:"column:head"`
+	CreateTime time.Time `gorm:"column:create_time"`
 }
+
+func (RolePublicState) TableName() string { return "role_public" }
 
 func (r *RolePublicState) GetIndexes() []string {
 	return []string{"update_at"}
