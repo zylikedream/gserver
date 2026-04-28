@@ -61,9 +61,7 @@ func registerMessage(md protoreflect.MessageDescriptor) {
 
 	id := strconv.FormatUint(uint64(msgID), 10)
 	typ := reflect.TypeOf(instance)
-	if typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
+	typ = typ.Elem()
 
 	meta := &messageMeta{
 		id:   id,
@@ -83,10 +81,7 @@ func MessageTypeByID(id string) reflect.Type {
 }
 
 func IDByMessage(msg proto.Message) string {
-	typ := reflect.TypeOf(msg)
-	if typ.Kind() == reflect.Ptr {
-		typ = typ.Elem()
-	}
+	typ := reflect.TypeOf(msg).Elem()
 	m, ok := metaByType[typ]
 	if !ok {
 		return ""
