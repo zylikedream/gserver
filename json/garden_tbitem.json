@@ -1,72 +1,142 @@
 [
   {
+    "id": 1,
+    "name": "金币",
+    "desc": "通用货币",
+    "major_type": 0,
+    "sub_type": 1,
+    "quality": 0,
+    "price": 0,
+    "max_stack": 999999,
+    "icon": "icon_gold",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": false
+  },
+  {
+    "id": 2,
+    "name": "钻石",
+    "desc": "稀有货币",
+    "major_type": 0,
+    "sub_type": 2,
+    "quality": 4,
+    "price": 0,
+    "max_stack": 999999,
+    "icon": "icon_diamond",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": false
+  },
+  {
+    "id": 3,
+    "name": "水滴",
+    "desc": "行动力",
+    "major_type": 0,
+    "sub_type": 3,
+    "quality": 0,
+    "price": 0,
+    "max_stack": 9999,
+    "icon": "icon_water_drop",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": false
+  },
+  {
     "id": 1001,
     "name": "玫瑰种子",
     "desc": "普通的玫瑰花种子",
     "major_type": 1,
+    "sub_type": 10,
     "quality": 0,
     "price": 10,
     "max_stack": 99,
-    "icon": "icon_seed_rose"
+    "icon": "icon_seed_rose",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": true
   },
   {
     "id": 1002,
     "name": "向日葵种子",
     "desc": "金灿灿的向日葵种子",
     "major_type": 1,
+    "sub_type": 10,
     "quality": 0,
     "price": 15,
     "max_stack": 99,
-    "icon": "icon_seed_sunflower"
+    "icon": "icon_seed_sunflower",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": true
   },
   {
     "id": 1003,
     "name": "郁金香种子",
     "desc": "高贵的郁金香种子",
     "major_type": 1,
+    "sub_type": 10,
     "quality": 1,
     "price": 30,
     "max_stack": 99,
-    "icon": "icon_seed_tulip"
+    "icon": "icon_seed_tulip",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": true
   },
   {
     "id": 2001,
     "name": "花肥",
     "desc": "让花朵长得更快的肥料",
-    "major_type": 2,
+    "major_type": 1,
+    "sub_type": 20,
     "quality": 0,
     "price": 50,
     "max_stack": 999,
-    "icon": "icon_fertilizer"
+    "icon": "icon_fertilizer",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": true
   },
   {
     "id": 2002,
     "name": "水壶",
     "desc": "浇花必备工具",
-    "major_type": 3,
+    "major_type": 1,
+    "sub_type": 30,
     "quality": 2,
     "price": 200,
     "max_stack": 1,
-    "icon": "icon_watering_can"
+    "icon": "icon_watering_can",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": false
   },
   {
     "id": 3001,
     "name": "木质长椅",
     "desc": "舒适的花园长椅",
-    "major_type": 4,
+    "major_type": 1,
+    "sub_type": 40,
     "quality": 1,
     "price": 500,
     "max_stack": 10,
-    "icon": "icon_bench_wood"
+    "icon": "icon_bench_wood",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": true
   },
   {
     "id": 3002,
     "name": "小喷泉",
     "desc": "花园中央的小喷泉",
-    "major_type": 4,
+    "major_type": 1,
+    "sub_type": 40,
     "quality": 3,
     "price": 2000,
     "max_stack": 5,
-    "icon": "icon_fountain"
+    "icon": "icon_fountain",
+    "use_type": 0,
+    "use_param": "",
+    "can_sell": true
   }
 ]

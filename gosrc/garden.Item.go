@@ -17,10 +17,14 @@ type GardenItem struct {
     Name string
     Desc string
     MajorType GardenEItemMajorType
+    SubType GardenEItemSubType
     Quality GardenEItemQuality
     Price int32
     MaxStack int32
     Icon string
+    UseType GardenEItemUseType
+    UseParam string
+    CanSell bool
 }
 
 const TypeId_GardenItem = -1350804660
@@ -35,10 +39,14 @@ func NewGardenItem(_buf map[string]interface{}) (_v *GardenItem, err error) {
     { var _ok_ bool; var __json_name__ interface{}; if __json_name__, _ok_ = _buf["name"]; !_ok_ || __json_name__ == nil { err = errors.New("name error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_name__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Name = __x__ }}
     { var _ok_ bool; var __json_desc__ interface{}; if __json_desc__, _ok_ = _buf["desc"]; !_ok_ || __json_desc__ == nil { err = errors.New("desc error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_desc__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Desc = __x__ }}
     { var _ok_ bool; var __json_major_type__ interface{}; if __json_major_type__, _ok_ = _buf["major_type"]; !_ok_ || __json_major_type__ == nil { err = errors.New("major_type error"); return } else { var __x__ GardenEItemMajorType;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_major_type__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenEItemMajorType(_x_) }; _v.MajorType = __x__ }}
+    { var _ok_ bool; var __json_sub_type__ interface{}; if __json_sub_type__, _ok_ = _buf["sub_type"]; !_ok_ || __json_sub_type__ == nil { err = errors.New("sub_type error"); return } else { var __x__ GardenEItemSubType;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_sub_type__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenEItemSubType(_x_) }; _v.SubType = __x__ }}
     { var _ok_ bool; var __json_quality__ interface{}; if __json_quality__, _ok_ = _buf["quality"]; !_ok_ || __json_quality__ == nil { err = errors.New("quality error"); return } else { var __x__ GardenEItemQuality;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_quality__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenEItemQuality(_x_) }; _v.Quality = __x__ }}
     { var _ok_ bool; var __json_price__ interface{}; if __json_price__, _ok_ = _buf["price"]; !_ok_ || __json_price__ == nil { err = errors.New("price error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_price__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Price = __x__ }}
     { var _ok_ bool; var __json_max_stack__ interface{}; if __json_max_stack__, _ok_ = _buf["max_stack"]; !_ok_ || __json_max_stack__ == nil { err = errors.New("max_stack error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_max_stack__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.MaxStack = __x__ }}
     { var _ok_ bool; var __json_icon__ interface{}; if __json_icon__, _ok_ = _buf["icon"]; !_ok_ || __json_icon__ == nil { err = errors.New("icon error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_icon__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Icon = __x__ }}
+    { var _ok_ bool; var __json_use_type__ interface{}; if __json_use_type__, _ok_ = _buf["use_type"]; !_ok_ || __json_use_type__ == nil { err = errors.New("use_type error"); return } else { var __x__ GardenEItemUseType;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_use_type__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenEItemUseType(_x_) }; _v.UseType = __x__ }}
+    { var _ok_ bool; var __json_use_param__ interface{}; if __json_use_param__, _ok_ = _buf["use_param"]; !_ok_ || __json_use_param__ == nil { err = errors.New("use_param error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_use_param__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.UseParam = __x__ }}
+    { var _ok_ bool; var __json_can_sell__ interface{}; if __json_can_sell__, _ok_ = _buf["can_sell"]; !_ok_ || __json_can_sell__ == nil { err = errors.New("can_sell error"); return } else { var __x__ bool;  { var _ok_ bool; if __x__, _ok_ = __json_can_sell__.(bool); !_ok_ { err = errors.New("__x__ error"); return } }; _v.CanSell = __x__ }}
     return
 }
 
