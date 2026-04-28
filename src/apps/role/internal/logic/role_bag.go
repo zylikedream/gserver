@@ -2,10 +2,11 @@ package logic
 
 import (
 	"context"
+	"database/sql/driver"
 	"encoding/json"
 
-	"gserver/src/apps/role/internal/logic/bag"
 	cfg "gserver/gameconfig/src"
+	"gserver/src/apps/role/internal/logic/bag"
 
 	"gserver/protocol/pb"
 
@@ -13,16 +14,46 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"gorm.io/datatypes"
 )
 
 var (
 	ErrItemDecItemNotEnough = errors.New("dec item not enough")
 )
 
+type GoodsMap map[int]*bag.BagGood
+
+// Value 实现 driver.Valuer 接口，将 map 转换为 JSON 字节
+func (m GoodsMap) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return json.Marshal(m)
+}
+
+// Scan 实现 sql.Scanner 接口，将 JSON 字节转换为 map
+func (m *GoodsMap) Scan(value interface{}) error {
+	if value == nil {
+		*m = make(GoodsMap)
+		return nil
+	}
+
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("invalid type for GoodsMap")
+	}
+
+	var goodsMap map[int]*bag.BagGood
+	if err := json.Unmarshal(bytes, &goodsMap); err != nil {
+		return err
+	}
+
+	*m = GoodsMap(goodsMap)
+	return nil
+}
+
 type RoleBagState struct {
 	RolePersistState
-	Goods datatypes.JSON `gorm:"column:goods;type:jsonb"`
+	Goods GoodsMap `gorm:"column:goods;type:jsonb"`
 }
 
 func (RoleBagState) TableName() string { return "role_bag" }
@@ -34,7 +65,6 @@ func (r *RoleBagState) GetIndexes() []string {
 type RoleBag struct {
 	RoleModule
 	RoleBagState
-	goodsMap map[int]*bag.BagGood
 }
 
 var _ IRoleModule = (*RoleBag)(nil)
@@ -44,37 +74,24 @@ func (r *RoleBag) PersistState() IPersistState {
 }
 
 func (r *RoleBag) OnModInit(ctx context.Context) error {
-	r.goodsMap = make(map[int]*bag.BagGood)
 	return nil
-}
-
-func (r *RoleBag) OnModStart(ctx context.Context) error {
-	if len(r.Goods) > 0 {
-		json.Unmarshal(r.Goods, &r.goodsMap)
-	}
-	return nil
-}
-
-func (r *RoleBag) SyncToPersist() {
-	data, _ := json.Marshal(r.goodsMap)
-	r.Goods = data
 }
 
 func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
-	have := r.goodsMap[item.ID]
+	have := r.Goods[item.ID]
 	if have == nil {
 		have = &bag.BagGood{
 			Type:   bag.GoodTypeItem,
 			PropID: item.ID,
 		}
-		r.goodsMap[item.ID] = have
+		r.Goods[item.ID] = have
 	}
 	chg := have.Update(have.Num + item.Num)
 	return chg, nil
 }
 
 func (r *RoleBag) GetItem(propID int) bag.Item {
-	good := r.goodsMap[propID]
+	good := r.Goods[propID]
 	if good == nil {
 		return bag.Item{ID: propID, Num: 0}
 	}
@@ -82,13 +99,13 @@ func (r *RoleBag) GetItem(propID int) bag.Item {
 }
 
 func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
-	have := r.goodsMap[item.ID]
+	have := r.Goods[item.ID]
 	if have == nil || item.Num > have.Num {
 		return nil, errors.Wrapf(ErrItemDecItemNotEnough, "have:%v, need:%v", have, item)
 	}
 	chg := have.Update(have.Num - item.Num)
 	if have.Num == 0 {
-		delete(r.goodsMap, item.ID)
+		delete(r.Goods, item.ID)
 	}
 	return chg, nil
 }
@@ -107,6 +124,7 @@ func (r *RoleBag) AddItemRc(ctx context.Context, itemRcList []*cfg.ItemItemRC) e
 func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
 	var chgs []*bag.BagChange
 	itemList = r.ClassifyItemList(itemList)
+	r.MarkDirty()
 	for _, item := range itemList {
 		if chg, err := r.AddSingleItem(ctx, item); err != nil {
 			// todo 格子满了的处理
@@ -209,7 +227,7 @@ func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBa
 	msg := &pb.RspBagInfo{
 		Goods: []*pb.PGoodInfo{},
 	}
-	for _, good := range r.goodsMap {
+	for _, good := range r.Goods {
 		msg.Goods = append(msg.Goods, &pb.PGoodInfo{
 			PropId: int32(good.PropID),
 			Num:    int64(good.Num),

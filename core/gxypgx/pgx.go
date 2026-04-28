@@ -10,6 +10,7 @@ import (
 	"github.com/gogf/gf/v2/os/glog"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type PGXApp struct {
@@ -51,7 +52,9 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 	glog.Debugf(ctx, "conf = %v", conf)
 	p.conf = conf
 
-	db, err := gorm.Open(postgres.Open(conf.URL), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(conf.URL), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Error),
+	})
 	if err != nil {
 		return err
 	}

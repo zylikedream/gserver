@@ -192,7 +192,7 @@ type tabler interface {
 	TableName() string
 }
 
-func loadModuleState(ctx context.Context, roleID int64, modState IPersistState) error {
+func loadModuleState(_ context.Context, roleID int64, modState IPersistState) error {
 	tableName := modState.(tabler).TableName()
 	err := gxypgx.DB().Table(tableName).Where("role_id = ?", roleID).First(modState).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -213,10 +213,11 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 	if state != RoleStateLogined {
 		return false
 	}
-	return false
+	return true
 }
 
 func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
+	glog.Debugf(ctx, "handle role msg, msg: %s", gxyutil.FormatObject(msg))
 	_, err := r.AutoHandleMsg(ctx, msg)
 	return err
 }
@@ -233,7 +234,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		return nil, nil
 	}
 	var rsp proto.Message
-	res, err := r.CallMsgHandler(ctx, pbmsg)
+	res, err := r.DoCallMsgHandler(ctx, pbmsg)
 	if err != nil {
 		res = &pb.Ack{
 			Code:   1,
@@ -294,7 +295,7 @@ func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo
 	r.Sign.SignDayRrefresh(ctx, info)
 }
 
-func (r *RoleMain) save(ctx context.Context) error {
+func (r *RoleMain) save(_ context.Context) error {
 	var errStr string
 	for _, mod := range r.Modules() {
 		rmod, _ := mod.(IRoleModule)
@@ -302,21 +303,17 @@ func (r *RoleMain) save(ctx context.Context) error {
 			continue
 		}
 		modState := rmod.PersistState()
-		if modState == nil {
+		if modState == nil || !modState.IsDirty() {
 			continue
 		}
 		modState.SetUpdateAt(time.Now())
-
-		// Sync JSONB fields from internal maps to datatypes.JSON
-		if syncer, ok := rmod.(interface{ SyncToPersist() }); ok {
-			syncer.SyncToPersist()
-		}
 
 		if err := gxypgx.DB().Save(modState).Error; err != nil {
 			tableName := modState.(tabler).TableName()
 			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
 			continue
 		}
+		modState.ClearDirty()
 	}
 	if errStr != "" {
 		return errors.New(errStr)
@@ -366,6 +363,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	}
 	return &pb.RspAccountLogin{
 		FirstLogin: firstLogin,
+		RoleId:     r.RoleID,
 	}, nil
 }
 

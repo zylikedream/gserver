@@ -25,11 +25,48 @@ const (
 	ActorLocateUpdateInterval = 30 * time.Second
 )
 
+// hashableActorActive wraps pb.ActorActive to implement router.Hasher
+// so the consistent-hash pool can route by actor id.
+type hashableActorActive struct {
+	*pb.ActorActive
+	hash string
+}
+
+func (m *hashableActorActive) Hash() string { return m.hash }
+
 type activatorMeta struct {
 	Kind      string
 	Props     *actor.Props
-	Activator PID
+	Activator PID // router PID (external entry point)
+	Pool      PID // consistent-hash pool PID (internal)
 	mgr       *ActorMgr
+}
+
+// activatorRouter is a thin proxy that receives pb.ActorActive from remote nodes
+// and forwards them as hashableActorActive to the local consistent-hash pool.
+type activatorRouter struct {
+	*ActorBase
+	poolPID PID
+}
+
+func NewActivatorRouter(poolPID PID) *activatorRouter {
+	r := &activatorRouter{poolPID: poolPID}
+	ctx := gxylog.NewContext(context.Background(), "activator_router")
+	r.ActorBase = NewActorBase(ctx, r)
+	return r
+}
+
+func (r *activatorRouter) HandleMessage(ctx context.Context, msg any) error {
+	switch msg := msg.(type) {
+	case *pb.ActorActive:
+		sender := r.Actx.Sender()
+		wrapped := &hashableActorActive{
+			ActorActive: msg,
+			hash:        msg.Id,
+		}
+		r.Actx.RequestWithCustomSender(r.poolPID, wrapped, sender)
+	}
+	return nil
 }
 
 type actorActivator struct {
@@ -68,7 +105,7 @@ func (a *actorActivator) DelayInit(ctx context.Context) error {
 
 func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
-	case *pb.ActorActive:
+	case *hashableActorActive:
 		props := a.meta.Props.Clone()
 		pid, err := SpawnNamed(props, msg.Id, msg.Id)
 		if err != nil {
@@ -167,12 +204,17 @@ func (g *activatorManager) OnModInit(ctx context.Context) error {
 func (g *activatorManager) OnModStop(ctx context.Context) error {
 	for _, info := range g.activatorMetas {
 		StopActor(info.Activator)
+		StopActor(info.Pool)
 	}
 	return nil
 }
 
 func (g *activatorManager) getPoolName(kind string) string {
 	return fmt.Sprintf("%s_%s", "ActivatorPool", kind)
+}
+
+func (g *activatorManager) getRouterName(kind string) string {
+	return fmt.Sprintf("%s_%s", "ActivatorRouter", kind)
 }
 
 func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) error {
@@ -184,7 +226,9 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 		Props: actorProps,
 	}
 	g.activatorMetas[kind] = meta
-	pid, err := SpawnNamed(
+
+	// Create consistent-hash pool (internal)
+	poolPID, err := SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
 			return NewActorActivator(kind, g)
 		})), g.getPoolName(kind))
@@ -192,7 +236,19 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 		g.activatorMetas[kind] = nil
 		return err
 	}
-	meta.Activator = pid
+	meta.Pool = poolPID
+
+	// Create router (external entry point for remote nodes)
+	routerPID, err := SpawnNamed(
+		actor.PropsFromProducer(func() actor.Actor {
+			return NewActivatorRouter(poolPID)
+		}), g.getRouterName(kind))
+	if err != nil {
+		StopActor(poolPID)
+		g.activatorMetas[kind] = nil
+		return err
+	}
+	meta.Activator = routerPID
 	meta.mgr = NewActorMgr(fmt.Sprintf("%s_%s", "actorMgr", kind))
 	return nil
 }
@@ -203,12 +259,13 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 		return
 	}
 	StopActor(info.Activator)
+	StopActor(info.Pool)
 	delete(g.activatorMetas, kind)
 }
 
 func (g *activatorManager) spawnActor(node string, kind string, id string) (PID, error) {
 	glog.Debugf(g.ctx, "spawn actor %s:%s at %s", kind, id, node)
-	activator := actor.NewPID(node, g.getPoolName(kind))
+	activator := actor.NewPID(node, g.getRouterName(kind))
 	rsp, err := Call(activator, &pb.ActorActive{
 		Kind: kind,
 		Id:   id,

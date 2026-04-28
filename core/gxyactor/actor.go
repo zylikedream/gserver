@@ -108,6 +108,8 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	case *actor.Stopped:
 		a.timer.Stop(a.ctx)
 		a.actor.Terminate(a.ctx, a.stopErr)
+	case actor.AutoRespond:
+		// Touch etc. — protoactor handles the response automatically
 	default:
 		if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
 			glog.Errorf(a.ctx, "handle msg failed, msg:%v, error:%+v", msg, err)
@@ -117,7 +119,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 }
 
 func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
-	rsp, err := a.CallMsgHandler(a.ctx, msg)
+	rsp, err := a.callMsgHandler(a.ctx, msg)
 	if err != nil {
 		glog.Errorf(a.ctx, "handle rpc msg failed, msg:%v, error:%+v", msg, err)
 		a.Respond(&pb.ActorError{
@@ -131,12 +133,17 @@ func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 	return rsp, nil
 }
 
-func (a *ActorBase) CallMsgHandler(ctx context.Context, msg any) (any, error) {
+func (a *ActorBase) callMsgHandler(ctx context.Context, msg any) (any, error) {
 	tm := time.Now()
 	glog.Debugf(ctx, "handle msg start, msg: %v", gxyutil.FormatObject(msg))
-	result, err := a.CallHandlerMsg(ctx, msg)
+	result, err := a.DoCallMsgHandler(ctx, msg)
 	glog.Debugf(ctx, "handle msg end, msg: %s, result: %s, err %+v, cost: %vms",
 		gxyutil.FormatObject(msg), gxyutil.FormatObject(result), err, time.Since(tm).Milliseconds())
+	return result, nil
+}
+
+func (a *ActorBase) DoCallMsgHandler(ctx context.Context, msg any) (any, error) {
+	result, err := a.CallHandlerMsg(ctx, msg)
 	if err != nil {
 		return nil, err
 	}

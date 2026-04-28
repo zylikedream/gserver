@@ -72,6 +72,7 @@ func NewSession(ep endpoint.Endpoint) *Session {
 func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *message.Message:
+		glog.Debugf(ctx, "handle client msg, msg: %s", gxyutil.FormatObject(msg))
 		if err := s.OnHandleClientMessage(ctx, msg); err != nil {
 			return gerror.Wrap(err, "handle client message error")
 		}
@@ -212,6 +213,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	case *pb.RspAccountLogin:
 		s.state = StateLogin
 	}
+	glog.Debugf(ctx, "send client msg, msg: %s", gxyutil.FormatObject(pbmsg))
 	if err := s.endpoint.SendMsg(pbmsg); err != nil {
 		return gerror.Wrap(err, "send rsp error, err: %v")
 	}

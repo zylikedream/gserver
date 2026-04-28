@@ -18,6 +18,7 @@ func InitRoleSchema(ctx context.Context) {
 		&RoleSignState{},
 		&RoleActivityPersistState{},
 		&RoleExtraPersistState{},
+		&RolePublicState{},
 	); err != nil {
 		glog.Fatal(ctx, err)
 	}

@@ -12,12 +12,12 @@ import (
 	"context"
 	"time"
 
-	"gserver/src/apps/role/internal/event"
 	"gserver/core/gxytimer"
 	"gserver/gameconfig"
 	cfg "gserver/gameconfig/src"
 	gametable "gserver/gameconfig/src"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/event"
 	"gserver/src/util"
 
 	"github.com/gogf/gf/v2/os/glog"
@@ -29,11 +29,11 @@ import (
 // --------------------proto handlers start-------------
 type RoleSignState struct {
 	RolePersistState
-	DrawTime       time.Time `gorm:"column:draw_time"`          // 当日领取签到奖励
-	SignDay        int       `gorm:"column:sign_day"`           // 当月签到天数
+	DrawTime       time.Time `gorm:"column:draw_time"`                                   // 当日领取签到奖励
+	SignDay        int       `gorm:"column:sign_day"`                                    // 当月签到天数
 	AccumDrawStage []int     `gorm:"column:accum_draw_stage;type:int[];serializer:json"` // 累积奖励阶段
-	DrawDay        int       `gorm:"column:draw_day"`           // 当月领取奖励的天数
-	Patch          int       `gorm:"column:patch"`              // 补签天数
+	DrawDay        int       `gorm:"column:draw_day"`                                    // 当月领取奖励的天数
+	Patch          int       `gorm:"column:patch"`                                       // 补签天数
 }
 
 func (RoleSignState) TableName() string { return "role_sign" }
@@ -53,7 +53,7 @@ func (s *RoleSign) PersistState() IPersistState {
 	return &s.RoleSignState
 }
 
-func (s *RoleSign) OnModInit(ctx context.Context) error {
+func (s *RoleSign) OnModStart(ctx context.Context) error {
 	s.Role.eventBus.Subscribe(MakeActivityOpenEvent(gametable.ActivityEActivityType_ACTIVITY_TYPE_SIGNUP), func(event event.EventParam) {
 		s.reset(ctx)
 	})
