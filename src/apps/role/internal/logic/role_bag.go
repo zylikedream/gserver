@@ -124,7 +124,6 @@ func (r *RoleBag) AddItemRc(ctx context.Context, itemRcList []*cfg.ItemItemRC) e
 func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
 	var chgs []*bag.BagChange
 	itemList = r.ClassifyItemList(itemList)
-	r.MarkDirty()
 	for _, item := range itemList {
 		if chg, err := r.AddSingleItem(ctx, item); err != nil {
 			// todo 格子满了的处理
