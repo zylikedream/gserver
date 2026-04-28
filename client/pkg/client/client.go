@@ -31,7 +31,8 @@ type Client struct {
 	mu       sync.Mutex
 	pendings map[string]*pendingRequest
 
-	onMessage func(msg proto.Message)
+	onMessage  func(msg proto.Message)
+	onResponse func(msg proto.Message)
 }
 
 func NewClient(cfg Config) *Client {
@@ -102,8 +103,14 @@ func (c *Client) Send(msg proto.Message) error {
 }
 
 func (c *Client) Request(msg proto.Message) error {
-	_, err := c.doRequest(msg, c.conn.Send)
-	return err
+	rsp, err := c.doRequest(msg, c.conn.Send)
+	if err != nil {
+		return err
+	}
+	if c.onResponse != nil {
+		c.onResponse(rsp)
+	}
+	return nil
 }
 
 func (c *Client) RequestWithResponse(msg proto.Message) (proto.Message, error) {
@@ -112,6 +119,10 @@ func (c *Client) RequestWithResponse(msg proto.Message) (proto.Message, error) {
 
 func (c *Client) OnMessage(handler func(msg proto.Message)) {
 	c.onMessage = handler
+}
+
+func (c *Client) OnResponse(handler func(msg proto.Message)) {
+	c.onResponse = handler
 }
 
 type sendFunc func(proto.Message) error

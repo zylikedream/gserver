@@ -61,6 +61,10 @@ func main() {
 		printProtoJSON("[push]", msg)
 	})
 
+	c.OnResponse(func(msg proto.Message) {
+		printProtoJSON("←", msg)
+	})
+
 	fmt.Printf("connecting to %s...\n", serverAddr)
 	if err := c.Connect(); err != nil {
 		fmt.Printf("connect failed: %v\n", err)
