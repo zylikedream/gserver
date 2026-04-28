@@ -24,6 +24,10 @@ const (
      */
     GardenEItemSubType_WATER_DROP GardenEItemSubType = 3;
     /**
+     * 元宝
+     */
+    GardenEItemSubType_PREMIUM GardenEItemSubType = 4;
+    /**
      * 种子
      */
     GardenEItemSubType_SEED GardenEItemSubType = 10;

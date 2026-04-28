@@ -16,7 +16,7 @@
   {
     "id": 2,
     "name": "钻石",
-    "desc": "稀有货币",
+    "desc": "付费货币",
     "major_type": 1,
     "sub_type": 2,
     "quality": 5,
@@ -37,6 +37,20 @@
     "price": 0,
     "max_stack": 9999,
     "icon": "icon_water_drop",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": false
+  },
+  {
+    "id": 4,
+    "name": "元宝",
+    "desc": "高级货币，加速培育、VIP商店",
+    "major_type": 1,
+    "sub_type": 4,
+    "quality": 5,
+    "price": 0,
+    "max_stack": 999999,
+    "icon": "icon_premium",
     "use_type": 1,
     "use_param": "",
     "can_sell": false
@@ -84,6 +98,48 @@
     "can_sell": true
   },
   {
+    "id": 1004,
+    "name": "百合种子",
+    "desc": "纯洁的百合花种子",
+    "major_type": 2,
+    "sub_type": 10,
+    "quality": 2,
+    "price": 25,
+    "max_stack": 99,
+    "icon": "icon_seed_lily",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": true
+  },
+  {
+    "id": 1005,
+    "name": "薰衣草种子",
+    "desc": "浪漫的薰衣草种子",
+    "major_type": 2,
+    "sub_type": 10,
+    "quality": 1,
+    "price": 20,
+    "max_stack": 99,
+    "icon": "icon_seed_lavender",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": true
+  },
+  {
+    "id": 1006,
+    "name": "雏菊种子",
+    "desc": "可爱的小雏菊种子",
+    "major_type": 2,
+    "sub_type": 10,
+    "quality": 1,
+    "price": 8,
+    "max_stack": 99,
+    "icon": "icon_seed_daisy",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": true
+  },
+  {
     "id": 2001,
     "name": "花肥",
     "desc": "让花朵长得更快的肥料",
@@ -99,6 +155,48 @@
   },
   {
     "id": 2002,
+    "name": "营养土",
+    "desc": "富含养分的营养土",
+    "major_type": 2,
+    "sub_type": 20,
+    "quality": 1,
+    "price": 40,
+    "max_stack": 999,
+    "icon": "icon_soil",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": true
+  },
+  {
+    "id": 2003,
+    "name": "营养药剂",
+    "desc": "促进花朵生长的药剂",
+    "major_type": 2,
+    "sub_type": 20,
+    "quality": 2,
+    "price": 80,
+    "max_stack": 999,
+    "icon": "icon_potion",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": true
+  },
+  {
+    "id": 2004,
+    "name": "能量瓶",
+    "desc": "蕴含神秘能量的瓶子",
+    "major_type": 2,
+    "sub_type": 20,
+    "quality": 2,
+    "price": 100,
+    "max_stack": 999,
+    "icon": "icon_energy",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": true
+  },
+  {
+    "id": 3001,
     "name": "水壶",
     "desc": "浇花必备工具",
     "major_type": 2,
@@ -112,7 +210,7 @@
     "can_sell": false
   },
   {
-    "id": 3001,
+    "id": 4001,
     "name": "木质长椅",
     "desc": "舒适的花园长椅",
     "major_type": 2,
@@ -126,7 +224,7 @@
     "can_sell": true
   },
   {
-    "id": 3002,
+    "id": 4002,
     "name": "小喷泉",
     "desc": "花园中央的小喷泉",
     "major_type": 2,
@@ -138,5 +236,33 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": true
+  },
+  {
+    "id": 5001,
+    "name": "新手礼包",
+    "desc": "适合新手的成长礼包",
+    "major_type": 2,
+    "sub_type": 50,
+    "quality": 3,
+    "price": 0,
+    "max_stack": 1,
+    "icon": "icon_gift",
+    "use_type": 2,
+    "use_param": "10001",
+    "can_sell": false
+  },
+  {
+    "id": 5002,
+    "name": "体力药剂",
+    "desc": "恢复50点水滴",
+    "major_type": 2,
+    "sub_type": 60,
+    "quality": 1,
+    "price": 0,
+    "max_stack": 99,
+    "icon": "icon_energy_pot",
+    "use_type": 4,
+    "use_param": "50",
+    "can_sell": false
   }
 ]
