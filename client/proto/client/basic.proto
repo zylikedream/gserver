@@ -1,0 +1,38 @@
+// ID: 20001~20099
+syntax = "proto3";
+option go_package = "hy_client/pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+
+message ReqBasicSetName {
+    option (msg_id) = 20001;
+    string name = 1;
+}
+
+message RspBasicSetName {
+    option (msg_id) = 20002;
+    string name = 1;
+}
+
+message ReqBasicInfo {
+    option (msg_id) = 20003;
+}
+
+message RspBasicInfo {
+    option (msg_id) = 20004;
+    int64 role_id = 1;
+    string name = 2;
+    int64 create_tm = 3; // 创角时间
+    string head = 4;
+}
+
+message ReqBasicSetHead {
+    option (msg_id) = 20005;
+    string head = 1;
+}
+
+message RspBasicSetHead {
+    option (msg_id) = 20006;
+    string head = 1;
+}

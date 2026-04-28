@@ -1,0 +1,50 @@
+// ID: 22001~22099
+syntax = "proto3";
+option go_package = "hy_client/pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+
+message ReqSignInfo {
+    option (msg_id) = 22001;
+}
+
+message RspSignInfo {
+    option (msg_id) = 22002;
+    int32 sign_day = 2; // 当月签到的天数
+    int32 draw_day = 3; // 当月奖励领取天数
+    int32 max_sign_day = 4; // 最大可签到次数(可补补签+已签到)
+    int32 patch = 5; // 已补签天数
+    repeated int32 accum_draw_stage = 6; // 累积签到阶段
+}
+
+message ReqSignDraw {
+    option (msg_id) = 22003;
+}
+
+message RspSignDraw {
+    option (msg_id) = 22004;
+    int64 sign_time = 1;
+}
+
+message ReqSignPatch {
+    option (msg_id) = 22005;
+    uint32 patch_times = 1; // 补签次数
+}
+
+message RspSignPatch {
+    option (msg_id) = 22006;
+    int32 patch = 1; // 已补签天数
+    int32 sign_day = 2; // 当月签到的天数
+    int32 draw_day = 3; // 当月奖励领取天数
+}
+
+message ReqSignAccumDraw {
+    option (msg_id) = 22007;
+    int32 stage = 1; // 累积签到奖励id
+}
+
+message RspSignAccumDraw {
+    option (msg_id) = 22008;
+    repeated int32 accum_draw_stage = 1; // 累积签到阶段
+}

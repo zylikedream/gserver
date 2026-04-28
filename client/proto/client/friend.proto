@@ -1,0 +1,102 @@
+// ID: 23001~23099
+syntax = "proto3";
+option go_package = "hy_client/pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+import "role.proto";
+
+message ReqFriendInfo {
+    option (msg_id) = 23001;
+}
+
+message PFriendBase {
+    PRolePublic role_public = 1;  // 好友信息
+    int64 friend_time = 2; // 关系建立时间
+    string source = 3; // 来源
+}
+
+message PFriendInfo {
+    PFriendBase base = 1;
+    int32 favor = 2;
+    int64 send_gift_time = 3;
+    bool can_recv_gift = 4;
+}
+
+message PFriendApply {
+    PFriendBase base = 1;
+}
+
+message RspFriendInfo {
+    option (msg_id) = 23002;
+    repeated PFriendInfo friends = 1; // 好友列表
+    repeated PFriendApply apply_send = 2; // 发送的申请
+    repeated PFriendApply apply_recv = 3; // 收到的申请
+}
+
+message PFriendApplyData {
+    int64 role_id = 1;
+    string source = 2;
+}
+
+message ReqFriendApply {
+    option (msg_id) = 23003;
+    repeated PFriendApplyData apply_list = 1;
+}
+
+message RspFriendApply {
+    option (msg_id) = 23004;
+    repeated PFriendApply apply_send_add_list = 1; // 新增的申请列表
+}
+
+message ReqFriendDealApply {
+    option (msg_id) = 23005;
+   repeated int64 role_id = 1;
+   int32 deal = 2; // 0-拒绝 1-同一
+}
+
+message RspFriendDealApply {
+    option (msg_id) = 23006;
+    repeated PFriendInfo friend_add_list = 1; // 新增好友
+    repeated PFriendApply apply_recv_delete_list = 2; // 删除的申请者
+}
+
+message ReqFriendDelete {
+    option (msg_id) = 23007;
+    repeated int64 role_id = 1;
+}
+
+message RspFriendDelete {
+    option (msg_id) = 23008;
+    repeated int64 friend_delete = 1;
+}
+
+message NotifyFriendUpdate {
+    option (msg_id) = 23009;
+    repeated PFriendInfo friend_add_list = 1; // 新增好友
+    repeated int64       friend_del_list = 2; // 删除好友
+    repeated PFriendInfo friend_recv_add_list = 3; // 新增申请列表
+}
+
+message ReqFriendSendGift{
+    option (msg_id) = 23010;
+    int64 role_id = 1;
+}
+
+message RspFriendSendGift{
+    option (msg_id) = 23011;
+    int64 role_id = 1;
+    int64 send_gift_time = 2;
+}
+
+message ReqFriendRecvGift{
+    option (msg_id) = 23012;
+    int64 role_id = 1;
+}
+
+message RspFriendRecvGift{
+    option (msg_id) = 23013;
+    int64 role_id = 1;
+    int32 favor = 2;
+    bool can_recv = 3;
+}
