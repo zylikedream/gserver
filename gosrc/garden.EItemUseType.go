@@ -14,22 +14,22 @@ const (
     /**
      * 不可使用
      */
-    GardenEItemUseType_NONE GardenEItemUseType = 0;
+    GardenEItemUseType_NONE GardenEItemUseType = 1;
     /**
      * 开启宝箱
      */
-    GardenEItemUseType_OPEN_CHEST GardenEItemUseType = 1;
+    GardenEItemUseType_OPEN_CHEST GardenEItemUseType = 2;
     /**
      * 获得经验
      */
-    GardenEItemUseType_ADD_EXP GardenEItemUseType = 2;
+    GardenEItemUseType_ADD_EXP GardenEItemUseType = 3;
     /**
      * 恢复水滴
      */
-    GardenEItemUseType_ADD_ENERGY GardenEItemUseType = 3;
+    GardenEItemUseType_ADD_ENERGY GardenEItemUseType = 4;
     /**
      * 获得增益
      */
-    GardenEItemUseType_ADD_BUFF GardenEItemUseType = 4;
+    GardenEItemUseType_ADD_BUFF GardenEItemUseType = 5;
 )
 

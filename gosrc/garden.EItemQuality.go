@@ -14,22 +14,22 @@ const (
     /**
      * 普通
      */
-    GardenEItemQuality_NORMAL GardenEItemQuality = 0;
+    GardenEItemQuality_NORMAL GardenEItemQuality = 1;
     /**
      * 良品
      */
-    GardenEItemQuality_FINE GardenEItemQuality = 1;
+    GardenEItemQuality_FINE GardenEItemQuality = 2;
     /**
      * 稀有
      */
-    GardenEItemQuality_RARE GardenEItemQuality = 2;
+    GardenEItemQuality_RARE GardenEItemQuality = 3;
     /**
      * 史诗
      */
-    GardenEItemQuality_EPIC GardenEItemQuality = 3;
+    GardenEItemQuality_EPIC GardenEItemQuality = 4;
     /**
      * 传说
      */
-    GardenEItemQuality_LEGENDARY GardenEItemQuality = 4;
+    GardenEItemQuality_LEGENDARY GardenEItemQuality = 5;
 )
 

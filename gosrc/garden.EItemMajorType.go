@@ -14,10 +14,10 @@ const (
     /**
      * 货币
      */
-    GardenEItemMajorType_CURRENCY GardenEItemMajorType = 0;
+    GardenEItemMajorType_CURRENCY GardenEItemMajorType = 1;
     /**
      * 物品
      */
-    GardenEItemMajorType_ITEM GardenEItemMajorType = 1;
+    GardenEItemMajorType_ITEM GardenEItemMajorType = 2;
 )
 
