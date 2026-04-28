@@ -87,6 +87,7 @@ func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 		r.Goods[item.ID] = have
 	}
 	chg := have.Update(have.Num + item.Num)
+	r.MarkDirty()
 	return chg, nil
 }
 
@@ -107,6 +108,7 @@ func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 	if have.Num == 0 {
 		delete(r.Goods, item.ID)
 	}
+	r.MarkDirty()
 	return chg, nil
 }
 

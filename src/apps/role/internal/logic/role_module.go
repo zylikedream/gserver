@@ -18,11 +18,15 @@ type IPersistState interface {
 	GetUpdateAt() time.Time
 	SetUpdateAt(updateAt time.Time)
 	GetIndexes() []string
+	MarkDirty()
+	IsDirty() bool
+	ClearDirty()
 }
 
 type RolePersistState struct {
 	RoleID   int64     `gorm:"column:role_id;primaryKey"`
 	UpdateAt time.Time `gorm:"column:update_at;autoUpdateTime"`
+	dirty    bool
 }
 
 func (r *RolePersistState) SetRoleID(roleID int64) {
@@ -40,6 +44,10 @@ func (r *RolePersistState) SetUpdateAt(updateAt time.Time) {
 func (r *RolePersistState) GetIndexes() []string {
 	return []string{"update_at"}
 }
+
+func (r *RolePersistState) MarkDirty()  { r.dirty = true }
+func (r *RolePersistState) IsDirty() bool { return r.dirty }
+func (r *RolePersistState) ClearDirty() { r.dirty = false }
 
 type RoleModule struct {
 	gxymodule.ModuleBase

@@ -73,6 +73,7 @@ func (r *RoleActivity) updateActivity(ctx context.Context) {
 		}
 		r.onActivityOpen(ctx, act)
 	}
+	r.MarkDirty()
 }
 
 func (r *RoleActivity) onActivityOpen(ctx context.Context, act *server.ActivityData) {

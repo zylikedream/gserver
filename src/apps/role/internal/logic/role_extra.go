@@ -36,4 +36,5 @@ func (r *RoleExtra) GetCronTm() time.Time {
 
 func (r *RoleExtra) SetCronTm(tm time.Time) {
 	r.CronTm = tm
+	r.MarkDirty()
 }

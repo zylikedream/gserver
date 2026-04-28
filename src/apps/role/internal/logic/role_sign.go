@@ -63,6 +63,7 @@ func (s *RoleSign) OnModStart(ctx context.Context) error {
 func (s *RoleSign) reset(ctx context.Context) {
 	glog.Debugf(ctx, "reset sign state")
 	s.RoleSignState = RoleSignState{}
+	s.MarkDirty()
 }
 
 // 刷新的时候自动签到(玩家上线，或者刷新点的时候在线，都算签到一次)
@@ -72,6 +73,7 @@ func (s *RoleSign) DayRefresh(ctx context.Context, tm time.Time) {
 
 func (s *RoleSign) MonthRefresh(ctx context.Context, tm time.Time) {
 	s.SignDay += 1
+	s.MarkDirty()
 }
 
 func (s *RoleSign) ReqSignInfo(ctx context.Context, req *pb.ReqSignInfo) (*pb.RspSignInfo, error) {
@@ -99,6 +101,7 @@ func (s *RoleSign) ReqSignDraw(ctx context.Context, req *pb.ReqSignDraw) (*pb.Rs
 	rsp := &pb.RspSignDraw{
 		SignTime: s.DrawTime.Unix(),
 	}
+	s.MarkDirty()
 	return rsp, nil
 }
 
@@ -152,6 +155,7 @@ func (s *RoleSign) ReqSignPatch(ctx context.Context, req *pb.ReqSignPatch) (*pb.
 	s.SignDay += int(req.PatchTimes)
 	s.DrawDay += int(req.PatchTimes)
 
+	s.MarkDirty()
 	rsp := &pb.RspSignPatch{
 		Patch:   int32(s.Patch),
 		SignDay: int32(s.SignDay),
@@ -180,6 +184,7 @@ func (r *RoleSign) ReqSignAccumDraw(ctx context.Context, req *pb.ReqSignAccumDra
 	for _, stage := range r.AccumDrawStage {
 		rsp.AccumDrawStage = append(rsp.AccumDrawStage, int32(stage))
 	}
+	r.MarkDirty()
 	return rsp, nil
 }
 

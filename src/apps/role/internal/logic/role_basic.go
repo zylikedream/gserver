@@ -42,6 +42,7 @@ func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName
 		Name: req.Name,
 	}
 	r.RoleName = req.Name
+	r.MarkDirty()
 	return rsp, nil
 }
 
@@ -59,6 +60,7 @@ func (r *RoleBasic) ReqBasicSetHead(ctx context.Context, req *pb.ReqBasicSetHead
 		Head: req.Head,
 	}
 	r.Head = req.Head
+	r.MarkDirty()
 	return rsp, nil
 }
 

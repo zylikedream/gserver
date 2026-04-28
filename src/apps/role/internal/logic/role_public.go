@@ -43,6 +43,7 @@ func (r *RolePublic) UpdateRolePublic(ctx context.Context) {
 	r.Name = role.Basic.RoleName
 	r.Head = role.Basic.Head
 	r.CreateTime = role.Basic.CreateTm
+	r.MarkDirty()
 }
 
 func GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {

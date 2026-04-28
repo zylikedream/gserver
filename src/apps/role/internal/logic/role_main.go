@@ -303,7 +303,7 @@ func (r *RoleMain) save(_ context.Context) error {
 			continue
 		}
 		modState := rmod.PersistState()
-		if modState == nil {
+		if modState == nil || !modState.IsDirty() {
 			continue
 		}
 		modState.SetUpdateAt(time.Now())
@@ -313,6 +313,7 @@ func (r *RoleMain) save(_ context.Context) error {
 			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
 			continue
 		}
+		modState.ClearDirty()
 	}
 	if errStr != "" {
 		return errors.New(errStr)
