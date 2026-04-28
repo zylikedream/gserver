@@ -53,7 +53,7 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 	p.conf = conf
 
 	db, err := gorm.Open(postgres.Open(conf.URL), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Error),
+		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		return err
