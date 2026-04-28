@@ -15,8 +15,6 @@ func InitRoleSchema(ctx context.Context) {
 		&RoleAccount{},
 		&RoleBasicState{},
 		&RoleBagState{},
-		&RoleSignState{},
-		&RoleActivityPersistState{},
 		&RoleExtraPersistState{},
 		&RolePublicState{},
 	); err != nil {

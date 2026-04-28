@@ -59,7 +59,6 @@ const (
 )
 
 type roleModules struct {
-	Sign   *RoleSign
 	Bag    *RoleBag
 	Basic  *RoleBasic
 	Public *RolePublic
@@ -292,7 +291,6 @@ func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo)
 }
 
 func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
-	r.Sign.SignDayRrefresh(ctx, info)
 }
 
 func (r *RoleMain) save(_ context.Context) error {

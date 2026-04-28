@@ -82,7 +82,7 @@ pushproto:
 .PHONY: upcfg
 upcfg:
 	@git stash -q 2>/dev/null; \
-	git subtree pull --prefix=gameconfig git@gitee.com:zylikedream/config_server_go.git master; \
+	git subtree pull --prefix=gameconfig https://gitee.com/zylikedream/garden_config_go.git master --squash; \
 	git stash pop -q 2>/dev/null; true
 
 # Parsing protobuf files and generating go files.

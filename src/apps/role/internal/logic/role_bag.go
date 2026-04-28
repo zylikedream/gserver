@@ -5,7 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 
-	cfg "gserver/gameconfig/src"
+	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/apps/role/internal/logic/bag"
 
 	"gserver/protocol/pb"
@@ -112,11 +112,11 @@ func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 	return chg, nil
 }
 
-func (r *RoleBag) AddItemRc(ctx context.Context, itemRcList []*cfg.ItemItemRC) error {
-	if len(itemRcList) == 0 {
+func (r *RoleBag) AddItemStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) error {
+	if len(itemStackList) == 0 {
 		return nil
 	}
-	items, err := r.ItemRC2Item(itemRcList)
+	items, err := r.ItemStack2Item(itemStackList)
 	if err != nil {
 		return err
 	}
@@ -139,8 +139,8 @@ func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
 	return nil
 }
 
-func (r *RoleBag) CheckItemRc(ctx context.Context, itemRcList []*cfg.ItemItemRC) bool {
-	items, err := r.ItemRC2Item(itemRcList)
+func (r *RoleBag) CheckItemStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) bool {
+	items, err := r.ItemStack2Item(itemStackList)	
 	if err != nil {
 		return false
 	}
@@ -159,8 +159,8 @@ func (r *RoleBag) CheckItem(ctx context.Context, itemList []bag.Item) bool {
 	})
 }
 
-func (r *RoleBag) DecItemRC(ctx context.Context, itemRcList []*cfg.ItemItemRC) error {
-	items, err := r.ItemRC2Item(itemRcList)
+func (r *RoleBag) DecItemStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) error {
+	items, err := r.ItemStack2Item(itemStackList)
 	if err != nil {
 		return err
 	}
@@ -213,12 +213,12 @@ func (r *RoleBag) ClassifyItemList(itemList []bag.Item) []bag.Item {
 	return classifyItemList
 }
 
-func (r *RoleBag) ItemRC2Item(itemRcList []*cfg.ItemItemRC) ([]bag.Item, error) {
+func (r *RoleBag) ItemStack2Item(itemStackList []*gamecfg.GardenItemStack) ([]bag.Item, error) {
 	items := []bag.Item{}
-	linq.From(itemRcList).Select(func(obj any) any {
+	linq.From(itemStackList).Select(func(obj any) any {
 		return bag.Item{
-			ID:  int(obj.(*cfg.ItemItemRC).Id),
-			Num: uint64(obj.(*cfg.ItemItemRC).Num),
+			ID:  int(obj.(*gamecfg.GardenItemStack).Id),
+			Num: uint64(obj.(*gamecfg.GardenItemStack).Num),
 		}
 	}).ToSlice(&items)
 	return items, nil
