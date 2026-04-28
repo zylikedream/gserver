@@ -1,0 +1,72 @@
+[
+  {
+    "id": 1001,
+    "name": "玫瑰种子",
+    "desc": "普通的玫瑰花种子",
+    "major_type": 1,
+    "quality": 0,
+    "price": 10,
+    "max_stack": 99,
+    "icon": "icon_seed_rose"
+  },
+  {
+    "id": 1002,
+    "name": "向日葵种子",
+    "desc": "金灿灿的向日葵种子",
+    "major_type": 1,
+    "quality": 0,
+    "price": 15,
+    "max_stack": 99,
+    "icon": "icon_seed_sunflower"
+  },
+  {
+    "id": 1003,
+    "name": "郁金香种子",
+    "desc": "高贵的郁金香种子",
+    "major_type": 1,
+    "quality": 1,
+    "price": 30,
+    "max_stack": 99,
+    "icon": "icon_seed_tulip"
+  },
+  {
+    "id": 2001,
+    "name": "花肥",
+    "desc": "让花朵长得更快的肥料",
+    "major_type": 2,
+    "quality": 0,
+    "price": 50,
+    "max_stack": 999,
+    "icon": "icon_fertilizer"
+  },
+  {
+    "id": 2002,
+    "name": "水壶",
+    "desc": "浇花必备工具",
+    "major_type": 3,
+    "quality": 2,
+    "price": 200,
+    "max_stack": 1,
+    "icon": "icon_watering_can"
+  },
+  {
+    "id": 3001,
+    "name": "木质长椅",
+    "desc": "舒适的花园长椅",
+    "major_type": 4,
+    "quality": 1,
+    "price": 500,
+    "max_stack": 10,
+    "icon": "icon_bench_wood"
+  },
+  {
+    "id": 3002,
+    "name": "小喷泉",
+    "desc": "花园中央的小喷泉",
+    "major_type": 4,
+    "quality": 3,
+    "price": 2000,
+    "max_stack": 5,
+    "icon": "icon_fountain"
+  }
+]
