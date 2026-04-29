@@ -159,7 +159,7 @@ func (r *RoleBag) saveGoodsMap(goodsMap GoodsMap) {
 // ========== 公开接口 ==========
 
 // SaveGoods 原子性地扣除并添加物品，reason 用于日志
-func (r *RoleBag) SaveGoods(ctx context.Context, removeGoods []*gamecfg.GardenItemStack, addGoods []*gamecfg.GardenItemStack, reason string) error {
+func (r *RoleBag) SaveGoods(ctx context.Context, removeGoods []*gamecfg.GardenGoodStack, addGoods []*gamecfg.GardenGoodStack, reason string) error {
 	remove := classifyGoods(removeGoods)
 	add := classifyGoods(addGoods)
 
@@ -190,7 +190,7 @@ func (r *RoleBag) SaveGoods(ctx context.Context, removeGoods []*gamecfg.GardenIt
 }
 
 // CheckGoods 检查物品是否足够
-func (r *RoleBag) CheckGoods(goodsStack []*gamecfg.GardenItemStack) bool {
+func (r *RoleBag) CheckGoods(goodsStack []*gamecfg.GardenGoodStack) bool {
 	goods := classifyGoods(goodsStack)
 	for _, g := range goods {
 		have := r.GetGood(g.GoodID)
@@ -258,7 +258,7 @@ func (r *RoleBag) saveGoodOps(ctx context.Context, ops []bag.GoodOp) {
 }
 
 // ========== 工具方法 ==========
-func classifyGoods(goodsList []*gamecfg.GardenItemStack) []bag.Good {
+func classifyGoods(goodsList []*gamecfg.GardenGoodStack) []bag.Good {
 	if goodsList == nil {
 		return []bag.Good{}
 	}
@@ -292,8 +292,8 @@ func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBa
 	return msg, nil
 }
 
-func MakeGoodStack(GoodID, Num int) *gamecfg.GardenItemStack {
-	return &gamecfg.GardenItemStack{
+func MakeGoodStack(GoodID, Num int) *gamecfg.GardenGoodStack {
+	return &gamecfg.GardenGoodStack{
 		Id:  int32(GoodID),
 		Num: int32(Num),
 	}
