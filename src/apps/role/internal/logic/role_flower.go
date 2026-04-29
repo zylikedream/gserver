@@ -9,7 +9,6 @@ import (
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
-	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/pkg/errors"
 )
@@ -87,14 +86,14 @@ func (r *RoleFlower) OnModInit(ctx context.Context) error {
 func (r *RoleFlower) UnlockFlower(flowerID int32) {
 	r.Flowers[flowerID] = &FlowerData{
 		FlowerID: flowerID,
-		Status:   int32(pb.FlowerStatus_UNLOCKED),
+		Status:   int32(pb.FlowerStatus_FLOWER_UNLOCKED),
 	}
 	r.MarkDirty()
 }
 
 func (r *RoleFlower) FindBreeding() *FlowerData {
 	for _, f := range r.Flowers {
-		if f.Status == int32(pb.FlowerStatus_BREEDING) {
+		if f.Status == int32(pb.FlowerStatus_FLOWER_BREEDING) {
 			return f
 		}
 	}
@@ -108,8 +107,8 @@ func (r *RoleFlower) ReqBreedInfo(ctx context.Context, req *pb.ReqBreedInfo) (*p
 	rsp := &pb.RspBreedInfo{Flowers: []*pb.PFlowerState{}}
 	for _, f := range r.Flowers {
 		status := f.Status
-		if status == int32(pb.FlowerStatus_BREEDING) && now.After(f.StateTime) {
-			status = int32(pb.FlowerStatus_BREED_DONE)
+		if status == int32(pb.FlowerStatus_FLOWER_BREEDING) && now.After(f.StateTime) {
+			status = int32(pb.FlowerStatus_FLOWER_BREED_DONE)
 		}
 		rsp.Flowers = append(rsp.Flowers, &pb.PFlowerState{
 			FlowerId:  f.FlowerID,
@@ -138,13 +137,13 @@ func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (
 	}
 
 	if !r.Role.Bag.CheckGoods(cfg.BreedCost) {
-		return nil, bag.ErrGoodNotEnough
+		return nil, ErrGoodNotEnough
 	}
 	if err := r.Role.Bag.SaveGoods(ctx, cfg.BreedCost, nil, "breed"); err != nil {
 		return nil, err
 	}
 
-	flower.Status = int32(pb.FlowerStatus_BREEDING)
+	flower.Status = int32(pb.FlowerStatus_FLOWER_BREEDING)
 	flower.StateTime = time.Now().Add(time.Duration(cfg.BreedTime) * time.Second)
 	r.MarkDirty()
 
@@ -158,7 +157,7 @@ func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed)
 	if !ok {
 		return nil, ErrFlowerLocked
 	}
-	if flower.Status != int32(pb.FlowerStatus_BREEDING) {
+	if flower.Status != int32(pb.FlowerStatus_FLOWER_BREEDING) {
 		return nil, ErrFlowerNotBreeding
 	}
 
@@ -172,7 +171,7 @@ func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed)
 		return nil, err
 	}
 
-	flower.Status = int32(pb.FlowerStatus_HARVESTED)
+	flower.Status = int32(pb.FlowerStatus_FLOWER_HARVESTED)
 	r.MarkDirty()
 
 	return &pb.RspFinishBreed{}, nil
