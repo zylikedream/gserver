@@ -13,11 +13,16 @@ import (
 	"strings"
 	"unicode"
 
-	"gserver/src/apps/role/internal/logic"
 	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )
+
+// RoleBagOps GM 命令需要的背包操作接口
+type RoleBagOps interface {
+	AddItem(ctx context.Context, itemList []bag.Item) error
+	DecItem(ctx context.Context, itemList []bag.Item) error
+}
 
 // CmdDoc 命令文档
 type CmdDoc struct {
@@ -27,14 +32,14 @@ type CmdDoc struct {
 	Example string
 }
 
-// GM 命令处理器，持有 RoleMain 引用，在 actor 上下文内执行
+// GM 命令处理器，持有角色操作接口引用，在 actor 上下文内执行
 type GM struct {
-	role *logic.RoleMain
-	ctx  context.Context
+	bag RoleBagOps
+	ctx context.Context
 }
 
-func NewGM(ctx context.Context, role *logic.RoleMain) *GM {
-	return &GM{role: role, ctx: ctx}
+func NewGM(ctx context.Context, bagOps RoleBagOps) *GM {
+	return &GM{bag: bagOps, ctx: ctx}
 }
 
 // ========== 帮助提取 ==========
@@ -182,7 +187,7 @@ func (g *GM) ExecCommand(name string, args []string) error {
 // 用法: add_goods [物品ID] [数量]
 // 示例: add_goods 1001 10
 func (g *GM) AddGoods(itemID int, num uint64) error {
-	return g.role.Bag.AddItem(g.ctx, []bag.Item{
+	return g.bag.AddItem(g.ctx, []bag.Item{
 		{ID: itemID, Num: num},
 	})
 }
@@ -191,7 +196,7 @@ func (g *GM) AddGoods(itemID int, num uint64) error {
 // 用法: remove_goods [物品ID] [数量]
 // 示例: remove_goods 1001 5
 func (g *GM) RemoveGoods(itemID int, num uint64) error {
-	return g.role.Bag.DecItem(g.ctx, []bag.Item{
+	return g.bag.DecItem(g.ctx, []bag.Item{
 		{ID: itemID, Num: num},
 	})
 }
