@@ -13,8 +13,8 @@ import (
 	"strings"
 	"unicode"
 
+	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
-	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -205,17 +205,13 @@ func (r *RoleGM) ReqGMHelp(ctx context.Context, req *pb.ReqGMHelp) (*pb.RspGMHel
 // AddGoods 添加物品或货币
 // 用法: add_goods [物品ID] [数量]
 // 示例: add_goods 1001 10
-func (r *RoleGM) AddGoods(itemID int, num uint64) error {
-	return r.Role.Bag.SaveGoods(r.ctx, nil, []bag.Good{
-		{ID: itemID, Num: num},
-	}, "gm")
+func (r *RoleGM) AddGoods(itemID int, num int) error {
+	return r.Role.Bag.SaveGoods(r.ctx, nil, []*gamecfg.GardenItemStack{MakeGoodStack(itemID, int(num))}, "gm")
 }
 
 // RemoveGoods 移除物品或货币
 // 用法: remove_goods [物品ID] [数量]
 // 示例: remove_goods 1001 5
-func (r *RoleGM) RemoveGoods(itemID int, num uint64) error {
-	return r.Role.Bag.SaveGoods(r.ctx, []bag.Good{
-		{ID: itemID, Num: num},
-	}, nil, "gm")
+func (r *RoleGM) RemoveGoods(itemID int, num int) error {
+	return r.Role.Bag.SaveGoods(r.ctx, []*gamecfg.GardenItemStack{MakeGoodStack(itemID, int(num))}, nil, "gm")
 }

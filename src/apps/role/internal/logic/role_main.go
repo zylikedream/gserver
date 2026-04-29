@@ -376,7 +376,7 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	// 发放初始物品
 	initItems := gameconfig.GameConfig().TbGlobalConfig.Get().InitItems
 	if len(initItems) > 0 {
-		if err := r.Bag.AddGoodsStack(ctx, initItems); err != nil {
+		if err := r.Bag.SaveGoods(ctx, nil, initItems, ""); err != nil {
 			return err
 		}
 	}
