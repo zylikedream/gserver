@@ -3,49 +3,64 @@
     "id": 1,
     "name": "种子",
     "icon": "icon_tag_seed",
-    "show_types": "10",
+    "show_types": [
+      10,
+      20
+    ],
     "sort": 1
   },
   {
     "id": 2,
     "name": "材料",
     "icon": "icon_tag_material",
-    "show_types": "20",
+    "show_types": [
+      20
+    ],
     "sort": 2
   },
   {
     "id": 3,
     "name": "工具",
     "icon": "icon_tag_tool",
-    "show_types": "30",
+    "show_types": [
+      30
+    ],
     "sort": 3
   },
   {
     "id": 4,
     "name": "装饰",
     "icon": "icon_tag_decoration",
-    "show_types": "40",
+    "show_types": [
+      40
+    ],
     "sort": 4
   },
   {
     "id": 5,
     "name": "宝箱",
     "icon": "icon_tag_chest",
-    "show_types": "50",
+    "show_types": [
+      50
+    ],
     "sort": 5
   },
   {
     "id": 6,
     "name": "消耗品",
     "icon": "icon_tag_consumable",
-    "show_types": "60",
+    "show_types": [
+      60
+    ],
     "sort": 6
   },
   {
     "id": 7,
     "name": "任务道具",
     "icon": "icon_tag_quest",
-    "show_types": "70",
+    "show_types": [
+      70
+    ],
     "sort": 7
   }
 ]
