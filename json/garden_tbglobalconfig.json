@@ -1,6 +1,15 @@
 [
   {
-    "init_items": "1:500,2:10",
+    "init_items": [
+      {
+        "id": 1,
+        "num": 500
+      },
+      {
+        "id": 2,
+        "num": 10
+      }
+    ],
     "max_energy": 100,
     "energy_recover_sec": 300,
     "bag_max_cells": 120
