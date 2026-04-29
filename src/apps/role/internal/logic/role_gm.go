@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"time"
 	"unicode"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -214,4 +215,25 @@ func (r *RoleGM) AddGoods(itemID int, num int) error {
 // 示例: remove_goods 1001 5
 func (r *RoleGM) RemoveGoods(itemID int, num int) error {
 	return r.Role.Bag.SaveGoods(r.ctx, []*gamecfg.GardenGoodStack{MakeGoodStack(itemID, int(num))}, nil, "gm")
+}
+
+// UnlockFlower 解锁花的培育权限
+// 用法: unlock_flower [花ID]
+// 示例: unlock_flower 101
+func (r *RoleGM) UnlockFlower(flowerID int) error {
+	r.Role.Flower.UnlockFlower(int32(flowerID))
+	return nil
+}
+
+// FinishBreedGM 立即完成当前培育
+// 用法: finish_breed
+// 示例: finish_breed
+func (r *RoleGM) FinishBreedGM() error {
+	breeding := r.Role.Flower.FindBreeding()
+	if breeding == nil {
+		return fmt.Errorf("no flower is breeding")
+	}
+	breeding.StateTime = time.Now().Add(-time.Second)
+	r.Role.Flower.MarkDirty()
+	return nil
 }
