@@ -11,26 +11,26 @@ package gamecfg;
 
 
 type GardenTbGlobalConfig struct {
-    _dataMap map[int32]*GardenGlobalConfig
+    _dataMap map[string]*GardenGlobalConfig
     _dataList []*GardenGlobalConfig
 }
 
 func NewGardenTbGlobalConfig(_buf []map[string]interface{}) (*GardenTbGlobalConfig, error) {
     _dataList := make([]*GardenGlobalConfig, 0, len(_buf))
-    dataMap := make(map[int32]*GardenGlobalConfig)
+    dataMap := make(map[string]*GardenGlobalConfig)
 
     for _, _ele_ := range _buf {
         if _v, err2 := NewGardenGlobalConfig(_ele_); err2 != nil {
             return nil, err2
         } else {
             _dataList = append(_dataList, _v)
-            dataMap[_v.Id] = _v
+            dataMap[_v.Name] = _v
         }
     }
     return &GardenTbGlobalConfig{_dataList:_dataList, _dataMap:dataMap}, nil
 }
 
-func (table *GardenTbGlobalConfig) GetDataMap() map[int32]*GardenGlobalConfig {
+func (table *GardenTbGlobalConfig) GetDataMap() map[string]*GardenGlobalConfig {
     return table._dataMap
 }
 
@@ -38,7 +38,7 @@ func (table *GardenTbGlobalConfig) GetDataList() []*GardenGlobalConfig {
     return table._dataList
 }
 
-func (table *GardenTbGlobalConfig) Get(key int32) *GardenGlobalConfig {
+func (table *GardenTbGlobalConfig) Get(key string) *GardenGlobalConfig {
     return table._dataMap[key]
 }
 
