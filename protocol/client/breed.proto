@@ -1,0 +1,46 @@
+// ID: 23001~23099
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+
+enum FlowerStatus {
+    FLOWER_UNLOCKED   = 0;
+    FLOWER_BREEDING   = 1;
+    FLOWER_BREED_DONE = 2;
+    FLOWER_HARVESTED  = 3;
+}
+
+message PFlowerState {
+    int32 flower_id = 1;
+    FlowerStatus status = 2;
+    int64 state_time = 3;
+}
+
+message ReqBreedInfo {
+    option (msg_id) = 23001;
+}
+
+message RspBreedInfo {
+    option (msg_id) = 23002;
+    repeated PFlowerState flowers = 1;
+}
+
+message ReqStartBreed {
+    option (msg_id) = 23003;
+    int32 flower_id = 1;
+}
+
+message RspStartBreed {
+    option (msg_id) = 23004;
+}
+
+message ReqFinishBreed {
+    option (msg_id) = 23005;
+    int32 flower_id = 1;
+}
+
+message RspFinishBreed {
+    option (msg_id) = 23006;
+}
