@@ -65,6 +65,7 @@ type roleModules struct {
 	Basic  *RoleBasic
 	Public *RolePublic
 	Extra  *RoleExtra
+	Flower *RoleFlower
 	GM     *RoleGM
 }
 
