@@ -13,7 +13,7 @@ package gamecfg;
 import "errors"
 
 type GardenGlobalConfig struct {
-    InitItems []*GardenItemStack
+    InitItems []*GardenGoodStack
     MaxEnergy int32
     EnergyRecoverSec int32
     BagMaxCells int32
@@ -27,16 +27,16 @@ func (*GardenGlobalConfig) GetTypeId() int32 {
 
 func NewGardenGlobalConfig(_buf map[string]interface{}) (_v *GardenGlobalConfig, err error) {
     _v = &GardenGlobalConfig{}
-    { var _ok_ bool; var __json_init_items__ interface{}; if __json_init_items__, _ok_ = _buf["init_items"]; !_ok_ || __json_init_items__ == nil { err = errors.New("init_items error"); return } else { var __x__ []*GardenItemStack;  {
+    { var _ok_ bool; var __json_init_items__ interface{}; if __json_init_items__, _ok_ = _buf["init_items"]; !_ok_ || __json_init_items__ == nil { err = errors.New("init_items error"); return } else { var __x__ []*GardenGoodStack;  {
                     var _arr0_ []interface{}
                     var _ok0_ bool
                     if _arr0_, _ok0_ = (__json_init_items__).([]interface{}); !_ok0_ { err = errors.New("__x__ error"); return }
     
-                    __x__ = make([]*GardenItemStack, 0, len(_arr0_))
+                    __x__ = make([]*GardenGoodStack, 0, len(_arr0_))
                     
                     for _, _e0_ := range _arr0_ {
-                        var _list_v0_ *GardenItemStack
-                        { var _ok_ bool; var _x_ map[string]interface{}; if _x_, _ok_ = _e0_.(map[string]interface{}); !_ok_ { err = errors.New("_list_v0_ error"); return }; if _list_v0_, err = NewGardenItemStack(_x_); err != nil { return } }
+                        var _list_v0_ *GardenGoodStack
+                        { var _ok_ bool; var _x_ map[string]interface{}; if _x_, _ok_ = _e0_.(map[string]interface{}); !_ok_ { err = errors.New("_list_v0_ error"); return }; if _list_v0_, err = NewGardenGoodStack(_x_); err != nil { return } }
                         __x__ = append(__x__, _list_v0_)
                     }
                 }

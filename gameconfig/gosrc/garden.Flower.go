@@ -17,7 +17,7 @@ type GardenFlower struct {
     Name string
     Quality GardenEItemQuality
     BreedTime int32
-    BreedCost []*GardenItemStack
+    BreedCost []*GardenGoodStack
 }
 
 const TypeId_GardenFlower = -1136119724
@@ -32,16 +32,16 @@ func NewGardenFlower(_buf map[string]interface{}) (_v *GardenFlower, err error) 
     { var _ok_ bool; var __json_name__ interface{}; if __json_name__, _ok_ = _buf["name"]; !_ok_ || __json_name__ == nil { err = errors.New("name error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_name__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Name = __x__ }}
     { var _ok_ bool; var __json_quality__ interface{}; if __json_quality__, _ok_ = _buf["quality"]; !_ok_ || __json_quality__ == nil { err = errors.New("quality error"); return } else { var __x__ GardenEItemQuality;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_quality__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenEItemQuality(_x_) }; _v.Quality = __x__ }}
     { var _ok_ bool; var __json_breed_time__ interface{}; if __json_breed_time__, _ok_ = _buf["breed_time"]; !_ok_ || __json_breed_time__ == nil { err = errors.New("breed_time error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_breed_time__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.BreedTime = __x__ }}
-    { var _ok_ bool; var __json_breed_cost__ interface{}; if __json_breed_cost__, _ok_ = _buf["breed_cost"]; !_ok_ || __json_breed_cost__ == nil { err = errors.New("breed_cost error"); return } else { var __x__ []*GardenItemStack;  {
+    { var _ok_ bool; var __json_breed_cost__ interface{}; if __json_breed_cost__, _ok_ = _buf["breed_cost"]; !_ok_ || __json_breed_cost__ == nil { err = errors.New("breed_cost error"); return } else { var __x__ []*GardenGoodStack;  {
                     var _arr0_ []interface{}
                     var _ok0_ bool
                     if _arr0_, _ok0_ = (__json_breed_cost__).([]interface{}); !_ok0_ { err = errors.New("__x__ error"); return }
     
-                    __x__ = make([]*GardenItemStack, 0, len(_arr0_))
+                    __x__ = make([]*GardenGoodStack, 0, len(_arr0_))
                     
                     for _, _e0_ := range _arr0_ {
-                        var _list_v0_ *GardenItemStack
-                        { var _ok_ bool; var _x_ map[string]interface{}; if _x_, _ok_ = _e0_.(map[string]interface{}); !_ok_ { err = errors.New("_list_v0_ error"); return }; if _list_v0_, err = NewGardenItemStack(_x_); err != nil { return } }
+                        var _list_v0_ *GardenGoodStack
+                        { var _ok_ bool; var _x_ map[string]interface{}; if _x_, _ok_ = _e0_.(map[string]interface{}); !_ok_ { err = errors.New("_list_v0_ error"); return }; if _list_v0_, err = NewGardenGoodStack(_x_); err != nil { return } }
                         __x__ = append(__x__, _list_v0_)
                     }
                 }
