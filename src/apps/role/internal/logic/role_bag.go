@@ -81,7 +81,6 @@ func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 	have := r.Goods[item.ID]
 	if have == nil {
 		have = &bag.BagGood{
-			Type:   bag.GoodTypeItem,
 			PropID: item.ID,
 		}
 		r.Goods[item.ID] = have
@@ -140,7 +139,7 @@ func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
 }
 
 func (r *RoleBag) CheckItemStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) bool {
-	items, err := r.ItemStack2Item(itemStackList)	
+	items, err := r.ItemStack2Item(itemStackList)
 	if err != nil {
 		return false
 	}
