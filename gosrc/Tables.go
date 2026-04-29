@@ -13,6 +13,7 @@ type JsonLoader func(string) ([]map[string]interface{}, error)
 
 type Tables struct {
     TbItem *GardenTbItem
+    TbItemTag *GardenTbItemTag
 }
 
 func NewTables(loader JsonLoader) (*Tables, error) {
@@ -24,6 +25,12 @@ func NewTables(loader JsonLoader) (*Tables, error) {
         return nil, err
     }
     if tables.TbItem, err = NewGardenTbItem(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbitemtag") ; err != nil {
+        return nil, err
+    }
+    if tables.TbItemTag, err = NewGardenTbItemTag(buf) ; err != nil {
         return nil, err
     }
     return tables, nil
