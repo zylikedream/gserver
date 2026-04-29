@@ -5,6 +5,7 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"
+	"gserver/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic"
 )
@@ -26,9 +27,8 @@ func (r *roleApp) Weight() int {
 }
 
 func (r *roleApp) OnModInit(ctx context.Context) error {
-	// 初始化 PostgreSQL 表结构
+	r.AddModule(ctx, gameconfig.NewGameConfig())
 	logic.InitRoleSchema(ctx)
-
 	gxyservice.ServiceApp().LoadService(ctx, NewRoleActorService())
 	return nil
 }
