@@ -1,22 +1,17 @@
 [
   {
-    "name": "init_items",
-    "value": "1:500,2:10",
-    "desc": "初始物品：500金币、10钻石"
-  },
-  {
-    "name": "max_energy",
-    "value": "100",
-    "desc": "水滴上限"
-  },
-  {
-    "name": "energy_recover_sec",
-    "value": "300",
-    "desc": "水滴恢复间隔（秒）"
-  },
-  {
-    "name": "bag_max_cells",
-    "value": "120",
-    "desc": "背包最大格子数"
+    "init_items": [
+      {
+        "id": 1,
+        "num": 500
+      },
+      {
+        "id": 2,
+        "num": 10
+      }
+    ],
+    "max_energy": 100,
+    "energy_recover_sec": 300,
+    "bag_max_cells": 120
   }
 ]

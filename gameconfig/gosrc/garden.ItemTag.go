@@ -16,7 +16,7 @@ type GardenItemTag struct {
     Id int32
     Name string
     Icon string
-    ShowTypes string
+    ShowTypes []int32
     Sort int32
 }
 
@@ -31,7 +31,20 @@ func NewGardenItemTag(_buf map[string]interface{}) (_v *GardenItemTag, err error
     { var _ok_ bool; var __json_id__ interface{}; if __json_id__, _ok_ = _buf["id"]; !_ok_ || __json_id__ == nil { err = errors.New("id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Id = __x__ }}
     { var _ok_ bool; var __json_name__ interface{}; if __json_name__, _ok_ = _buf["name"]; !_ok_ || __json_name__ == nil { err = errors.New("name error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_name__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Name = __x__ }}
     { var _ok_ bool; var __json_icon__ interface{}; if __json_icon__, _ok_ = _buf["icon"]; !_ok_ || __json_icon__ == nil { err = errors.New("icon error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_icon__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Icon = __x__ }}
-    { var _ok_ bool; var __json_show_types__ interface{}; if __json_show_types__, _ok_ = _buf["show_types"]; !_ok_ || __json_show_types__ == nil { err = errors.New("show_types error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_show_types__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.ShowTypes = __x__ }}
+    { var _ok_ bool; var __json_show_types__ interface{}; if __json_show_types__, _ok_ = _buf["show_types"]; !_ok_ || __json_show_types__ == nil { err = errors.New("show_types error"); return } else { var __x__ []int32;  {
+                    var _arr0_ []interface{}
+                    var _ok0_ bool
+                    if _arr0_, _ok0_ = (__json_show_types__).([]interface{}); !_ok0_ { err = errors.New("__x__ error"); return }
+    
+                    __x__ = make([]int32, 0, len(_arr0_))
+                    
+                    for _, _e0_ := range _arr0_ {
+                        var _list_v0_ int32
+                        { var _ok_ bool; var _x_ float64; if _x_, _ok_ = _e0_.(float64); !_ok_ { err = errors.New("_list_v0_ error"); return }; _list_v0_ = int32(_x_) }
+                        __x__ = append(__x__, _list_v0_)
+                    }
+                }
+    ; _v.ShowTypes = __x__ }}
     { var _ok_ bool; var __json_sort__ interface{}; if __json_sort__, _ok_ = _buf["sort"]; !_ok_ || __json_sort__ == nil { err = errors.New("sort error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_sort__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Sort = __x__ }}
     return
 }
