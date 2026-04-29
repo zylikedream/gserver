@@ -36,6 +36,23 @@ type Good struct {
 	Num    uint64
 }
 
+type SaveGoodsOpts struct {
+	NotifyChange bool
+	NotifyReward bool
+}
+
+func DefaultSaveGoodsOpts() SaveGoodsOpts {
+	return SaveGoodsOpts{NotifyChange: true}
+}
+
+func OptSilent() SaveGoodsOpts {
+	return SaveGoodsOpts{}
+}
+
+func OptNotifyReward() SaveGoodsOpts {
+	return SaveGoodsOpts{NotifyChange: true, NotifyReward: true}
+}
+
 func (g *BagGood) Update(num uint64) GoodOp {
 	Op := GoodOp{
 		GoodID: g.GoodID,

@@ -2,24 +2,62 @@
 
 ## 概述
 
-背包系统管理玩家的所有物品，包括货币和普通物品。统一使用 `GoodsMap` 存储，通过配置表中的 `major_type` 区分货币和物品。
+背包系统管理玩家的所有物品（good），包括货币和普通物品。统一使用 `GoodsMap` 存储，通过配置表中的 `major_type` 区分货币和物品。核心操作为 `SaveGoods`，原子性地完成扣除和添加。
 
 ## 数据结构
 
-### GoodsMap
+### Good（物品）
 
 ```go
-// src/apps/role/internal/logic/role_bag.go
-type GoodsMap map[int]*bag.BagGood  // key = itemID
+// src/apps/role/internal/logic/bag/good.go
+type Good struct {
+    GoodID int
+    Num    uint64
+}
+```
 
+### BagGood（背包物品）
+
+```go
 type BagGood struct {
-    PropID     int       `json:"prop_id"`
+    GoodID     int       `json:"good_id"`
     Num        uint64
     UpdateTime time.Time `json:"update_time"`
 }
 ```
 
-存储在 PostgreSQL `role_bag` 表的 `goods` JSONB 列中。
+`BagGood.Update(num)` 返回 `GoodOp`，记录变更前后数量。
+
+### GoodsMap
+
+```go
+// src/apps/role/internal/logic/role_bag.go
+type GoodsMap map[int]bag.BagGood  // key = goodID
+```
+
+存储在 PostgreSQL `role_bag` 表的 `goods` JSONB 列中。值类型为 `BagGood`（非指针）。
+
+### 操作记录
+
+```go
+// GoodOp 单次操作记录
+type GoodOp struct {
+    GoodID int
+    PreNum uint64
+    Num    uint64
+    Reson  string
+}
+
+// GoodUpdate 合并后的变更（同一 goodID 的扣+加合并为一条）
+type GoodUpdate struct {
+    GoodID    int
+    PreNum    uint64
+    Num       uint64
+    RemoveNum uint64
+    AddNum    uint64
+    Reason    string
+}
+```
 
 ### 数据库
 
@@ -46,7 +84,7 @@ type BagGood struct {
 
 | 字段 | 说明 |
 |------|------|
-| `init_items` | 新玩家初始物品 `[]*GardenItemStack` |
+| `init_items` | 新玩家初始物品 `[]*GardenGoodStack` |
 | `bag_max_cells` | 背包格子上限（MVP 未启用） |
 
 ### TbItemTag（标签表）
@@ -55,31 +93,39 @@ type BagGood struct {
 
 ## 核心逻辑
 
-### 添加物品
+### SaveGoods（原子操作）
 
-`AddItemStack` → `AddItem` → `AddSingleItem`
+```go
+func (r *RoleBag) SaveGoods(ctx context.Context, removeGoods []*gamecfg.GardenGoodStack,
+    addGoods []*gamecfg.GardenGoodStack, reason string) error
+```
 
-AddSingleItem 校验流程：
-1. 查配置表 `TbItem.Get(itemID)`，不存在返回 `ErrItemConfigNotFound`
-2. 计算新数量 `newNum = have.Num + item.Num`
-3. 检查堆叠上限 `cfg.MaxStack > 0 && newNum > MaxStack` → `ErrItemExceedMaxStack`
-4. 更新并标记脏 `MarkDirty()`
-5. 通知客户端 `NotifyBagUpdate`
+流程：
+1. `classifyGoods` 将 `[]*GardenGoodStack` 按ID分组累加数量，转为 `[]Good`
+2. `cloneGoodsMap` 复制当前背包（clone-and-modify 模式）
+3. `decGoods` 在副本上执行扣除，每个物品生成 `GoodOp`
+4. `addGoods` 在副本上执行添加，校验 `MaxStack`，生成 `GoodOp`
+5. 成功后 `saveGoodsMap` 替换原 map 并标记脏
+6. `onBagChange` 合并 GoodOps → GoodUpdates，通知客户端
+7. `saveGoodOps` 记录日志（预留同步到日志库）
 
-### 扣除物品
+扣除和添加在同一副本上执行，失败不影响原数据。
 
-`DecItemStack` → `DecItem` → `DecSingleItem`
+### 合并变更
 
-- 数量不足返回 `ErrItemDecItemNotEnough`
-- 扣到 0 自动从 GoodsMap 删除
+`onBagChange` 将同一 goodID 的多次操作合并为一条 `GoodUpdate`：
+- `PreNum` 取第一次操作的变更前数量
+- `Num` 取最后一次操作的变更后数量
+- `AddNum` / `RemoveNum` 累加净变化
 
-### 查询物品
+### 查询
 
-`GetItem(propID)` → 按 ID 直接查 map，O(1)
+- `GetGood(goodID)` → 按 ID 直接查 map，O(1)
+- `CheckGoods(goodsStack)` → 检查一组物品是否足够
 
 ### 初始物品发放
 
-建号时 `RoleMain.OnRoleCreated` 读取 `GlobalConfig.InitItems` 调用 `AddItemStack` 发放。
+建号时 `RoleMain.OnRoleCreated` 读取 `GlobalConfig.InitItems` 调用 `SaveGoods(nil, initItems, "")` 发放。
 
 ## Proto 接口
 
@@ -93,7 +139,7 @@ AddSingleItem 校验流程：
 
 ```proto
 message RspBagInfo {
-    repeated PGoodInfo goods = 1;  // 所有物品（含货币）
+    repeated PGoodInfo goods = 1;
 }
 message PGoodInfo {
     int32 prop_id = 1;
@@ -109,8 +155,8 @@ message NotifyBagUpdate {
 }
 message PBagGoodUpdate {
     int32 prop_id = 1;
-    int64 pre_num = 2;  // 变更前数量
-    int64 num     = 3;  // 变更后数量
+    int64 pre_num = 2;
+    int64 num     = 3;
 }
 ```
 
@@ -119,18 +165,34 @@ message PBagGoodUpdate {
 | 文件 | 说明 |
 |------|------|
 | `src/apps/role/internal/logic/role_bag.go` | 背包模块主逻辑 |
-| `src/apps/role/internal/logic/bag/item.go` | BagGood、BagChange、Item 类型 |
+| `src/apps/role/internal/logic/bag/good.go` | Good、BagGood、GoodOp、GoodUpdate 类型 |
 | `gameconfig/gameconfig.go` | 配置表加载模块 |
-| `gameconfig/gosrc/garden.Item.go` | 物品配置结构体 |
+
+## 预留接口
+
+| 方法 | 说明 | 当前实现 |
+|------|------|----------|
+| `onGoodUpdateEvent` | 物品变更事件分发 | 空，预留给任务/成就等模块 |
+| `saveGoodOps` | 操作日志持久化 | MVP 仅打 debug log |
 
 ## 设计决策
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
+| 命名 | 统一 good（= item + currency） | 消除 item/good 混用 |
+| 核心操作 | SaveGoods 原子接口 | 实际业务（抽卡/合成）需要同时扣+加 |
+| 安全模式 | clone-and-modify | 操作失败不影响原数据，无需回滚 |
+| 变更合并 | GoodUpdate 合并 | 同一物品的扣+加合并为一条通知 |
 | 货币存储 | 统一 GoodsMap | 货币也是物品，有唯一 ID，map 查询 O(1) |
 | 标签筛选 | 客户端负责 | 服务端返回全量，客户端按配置表筛选 |
-| 整理排序 | 客户端负责 | 纯展示逻辑 |
-| 背包上限 | MVP 未启用 | 暂无必要 |
+
+## 错误码
+
+| 变量 | 说明 |
+|------|------|
+| `ErrGoodNotEnough` | 物品数量不足 |
+| `ErrGoodConfigNotFound` | 配置表未找到该物品 |
+| `ErrGoodExceedMaxStack` | 超出最大堆叠数 |
 
 ## MVP 未实现
 
@@ -138,3 +200,5 @@ message PBagGoodUpdate {
 - 物品出售
 - 格子上限检查
 - 批量使用
+- 操作日志持久化（`saveGoodOps` 仅打 log）
+- 物品变更事件分发（`onGoodUpdateEvent` 为空）

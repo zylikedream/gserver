@@ -13,6 +13,7 @@ import (
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"gserver/src/apps/role/internal/logic/bag"
 	"reflect"
 	"time"
 
@@ -376,7 +377,7 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	// 发放初始物品
 	initItems := gameconfig.GameConfig().TbGlobalConfig.Get().InitItems
 	if len(initItems) > 0 {
-		if err := r.Bag.SaveGoods(ctx, nil, initItems, ""); err != nil {
+		if err := r.Bag.SaveGoods(ctx, nil, initItems, "", bag.OptSilent()); err != nil {
 			return err
 		}
 	}
@@ -447,3 +448,9 @@ func (r *RoleMain) GetRolePublic(ctx context.Context) *pb.PRolePublic {
 		CreateTime: r.Basic.CreateTm.Unix(),
 	}
 }
+
+// GetBag 实现 roleSender 接口，供兄弟模块跨模块访问背包
+func (r *RoleMain) GetBag() *RoleBag { return r.Bag }
+
+// GetBasic 实现 roleSender 接口，供兄弟模块跨模块访问基础信息
+func (r *RoleMain) GetBasic() *RoleBasic { return r.Basic }

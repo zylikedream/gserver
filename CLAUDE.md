@@ -23,6 +23,11 @@ go run node/main.go --config config/game.toml
 
 No linter or formatter is configured in the Makefile. The project uses Go 1.25.1.
 
+## Tool Preferences
+
+- **Go 代码引用查询**：用 LSP tool（goToDefinition, findReferences, hover），不用 grep/find
+- **Web 搜索/浏览网页**：用 `playwright-cli` skill，不用 WebSearch/WebFetch
+
 ## Architecture
 
 GServer is a distributed game server built on the **Actor model** using [protoactor-go](https://github.com/asynkron/protoactor-go) with [GoFrame (gf) v2](https://github.com/gogf/gf) as the utility framework.

@@ -94,7 +94,7 @@ func (r *RoleBag) addSingleGood(goodsMap GoodsMap, good bag.Good) (bag.GoodOp, e
 	if cfg == nil {
 		return bag.GoodOp{}, ErrGoodConfigNotFound
 	}
-	have := r.Goods[good.GoodID]
+	have := goodsMap[good.GoodID]
 	if have.GoodID == 0 {
 		have = bag.BagGood{
 			GoodID: good.GoodID,
@@ -128,6 +128,7 @@ func (r *RoleBag) decSingleGood(goodsMap GoodsMap, good bag.Good) (bag.GoodOp, e
 		return bag.GoodOp{}, errors.Wrapf(ErrGoodNotEnough, "have:%v, need:%v", have, good)
 	}
 	op := have.Update(have.Num - good.Num)
+	goodsMap[good.GoodID] = have
 	if have.Num == 0 {
 		delete(goodsMap, good.GoodID)
 	}
@@ -159,7 +160,11 @@ func (r *RoleBag) saveGoodsMap(goodsMap GoodsMap) {
 // ========== 公开接口 ==========
 
 // SaveGoods 原子性地扣除并添加物品，reason 用于日志
-func (r *RoleBag) SaveGoods(ctx context.Context, removeGoods []*gamecfg.GardenGoodStack, addGoods []*gamecfg.GardenGoodStack, reason string) error {
+func (r *RoleBag) SaveGoods(ctx context.Context, removeGoods []*gamecfg.GardenGoodStack, addGoods []*gamecfg.GardenGoodStack, reason string, opts0 ...bag.SaveGoodsOpts) error {
+	opts := bag.DefaultSaveGoodsOpts()
+	if len(opts0) > 0 {
+		opts = opts0[0]
+	}
 	remove := classifyGoods(removeGoods)
 	add := classifyGoods(addGoods)
 
@@ -183,7 +188,7 @@ func (r *RoleBag) SaveGoods(ctx context.Context, removeGoods []*gamecfg.GardenGo
 	// 合并变更
 	ops := append(removeOps, addOps...)
 
-	r.onBagChange(ctx, ops, reason)
+	r.onBagChange(ctx, ops, reason, opts)
 
 	r.saveGoodOps(ctx, ops)
 	return nil
@@ -201,7 +206,7 @@ func (r *RoleBag) CheckGoods(goodsStack []*gamecfg.GardenGoodStack) bool {
 	return true
 }
 
-func (r *RoleBag) onBagChange(ctx context.Context, ops []bag.GoodOp, reason string) {
+func (r *RoleBag) onBagChange(ctx context.Context, ops []bag.GoodOp, reason string, opts bag.SaveGoodsOpts) {
 	updates := map[int]bag.GoodUpdate{}
 	// 合并RemoveGoods和AddGoods的ID,他们可能有重复的
 	// 经过合并上每个物品ID最多出现两次并且一定是一次扣除一次添加
@@ -223,12 +228,19 @@ func (r *RoleBag) onBagChange(ctx context.Context, ops []bag.GoodOp, reason stri
 		updates[op.GoodID] = update
 	}
 
-	r.notifyBagUpdate(ctx, updates)
+	r.notifyBagUpdate(ctx, updates, opts)
 	r.onGoodUpdateEvent(ctx, updates)
 }
 
 // 通知客户端背包变更
-func (r *RoleBag) notifyBagUpdate(ctx context.Context, updates map[int]bag.GoodUpdate) {
+func (r *RoleBag) notifyBagUpdate(ctx context.Context, updates map[int]bag.GoodUpdate, opts bag.SaveGoodsOpts) {
+	r.notifyGoodUpdate(ctx, updates, opts)
+}
+
+func (r *RoleBag) notifyGoodUpdate(ctx context.Context, updates map[int]bag.GoodUpdate, opts bag.SaveGoodsOpts) {
+	if !opts.NotifyChange {
+		return
+	}
 	msg := &pb.NotifyBagUpdate{
 		Goods: []*pb.PBagGoodUpdate{},
 	}
