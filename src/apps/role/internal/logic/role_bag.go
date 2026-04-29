@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 
 	gamecfg "gserver/gameconfig/gosrc"
+	"gserver/gameconfig"
 	"gserver/src/apps/role/internal/logic/bag"
 
 	"gserver/protocol/pb"
@@ -18,6 +19,8 @@ import (
 
 var (
 	ErrItemDecItemNotEnough = errors.New("dec item not enough")
+	ErrItemConfigNotFound   = errors.New("item config not found")
+	ErrItemExceedMaxStack   = errors.New("exceed max stack")
 )
 
 type GoodsMap map[int]*bag.BagGood
@@ -78,6 +81,10 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 }
 
 func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
+	cfg := gameconfig.GameConfig().TbItem.Get(int32(item.ID))
+	if cfg == nil {
+		return nil, ErrItemConfigNotFound
+	}
 	have := r.Goods[item.ID]
 	if have == nil {
 		have = &bag.BagGood{
@@ -85,7 +92,11 @@ func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagCha
 		}
 		r.Goods[item.ID] = have
 	}
-	chg := have.Update(have.Num + item.Num)
+	newNum := have.Num + item.Num
+	if cfg.MaxStack > 0 && newNum > uint64(cfg.MaxStack) {
+		return nil, ErrItemExceedMaxStack
+	}
+	chg := have.Update(newNum)
 	r.MarkDirty()
 	return chg, nil
 }
