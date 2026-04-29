@@ -1,0 +1,54 @@
+[
+  {
+    "id": 101,
+    "name": "玫瑰",
+    "quality": 1,
+    "breed_time": 7200,
+    "breed_cost": [
+      {
+        "id": 1001,
+        "num": 2
+      },
+      {
+        "id": 2001,
+        "num": 1
+      }
+    ]
+  },
+  {
+    "id": 102,
+    "name": "向日葵",
+    "quality": 1,
+    "breed_time": 7200,
+    "breed_cost": [
+      {
+        "id": 1001,
+        "num": 2
+      },
+      {
+        "id": 2001,
+        "num": 3
+      }
+    ]
+  },
+  {
+    "id": 103,
+    "name": "郁金香",
+    "quality": 2,
+    "breed_time": 21600,
+    "breed_cost": [
+      {
+        "id": 1001,
+        "num": 3
+      },
+      {
+        "id": 2001,
+        "num": 2
+      },
+      {
+        "id": 3001,
+        "num": 1
+      }
+    ]
+  }
+]
