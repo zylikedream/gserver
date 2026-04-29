@@ -13,9 +13,10 @@ package gamecfg;
 import "errors"
 
 type GardenGlobalConfig struct {
-    Name string
-    Value string
-    Desc string
+    InitItems string
+    MaxEnergy int32
+    EnergyRecoverSec int32
+    BagMaxCells int32
 }
 
 const TypeId_GardenGlobalConfig = 1723761662
@@ -26,9 +27,10 @@ func (*GardenGlobalConfig) GetTypeId() int32 {
 
 func NewGardenGlobalConfig(_buf map[string]interface{}) (_v *GardenGlobalConfig, err error) {
     _v = &GardenGlobalConfig{}
-    { var _ok_ bool; var __json_name__ interface{}; if __json_name__, _ok_ = _buf["name"]; !_ok_ || __json_name__ == nil { err = errors.New("name error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_name__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Name = __x__ }}
-    { var _ok_ bool; var __json_value__ interface{}; if __json_value__, _ok_ = _buf["value"]; !_ok_ || __json_value__ == nil { err = errors.New("value error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_value__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Value = __x__ }}
-    { var _ok_ bool; var __json_desc__ interface{}; if __json_desc__, _ok_ = _buf["desc"]; !_ok_ || __json_desc__ == nil { err = errors.New("desc error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_desc__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Desc = __x__ }}
+    { var _ok_ bool; var __json_init_items__ interface{}; if __json_init_items__, _ok_ = _buf["init_items"]; !_ok_ || __json_init_items__ == nil { err = errors.New("init_items error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_init_items__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.InitItems = __x__ }}
+    { var _ok_ bool; var __json_max_energy__ interface{}; if __json_max_energy__, _ok_ = _buf["max_energy"]; !_ok_ || __json_max_energy__ == nil { err = errors.New("max_energy error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_max_energy__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.MaxEnergy = __x__ }}
+    { var _ok_ bool; var __json_energy_recover_sec__ interface{}; if __json_energy_recover_sec__, _ok_ = _buf["energy_recover_sec"]; !_ok_ || __json_energy_recover_sec__ == nil { err = errors.New("energy_recover_sec error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_energy_recover_sec__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.EnergyRecoverSec = __x__ }}
+    { var _ok_ bool; var __json_bag_max_cells__ interface{}; if __json_bag_max_cells__, _ok_ = _buf["bag_max_cells"]; !_ok_ || __json_bag_max_cells__ == nil { err = errors.New("bag_max_cells error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_bag_max_cells__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.BagMaxCells = __x__ }}
     return
 }
 
