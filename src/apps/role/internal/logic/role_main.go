@@ -10,6 +10,7 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
+	"gserver/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"reflect"
@@ -371,6 +372,13 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 		rmod.OnCreate(ctx)
 	}
 	r.Public.UpdateRolePublic(ctx)
+	// 发放初始物品
+	initItems := gameconfig.GameConfig().TbGlobalConfig.Get().InitItems
+	if len(initItems) > 0 {
+		if err := r.Bag.AddItemStack(ctx, initItems); err != nil {
+			return err
+		}
+	}
 	// 建号强制保存一次
 	if err := r.save(ctx); err != nil {
 		return err
