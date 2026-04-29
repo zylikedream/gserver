@@ -5,7 +5,7 @@
 ### 框架与业务分离
 - `core/` 目录只放框架通用代码，不依赖任何业务模块
 - `src/apps/` 目录放业务代码，可依赖 core 但不能互相依赖
-- `src/lib/` 放业务公共工具（如 `GetRoleGrain`），可被多个 app 引用
+- `src/lib/` 放业务公共工具（如 `ActivateRole`），可被多个 app 引用
 
 ### 模块化设计
 - 所有组件都实现 `IModule` 接口，通过 `ModuleBase` 管理生命周期
@@ -14,7 +14,7 @@
 - 停止顺序：Stop(子→父)
 
 ### Actor 模式
-- 业务实体建模为 Grain（虚拟 Actor），通过 `GrainBase` 继承
+- 业务实体建模为虚拟 Actor，通过 `ActorBase` 继承
 - 工具/管理类建模为普通 Actor，通过 `ActorBase` 继承
 - 每个 Actor 的消息处理方法签名：`HandleXxx(ctx context.Context, msg *pb.XxxMsg) (proto.Message, error)`
 - 消息路由通过 `MsgHandler` 基于反射自动完成，不需要手动 switch-case
@@ -33,19 +33,25 @@
 - 通过 `SetLogValue` 在 context 中附加 roleID 等上下文
 
 ### 命名规范
-- 接口：`I` 前缀（`IActor`, `IGrain`, `IModule`）
-- 基类：`Base` 后缀（`ActorBase`, `GrainBase`, `ModuleBase`）
+- 接口：`I` 前缀（`IActor`, `IModule`）
+- 基类：`Base` 后缀（`ActorBase`, `ModuleBase`）
 - 应用：`App` 后缀（`gateApp`, `roleApp`）
 - 生命周期：`On` 前缀（`OnModInit`, `OnCreate`, `Terminate`）
 - 常量：全大写下划线（`SESSION_ALIVE_INTERVAL`）
 - 私有方法/字段：小写开头
 
 ### 结构体标签
-- PostgreSQL 列：`db:"snake_case"`
-- hash 排除：`hash:"-"`（version、update_at 等不参与脏检查的字段）
-- 内嵌继承：`db:"inline"`（RolePersistState 嵌入子结构体）
-- 非持久化字段：`db:"-"`（ModuleBase、Role 等非持久化字段）
-- Map/slice 字段自动映射到 JSONB 列
+- PostgreSQL 列：`gorm:"column:snake_case"`
+- 主键：`gorm:"column:role_id;primaryKey"`
+- 自动更新时间：`gorm:"column:update_at;autoUpdateTime"`
+- JSONB 类型：`gorm:"column:goods;type:jsonb"`
+- 自定义序列化：实现 `driver.Valuer` 和 `sql.Scanner` 接口
+
+### 持久化约定
+- 每个 `IPersistState` 实现 `TableName() string` 指定表名
+- 数据修改后必须调用 `MarkDirty()` 标记脏
+- 保存时 `db.Save(modState)` 由 GORM 自动处理 INSERT/UPDATE
+- 表结构通过 `db.AutoMigrate()` 自动迁移
 
 ### 消息处理模式
 ```go
@@ -53,6 +59,7 @@
 // 2. 在模块中实现 Handle 方法：
 func (r *RoleBasic) ReqUpdateName(ctx context.Context, req *pb.ReqUpdateName) (*pb.RspUpdateName, error) {
     r.Basic.RoleName = req.Name
+    r.MarkDirty()
     return &pb.RspUpdateName{}, nil
 }
 // 3. 通过 MsgHandler.AddHandler(mod) 自动注册路由
@@ -94,7 +101,8 @@ r.eventBus.Subscribe(event.EventType("item_add"), func(param event.EventParam) {
 - 每个包一个目录
 - `internal/` 子包放私有实现（如 `src/apps/role/internal/logic/`, `src/apps/gateway/internal/logic/`）
 - protobuf 生成代码放在 `protocol/pb/`
-- 游戏配置表放在 `gameconfig/src/`，由工具自动生成
+- 游戏配置表放在 `gameconfig/gosrc/`，由工具自动生成
+- 框架工具放在 `core/gxyutil/`（消息路由、反射工具等）
 
 ---
-*Last updated: 2026-04-22*
+*Last updated: 2026-04-29*

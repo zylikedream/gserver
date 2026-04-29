@@ -19,10 +19,9 @@
 
 ### 容易测试的部分
 
-1. **src/util/ 层** — 纯函数，无外部依赖
-   - `src/util/msg_handler.go` — 消息路由，可通过 mock handler 验证
-   - `src/util/reflect.go` — 反射工具，纯函数
-   - `src/util/ets/ets.go` — 内存表，可独立测试
+1. **core/gxyutil/ 层** — 纯函数，无外部依赖
+   - `core/gxyutil/msg_handler.go` — 消息路由，可通过 mock handler 验证
+   - `core/gxyutil/reflect.go` — 反射工具，纯函数
 
 2. **gameconfig/** — 配置加载和校验
 
@@ -45,19 +44,20 @@
 ### 单元测试（优先）
 
 ```
-src/util/msg_handler_test.go     — 消息路由正确性
-src/util/ets/ets_test.go         — 内存表 CRUD
-src/util/uid/uid_test.go         — UID 生成
-gameconfig/gameconfig_test.go — 配置加载
+core/gxyutil/msg_handler_test.go     — 消息路由正确性
+core/gxyutil/reflect_test.go         — 反射工具函数
+src/util/uid/uid_test.go             — UID 生成
+gameconfig/gameconfig_test.go        — 配置加载
 ```
 
 ### 接口 Mock 测试
 
 ```
-// 将 PostgreSQL 操作抽象为接口
+// 将 GORM 操作抽象为接口
 type IDB interface {
-    FindOne(ctx, reply, table, filter) error
-    UpsertOne(ctx, table, data, conflictCols) error
+    Save(value interface{}) error
+    First(dest interface{}, conds ...interface{}) error
+    AutoMigrate(dst ...interface{}) error
 }
 
 // 业务代码依赖接口而非具体实现
@@ -91,10 +91,10 @@ func TestRoleMain_Login(t *testing.T) {
 按影响面排序：
 
 1. **gxylocator Lua 脚本** — 核心定位逻辑，SETNX 注册和条件注销的正确性
-2. **gxyactor grain_manager** — Grain 激活/续约/注销流程
-3. **gxypgx UpsertOne** — 乐观锁和 JSONB 映射
-4. **src/util/msg_handler** — 消息路由正确性
+2. **gxyactor activator_manager** — Actor 激活/续约/注销流程
+3. **gxypgx GORM Save** — 脏标记机制和 JSONB 映射
+4. **gxyutil/msg_handler** — 消息路由正确性
 5. **src/apps/role 业务逻辑** — 角色模块核心逻辑
 
 ---
-*Last updated: 2026-04-22*
+*Last updated: 2026-04-29*

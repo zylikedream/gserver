@@ -118,33 +118,15 @@ StopModule 阶段:
 | `OnModStopBefore` | 停止前回调 | 保存状态、通知依赖方 |
 | `OnModStop` | 子树停止后回调 | 释放资源、关闭连接 |
 
-### OnModStartAfter 的设计意图
-
-```go
-// 注释原文: "如果依赖与其他module,就实现这个方法"
-//
-// 场景：ServiceApp 需要确保所有子 Service 都启动完成后再注册到 Registry
-//
-// StartModule 执行顺序：
-//   1. ServiceApp.OnModStart()       → 创建 registry
-//   2. roleService.OnModStart()      → RegisterGrain("role", ...)
-//   3. otherService.OnModStart()     → ...
-//   4. roleService.OnModStartAfter() → (如果需要)
-//   5. ServiceApp.OnModStartAfter()  → registerServices() 到 Registry
-//
-// 这样保证了注册时所有子 Service 都已就绪
-```
-
 ## App 层（应用模块）
 
 `gxyapp.App` 在 `IModule` 基础上增加了应用级别的概念：
 
 ```go
-// core/gxyapp.go/app.go
+// core/gxyapp/app.go
 
 type IApp interface {
     gxymodule.IModule       // 继承模块接口
-    Deps() []string         // 依赖的其他 App 名称
     AppName() string        // 应用名称
     SetAppName(name string)
 }
@@ -171,10 +153,13 @@ func GetApp(appName string) IApp         // 获取 App
 // core/gxynode/node.go
 
 func (n *node) registerApps() {
-    gxyapp.RegisterApp("role", role.NewRoleApp())
     gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
+    gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
     gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
+    gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.Host))
+    gxyapp.RegisterApp("http", gxyhttp.NewHttpApp(n.Name, n.Host))
     gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.Name))
+    gxyapp.RegisterApp("role", role.NewRoleApp())
     gxyapp.RegisterApp("gate", gateway.NewGateApp())
 }
 ```
@@ -185,25 +170,28 @@ func (n *node) registerApps() {
 // core/gxynode/node.go — OnModStart
 
 func (n *node) OnModStart(ctx context.Context) error {
-    // 1. 预加载基础设施 App（总是需要）
-    preloaded := []gxyapp.IApp{
-        gxyactor.NewActorApp(n.Name, n.Host),  // Actor 系统
-        gxyhttp.NewHttpApp(n.Name, n.Host),    // HTTP 服务
-        gxyservice.NewServiceApp(n.Name),      // 服务发现
+    // 1. 预加载基础设施依赖（固定顺序，保证先于业务 App）
+    deps := []string{"redis", "pgx", "actor", "service"}
+    for _, dep := range deps {
+        n.loadApp(ctx, dep, loaded)
     }
 
     // 2. 根据配置加载业务 App
     //    配置示例: node.apps = ["role", "gate"]
     for _, appName := range n.apps {
-        app := gxyapp.GetApp(appName)
-        needed = append(needed, app)
-    }
-
-    // 3. 按顺序添加为子模块（preloaded 先，needed 后）
-    for _, app := range slices.Concat(preloaded, needed) {
-        n.AddModule(ctx, app)
+        n.loadApp(ctx, appName, loaded)
     }
     return nil
+}
+
+// loadApp 递归加载 app 及其依赖，通过 loaded map 防止重复加载
+func (n *node) loadApp(ctx context.Context, appName string, loaded map[string]bool) error {
+    if loaded[appName] {
+        return nil
+    }
+    app := gxyapp.GetApp(appName)
+    loaded[appName] = true
+    return n.AddModule(ctx, app)
 }
 ```
 
@@ -235,8 +223,8 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
     a.system = actor.NewActorSystem(...)
     a.remote = remote.NewRemote(a.system, config)
     a.remote.Start()
-    a.grainMgr = NewGrainManager()
-    a.AddModule(ctx, a.grainMgr)  // grainManager 作为子模块
+    a.activatorMgr = NewActivatorManager()
+    a.AddModule(ctx, a.activatorMgr)  // activatorManager 作为子模块
     return nil
 }
 ```
@@ -256,23 +244,23 @@ func (s *gateApp) OnModInit(ctx context.Context) error {
 
 ### 示例 4: RoleMain 的模块化（最复杂的用法）
 
-RoleMain 同时是 Grain 和 Module 容器，内嵌了多个业务子模块：
+RoleMain 同时是 Actor 和 Module 容器，内嵌了多个业务子模块：
 
 ```go
 // src/apps/role/internal/logic/role_main.go
 
 type RoleMain struct {
     gxymodule.ModuleBase       // 继承模块基类（作为容器）
-    roleModules                 // 内嵌子模块集合
-    *gxyactor.GrainBase         // 继承 Grain 基类（作为 Actor）
+    roleModules                // 内嵌子模块集合
+    *gxyactor.ActorBase        // 继承 Actor 基类
     RoleID     int64
     session    gxyactor.PID
+    state      RoleState
     eventBus   event.IEventBus
 }
 
 // 子模块集合 — 通过反射自动发现
 type roleModules struct {
-    Sign   *RoleSign      // 签到
     Bag    *RoleBag       // 背包
     Basic  *RoleBasic     // 基础信息
     Public *RolePublic    // 公开信息
@@ -282,14 +270,21 @@ type roleModules struct {
 // 通过反射自动初始化所有实现了 IRoleModule 的字段
 func (r *RoleMain) initRoleModules(ctx context.Context) {
     modules := &r.roleModules
-    t := util.TypeReal(modules)
+    t := gxyutil.TypeReal(modules)
     for i := 0; i < t.NumField(); i++ {
         field := t.Field(i)
-        if field.Type.Implements(reflect.TypeFor[IRoleModule]()) {
-            rmod := util.NewObject(field.Type.Elem())     // 反射创建实例
-            reflect.ValueOf(modules).Elem().Field(i).Set(reflect.ValueOf(rmod))
-            r.AddModule(ctx, rmod.(IRoleModule))           // 添加为子模块
+        if !field.IsExported() {
+            continue
         }
+        if field.Type.Kind() != reflect.Ptr {
+            continue
+        }
+        if !field.Type.Implements(reflect.TypeFor[IRoleModule]()) {
+            continue
+        }
+        rmod := gxyutil.NewObject(field.Type.Elem())
+        reflect.ValueOf(modules).Elem().Field(i).Set(reflect.ValueOf(rmod))
+        r.AddModule(ctx, rmod.(IRoleModule))
     }
 }
 ```
@@ -306,11 +301,22 @@ type IRoleModule interface {
     PersistState() IPersistState  // 返回持久化状态
 }
 
+// 持久化状态接口
+type IPersistState interface {
+    SetRoleID(roleID int64)
+    GetUpdateAt() time.Time
+    SetUpdateAt(updateAt time.Time)
+    GetIndexes() []string
+    MarkDirty()
+    IsDirty() bool
+    ClearDirty()
+}
+
 // 基类
-type RoleModule struct {
-    gxymodule.ModuleBase `db:"-"`
-    RoleID   int64
-    Role     *RoleMain  `db:"-" hash:"-"`
+type RolePersistState struct {
+    RoleID   int64     `gorm:"column:role_id;primaryKey"`
+    UpdateAt time.Time `gorm:"column:update_at;autoUpdateTime"`
+    dirty    bool
 }
 
 // 具体实现示例
@@ -333,45 +339,39 @@ func (r *RoleBasic) PersistState() IPersistState {
 ```
 rootModule (ModuleBase)
  └─ node (gxynode.node)
+     ├─ redisApp (gxyredis.redisApp)
+     ├─ pgxApp (gxypgx.PGXApp) — GORM
      ├─ actorApp (gxyactor.actorApp)
-     │   └─ grainManager (gxyactor.grainManager)
-     │       └─ (动态创建的 grainActivator actors)
+     │   └─ activatorManager (gxyactor.activatorManager)
+     │       └─ (动态创建的 activatorRouter + actorActivator actors)
      │
      ├─ httpApp (gxyhttp.httpApp)
      │
      ├─ serviceApp (gxyservice.serviceApp)
-     │   ├─ roleService (role.roleService)
-     │   │   └─ (注册的 Grain: "role" → RoleMain)
-     │   └─ (其他 service...)
+     │   └─ roleService (role.roleService)
+     │       └─ (注册的 Actor: "role" → RoleMain)
      │
      ├─ roleApp (role.roleApp)
-     │   └─ dbIndex (logic.dbIndex)
-     │       └─ (临时的 RoleMain 实例，仅用于创建索引)
+     │   └─ schema migration (GORM AutoMigrate)
      │
      ├─ gateApp (gateway.gateApp)
      │   └─ network (gxynet.network)
      │
-     ├─ redisApp (gxyredis.redisApp)
-     │
-
-     │
      └─ mqApp (gxymq.messageQueueApp)
 ```
 
-每个 RoleMain Grain 内部也有自己的模块树：
+每个 RoleMain Actor 内部也有自己的模块树：
 
 ```
-RoleMain (GrainBase + ModuleBase)
- ├─ RoleSign (RoleModule)
- │   └─ RoleSignState (PersistState)
+RoleMain (ActorBase + ModuleBase)
  ├─ RoleBag (RoleModule)
- │   └─ RoleBagState (PersistState)
+ │   └─ RoleBagState (PersistState) — table: role_bag
  ├─ RoleBasic (RoleModule)
- │   └─ RoleBasicState (PersistState)
+ │   └─ RoleBasicState (PersistState) — table: role_basic
  ├─ RolePublic (RoleModule)
- │   └─ RolePublicState (PersistState)
+ │   └─ RolePublicState (PersistState) — table: role_public
  └─ RoleExtra (RoleModule)
-     └─ RoleExtraPersistState (PersistState)
+     └─ RoleExtraPersistState (PersistState) — table: role_extra
 ```
 
 ## 设计模式总结
@@ -391,14 +391,14 @@ RoleMain (GrainBase + ModuleBase)
 - 新增模块只需在 `roleModules` 结构体中添加字段，无需修改初始化代码
 
 ### 模式 4: 双重身份
-- RoleMain 同时是 **Grain**（Actor）和 **Module**（容器）
-- 作为 Grain 接收消息、处理业务
+- RoleMain 同时是 **Actor** 和 **Module**（容器）
+- 作为 Actor 接收消息、处理业务
 - 作为 Module 管理子模块的生命周期和数据加载
 
 ### 模式 5: 配置驱动加载
 - Node 通过配置文件决定加载哪些 App
-- 不同配置产生不同类型的节点（网关节点、角色节点、世界节点）
-- 基础设施 App（Actor、Redis、PGX）总是预加载
+- 不同配置产生不同类型的节点（网关节点、角色节点）
+- 基础设施 App（Redis、PGX、Actor、Service）总是预加载
 
 ---
-*Last updated: 2026-04-22*
+*Last updated: 2026-04-29*

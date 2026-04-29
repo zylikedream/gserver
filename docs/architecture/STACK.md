@@ -11,6 +11,7 @@
 ### Actor System
 - **protoactor-go** (`github.com/asynkron/protoactor-go`) — Actor 模型框架，提供 Actor 生命周期管理、消息传递、Supervisor 策略、Remote 远程通信
 - **protoactor-go/remote** — 基于 protobuf 的跨节点 Actor 远程调用
+- **protoactor-go/router** — 一致性哈希池路由，用于 Actor 激活分发
 
 ### Web Framework
 - **GoFrame** (`github.com/gogf/gf/v2`) — 提供 CLI 命令解析 (`gcmd`)、配置管理 (`gcfg`)、日志 (`glog`)、校验 (`gValidator`)、工具函数 (`gconv`, `gstr`, `gutil`) 等
@@ -19,21 +20,22 @@
 ### Protocol & Serialization
 - **protobuf** (`google.golang.org/protobuf`) — 所有网络消息和 RPC 消息使用 protobuf 定义
 - **anypb** — 使用 `google.protobuf.Any` 包装动态消息类型，实现多态消息传递
-- **protojson** — protobuf 与 JSON 互转，用于 Grain PID 在 Redis 中的序列化
+- **protojson** — protobuf 与 JSON 互转，用于 Actor PID 在 Redis 中的序列化
 
 ## Data Storage
 
 ### Primary Database
-- **PostgreSQL** (`github.com/jackc/pgx/v5`) — 角色数据持久化
-  - 使用 `INSERT ... ON CONFLICT DO UPDATE` (UpsertOne) 模式保存
-  - JSONB 列存储复杂结构（map、slice 自动映射）
-  - 脏检查（对象 hash 对比）减少不必要的写入
-  - 连接池管理（pgxpool）
-  - 依赖 Actor 单例保证，无需乐观锁
+- **PostgreSQL** via **GORM** (`gorm.io/gorm`, `gorm.io/driver/postgres`) — 角色数据持久化
+  - `AutoMigrate` 自动创建/更新表结构
+  - `db.Save()` 自动判断 INSERT/UPDATE
+  - `db.First()` 查询单条记录
+  - JSONB 列存储复杂结构（自定义 `Value()`/`Scan()` 方法）
+  - 脏标记机制（`MarkDirty`/`IsDirty`）减少不必要的写入
+  - 连接池管理（底层 `database/sql`）
 
 ### Cache & Location
 - **Redis** (`github.com/redis/go-redis/v9`) — 三重用途
-  1. **Grain Locator** — 存储 Grain 类型+ID → PID 的映射关系（TTL 40s，30s 批量续约，SETNX 原子注册）
+  1. **Actor Locator** — 存储 Actor 类型+ID → PID 的映射关系（TTL 40s，30s 批量续约，SETNX 原子注册）
   2. **Service Registry** — 服务注册与发现（一致性哈希选择器）
   3. **UID Generator** — 分布式自增 ID 生成
 
@@ -71,8 +73,10 @@
   - 支持 Tick（重复间隔）、Once（单次延迟）、Cron（定时任务）
   - 定时器状态可持久化恢复（CronState 接口）
 
-### ETS (Erlang Term Storage)
-- **src/util/ets** — 类似 Erlang ETS 的内存表（sync.Map 封装），用于高效键值查找
+### Message Routing
+- **自定义消息路由** (`core/gxyutil`) — 基于反射的 protobuf 消息自动分发
+  - 扫描导出方法，按参数类型名自动路由
+  - 支持两种签名：`(ctx, *Req) (*Rsp, error)` 和 `(ctx, *Req) error`
 
 ## Build & Tooling
 
@@ -86,5 +90,11 @@
 - **命令行参数** — 通过 `gcmd` 解析 `--config` 参数指定配置文件路径
 - 配置项包括：节点名称、主机地址、应用列表、PostgreSQL 连接串、Redis 地址、服务发现后端等
 
+## Additional Dependencies
+
+- **go-linq** (`github.com/ahmetb/go-linq`) — LINQ 风格集合操作（背包模块使用）
+- **gookit/goutil** (`github.com/gookit/goutil/reflects`) — 反射工具补充
+- **pkg/errors** (`github.com/pkg/errors`) — 带堆栈的错误包装
+
 ---
-*Last updated: 2026-04-22*
+*Last updated: 2026-04-29*

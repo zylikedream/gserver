@@ -25,9 +25,6 @@
 | 100 | 登录 | 10001~10099 |
 | 200 | 基础 | 20001~20099 |
 | 210 | 背包 | 21001~21099 |
-| 220 | 签到 | 22001~22099 |
-| 230 | 好友 | 23001~23099 |
-| 240 | 麻将 | 24001~24099 |
 
 ## 消息ID获取方式
 
@@ -67,4 +64,16 @@ msg_id = ReqHandShake.DESCRIPTOR.GetOptions().msg_id
 const msgId = root.lookupType("ReqHandShake").options["(msg_id)"];
 ```
 
+## 当前协议文件
 
+| 文件 | 用途 |
+|------|------|
+| `login.proto` | 握手、登录、登出 |
+| `role.proto` | 角色相关 |
+| `basic.proto` | 基础信息（名称、头像） |
+| `bag.proto` | 背包系统 |
+| `ack.proto` | 通用响应/错误 |
+| `gactor.proto` | Actor 通信（ActorActive, ActorStop, ActorError） |
+
+---
+*Last updated: 2026-04-29*
