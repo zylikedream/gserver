@@ -12,28 +12,12 @@ package gamecfg;
 type GardenEItemMajorType int32
 const (
     /**
-     * 种子
+     * 货币
      */
-    GardenEItemMajorType_SEED GardenEItemMajorType = 1;
+    GardenEItemMajorType_CURRENCY GardenEItemMajorType = 1;
     /**
-     * 材料
+     * 物品
      */
-    GardenEItemMajorType_MATERIAL GardenEItemMajorType = 2;
-    /**
-     * 工具
-     */
-    GardenEItemMajorType_TOOL GardenEItemMajorType = 3;
-    /**
-     * 装饰
-     */
-    GardenEItemMajorType_DECORATION GardenEItemMajorType = 4;
-    /**
-     * 消耗品
-     */
-    GardenEItemMajorType_CONSUMABLE GardenEItemMajorType = 5;
-    /**
-     * 任务道具
-     */
-    GardenEItemMajorType_QUEST GardenEItemMajorType = 6;
+    GardenEItemMajorType_ITEM GardenEItemMajorType = 2;
 )
 

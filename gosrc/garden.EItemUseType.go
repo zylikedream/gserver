@@ -9,27 +9,27 @@
 
 package gamecfg;
 
-type GardenEItemQuality int32
+type GardenEItemUseType int32
 const (
     /**
-     * 普通
+     * 不可使用
      */
-    GardenEItemQuality_NORMAL GardenEItemQuality = 1;
+    GardenEItemUseType_NONE GardenEItemUseType = 1;
     /**
-     * 良品
+     * 开启宝箱
      */
-    GardenEItemQuality_FINE GardenEItemQuality = 2;
+    GardenEItemUseType_OPEN_CHEST GardenEItemUseType = 2;
     /**
-     * 稀有
+     * 获得经验
      */
-    GardenEItemQuality_RARE GardenEItemQuality = 3;
+    GardenEItemUseType_ADD_EXP GardenEItemUseType = 3;
     /**
-     * 史诗
+     * 恢复水滴
      */
-    GardenEItemQuality_EPIC GardenEItemQuality = 4;
+    GardenEItemUseType_ADD_ENERGY GardenEItemUseType = 4;
     /**
-     * 传说
+     * 获得增益
      */
-    GardenEItemQuality_LEGENDARY GardenEItemQuality = 5;
+    GardenEItemUseType_ADD_BUFF GardenEItemUseType = 5;
 )
 
