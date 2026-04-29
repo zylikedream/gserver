@@ -5,11 +5,10 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 
-	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/gameconfig"
-	"gserver/src/apps/role/internal/logic/bag"
-
+	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/ahmetb/go-linq"
 	"github.com/gogf/gf/v2/os/glog"
@@ -18,14 +17,13 @@ import (
 )
 
 var (
-	ErrItemDecItemNotEnough = errors.New("dec item not enough")
-	ErrItemConfigNotFound   = errors.New("item config not found")
-	ErrItemExceedMaxStack   = errors.New("exceed max stack")
+	ErrGoodNotEnough    = errors.New("good not enough")
+	ErrGoodConfigNotFound = errors.New("good config not found")
+	ErrGoodExceedMaxStack = errors.New("exceed max stack")
 )
 
 type GoodsMap map[int]*bag.BagGood
 
-// Value 实现 driver.Valuer 接口，将 map 转换为 JSON 字节
 func (m GoodsMap) Value() (driver.Value, error) {
 	if m == nil {
 		return nil, nil
@@ -33,7 +31,6 @@ func (m GoodsMap) Value() (driver.Value, error) {
 	return json.Marshal(m)
 }
 
-// Scan 实现 sql.Scanner 接口，将 JSON 字节转换为 map
 func (m *GoodsMap) Scan(value interface{}) error {
 	if value == nil {
 		*m = make(GoodsMap)
@@ -80,159 +77,177 @@ func (r *RoleBag) OnModInit(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleBag) AddSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
-	cfg := gameconfig.GameConfig().TbItem.Get(int32(item.ID))
+// ========== 单个物品操作（内部使用） ==========
+
+func (r *RoleBag) addSingleGood(ctx context.Context, good bag.Good) (*bag.GoodChange, error) {
+	cfg := gameconfig.GameConfig().TbItem.Get(int32(good.ID))
 	if cfg == nil {
-		return nil, ErrItemConfigNotFound
+		return nil, ErrGoodConfigNotFound
 	}
-	have := r.Goods[item.ID]
+	have := r.Goods[good.ID]
 	if have == nil {
 		have = &bag.BagGood{
-			PropID: item.ID,
+			PropID: good.ID,
 		}
-		r.Goods[item.ID] = have
+		r.Goods[good.ID] = have
 	}
-	newNum := have.Num + item.Num
+	newNum := have.Num + good.Num
 	if cfg.MaxStack > 0 && newNum > uint64(cfg.MaxStack) {
-		return nil, ErrItemExceedMaxStack
+		return nil, ErrGoodExceedMaxStack
 	}
 	chg := have.Update(newNum)
 	r.MarkDirty()
 	return chg, nil
 }
 
-func (r *RoleBag) GetItem(propID int) bag.Item {
-	good := r.Goods[propID]
-	if good == nil {
-		return bag.Item{ID: propID, Num: 0}
+func (r *RoleBag) decSingleGood(ctx context.Context, good bag.Good) (*bag.GoodChange, error) {
+	have := r.Goods[good.ID]
+	if have == nil || good.Num > have.Num {
+		return nil, errors.Wrapf(ErrGoodNotEnough, "have:%v, need:%v", have, good)
 	}
-	return bag.Item{ID: propID, Num: good.Num}
-}
-
-func (r *RoleBag) DecSingleItem(ctx context.Context, item bag.Item) (*bag.BagChange, error) {
-	have := r.Goods[item.ID]
-	if have == nil || item.Num > have.Num {
-		return nil, errors.Wrapf(ErrItemDecItemNotEnough, "have:%v, need:%v", have, item)
-	}
-	chg := have.Update(have.Num - item.Num)
+	chg := have.Update(have.Num - good.Num)
 	if have.Num == 0 {
-		delete(r.Goods, item.ID)
+		delete(r.Goods, good.ID)
 	}
 	r.MarkDirty()
 	return chg, nil
 }
 
-func (r *RoleBag) AddItemStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) error {
+func (r *RoleBag) GetGood(propID int) bag.Good {
+	good := r.Goods[propID]
+	if good == nil {
+		return bag.Good{ID: propID, Num: 0}
+	}
+	return bag.Good{ID: propID, Num: good.Num}
+}
+
+// ========== 公开接口 ==========
+
+// SaveGoods 原子性地扣除并添加物品，reason 用于日志
+func (r *RoleBag) SaveGoods(ctx context.Context, remove []bag.Good, add []bag.Good, reason string) error {
+	if len(remove) == 0 && len(add) == 0 {
+		return nil
+	}
+	remove = classifyGoods(remove)
+	add = classifyGoods(add)
+
+	// 先检查扣除物品是否足够
+	for _, g := range remove {
+		have := r.GetGood(g.ID)
+		if have.Num < g.Num {
+			return errors.Wrapf(ErrGoodNotEnough, "check failed, goodID:%d, have:%d, need:%d", g.ID, have.Num, g.Num)
+		}
+	}
+
+	// 执行扣除
+	var chgs []*bag.GoodChange
+	for _, g := range remove {
+		chg, err := r.decSingleGood(ctx, g)
+		if err != nil {
+			return err
+		}
+		chgs = append(chgs, chg)
+		glog.Debug(ctx, "save_goods: remove", zap.Int("goodID", g.ID), zap.Uint64("num", g.Num), zap.String("reason", reason))
+	}
+
+	// 执行添加
+	for _, g := range add {
+		chg, err := r.addSingleGood(ctx, g)
+		if err != nil {
+			return err
+		}
+		chgs = append(chgs, chg)
+		glog.Debug(ctx, "save_goods: add", zap.Int("goodID", g.ID), zap.Uint64("num", g.Num), zap.String("reason", reason))
+	}
+
+	// 合并变更通知客户端
+	r.notifyBagUpdate(ctx, chgs)
+	return nil
+}
+
+// CheckGoods 检查物品是否足够
+func (r *RoleBag) CheckGoods(goodsList []bag.Good) bool {
+	if len(goodsList) == 0 {
+		return true
+	}
+	goodsList = classifyGoods(goodsList)
+	for _, g := range goodsList {
+		have := r.GetGood(g.ID)
+		if have.Num < g.Num {
+			return false
+		}
+	}
+	return true
+}
+
+// AddGoodsStack 从配置表物品栈添加（兼容 gameconfig 接口）
+func (r *RoleBag) AddGoodsStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) error {
 	if len(itemStackList) == 0 {
 		return nil
 	}
-	items, err := r.ItemStack2Item(itemStackList)
-	if err != nil {
-		return err
-	}
-	return r.AddItem(ctx, items)
+	goods := itemStack2Goods(itemStackList)
+	return r.SaveGoods(ctx, nil, goods, "add_stack")
 }
 
-func (r *RoleBag) AddItem(ctx context.Context, itemList []bag.Item) error {
-	var chgs []*bag.BagChange
-	itemList = r.ClassifyItemList(itemList)
-	for _, item := range itemList {
-		if chg, err := r.AddSingleItem(ctx, item); err != nil {
-			// todo 格子满了的处理
-			return err
-		} else {
-			chgs = append(chgs, chg)
-		}
-	}
-	r.notifyBagUpdate(ctx, chgs)
-	glog.Debug(ctx, "add item success", zap.Any("item", itemList), zap.Any("chgs", chgs))
-	return nil
+// CheckGoodsStack 从配置表物品栈检查（兼容 gameconfig 接口）
+func (r *RoleBag) CheckGoodsStack(itemStackList []*gamecfg.GardenItemStack) bool {
+	goods := itemStack2Goods(itemStackList)
+	return r.CheckGoods(goods)
 }
 
-func (r *RoleBag) CheckItemStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) bool {
-	items, err := r.ItemStack2Item(itemStackList)
-	if err != nil {
-		return false
-	}
-	return r.CheckItem(ctx, items)
-}
-
-func (r *RoleBag) CheckItem(ctx context.Context, itemList []bag.Item) bool {
-	if len(itemList) == 0 {
-		return true
-	}
-	itemList = r.ClassifyItemList(itemList)
-	return linq.From(itemList).All(func(i any) bool {
-		item := i.(bag.Item)
-		have := r.GetItem(item.ID)
-		return have.Num >= item.Num
-	})
-}
-
-func (r *RoleBag) DecItemStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) error {
-	items, err := r.ItemStack2Item(itemStackList)
-	if err != nil {
-		return err
-	}
-	return r.DecItem(ctx, items)
-}
-
-func (r *RoleBag) DecItem(ctx context.Context, itemList []bag.Item) error {
-	if len(itemList) == 0 {
+// DecGoodsStack 从配置表物品栈扣除（兼容 gameconfig 接口）
+func (r *RoleBag) DecGoodsStack(ctx context.Context, itemStackList []*gamecfg.GardenItemStack) error {
+	if len(itemStackList) == 0 {
 		return nil
 	}
-	itemList = r.ClassifyItemList(itemList)
-	var chgs []*bag.BagChange
-	for _, item := range itemList {
-		if chg, err := r.DecSingleItem(ctx, item); err != nil {
-			return err
-		} else {
-			chgs = append(chgs, chg)
-		}
-	}
-	r.notifyBagUpdate(ctx, chgs)
-	glog.Debug(ctx, "dec item success", zap.Any("item", itemList), zap.Any("griddec ", chgs))
-	return nil
+	goods := itemStack2Goods(itemStackList)
+	return r.SaveGoods(ctx, goods, nil, "dec_stack")
 }
 
-func (r *RoleBag) notifyBagUpdate(ctx context.Context, chgs []*bag.BagChange) {
+// ========== 客户端通知 ==========
+
+func (r *RoleBag) notifyBagUpdate(ctx context.Context, chgs []*bag.GoodChange) {
 	msg := &pb.NotifyBagUpdate{
 		Goods: []*pb.PBagGoodUpdate{},
 	}
 	linq.From(chgs).Select(func(i any) any {
 		return &pb.PBagGoodUpdate{
-			PropId: int32(i.(*bag.BagChange).PropID),
-			PreNum: int64(i.(*bag.BagChange).PreNum),
-			Num:    int64(i.(*bag.BagChange).Num),
+			PropId: int32(i.(*bag.GoodChange).PropID),
+			PreNum: int64(i.(*bag.GoodChange).PreNum),
+			Num:    int64(i.(*bag.GoodChange).Num),
 		}
 	}).ToSlice(&msg.Goods)
 	r.Role.SendClient(ctx, msg)
 }
 
-func (r *RoleBag) ClassifyItemList(itemList []bag.Item) []bag.Item {
-	classifyItemList := []bag.Item{}
-	linq.From(itemList).GroupBy(
-		func(it any) any { return it.(bag.Item).ID },
-		func(it any) any { return it.(bag.Item).Num },
+// ========== 工具方法 ==========
+
+func classifyGoods(goodsList []bag.Good) []bag.Good {
+	result := []bag.Good{}
+	linq.From(goodsList).GroupBy(
+		func(it any) any { return it.(bag.Good).ID },
+		func(it any) any { return it.(bag.Good).Num },
 	).Select(func(i any) any {
-		return bag.Item{
+		return bag.Good{
 			ID:  i.(linq.Group).Key.(int),
 			Num: linq.From(i.(linq.Group).Group).SumUInts(),
 		}
-	}).ToSlice(&classifyItemList)
-	return classifyItemList
+	}).ToSlice(&result)
+	return result
 }
 
-func (r *RoleBag) ItemStack2Item(itemStackList []*gamecfg.GardenItemStack) ([]bag.Item, error) {
-	items := []bag.Item{}
+func itemStack2Goods(itemStackList []*gamecfg.GardenItemStack) []bag.Good {
+	goods := []bag.Good{}
 	linq.From(itemStackList).Select(func(obj any) any {
-		return bag.Item{
+		return bag.Good{
 			ID:  int(obj.(*gamecfg.GardenItemStack).Id),
 			Num: uint64(obj.(*gamecfg.GardenItemStack).Num),
 		}
-	}).ToSlice(&items)
-	return items, nil
+	}).ToSlice(&goods)
+	return goods
 }
+
+// ========== Proto Handler ==========
 
 func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBagInfo, error) {
 	msg := &pb.RspBagInfo{

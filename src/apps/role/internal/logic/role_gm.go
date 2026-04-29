@@ -206,16 +206,16 @@ func (r *RoleGM) ReqGMHelp(ctx context.Context, req *pb.ReqGMHelp) (*pb.RspGMHel
 // 用法: add_goods [物品ID] [数量]
 // 示例: add_goods 1001 10
 func (r *RoleGM) AddGoods(itemID int, num uint64) error {
-	return r.Role.Bag.AddItem(r.ctx, []bag.Item{
+	return r.Role.Bag.SaveGoods(r.ctx, nil, []bag.Good{
 		{ID: itemID, Num: num},
-	})
+	}, "gm")
 }
 
 // RemoveGoods 移除物品或货币
 // 用法: remove_goods [物品ID] [数量]
 // 示例: remove_goods 1001 5
 func (r *RoleGM) RemoveGoods(itemID int, num uint64) error {
-	return r.Role.Bag.DecItem(r.ctx, []bag.Item{
+	return r.Role.Bag.SaveGoods(r.ctx, []bag.Good{
 		{ID: itemID, Num: num},
-	})
+	}, nil, "gm")
 }

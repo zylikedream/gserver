@@ -14,20 +14,20 @@ type BagGood struct {
 	UpdateTime time.Time `json:"update_time"`
 }
 
-type BagChange struct {
+type GoodChange struct {
 	PropID int
 	PreNum uint64
 	Num    uint64
 }
 
-// Item 类型别名，保持向后兼容
-type Item struct {
+// Good 物品（包含 item 和 currency）
+type Good struct {
 	ID  int
 	Num uint64
 }
 
-func (g *BagGood) Update(num uint64) *BagChange {
-	chg := &BagChange{
+func (g *BagGood) Update(num uint64) *GoodChange {
+	chg := &GoodChange{
 		PropID: g.PropID,
 		PreNum: g.Num,
 		Num:    num,
