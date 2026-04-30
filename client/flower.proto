@@ -46,3 +46,78 @@ message RspFinishBreed {
     option (msg_id) = 23006;
     PFlowerInfo flower = 1;
 }
+
+enum PlotState {
+    PLOT_EMPTY       = 0;
+    PLOT_PLANTED     = 1;
+    PLOT_GROWING     = 2;
+    PLOT_HARVESTABLE = 3;
+}
+
+message PPlotInfo {
+    int32 plot_id       = 1;
+    int32 flower_id     = 2;
+    PlotState state     = 3;
+    int32 harvest_count = 4;
+    int64 state_time    = 5;
+}
+
+message ReqPlotInfo {
+    option (msg_id) = 24001;
+}
+
+message RspPlotInfo {
+    option (msg_id) = 24002;
+    repeated PPlotInfo plots = 1;
+}
+
+message ReqUnlockPlot {
+    option (msg_id) = 24003;
+    int32 plot_id = 1;
+}
+
+message RspUnlockPlot {
+    option (msg_id) = 24004;
+    PPlotInfo plot = 1;
+}
+
+message ReqPlantFlower {
+    option (msg_id) = 24005;
+    repeated int32 plot_ids = 1;
+    int32 flower_id = 2;
+}
+
+message RspPlantFlower {
+    option (msg_id) = 24006;
+    repeated PPlotInfo plots = 1;
+}
+
+message ReqWaterFlower {
+    option (msg_id) = 24007;
+    repeated int32 plot_ids = 1;
+}
+
+message RspWaterFlower {
+    option (msg_id) = 24008;
+    repeated PPlotInfo plots = 1;
+}
+
+message ReqHarvestFlower {
+    option (msg_id) = 24009;
+    repeated int32 plot_ids = 1;
+}
+
+message RspHarvestFlower {
+    option (msg_id) = 24010;
+    repeated PPlotInfo plots = 1;
+}
+
+message ReqRemovePlant {
+    option (msg_id) = 24011;
+    repeated int32 plot_ids = 1;
+}
+
+message RspRemovePlant {
+    option (msg_id) = 24012;
+    repeated PPlotInfo plots = 1;
+}
