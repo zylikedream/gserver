@@ -74,6 +74,58 @@ func (FlowerState) EnumDescriptor() ([]byte, []int) {
 	return file_flower_proto_rawDescGZIP(), []int{0}
 }
 
+type PlotState int32
+
+const (
+	PlotState_PLOT_EMPTY       PlotState = 0
+	PlotState_PLOT_PLANTED     PlotState = 1
+	PlotState_PLOT_GROWING     PlotState = 2
+	PlotState_PLOT_HARVESTABLE PlotState = 3
+)
+
+// Enum value maps for PlotState.
+var (
+	PlotState_name = map[int32]string{
+		0: "PLOT_EMPTY",
+		1: "PLOT_PLANTED",
+		2: "PLOT_GROWING",
+		3: "PLOT_HARVESTABLE",
+	}
+	PlotState_value = map[string]int32{
+		"PLOT_EMPTY":       0,
+		"PLOT_PLANTED":     1,
+		"PLOT_GROWING":     2,
+		"PLOT_HARVESTABLE": 3,
+	}
+)
+
+func (x PlotState) Enum() *PlotState {
+	p := new(PlotState)
+	*p = x
+	return p
+}
+
+func (x PlotState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PlotState) Descriptor() protoreflect.EnumDescriptor {
+	return file_flower_proto_enumTypes[1].Descriptor()
+}
+
+func (PlotState) Type() protoreflect.EnumType {
+	return &file_flower_proto_enumTypes[1]
+}
+
+func (x PlotState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PlotState.Descriptor instead.
+func (PlotState) EnumDescriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{1}
+}
+
 type PFlowerInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -410,6 +462,648 @@ func (x *RspFinishBreed) GetFlower() *PFlowerInfo {
 	return nil
 }
 
+type PPlotInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PlotId       int32     `protobuf:"varint,1,opt,name=plot_id,json=plotId,proto3" json:"plot_id"`
+	FlowerId     int32     `protobuf:"varint,2,opt,name=flower_id,json=flowerId,proto3" json:"flower_id"`
+	State        PlotState `protobuf:"varint,3,opt,name=state,proto3,enum=galaxy.protocol.PlotState" json:"state"`
+	HarvestCount int32     `protobuf:"varint,4,opt,name=harvest_count,json=harvestCount,proto3" json:"harvest_count"`
+	StateTime    int64     `protobuf:"varint,5,opt,name=state_time,json=stateTime,proto3" json:"state_time"`
+}
+
+func (x *PPlotInfo) Reset() {
+	*x = PPlotInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *PPlotInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PPlotInfo) ProtoMessage() {}
+
+func (x *PPlotInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PPlotInfo.ProtoReflect.Descriptor instead.
+func (*PPlotInfo) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *PPlotInfo) GetPlotId() int32 {
+	if x != nil {
+		return x.PlotId
+	}
+	return 0
+}
+
+func (x *PPlotInfo) GetFlowerId() int32 {
+	if x != nil {
+		return x.FlowerId
+	}
+	return 0
+}
+
+func (x *PPlotInfo) GetState() PlotState {
+	if x != nil {
+		return x.State
+	}
+	return PlotState_PLOT_EMPTY
+}
+
+func (x *PPlotInfo) GetHarvestCount() int32 {
+	if x != nil {
+		return x.HarvestCount
+	}
+	return 0
+}
+
+func (x *PPlotInfo) GetStateTime() int64 {
+	if x != nil {
+		return x.StateTime
+	}
+	return 0
+}
+
+type ReqPlotInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *ReqPlotInfo) Reset() {
+	*x = ReqPlotInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqPlotInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqPlotInfo) ProtoMessage() {}
+
+func (x *ReqPlotInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqPlotInfo.ProtoReflect.Descriptor instead.
+func (*ReqPlotInfo) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{8}
+}
+
+type RspPlotInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Plots []*PPlotInfo `protobuf:"bytes,1,rep,name=plots,proto3" json:"plots"`
+}
+
+func (x *RspPlotInfo) Reset() {
+	*x = RspPlotInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspPlotInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspPlotInfo) ProtoMessage() {}
+
+func (x *RspPlotInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspPlotInfo.ProtoReflect.Descriptor instead.
+func (*RspPlotInfo) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RspPlotInfo) GetPlots() []*PPlotInfo {
+	if x != nil {
+		return x.Plots
+	}
+	return nil
+}
+
+type ReqUnlockPlot struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PlotId int32 `protobuf:"varint,1,opt,name=plot_id,json=plotId,proto3" json:"plot_id"`
+}
+
+func (x *ReqUnlockPlot) Reset() {
+	*x = ReqUnlockPlot{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqUnlockPlot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqUnlockPlot) ProtoMessage() {}
+
+func (x *ReqUnlockPlot) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqUnlockPlot.ProtoReflect.Descriptor instead.
+func (*ReqUnlockPlot) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ReqUnlockPlot) GetPlotId() int32 {
+	if x != nil {
+		return x.PlotId
+	}
+	return 0
+}
+
+type RspUnlockPlot struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Plot *PPlotInfo `protobuf:"bytes,1,opt,name=plot,proto3" json:"plot"`
+}
+
+func (x *RspUnlockPlot) Reset() {
+	*x = RspUnlockPlot{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspUnlockPlot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspUnlockPlot) ProtoMessage() {}
+
+func (x *RspUnlockPlot) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspUnlockPlot.ProtoReflect.Descriptor instead.
+func (*RspUnlockPlot) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RspUnlockPlot) GetPlot() *PPlotInfo {
+	if x != nil {
+		return x.Plot
+	}
+	return nil
+}
+
+type ReqPlantFlower struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PlotIds  []int32 `protobuf:"varint,1,rep,packed,name=plot_ids,json=plotIds,proto3" json:"plot_ids"`
+	FlowerId int32   `protobuf:"varint,2,opt,name=flower_id,json=flowerId,proto3" json:"flower_id"`
+}
+
+func (x *ReqPlantFlower) Reset() {
+	*x = ReqPlantFlower{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqPlantFlower) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqPlantFlower) ProtoMessage() {}
+
+func (x *ReqPlantFlower) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqPlantFlower.ProtoReflect.Descriptor instead.
+func (*ReqPlantFlower) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ReqPlantFlower) GetPlotIds() []int32 {
+	if x != nil {
+		return x.PlotIds
+	}
+	return nil
+}
+
+func (x *ReqPlantFlower) GetFlowerId() int32 {
+	if x != nil {
+		return x.FlowerId
+	}
+	return 0
+}
+
+type RspPlantFlower struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Plots []*PPlotInfo `protobuf:"bytes,1,rep,name=plots,proto3" json:"plots"`
+}
+
+func (x *RspPlantFlower) Reset() {
+	*x = RspPlantFlower{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspPlantFlower) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspPlantFlower) ProtoMessage() {}
+
+func (x *RspPlantFlower) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspPlantFlower.ProtoReflect.Descriptor instead.
+func (*RspPlantFlower) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *RspPlantFlower) GetPlots() []*PPlotInfo {
+	if x != nil {
+		return x.Plots
+	}
+	return nil
+}
+
+type ReqWaterFlower struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PlotIds []int32 `protobuf:"varint,1,rep,packed,name=plot_ids,json=plotIds,proto3" json:"plot_ids"`
+}
+
+func (x *ReqWaterFlower) Reset() {
+	*x = ReqWaterFlower{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqWaterFlower) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqWaterFlower) ProtoMessage() {}
+
+func (x *ReqWaterFlower) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqWaterFlower.ProtoReflect.Descriptor instead.
+func (*ReqWaterFlower) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ReqWaterFlower) GetPlotIds() []int32 {
+	if x != nil {
+		return x.PlotIds
+	}
+	return nil
+}
+
+type RspWaterFlower struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Plots []*PPlotInfo `protobuf:"bytes,1,rep,name=plots,proto3" json:"plots"`
+}
+
+func (x *RspWaterFlower) Reset() {
+	*x = RspWaterFlower{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspWaterFlower) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspWaterFlower) ProtoMessage() {}
+
+func (x *RspWaterFlower) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspWaterFlower.ProtoReflect.Descriptor instead.
+func (*RspWaterFlower) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *RspWaterFlower) GetPlots() []*PPlotInfo {
+	if x != nil {
+		return x.Plots
+	}
+	return nil
+}
+
+type ReqHarvestFlower struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PlotIds []int32 `protobuf:"varint,1,rep,packed,name=plot_ids,json=plotIds,proto3" json:"plot_ids"`
+}
+
+func (x *ReqHarvestFlower) Reset() {
+	*x = ReqHarvestFlower{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqHarvestFlower) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqHarvestFlower) ProtoMessage() {}
+
+func (x *ReqHarvestFlower) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqHarvestFlower.ProtoReflect.Descriptor instead.
+func (*ReqHarvestFlower) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ReqHarvestFlower) GetPlotIds() []int32 {
+	if x != nil {
+		return x.PlotIds
+	}
+	return nil
+}
+
+type RspHarvestFlower struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Plots []*PPlotInfo `protobuf:"bytes,1,rep,name=plots,proto3" json:"plots"`
+}
+
+func (x *RspHarvestFlower) Reset() {
+	*x = RspHarvestFlower{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspHarvestFlower) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspHarvestFlower) ProtoMessage() {}
+
+func (x *RspHarvestFlower) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[17]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspHarvestFlower.ProtoReflect.Descriptor instead.
+func (*RspHarvestFlower) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *RspHarvestFlower) GetPlots() []*PPlotInfo {
+	if x != nil {
+		return x.Plots
+	}
+	return nil
+}
+
+type ReqRemovePlant struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	PlotIds []int32 `protobuf:"varint,1,rep,packed,name=plot_ids,json=plotIds,proto3" json:"plot_ids"`
+}
+
+func (x *ReqRemovePlant) Reset() {
+	*x = ReqRemovePlant{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[18]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqRemovePlant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqRemovePlant) ProtoMessage() {}
+
+func (x *ReqRemovePlant) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[18]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqRemovePlant.ProtoReflect.Descriptor instead.
+func (*ReqRemovePlant) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ReqRemovePlant) GetPlotIds() []int32 {
+	if x != nil {
+		return x.PlotIds
+	}
+	return nil
+}
+
+type RspRemovePlant struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Plots []*PPlotInfo `protobuf:"bytes,1,rep,name=plots,proto3" json:"plots"`
+}
+
+func (x *RspRemovePlant) Reset() {
+	*x = RspRemovePlant{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_flower_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspRemovePlant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspRemovePlant) ProtoMessage() {}
+
+func (x *RspRemovePlant) ProtoReflect() protoreflect.Message {
+	mi := &file_flower_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspRemovePlant.ProtoReflect.Descriptor instead.
+func (*RspRemovePlant) Descriptor() ([]byte, []int) {
+	return file_flower_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *RspRemovePlant) GetPlots() []*PPlotInfo {
+	if x != nil {
+		return x.Plots
+	}
+	return nil
+}
+
 var File_flower_proto protoreflect.FileDescriptor
 
 var file_flower_proto_rawDesc = []byte{
@@ -447,14 +1141,80 @@ var file_flower_proto_rawDesc = []byte{
 	0x77, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x67, 0x61, 0x6c, 0x61,
 	0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x46, 0x6c, 0x6f,
 	0x77, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x06, 0x66, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x3a,
-	0x06, 0xa8, 0xac, 0x1d, 0xde, 0xb3, 0x01, 0x2a, 0x64, 0x0a, 0x0b, 0x46, 0x6c, 0x6f, 0x77, 0x65,
-	0x72, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x13, 0x0a, 0x0f, 0x46, 0x4c, 0x4f, 0x57, 0x45, 0x52,
-	0x5f, 0x55, 0x4e, 0x4c, 0x4f, 0x43, 0x4b, 0x45, 0x44, 0x10, 0x00, 0x12, 0x13, 0x0a, 0x0f, 0x46,
-	0x4c, 0x4f, 0x57, 0x45, 0x52, 0x5f, 0x42, 0x52, 0x45, 0x45, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x01,
-	0x12, 0x15, 0x0a, 0x11, 0x46, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x5f, 0x42, 0x52, 0x45, 0x45, 0x44,
-	0x5f, 0x44, 0x4f, 0x4e, 0x45, 0x10, 0x02, 0x12, 0x14, 0x0a, 0x10, 0x46, 0x4c, 0x4f, 0x57, 0x45,
-	0x52, 0x5f, 0x48, 0x41, 0x52, 0x56, 0x45, 0x53, 0x54, 0x45, 0x44, 0x10, 0x03, 0x42, 0x09, 0x5a,
-	0x07, 0x2e, 0x2f, 0x70, 0x62, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x06, 0xa8, 0xac, 0x1d, 0xde, 0xb3, 0x01, 0x22, 0xb7, 0x01, 0x0a, 0x09, 0x50, 0x50, 0x6c, 0x6f,
+	0x74, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x17, 0x0a, 0x07, 0x70, 0x6c, 0x6f, 0x74, 0x5f, 0x69, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x06, 0x70, 0x6c, 0x6f, 0x74, 0x49, 0x64, 0x12, 0x1b,
+	0x0a, 0x09, 0x66, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x05, 0x52, 0x08, 0x66, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x49, 0x64, 0x12, 0x30, 0x0a, 0x05, 0x73,
+	0x74, 0x61, 0x74, 0x65, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1a, 0x2e, 0x67, 0x61, 0x6c,
+	0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x6c, 0x6f,
+	0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x05, 0x73, 0x74, 0x61, 0x74, 0x65, 0x12, 0x23, 0x0a,
+	0x0d, 0x68, 0x61, 0x72, 0x76, 0x65, 0x73, 0x74, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x04,
+	0x20, 0x01, 0x28, 0x05, 0x52, 0x0c, 0x68, 0x61, 0x72, 0x76, 0x65, 0x73, 0x74, 0x43, 0x6f, 0x75,
+	0x6e, 0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x73, 0x74, 0x61, 0x74, 0x65, 0x5f, 0x74, 0x69, 0x6d, 0x65,
+	0x18, 0x05, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x73, 0x74, 0x61, 0x74, 0x65, 0x54, 0x69, 0x6d,
+	0x65, 0x22, 0x15, 0x0a, 0x0b, 0x52, 0x65, 0x71, 0x50, 0x6c, 0x6f, 0x74, 0x49, 0x6e, 0x66, 0x6f,
+	0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc1, 0xbb, 0x01, 0x22, 0x47, 0x0a, 0x0b, 0x52, 0x73, 0x70, 0x50,
+	0x6c, 0x6f, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x30, 0x0a, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73,
+	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x50, 0x6c, 0x6f, 0x74, 0x49, 0x6e,
+	0x66, 0x6f, 0x52, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc2, 0xbb,
+	0x01, 0x22, 0x30, 0x0a, 0x0d, 0x52, 0x65, 0x71, 0x55, 0x6e, 0x6c, 0x6f, 0x63, 0x6b, 0x50, 0x6c,
+	0x6f, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x70, 0x6c, 0x6f, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x05, 0x52, 0x06, 0x70, 0x6c, 0x6f, 0x74, 0x49, 0x64, 0x3a, 0x06, 0xa8, 0xac, 0x1d,
+	0xc3, 0xbb, 0x01, 0x22, 0x47, 0x0a, 0x0d, 0x52, 0x73, 0x70, 0x55, 0x6e, 0x6c, 0x6f, 0x63, 0x6b,
+	0x50, 0x6c, 0x6f, 0x74, 0x12, 0x2e, 0x0a, 0x04, 0x70, 0x6c, 0x6f, 0x74, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x50, 0x6c, 0x6f, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04,
+	0x70, 0x6c, 0x6f, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc4, 0xbb, 0x01, 0x22, 0x50, 0x0a, 0x0e,
+	0x52, 0x65, 0x71, 0x50, 0x6c, 0x61, 0x6e, 0x74, 0x46, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x12, 0x19,
+	0x0a, 0x08, 0x70, 0x6c, 0x6f, 0x74, 0x5f, 0x69, 0x64, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x05,
+	0x52, 0x07, 0x70, 0x6c, 0x6f, 0x74, 0x49, 0x64, 0x73, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x6c, 0x6f,
+	0x77, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x66, 0x6c,
+	0x6f, 0x77, 0x65, 0x72, 0x49, 0x64, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc5, 0xbb, 0x01, 0x22, 0x4a,
+	0x0a, 0x0e, 0x52, 0x73, 0x70, 0x50, 0x6c, 0x61, 0x6e, 0x74, 0x46, 0x6c, 0x6f, 0x77, 0x65, 0x72,
+	0x12, 0x30, 0x0a, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x1a, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f,
+	0x6c, 0x2e, 0x50, 0x50, 0x6c, 0x6f, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x05, 0x70, 0x6c, 0x6f,
+	0x74, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc6, 0xbb, 0x01, 0x22, 0x33, 0x0a, 0x0e, 0x52, 0x65,
+	0x71, 0x57, 0x61, 0x74, 0x65, 0x72, 0x46, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x12, 0x19, 0x0a, 0x08,
+	0x70, 0x6c, 0x6f, 0x74, 0x5f, 0x69, 0x64, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x05, 0x52, 0x07,
+	0x70, 0x6c, 0x6f, 0x74, 0x49, 0x64, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc7, 0xbb, 0x01, 0x22,
+	0x4a, 0x0a, 0x0e, 0x52, 0x73, 0x70, 0x57, 0x61, 0x74, 0x65, 0x72, 0x46, 0x6c, 0x6f, 0x77, 0x65,
+	0x72, 0x12, 0x30, 0x0a, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x1a, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63,
+	0x6f, 0x6c, 0x2e, 0x50, 0x50, 0x6c, 0x6f, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x05, 0x70, 0x6c,
+	0x6f, 0x74, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc8, 0xbb, 0x01, 0x22, 0x35, 0x0a, 0x10, 0x52,
+	0x65, 0x71, 0x48, 0x61, 0x72, 0x76, 0x65, 0x73, 0x74, 0x46, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x12,
+	0x19, 0x0a, 0x08, 0x70, 0x6c, 0x6f, 0x74, 0x5f, 0x69, 0x64, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28,
+	0x05, 0x52, 0x07, 0x70, 0x6c, 0x6f, 0x74, 0x49, 0x64, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xc9,
+	0xbb, 0x01, 0x22, 0x4c, 0x0a, 0x10, 0x52, 0x73, 0x70, 0x48, 0x61, 0x72, 0x76, 0x65, 0x73, 0x74,
+	0x46, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x12, 0x30, 0x0a, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73, 0x18,
+	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x50, 0x6c, 0x6f, 0x74, 0x49, 0x6e, 0x66,
+	0x6f, 0x52, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xca, 0xbb, 0x01,
+	0x22, 0x33, 0x0a, 0x0e, 0x52, 0x65, 0x71, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x50, 0x6c, 0x61,
+	0x6e, 0x74, 0x12, 0x19, 0x0a, 0x08, 0x70, 0x6c, 0x6f, 0x74, 0x5f, 0x69, 0x64, 0x73, 0x18, 0x01,
+	0x20, 0x03, 0x28, 0x05, 0x52, 0x07, 0x70, 0x6c, 0x6f, 0x74, 0x49, 0x64, 0x73, 0x3a, 0x06, 0xa8,
+	0xac, 0x1d, 0xcb, 0xbb, 0x01, 0x22, 0x4a, 0x0a, 0x0e, 0x52, 0x73, 0x70, 0x52, 0x65, 0x6d, 0x6f,
+	0x76, 0x65, 0x50, 0x6c, 0x61, 0x6e, 0x74, 0x12, 0x30, 0x0a, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73,
+	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x50, 0x6c, 0x6f, 0x74, 0x49, 0x6e,
+	0x66, 0x6f, 0x52, 0x05, 0x70, 0x6c, 0x6f, 0x74, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xcc, 0xbb,
+	0x01, 0x2a, 0x64, 0x0a, 0x0b, 0x46, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x53, 0x74, 0x61, 0x74, 0x65,
+	0x12, 0x13, 0x0a, 0x0f, 0x46, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x5f, 0x55, 0x4e, 0x4c, 0x4f, 0x43,
+	0x4b, 0x45, 0x44, 0x10, 0x00, 0x12, 0x13, 0x0a, 0x0f, 0x46, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x5f,
+	0x42, 0x52, 0x45, 0x45, 0x44, 0x49, 0x4e, 0x47, 0x10, 0x01, 0x12, 0x15, 0x0a, 0x11, 0x46, 0x4c,
+	0x4f, 0x57, 0x45, 0x52, 0x5f, 0x42, 0x52, 0x45, 0x45, 0x44, 0x5f, 0x44, 0x4f, 0x4e, 0x45, 0x10,
+	0x02, 0x12, 0x14, 0x0a, 0x10, 0x46, 0x4c, 0x4f, 0x57, 0x45, 0x52, 0x5f, 0x48, 0x41, 0x52, 0x56,
+	0x45, 0x53, 0x54, 0x45, 0x44, 0x10, 0x03, 0x2a, 0x55, 0x0a, 0x09, 0x50, 0x6c, 0x6f, 0x74, 0x53,
+	0x74, 0x61, 0x74, 0x65, 0x12, 0x0e, 0x0a, 0x0a, 0x50, 0x4c, 0x4f, 0x54, 0x5f, 0x45, 0x4d, 0x50,
+	0x54, 0x59, 0x10, 0x00, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x4c, 0x4f, 0x54, 0x5f, 0x50, 0x4c, 0x41,
+	0x4e, 0x54, 0x45, 0x44, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x50, 0x4c, 0x4f, 0x54, 0x5f, 0x47,
+	0x52, 0x4f, 0x57, 0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x14, 0x0a, 0x10, 0x50, 0x4c, 0x4f, 0x54,
+	0x5f, 0x48, 0x41, 0x52, 0x56, 0x45, 0x53, 0x54, 0x41, 0x42, 0x4c, 0x45, 0x10, 0x03, 0x42, 0x09,
+	0x5a, 0x07, 0x2e, 0x2f, 0x70, 0x62, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -469,28 +1229,49 @@ func file_flower_proto_rawDescGZIP() []byte {
 	return file_flower_proto_rawDescData
 }
 
-var file_flower_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_flower_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_flower_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_flower_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_flower_proto_goTypes = []interface{}{
-	(FlowerState)(0),       // 0: galaxy.protocol.FlowerState
-	(*PFlowerInfo)(nil),    // 1: galaxy.protocol.PFlowerInfo
-	(*ReqFlowerInfo)(nil),  // 2: galaxy.protocol.ReqFlowerInfo
-	(*RspFlowerInfo)(nil),  // 3: galaxy.protocol.RspFlowerInfo
-	(*ReqStartBreed)(nil),  // 4: galaxy.protocol.ReqStartBreed
-	(*RspStartBreed)(nil),  // 5: galaxy.protocol.RspStartBreed
-	(*ReqFinishBreed)(nil), // 6: galaxy.protocol.ReqFinishBreed
-	(*RspFinishBreed)(nil), // 7: galaxy.protocol.RspFinishBreed
+	(FlowerState)(0),         // 0: galaxy.protocol.FlowerState
+	(PlotState)(0),           // 1: galaxy.protocol.PlotState
+	(*PFlowerInfo)(nil),      // 2: galaxy.protocol.PFlowerInfo
+	(*ReqFlowerInfo)(nil),    // 3: galaxy.protocol.ReqFlowerInfo
+	(*RspFlowerInfo)(nil),    // 4: galaxy.protocol.RspFlowerInfo
+	(*ReqStartBreed)(nil),    // 5: galaxy.protocol.ReqStartBreed
+	(*RspStartBreed)(nil),    // 6: galaxy.protocol.RspStartBreed
+	(*ReqFinishBreed)(nil),   // 7: galaxy.protocol.ReqFinishBreed
+	(*RspFinishBreed)(nil),   // 8: galaxy.protocol.RspFinishBreed
+	(*PPlotInfo)(nil),        // 9: galaxy.protocol.PPlotInfo
+	(*ReqPlotInfo)(nil),      // 10: galaxy.protocol.ReqPlotInfo
+	(*RspPlotInfo)(nil),      // 11: galaxy.protocol.RspPlotInfo
+	(*ReqUnlockPlot)(nil),    // 12: galaxy.protocol.ReqUnlockPlot
+	(*RspUnlockPlot)(nil),    // 13: galaxy.protocol.RspUnlockPlot
+	(*ReqPlantFlower)(nil),   // 14: galaxy.protocol.ReqPlantFlower
+	(*RspPlantFlower)(nil),   // 15: galaxy.protocol.RspPlantFlower
+	(*ReqWaterFlower)(nil),   // 16: galaxy.protocol.ReqWaterFlower
+	(*RspWaterFlower)(nil),   // 17: galaxy.protocol.RspWaterFlower
+	(*ReqHarvestFlower)(nil), // 18: galaxy.protocol.ReqHarvestFlower
+	(*RspHarvestFlower)(nil), // 19: galaxy.protocol.RspHarvestFlower
+	(*ReqRemovePlant)(nil),   // 20: galaxy.protocol.ReqRemovePlant
+	(*RspRemovePlant)(nil),   // 21: galaxy.protocol.RspRemovePlant
 }
 var file_flower_proto_depIdxs = []int32{
-	0, // 0: galaxy.protocol.PFlowerInfo.state:type_name -> galaxy.protocol.FlowerState
-	1, // 1: galaxy.protocol.RspFlowerInfo.flowers:type_name -> galaxy.protocol.PFlowerInfo
-	1, // 2: galaxy.protocol.RspStartBreed.flower:type_name -> galaxy.protocol.PFlowerInfo
-	1, // 3: galaxy.protocol.RspFinishBreed.flower:type_name -> galaxy.protocol.PFlowerInfo
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0,  // 0: galaxy.protocol.PFlowerInfo.state:type_name -> galaxy.protocol.FlowerState
+	2,  // 1: galaxy.protocol.RspFlowerInfo.flowers:type_name -> galaxy.protocol.PFlowerInfo
+	2,  // 2: galaxy.protocol.RspStartBreed.flower:type_name -> galaxy.protocol.PFlowerInfo
+	2,  // 3: galaxy.protocol.RspFinishBreed.flower:type_name -> galaxy.protocol.PFlowerInfo
+	1,  // 4: galaxy.protocol.PPlotInfo.state:type_name -> galaxy.protocol.PlotState
+	9,  // 5: galaxy.protocol.RspPlotInfo.plots:type_name -> galaxy.protocol.PPlotInfo
+	9,  // 6: galaxy.protocol.RspUnlockPlot.plot:type_name -> galaxy.protocol.PPlotInfo
+	9,  // 7: galaxy.protocol.RspPlantFlower.plots:type_name -> galaxy.protocol.PPlotInfo
+	9,  // 8: galaxy.protocol.RspWaterFlower.plots:type_name -> galaxy.protocol.PPlotInfo
+	9,  // 9: galaxy.protocol.RspHarvestFlower.plots:type_name -> galaxy.protocol.PPlotInfo
+	9,  // 10: galaxy.protocol.RspRemovePlant.plots:type_name -> galaxy.protocol.PPlotInfo
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_flower_proto_init() }
@@ -584,14 +1365,170 @@ func file_flower_proto_init() {
 				return nil
 			}
 		}
+		file_flower_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*PPlotInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqPlotInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspPlotInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqUnlockPlot); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspUnlockPlot); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqPlantFlower); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspPlantFlower); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqWaterFlower); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspWaterFlower); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqHarvestFlower); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspHarvestFlower); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqRemovePlant); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_flower_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspRemovePlant); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_flower_proto_rawDesc,
-			NumEnums:      1,
-			NumMessages:   7,
+			NumEnums:      2,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
