@@ -20,7 +20,7 @@
 
 | 值 | 名称 | 持久化 | 说明 |
 |----|------|--------|------|
-| 0 | PLOT_EMPTY | - | 空地块（不持久化） |
+| 0 | PLOT_EMPTY | 是 | 空地块（已解锁，可种植） |
 | 1 | PLOT_PLANTED | 是 | 已种未浇水 |
 | 2 | PLOT_GROWING | 是 | 生长中 |
 | 3 | PLOT_HARVESTABLE | 否 | 可收获（仅响应） |
@@ -31,21 +31,20 @@
 
 ```
 RolePlotState
-  ├── Plots          PlotMap (jsonb) — 已种植的地块
-  └── UnlockedPlots  []int32 — 已解锁的花圃ID(1-6)
+  └── Plots  PlotMap (jsonb) — 已解锁地块的种植数据
 ```
 
-表名 `role_plot`。花圃1建号时自动解锁。空地块不存入 Plots map，只存有种植数据的地块。
+表名 `role_plot`。已解锁的地块在 map 中必有条目（空的为 `PlotData{State: EMPTY}`），未解锁的地块不在 map 中。花圃1建号时自动将 12 个地块初始化为 EMPTY 写入 map。
 
 ### 状态流转
 
 ```
-(不存在/空) → PlantFlower → PLANTED → WaterFlower → GROWING
+(未解锁，不在map中) → UnlockPlot → EMPTY → PlantFlower → PLANTED → WaterFlower → GROWING
     → 被动检查 now >= StateTime → HARVESTABLE(仅响应)
     → HarvestFlower → harvest_count++
         → 未达上限: GROWING + StateTime = now + harvest_interval
-        → 达到上限: 移除（从 map 删除）
-    → RemovePlant → 移除（PLANTED/GROWING 可移除，不退物品）
+        → 达到上限: EMPTY（回到空地块）
+    → RemovePlant → EMPTY（PLANTED/GROWING 可移除，不退物品）
 ```
 
 ## 配置表
@@ -97,8 +96,7 @@ message ReqPlotInfo {
 
 message RspPlotInfo {
     option (msg_id) = 24002;
-    repeated int32 unlocked_plots = 1;  // 已解锁花圃ID列表
-    repeated PPlotInfo plots = 2;       // 有种植数据的地块
+    repeated PPlotInfo plots = 1;
 }
 
 message ReqUnlockPlot {
@@ -158,8 +156,8 @@ message RspRemovePlant {
 ### PlantFlower(plot_ids, flower_id)
 
 1. 校验 flower_id 在 `Role.Flower.Flowers` 中存在（花已培育）
-2. 逐个 plot_id：校验地块为空（不在 Plots map 中或 state=EMPTY）
-3. 创建 PlotData：state=PLANTED，不扣物品
+2. 逐个 plot_id：校验地块在 Plots map 中且 state=EMPTY
+3. 更新 PlotData：flower_id, state=PLANTED，不扣物品
 4. 返回更新的地块列表
 
 ### WaterFlower(plot_ids)
@@ -175,21 +173,21 @@ message RspRemovePlant {
 1. 逐个 plot_id：校验 state=GROWING 且 now >= StateTime
 2. harvest_count++，发花产品进背包（SaveGoods）
 3. 如果 harvest_count < harvest_times：state=GROWING，StateTime = now + harvest_interval
-4. 如果 harvest_count >= harvest_times：从 Plots map 删除（地块变空）
+4. 如果 harvest_count >= harvest_times：state=EMPTY（地块回到空）
 5. 返回更新的地块列表
 
 ### RemovePlant(plot_ids)
 
 1. 逐个 plot_id：校验 state=PLANTED 或 GROWING（HARVESTABLE 需先收获）
-2. 从 Plots map 删除，不退物品
+2. 设 state=EMPTY，不退物品
 3. 返回空列表（客户端自行清除）
 
 ### UnlockPlot(plot_id)
 
 1. 校验 plot_id 是有效花圃ID(1-6)
-2. 校验未解锁（不在 UnlockedPlots 中）
+2. 校验未解锁（Plots 中无该地块）
 3. 读 TbGardenPlot 配置，检查等级、扣费
-4. 加入 UnlockedPlots
+4. 将该花圃所有地块（row_num × col_num 个）初始化为 EMPTY 写入 Plots
 
 ## GM 命令
 
