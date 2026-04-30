@@ -156,7 +156,13 @@ func (r *RolePlot) ReqPlantFlower(ctx context.Context, req *pb.ReqPlantFlower) (
 	flowerID := req.FlowerId
 
 	// 检查花朵是否已解锁
-	if _, ok := r.Role.Flower.Flowers[flowerID]; !ok {
+	flower, ok := r.Role.Flower.Flowers[flowerID]
+	if !ok {
+		return nil, ErrFlowerLocked
+	}
+
+	// 检查花朵是否已收获
+	if flower.State != int32(pb.FlowerState_FLOWER_HARVESTED) {
 		return nil, ErrFlowerLocked
 	}
 
