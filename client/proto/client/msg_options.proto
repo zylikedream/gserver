@@ -1,0 +1,9 @@
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.MessageOptions {
+    uint32 msg_id = 60101;
+}
