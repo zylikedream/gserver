@@ -15,7 +15,7 @@ import (
 var (
 	ErrFlowerLocked       = errors.New("flower not unlocked")
 	ErrFlowerBreedBusy    = errors.New("another flower is breeding")
-	ErrFlowerNotBreeding  = errors.New("flower is not breeding")
+	ErrFlowerWrongState   = errors.New("flower is at wrong state")
 	ErrFlowerNotBreedDone = errors.New("breed not finished yet")
 )
 
@@ -133,6 +133,10 @@ func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (
 
 	if r.FindBreeding() != nil {
 		return nil, ErrFlowerBreedBusy
+	}
+	// 只有unlock状态的可以烘焙
+	if flower.State != int32(pb.FlowerState_FLOWER_UNLOCKED) {
+		return nil, ErrFlowerWrongState
 	}
 
 	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)

@@ -240,7 +240,7 @@ func (r *RoleGM) AddFlowerBreedGoods(flowerID int) error {
 // FinishBreedGM 立即完成当前培育
 // 用法: finish_breed
 // 示例: finish_breed
-func (r *RoleGM) FinishBreedGM() error {
+func (r *RoleGM) FinishBreed() error {
 	breeding := r.Role.Flower.FindBreeding()
 	if breeding == nil {
 		return fmt.Errorf("no flower is breeding")
