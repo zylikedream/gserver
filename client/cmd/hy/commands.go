@@ -67,10 +67,10 @@ func init() {
 
 	// --- breed ---
 	register(&Command{
-		Name: "breed.info",
-		Help: "Get breed (flower) info",
+		Name: "flower.info",
+		Help: "Get flower info",
 		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqBreedInfo{})
+			return c.Request(&pb.ReqFlowerInfo{})
 		},
 	})
 	register(&Command{
