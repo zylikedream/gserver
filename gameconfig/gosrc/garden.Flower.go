@@ -18,6 +18,12 @@ type GardenFlower struct {
     Quality GardenEItemQuality
     BreedTime int32
     BreedCost []*GardenGoodStack
+    GrowTime        int32
+    HarvestInterval int32
+    HarvestTimes    int32
+    HarvestItemId   int32
+    HarvestNum      int32
+    WaterCost       int32
 }
 
 const TypeId_GardenFlower = -1136119724
@@ -46,6 +52,12 @@ func NewGardenFlower(_buf map[string]interface{}) (_v *GardenFlower, err error) 
                     }
                 }
     ; _v.BreedCost = __x__ }}
+    { var _ok_ bool; var __json_grow_time__ interface{}; if __json_grow_time__, _ok_ = _buf["grow_time"]; !_ok_ || __json_grow_time__ == nil { err = errors.New("grow_time error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_grow_time__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.GrowTime = __x__ }}
+    { var _ok_ bool; var __json_harvest_interval__ interface{}; if __json_harvest_interval__, _ok_ = _buf["harvest_interval"]; !_ok_ || __json_harvest_interval__ == nil { err = errors.New("harvest_interval error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_harvest_interval__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.HarvestInterval = __x__ }}
+    { var _ok_ bool; var __json_harvest_times__ interface{}; if __json_harvest_times__, _ok_ = _buf["harvest_times"]; !_ok_ || __json_harvest_times__ == nil { err = errors.New("harvest_times error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_harvest_times__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.HarvestTimes = __x__ }}
+    { var _ok_ bool; var __json_harvest_item_id__ interface{}; if __json_harvest_item_id__, _ok_ = _buf["harvest_item_id"]; !_ok_ || __json_harvest_item_id__ == nil { err = errors.New("harvest_item_id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_harvest_item_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.HarvestItemId = __x__ }}
+    { var _ok_ bool; var __json_harvest_num__ interface{}; if __json_harvest_num__, _ok_ = _buf["harvest_num"]; !_ok_ || __json_harvest_num__ == nil { err = errors.New("harvest_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_harvest_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.HarvestNum = __x__ }}
+    { var _ok_ bool; var __json_water_cost__ interface{}; if __json_water_cost__, _ok_ = _buf["water_cost"]; !_ok_ || __json_water_cost__ == nil { err = errors.New("water_cost error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_water_cost__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.WaterCost = __x__ }}
     return
 }
 

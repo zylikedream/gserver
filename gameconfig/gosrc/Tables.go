@@ -16,6 +16,7 @@ type Tables struct {
     TbFlower *GardenTbFlower
     TbItemTag *GardenTbItemTag
     TbGlobalConfig *GardenTbGlobalConfig
+    TbGardenPlot *GardenTbGardenPlot
 }
 
 func NewTables(loader JsonLoader) (*Tables, error) {
@@ -45,6 +46,12 @@ func NewTables(loader JsonLoader) (*Tables, error) {
         return nil, err
     }
     if tables.TbGlobalConfig, err = NewGardenTbGlobalConfig(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbgardenplot") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGardenPlot, err = NewGardenTbGardenPlot(buf) ; err != nil {
         return nil, err
     }
     return tables, nil
