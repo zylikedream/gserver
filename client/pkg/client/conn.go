@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -29,9 +30,13 @@ func NewConn(handler MessageHandler) *Conn {
 }
 
 func (c *Conn) Connect(addr string) error {
-	conn, err := net.Dial("tcp", addr)
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("connect failed: %w", err)
+	}
+	if tcpConn, ok := conn.(*net.TCPConn); ok {
+		tcpConn.SetKeepAlive(true)
+		tcpConn.SetKeepAlivePeriod(15 * time.Second)
 	}
 	c.conn = conn
 	c.addr = addr
@@ -112,6 +117,9 @@ func (c *Conn) readLoop() {
 		n, err := c.conn.Read(recvBuf)
 		if err != nil {
 			if !c.closed {
+				c.mu.Lock()
+				c.closed = true
+				c.mu.Unlock()
 				c.handler(nil) // nil signals disconnection
 			}
 			return

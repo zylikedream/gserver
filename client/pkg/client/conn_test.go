@@ -4,10 +4,6 @@ import (
 	"net"
 	"testing"
 	"time"
-
-	pb "hy_client/pb"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func TestConnSendAndReceive(t *testing.T) {
@@ -92,55 +88,83 @@ func TestConnSendAndReceive(t *testing.T) {
 	}
 }
 
-func TestConnSendProtobuf(t *testing.T) {
+func TestConnDetectServerDisconnect(t *testing.T) {
 	RegisterMessages()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
 
-	serverCh := make(chan *Message, 1)
-	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			return
+	disconnected := make(chan struct{}, 1)
+	conn := NewConn(func(msg *Message) {
+		if msg == nil {
+			disconnected <- struct{}{}
 		}
-		defer conn.Close()
-		codec := NewLTIVCodec()
-		buf := make([]byte, 4096)
-		n, _ := conn.Read(buf)
-		_, msg, _ := codec.Decode(buf[:n])
-		serverCh <- msg
-	}()
+	})
 
-	conn := NewConn(func(msg *Message) {})
 	err = conn.Connect(listener.Addr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
 
-	err = conn.Send(&pb.ReqHandShake{AccountUid: "test_account"})
+	// Accept the server side and immediately close
+	serverConn, err := listener.Accept()
 	if err != nil {
-		t.Fatalf("Send failed: %v", err)
+		t.Fatal(err)
 	}
+	serverConn.Close()
+	listener.Close()
 
 	select {
-	case msg := <-serverCh:
-		// Verify the server got a properly encoded handshake
-		if msg.Path != "10001" {
-			t.Errorf("path: got %s, want 10001", msg.Path)
+	case <-disconnected:
+		// Success! Disconnect was detected.
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout: disconnect not detected within 3 seconds")
+	}
+}
+
+func TestClientDetectServerDisconnect(t *testing.T) {
+	RegisterMessages()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	disconnected := make(chan error, 1)
+	client := NewClient(Config{})
+	client.onDisconnect = func(reason error) {
+		disconnected <- reason
+	}
+
+	client.conn = NewConn(client.handleMessage)
+	err = client.conn.Connect(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Accept server side and close it
+	serverConn, err := listener.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverConn.Close()
+	listener.Close()
+
+	select {
+	case reason := <-disconnected:
+		if reason == nil {
+			t.Error("expected non-nil error reason")
 		}
-		req := &pb.ReqHandShake{}
-		if err := proto.Unmarshal(msg.Payload, req); err != nil {
-			t.Fatalf("unmarshal: %v", err)
-		}
-		if req.AccountUid != "test_account" {
-			t.Errorf("account_uid: got %s, want test_account", req.AccountUid)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout")
+		// Success!
+	case <-time.After(3 * time.Second):
+		t.Fatal("timeout: client disconnect not detected within 3 seconds")
+	}
+
+	if !client.IsConnected() {
+		t.Log("client correctly reports not connected")
+	} else {
+		t.Error("client should report not connected after disconnect")
 	}
 }

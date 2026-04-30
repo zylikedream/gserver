@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"hy_client/pb"
 	"hy_client/pkg/client"
@@ -104,6 +105,85 @@ func init() {
 		},
 	})
 
+	// --- plot ---
+	register(&Command{
+		Name: "plot.info",
+		Help: "Get plot info",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqPlotInfo{})
+		},
+	})
+	register(&Command{
+		Name:   "plot.unlock",
+		Help:   "Unlock a plot",
+		Params: []string{"plot_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: plot.unlock <plot_id>")
+			}
+			plotID, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid plot_id: %v", err)
+			}
+			return c.Request(&pb.ReqUnlockPlot{PlotId: int32(plotID)})
+		},
+	})
+	register(&Command{
+		Name:   "flower.plant",
+		Help:   "Plant a flower in plots",
+		Params: []string{"flower_id", "plot_ids..."},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: flower.plant <flower_id> <plot_id...>")
+			}
+			flowerID, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid flower_id: %v", err)
+			}
+			plotIDs := parsePlotIDs(args[1:])
+			return c.Request(&pb.ReqPlantFlower{
+				FlowerId: int32(flowerID),
+				PlotIds:  plotIDs,
+			})
+		},
+	})
+	register(&Command{
+		Name:   "flower.water",
+		Help:   "Water flowers in plots",
+		Params: []string{"plot_ids..."},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: flower.water <plot_id...>")
+			}
+			plotIDs := parsePlotIDs(args)
+			return c.Request(&pb.ReqWaterFlower{PlotIds: plotIDs})
+		},
+	})
+	register(&Command{
+		Name:   "flower.harvest",
+		Help:   "Harvest flowers from plots",
+		Params: []string{"plot_ids..."},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: flower.harvest <plot_id...>")
+			}
+			plotIDs := parsePlotIDs(args)
+			return c.Request(&pb.ReqHarvestFlower{PlotIds: plotIDs})
+		},
+	})
+	register(&Command{
+		Name:   "flower.remove",
+		Help:   "Remove plants from plots",
+		Params: []string{"plot_ids..."},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: flower.remove <plot_id...>")
+			}
+			plotIDs := parsePlotIDs(args)
+			return c.Request(&pb.ReqRemovePlant{PlotIds: plotIDs})
+		},
+	})
+
 	// --- gm ---
 	register(&Command{
 		Name:   "gm.cmd",
@@ -134,4 +214,22 @@ func printProtoJSON(prefix string, msg proto.Message) {
 		return
 	}
 	fmt.Printf("%s %s %s\n", prefix, name, string(jsonBytes))
+}
+
+func parsePlotIDs(args []string) []int32 {
+	var ids []int32
+	for _, a := range args {
+		for _, p := range strings.Split(a, ",") {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			id, err := strconv.ParseInt(p, 10, 32)
+			if err != nil {
+				continue
+			}
+			ids = append(ids, int32(id))
+		}
+	}
+	return ids
 }

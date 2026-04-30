@@ -58,11 +58,18 @@ func main() {
 	})
 
 	c.OnMessage(func(msg proto.Message) {
+		fmt.Println() // newline after the pending prompt
 		printProtoJSON("[push]", msg)
+		fmt.Print("hy> ") // redraw prompt
 	})
 
 	c.OnResponse(func(msg proto.Message) {
 		printProtoJSON("←", msg)
+	})
+
+	c.OnDisconnect(func(reason error) {
+		fmt.Printf("\n⚠ disconnected: %v\n", reason)
+		fmt.Print("hy> ")
 	})
 
 	fmt.Printf("connecting to %s...\n", serverAddr)

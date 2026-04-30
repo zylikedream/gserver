@@ -60,6 +60,12 @@ func (r *REPL) execute(line string) {
 	name := parts[0]
 	args := parts[1:]
 
+	// reconnect is the only command that works when disconnected
+	if name != "reconnect" && name != "help" && name != "quit" && name != "exit" && !r.client.IsConnected() {
+		fmt.Println("disconnected from server. type 'reconnect' to reconnect.")
+		return
+	}
+
 	cmd, ok := commands[name]
 	if !ok {
 		fmt.Printf("unknown command: %s (type 'help' for commands)\n", name)

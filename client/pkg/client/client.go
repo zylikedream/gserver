@@ -33,6 +33,7 @@ type Client struct {
 
 	onMessage  func(msg proto.Message)
 	onResponse func(msg proto.Message)
+	onDisconnect func(reason error)
 }
 
 func NewClient(cfg Config) *Client {
@@ -52,6 +53,10 @@ func (c *Client) Close() error {
 		return c.conn.Close()
 	}
 	return nil
+}
+
+func (c *Client) IsConnected() bool {
+	return c.conn != nil && !c.conn.closed
 }
 
 func (c *Client) SetAccountUID(uid string) {
@@ -132,6 +137,10 @@ func (c *Client) OnResponse(handler func(msg proto.Message)) {
 	c.onResponse = handler
 }
 
+func (c *Client) OnDisconnect(handler func(reason error)) {
+	c.onDisconnect = handler
+}
+
 type sendFunc func(proto.Message) error
 
 func (c *Client) doRequest(req proto.Message, send sendFunc) (proto.Message, error) {
@@ -154,6 +163,9 @@ func (c *Client) doRequest(req proto.Message, send sendFunc) (proto.Message, err
 
 	select {
 	case rsp := <-ch:
+		if rsp == nil {
+			return nil, fmt.Errorf("connection closed while waiting for response")
+		}
 		return rsp, nil
 	case <-time.After(requestTimeout):
 		return nil, fmt.Errorf("timeout waiting for response %s", rspID)
@@ -162,6 +174,20 @@ func (c *Client) doRequest(req proto.Message, send sendFunc) (proto.Message, err
 
 func (c *Client) handleMessage(msg *Message) {
 	if msg == nil {
+		// Connection lost — cancel all pending requests and notify
+		c.mu.Lock()
+		for _, p := range c.pendings {
+			select {
+			case p.ch <- nil:
+			default:
+			}
+		}
+		c.pendings = make(map[string]*pendingRequest)
+		c.mu.Unlock()
+
+		if c.onDisconnect != nil {
+			c.onDisconnect(fmt.Errorf("connection closed by server"))
+		}
 		return
 	}
 

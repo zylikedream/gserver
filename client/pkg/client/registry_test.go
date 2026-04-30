@@ -20,7 +20,7 @@ func TestRegistryRegistersAllMessages(t *testing.T) {
 		{"20001", "ReqBasicSetName"},
 		{"21001", "ReqBagInfo"},
 		{"22001", "ReqGMCommand"},
-		{"23001", "ReqBreedInfo"},
+		{"23001", "ReqFlowerInfo"},
 	}
 
 	for _, tc := range testCases {
