@@ -1,0 +1,31 @@
+// ID: 21001~21099
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+
+message ReqBagInfo{
+    option (msg_id) = 21001;
+}
+
+message RspBagInfo{
+    option (msg_id) = 21002;
+    repeated PGoodInfo goods = 1;
+}
+
+message PGoodInfo{
+    int32 prop_id = 1;
+    int64 num = 2;
+}
+
+message NotifyBagUpdate{
+    option (msg_id) = 21003;
+    repeated PBagGoodUpdate goods = 1;
+}
+
+message PBagGoodUpdate{
+    int32 prop_id = 1;
+    int64 pre_num = 2;
+    int64 num = 3;
+}
