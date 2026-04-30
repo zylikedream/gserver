@@ -22,7 +22,7 @@ var (
 // ========== 数据模型 ==========
 
 type FlowerData struct {
-	FlowerID   int32     `json:"flower_id"`
+	FlowerID  int32     `json:"flower_id"`
 	State     int32     `json:"state"`
 	StateTime time.Time `json:"state_time"`
 }
@@ -84,7 +84,7 @@ func (r *RoleFlower) OnModInit(ctx context.Context) error {
 
 func (r *RoleFlower) AddFlower(flowerID int32) {
 	r.Flowers[flowerID] = &FlowerData{
-		FlowerID:   flowerID,
+		FlowerID:  flowerID,
 		State:     int32(pb.FlowerState_FLOWER_UNLOCKED),
 		StateTime: time.Now(),
 	}
@@ -103,20 +103,24 @@ func (r *RoleFlower) FindBreeding() *FlowerData {
 // ========== Proto Handler ==========
 
 func (r *RoleFlower) ReqFlowerInfo(ctx context.Context, req *pb.ReqFlowerInfo) (*pb.RspFlowerInfo, error) {
-	now := time.Now()
 	rsp := &pb.RspFlowerInfo{Flowers: []*pb.PFlowerInfo{}}
 	for _, f := range r.Flowers {
-		status := f.State
-		if status == int32(pb.FlowerState_FLOWER_BREEDING) && now.After(f.StateTime) {
-			status = int32(pb.FlowerState_FLOWER_BREED_DONE)
-		}
-		rsp.Flowers = append(rsp.Flowers, &pb.PFlowerInfo{
-			FlowerId:  f.FlowerID,
-			State:    pb.FlowerState(status),
-			StateTime: f.StateTime.Unix(),
-		})
+		rsp.Flowers = append(rsp.Flowers, PFlowerInfo(f))
 	}
 	return rsp, nil
+}
+
+func PFlowerInfo(flower *FlowerData) *pb.PFlowerInfo {
+	now := time.Now()
+	state := flower.State
+	if state == int32(pb.FlowerState_FLOWER_BREEDING) && now.After(flower.StateTime) {
+		state = int32(pb.FlowerState_FLOWER_BREED_DONE)
+	}
+	return &pb.PFlowerInfo{
+		FlowerId:  flower.FlowerID,
+		State:     pb.FlowerState(state),
+		StateTime: flower.StateTime.Unix(),
+	}
 }
 
 func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (*pb.RspStartBreed, error) {
@@ -147,7 +151,7 @@ func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (
 	flower.StateTime = time.Now().Add(time.Duration(cfg.BreedTime) * time.Second)
 	r.MarkDirty()
 
-	return &pb.RspStartBreed{}, nil
+	return &pb.RspStartBreed{Flower: PFlowerInfo(flower)}, nil
 }
 
 func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed) (*pb.RspFinishBreed, error) {
@@ -165,5 +169,5 @@ func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed)
 	flower.StateTime = time.Now()
 	r.MarkDirty()
 
-	return &pb.RspFinishBreed{}, nil
+	return &pb.RspFinishBreed{Flower: PFlowerInfo(flower)}, nil
 }

@@ -34,6 +34,7 @@ message ReqStartBreed {
 
 message RspStartBreed {
     option (msg_id) = 23004;
+    PFlowerInfo flower = 1;
 }
 
 message ReqFinishBreed {
@@ -43,4 +44,5 @@ message ReqFinishBreed {
 
 message RspFinishBreed {
     option (msg_id) = 23006;
+    PFlowerInfo flower = 1;
 }
