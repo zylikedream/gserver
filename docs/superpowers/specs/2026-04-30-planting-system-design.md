@@ -2,7 +2,7 @@
 
 ## 概述
 
-新建 `RolePlot` 模块，管理花圃解锁和地块种植。玩家在花园场景中操作花圃地块，使用已培育的花进行种植、浇水、收获。与 `RoleFlower`（培育）平级独立模块。
+新建 `RolePlot` 模块，管理地块解锁和种植。72 个地块独立存在，视觉上分为 6 组（花圃边框纯客户端展示）。每个地块独立解锁，使用已培育的花进行种植、浇水、收获。与 `RoleFlower`（培育）平级独立模块。
 
 ## 数据模型
 
@@ -34,7 +34,7 @@ RolePlotState
   └── Plots  PlotMap (jsonb) — 已解锁地块的种植数据
 ```
 
-表名 `role_plot`。已解锁的地块在 map 中必有条目（空的为 `PlotData{State: EMPTY}`），未解锁的地块不在 map 中。花圃1建号时自动将 12 个地块初始化为 EMPTY 写入 map。
+表名 `role_plot`。已解锁的地块在 map 中必有条目（空的为 `PlotData{State: EMPTY}`），未解锁的地块不在 map 中。建号时自动将地块 1-12（初始组）初始化为 EMPTY 写入 map。
 
 ### 状态流转
 
@@ -60,15 +60,13 @@ RolePlotState
 | harvest_num | int | 每次收获数量 |
 | water_cost | int | 浇水消耗水滴数 |
 
-### TbGardenPlot（新增）
+### TbGardenPlot（新增，72 条数据）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| id | int | 花圃编号(1-6) |
+| id | int | 地块编号(1-72) |
 | unlock_level | int | 解锁所需等级 |
-| cost | []*GoodStack | 解锁花费 |
-| row_num | int | 行数 |
-| col_num | int | 列数 |
+| cost | []*GoodStack | 解锁花费（空=免费） |
 
 ## Proto 接口
 
@@ -83,11 +81,11 @@ enum PlotState {
 }
 
 message PPlotInfo {
-    int32 plot_id    = 1;
-    int32 flower_id  = 2;
-    PlotState state  = 3;
+    int32 plot_id       = 1;
+    int32 flower_id     = 2;
+    PlotState state     = 3;
     int32 harvest_count = 4;
-    int64 state_time = 5;
+    int64 state_time    = 5;
 }
 
 message ReqPlotInfo {
@@ -101,12 +99,12 @@ message RspPlotInfo {
 
 message ReqUnlockPlot {
     option (msg_id) = 24003;
-    int32 plot_id = 1;  // 花圃ID(1-6)
+    int32 plot_id = 1;
 }
 
 message RspUnlockPlot {
     option (msg_id) = 24004;
-    int32 plot_id = 1;
+    PPlotInfo plot = 1;
 }
 
 message ReqPlantFlower {
@@ -153,6 +151,12 @@ message RspRemovePlant {
 
 ## 核心逻辑
 
+### UnlockPlot(plot_id)
+
+1. 校验 plot_id 有效（1-72）且未解锁（不在 Plots map 中）
+2. 读 TbGardenPlot 配置，检查等级、扣费
+3. 初始化为 EMPTY 写入 Plots
+
 ### PlantFlower(plot_ids, flower_id)
 
 1. 校验 flower_id 在 `Role.Flower.Flowers` 中存在（花已培育）
@@ -180,20 +184,13 @@ message RspRemovePlant {
 
 1. 逐个 plot_id：校验 state=PLANTED 或 GROWING（HARVESTABLE 需先收获）
 2. 设 state=EMPTY，不退物品
-3. 返回空列表（客户端自行清除）
-
-### UnlockPlot(plot_id)
-
-1. 校验 plot_id 是有效花圃ID(1-6)
-2. 校验未解锁（Plots 中无该地块）
-3. 读 TbGardenPlot 配置，检查等级、扣费
-4. 将该花圃所有地块（row_num × col_num 个）初始化为 EMPTY 写入 Plots
+3. 返回更新的地块列表
 
 ## GM 命令
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
-| unlock_plot | 花圃ID | 解锁花圃（跳过等级和费用检查） |
+| unlock_plot | 地块ID | 解锁地块（跳过等级和费用检查） |
 
 ## 代码位置
 
@@ -209,6 +206,7 @@ message RspRemovePlant {
 |------|------|------|
 | 模块归属 | 新建 RolePlot | 种植和培育数据模型差异大，独立更清晰 |
 | 地块编号 | 全局 1-72 | 客户端操作简单，直接用 plot_id |
+| 解锁单位 | 地块（非花圃） | 花圃是纯视觉分组，每个地块独立解锁 |
 | 数据存储 | 单表 jsonb map | 同 RoleFlower/RoleBag 模式 |
 | 完成检查 | 被动（now >= StateTime） | 同培育系统，不设定时器 |
 | StateTime | 存结束时间 | 客户端直接倒计时 |
