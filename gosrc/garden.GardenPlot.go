@@ -16,8 +16,6 @@ type GardenGardenPlot struct {
     Id int32
     UnlockLevel int32
     Cost []*GardenGoodStack
-    RowNum int32
-    ColNum int32
 }
 
 const TypeId_GardenGardenPlot = -517777873
@@ -44,8 +42,6 @@ func NewGardenGardenPlot(_buf map[string]interface{}) (_v *GardenGardenPlot, err
                     }
                 }
     ; _v.Cost = __x__ }}
-    { var _ok_ bool; var __json_row_num__ interface{}; if __json_row_num__, _ok_ = _buf["row_num"]; !_ok_ || __json_row_num__ == nil { err = errors.New("row_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_row_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.RowNum = __x__ }}
-    { var _ok_ bool; var __json_col_num__ interface{}; if __json_col_num__, _ok_ = _buf["col_num"]; !_ok_ || __json_col_num__ == nil { err = errors.New("col_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_col_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.ColNum = __x__ }}
     return
 }
 
