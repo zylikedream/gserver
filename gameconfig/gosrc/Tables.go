@@ -14,7 +14,6 @@ type JsonLoader func(string) ([]map[string]interface{}, error)
 type Tables struct {
     TbItem *GardenTbItem
     TbFlower *GardenTbFlower
-    TbGardenPlot *GardenTbGardenPlot
     TbItemTag *GardenTbItemTag
     TbGlobalConfig *GardenTbGlobalConfig
     TbGardenPlot *GardenTbGardenPlot
