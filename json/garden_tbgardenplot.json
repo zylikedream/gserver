@@ -1,0 +1,69 @@
+[
+  {
+    "id": 1,
+    "unlock_level": 0,
+    "cost": [],
+    "row_num": 4,
+    "col_num": 3
+  },
+  {
+    "id": 2,
+    "unlock_level": 5,
+    "cost": [
+      {
+        "id": 1,
+        "num": 5000
+      }
+    ],
+    "row_num": 4,
+    "col_num": 3
+  },
+  {
+    "id": 3,
+    "unlock_level": 10,
+    "cost": [
+      {
+        "id": 1,
+        "num": 20000
+      }
+    ],
+    "row_num": 4,
+    "col_num": 3
+  },
+  {
+    "id": 4,
+    "unlock_level": 20,
+    "cost": [
+      {
+        "id": 1,
+        "num": 100000
+      }
+    ],
+    "row_num": 4,
+    "col_num": 3
+  },
+  {
+    "id": 5,
+    "unlock_level": 30,
+    "cost": [
+      {
+        "id": 2,
+        "num": 50
+      }
+    ],
+    "row_num": 4,
+    "col_num": 3
+  },
+  {
+    "id": 6,
+    "unlock_level": 40,
+    "cost": [
+      {
+        "id": 2,
+        "num": 200
+      }
+    ],
+    "row_num": 4,
+    "col_num": 3
+  }
+]

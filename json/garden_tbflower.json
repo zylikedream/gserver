@@ -13,7 +13,13 @@
         "id": 2001,
         "num": 1
       }
-    ]
+    ],
+    "grow_time": 7200,
+    "harvest_interval": 3600,
+    "harvest_times": 3,
+    "harvest_item_id": 10001,
+    "harvest_num": 2,
+    "water_cost": 10
   },
   {
     "id": 102,
@@ -29,7 +35,13 @@
         "id": 2001,
         "num": 3
       }
-    ]
+    ],
+    "grow_time": 7200,
+    "harvest_interval": 3600,
+    "harvest_times": 5,
+    "harvest_item_id": 10002,
+    "harvest_num": 2,
+    "water_cost": 10
   },
   {
     "id": 103,
@@ -49,6 +61,12 @@
         "id": 3001,
         "num": 1
       }
-    ]
+    ],
+    "grow_time": 21600,
+    "harvest_interval": 7200,
+    "harvest_times": 3,
+    "harvest_item_id": 10003,
+    "harvest_num": 1,
+    "water_cost": 20
   }
 ]
