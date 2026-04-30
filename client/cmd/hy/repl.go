@@ -52,13 +52,13 @@ func (r *REPL) Run() {
 }
 
 func (r *REPL) execute(line string) {
-	parts := strings.Fields(line)
+	parts := parseArgs(line)
 	if len(parts) == 0 {
 		return
 	}
 
 	name := parts[0]
-	args := rejoinArrays(parts[1:])
+	args := parts[1:]
 
 	cmd, ok := commands[name]
 	if !ok {
@@ -71,36 +71,41 @@ func (r *REPL) execute(line string) {
 	}
 }
 
-func rejoinArrays(args []string) []string {
-	result := make([]string, 0, len(args))
-	var merged strings.Builder
-	merging := false
+// parseArgs splits a line into arguments, respecting double-quoted strings.
+// Example: gm.cmd "add item 1001 10" → ["gm.cmd", "add item 1001 10"]
+func parseArgs(line string) []string {
+	var args []string
+	var current strings.Builder
+	inQuote := false
 
-	for _, arg := range args {
-		if merging {
-			merged.WriteString(arg)
-			if strings.HasSuffix(arg, "]") {
-				result = append(result, merged.String())
-				merged.Reset()
-				merging = false
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+
+		if ch == '"' {
+			if inQuote {
+				inQuote = false
+			} else {
+				inQuote = true
 			}
 			continue
 		}
 
-		if strings.HasPrefix(arg, "[") && !strings.HasSuffix(arg, "]") {
-			merging = true
-			merged.WriteString(arg)
+		if ch == ' ' && !inQuote {
+			if current.Len() > 0 {
+				args = append(args, current.String())
+				current.Reset()
+			}
 			continue
 		}
 
-		result = append(result, arg)
+		current.WriteByte(ch)
 	}
 
-	if merging {
-		result = append(result, merged.String())
+	if current.Len() > 0 {
+		args = append(args, current.String())
 	}
 
-	return result
+	return args
 }
 
 func (r *REPL) printHelp() {

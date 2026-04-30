@@ -19,9 +19,8 @@ func TestRegistryRegistersAllMessages(t *testing.T) {
 		{"10004", "RspAccountLogin"},
 		{"20001", "ReqBasicSetName"},
 		{"21001", "ReqBagInfo"},
-		{"22001", "ReqSignInfo"},
-		{"23001", "ReqFriendInfo"},
-		{"24001", "ReqMahongCreateRoom"},
+		{"22001", "ReqGMCommand"},
+		{"23001", "ReqBreedInfo"},
 	}
 
 	for _, tc := range testCases {

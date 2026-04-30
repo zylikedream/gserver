@@ -107,6 +107,13 @@ func (c *Client) Request(msg proto.Message) error {
 	if err != nil {
 		return err
 	}
+	// Check if response is an Ack error
+	if ack, ok := rsp.(*pb.Ack); ok && ack.Code != 0 {
+		if c.onMessage != nil {
+			c.onMessage(ack)
+		}
+		return fmt.Errorf("ack error: code=%d id=%s reason=%s", ack.Code, ack.Id, ack.Reason)
+	}
 	if c.onResponse != nil {
 		c.onResponse(rsp)
 	}
@@ -167,6 +174,7 @@ func (c *Client) handleMessage(msg *Message) {
 		return
 	}
 
+	// Try matching by response msg_id
 	c.mu.Lock()
 	pending, ok := c.pendings[msg.Path]
 	c.mu.Unlock()
@@ -176,9 +184,32 @@ func (c *Client) handleMessage(msg *Message) {
 		return
 	}
 
+	// Check if this is an Ack error matching a pending request
+	if ack, ok := protoMsg.(*pb.Ack); ok && ack.Code != 0 {
+		reqID := ack.Id
+		rspID := incrementID(reqID)
+		if rspID != "" {
+			c.mu.Lock()
+			pending, ok = c.pendings[rspID]
+			c.mu.Unlock()
+			if ok {
+				pending.ch <- protoMsg
+				return
+			}
+		}
+	}
+
 	if c.onMessage != nil {
 		c.onMessage(protoMsg)
 	}
+}
+
+func incrementID(id string) string {
+	n, err := strconv.ParseUint(id, 10, 32)
+	if err != nil {
+		return ""
+	}
+	return strconv.FormatUint(n+1, 10)
 }
 
 func responseIDFor(req proto.Message) string {
