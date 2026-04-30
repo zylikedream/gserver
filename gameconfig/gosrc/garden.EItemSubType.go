@@ -55,5 +55,9 @@ const (
      * 任务道具
      */
     GardenEItemSubType_QUEST GardenEItemSubType = 70;
+    /**
+     * 花产品
+     */
+    GardenEItemSubType_FLOWER_PRODUCT GardenEItemSubType = 80;
 )
 
