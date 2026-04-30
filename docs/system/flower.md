@@ -11,7 +11,7 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | flower_id | int32 | 花ID |
-| status | int32 | FlowerStatus 枚举 |
+| state | int32 | FlowerState 枚举 |
 | state_time | time | BREEDING 时为培育完成时间 |
 
 ### 状态枚举
@@ -25,7 +25,7 @@
 
 状态流转：`(不存在) → GM解锁 → UNLOCKED → StartBreed → BREEDING → FinishBreed → HARVESTED`
 
-`BREED_DONE` 不持久化，`ReqBreedInfo` 发现 `BREEDING && now >= StateTime` 时在响应中返回。
+`BREED_DONE` 不持久化，`ReqFlowerInfo` 发现 `BREEDING && now >= StateTime` 时在响应中返回。
 
 ## 配置表
 
@@ -34,11 +34,11 @@
 
 ## Proto 接口
 
-ID 段 `23001~23099`，文件 `protocol/client/breed.proto`。
+ID 段 `23001~23099`，文件 `protocol/client/flower.proto`。
 
 | 消息 | ID | 方向 | 说明 |
 |------|----|------|------|
-| ReqBreedInfo / RspBreedInfo | 23001-23002 | C→S / S→C | 查询培育状态 |
+| ReqFlowerInfo / RspFlowerInfo | 23001-23002 | C→S / S→C | 查询鲜花状态 |
 | ReqStartBreed / RspStartBreed | 23003-23004 | C→S / S→C | 开始培育 |
 | ReqFinishBreed / RspFinishBreed | 23005-23006 | C→S / S→C | 收获成果 |
 
@@ -50,20 +50,20 @@ ID 段 `23001~23099`，文件 `protocol/client/breed.proto`。
 2. 校验没有正在培育的花（FindBreeding）
 3. 读 TbFlower 配置，CheckGoods 检查材料
 4. SaveGoods 扣材料
-5. 设 Status=BREEDING, StateTime=now+BreedTime
+5. 设 State=BREEDING, StateTime=now+BreedTime
 
 ### FinishBreed(flower_id)
 
-1. 校验花存在且 Status=BREEDING
+1. 校验花存在且 State=BREEDING
 2. 校验 now >= StateTime（被动检查）
-3. SaveGoods 添加种子
-4. 设 Status=HARVESTED
+3. 设 State=HARVESTED
 
 ## GM 命令
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
-| unlock_flower | 花ID | 解锁花 |
+| add_flower | 花ID | 解锁花 |
+| add_flower_breed_goods | 花ID | 一键添加培育所需材料 |
 | finish_breed | - | 立即完成当前培育（将 StateTime 设为过去） |
 
 ## 错误码
@@ -73,7 +73,7 @@ ID 段 `23001~23099`，文件 `protocol/client/breed.proto`。
 | ErrFlowerLocked | 花未解锁 |
 | ErrFlowerBreedBusy | 已有花在培育中 |
 | ErrFlowerNotBreeding | 花未在培育中 |
-| ErrFlowerNotDone | 培育尚未完成 |
+| ErrFlowerNotBreedDone | 培育尚未完成 |
 
 ## 代码位置
 
@@ -81,7 +81,7 @@ ID 段 `23001~23099`，文件 `protocol/client/breed.proto`。
 |------|------|
 | src/apps/role/internal/logic/role_flower.go | 模块主逻辑 |
 | src/apps/role/internal/logic/role_flower_test.go | 单元测试 |
-| protocol/client/breed.proto | Proto 定义 |
+| protocol/client/flower.proto | Proto 定义 |
 
 ## 设计决策
 

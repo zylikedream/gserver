@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 
@@ -217,12 +218,23 @@ func (r *RoleGM) RemoveGoods(itemID int, num int) error {
 	return r.Role.Bag.SaveGoods(r.ctx, []*gamecfg.GardenGoodStack{MakeGoodStack(itemID, int(num))}, nil, "gm")
 }
 
-// UnlockFlower 解锁花的培育权限
-// 用法: unlock_flower [花ID]
-// 示例: unlock_flower 101
-func (r *RoleGM) UnlockFlower(flowerID int) error {
-	r.Role.Flower.UnlockFlower(int32(flowerID))
+// AddFlower 解锁花的培育权限
+// 用法: add_flower [花ID]
+// 示例: add_flower 101
+func (r *RoleGM) AddFlower(flowerID int) error {
+	r.Role.Flower.AddFlower(int32(flowerID))
 	return nil
+}
+
+// AddFlowerBreedGoods 一键添加培育所需材料
+// 用法: add_flower_breed_goods [花ID]
+// 示例: add_flower_breed_goods 101
+func (r *RoleGM) AddFlowerBreedGoods(flowerID int) error {
+	cfg := gameconfig.GameConfig().TbFlower.Get(int32(flowerID))
+	if cfg == nil {
+		return fmt.Errorf("flower config not found: %d", flowerID)
+	}
+	return r.Role.Bag.SaveGoods(r.ctx, nil, cfg.BreedCost, "gm")
 }
 
 // FinishBreedGM 立即完成当前培育

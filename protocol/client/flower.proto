@@ -5,26 +5,26 @@ package galaxy.protocol;
 
 import "msg_options.proto";
 
-enum FlowerStatus {
+enum FlowerState {
     FLOWER_UNLOCKED   = 0;
     FLOWER_BREEDING   = 1;
     FLOWER_BREED_DONE = 2;
     FLOWER_HARVESTED  = 3;
 }
 
-message PFlowerState {
+message PFlowerInfo {
     int32 flower_id = 1;
-    FlowerStatus status = 2;
+    FlowerState state = 2;
     int64 state_time = 3;
 }
 
-message ReqBreedInfo {
+message ReqFlowerInfo {
     option (msg_id) = 23001;
 }
 
-message RspBreedInfo {
+message RspFlowerInfo {
     option (msg_id) = 23002;
-    repeated PFlowerState flowers = 1;
+    repeated PFlowerInfo flowers = 1;
 }
 
 message ReqStartBreed {

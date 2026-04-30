@@ -7,24 +7,23 @@ import (
 	"time"
 
 	"gserver/gameconfig"
-	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 
 	"github.com/pkg/errors"
 )
 
 var (
-	ErrFlowerLocked      = errors.New("flower not unlocked")
-	ErrFlowerBreedBusy   = errors.New("another flower is breeding")
-	ErrFlowerNotBreeding = errors.New("flower is not breeding")
-	ErrFlowerNotDone     = errors.New("breed not finished yet")
+	ErrFlowerLocked       = errors.New("flower not unlocked")
+	ErrFlowerBreedBusy    = errors.New("another flower is breeding")
+	ErrFlowerNotBreeding  = errors.New("flower is not breeding")
+	ErrFlowerNotBreedDone = errors.New("breed not finished yet")
 )
 
 // ========== 数据模型 ==========
 
 type FlowerData struct {
-	FlowerID  int32     `json:"flower_id"`
-	Status    int32     `json:"status"`
+	FlowerID   int32     `json:"flower_id"`
+	State     int32     `json:"state"`
 	StateTime time.Time `json:"state_time"`
 }
 
@@ -83,17 +82,18 @@ func (r *RoleFlower) OnModInit(ctx context.Context) error {
 
 // ========== 公开方法 ==========
 
-func (r *RoleFlower) UnlockFlower(flowerID int32) {
+func (r *RoleFlower) AddFlower(flowerID int32) {
 	r.Flowers[flowerID] = &FlowerData{
-		FlowerID: flowerID,
-		Status:   int32(pb.FlowerStatus_FLOWER_UNLOCKED),
+		FlowerID:   flowerID,
+		State:     int32(pb.FlowerState_FLOWER_UNLOCKED),
+		StateTime: time.Now(),
 	}
 	r.MarkDirty()
 }
 
 func (r *RoleFlower) FindBreeding() *FlowerData {
 	for _, f := range r.Flowers {
-		if f.Status == int32(pb.FlowerStatus_FLOWER_BREEDING) {
+		if f.State == int32(pb.FlowerState_FLOWER_BREEDING) {
 			return f
 		}
 	}
@@ -102,17 +102,17 @@ func (r *RoleFlower) FindBreeding() *FlowerData {
 
 // ========== Proto Handler ==========
 
-func (r *RoleFlower) ReqBreedInfo(ctx context.Context, req *pb.ReqBreedInfo) (*pb.RspBreedInfo, error) {
+func (r *RoleFlower) ReqFlowerInfo(ctx context.Context, req *pb.ReqFlowerInfo) (*pb.RspFlowerInfo, error) {
 	now := time.Now()
-	rsp := &pb.RspBreedInfo{Flowers: []*pb.PFlowerState{}}
+	rsp := &pb.RspFlowerInfo{Flowers: []*pb.PFlowerInfo{}}
 	for _, f := range r.Flowers {
-		status := f.Status
-		if status == int32(pb.FlowerStatus_FLOWER_BREEDING) && now.After(f.StateTime) {
-			status = int32(pb.FlowerStatus_FLOWER_BREED_DONE)
+		status := f.State
+		if status == int32(pb.FlowerState_FLOWER_BREEDING) && now.After(f.StateTime) {
+			status = int32(pb.FlowerState_FLOWER_BREED_DONE)
 		}
-		rsp.Flowers = append(rsp.Flowers, &pb.PFlowerState{
+		rsp.Flowers = append(rsp.Flowers, &pb.PFlowerInfo{
 			FlowerId:  f.FlowerID,
-			Status:    pb.FlowerStatus(status),
+			State:    pb.FlowerState(status),
 			StateTime: f.StateTime.Unix(),
 		})
 	}
@@ -143,7 +143,7 @@ func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (
 		return nil, err
 	}
 
-	flower.Status = int32(pb.FlowerStatus_FLOWER_BREEDING)
+	flower.State = int32(pb.FlowerState_FLOWER_BREEDING)
 	flower.StateTime = time.Now().Add(time.Duration(cfg.BreedTime) * time.Second)
 	r.MarkDirty()
 
@@ -157,21 +157,12 @@ func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed)
 	if !ok {
 		return nil, ErrFlowerLocked
 	}
-	if flower.Status != int32(pb.FlowerStatus_FLOWER_BREEDING) {
-		return nil, ErrFlowerNotBreeding
+	if !(flower.State == int32(pb.FlowerState_FLOWER_BREEDING) && time.Now().After(flower.StateTime)) {
+		return nil, ErrFlowerNotBreedDone
 	}
 
-	if time.Now().Before(flower.StateTime) {
-		return nil, ErrFlowerNotDone
-	}
-
-	if err := r.Role.Bag.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{
-		MakeGoodStack(int(flowerID), 1),
-	}, "breed"); err != nil {
-		return nil, err
-	}
-
-	flower.Status = int32(pb.FlowerStatus_FLOWER_HARVESTED)
+	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	flower.StateTime = time.Now()
 	r.MarkDirty()
 
 	return &pb.RspFinishBreed{}, nil
