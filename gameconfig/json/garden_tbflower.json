@@ -3,7 +3,7 @@
     "id": 101,
     "name": "玫瑰",
     "quality": 1,
-    "breed_time": 7200,
+    "breed_time": 10,
     "breed_cost": [
       {
         "id": 1001,
@@ -14,8 +14,8 @@
         "num": 1
       }
     ],
-    "grow_time": 7200,
-    "harvest_interval": 3600,
+    "grow_time": 10,
+    "harvest_interval": 10,
     "harvest_times": 3,
     "harvest_item_id": 10001,
     "harvest_num": 2,
@@ -25,7 +25,7 @@
     "id": 102,
     "name": "向日葵",
     "quality": 1,
-    "breed_time": 7200,
+    "breed_time": 10,
     "breed_cost": [
       {
         "id": 1001,
@@ -36,8 +36,8 @@
         "num": 3
       }
     ],
-    "grow_time": 7200,
-    "harvest_interval": 3600,
+    "grow_time": 10,
+    "harvest_interval": 10,
     "harvest_times": 5,
     "harvest_item_id": 10002,
     "harvest_num": 2,
@@ -47,7 +47,7 @@
     "id": 103,
     "name": "郁金香",
     "quality": 2,
-    "breed_time": 21600,
+    "breed_time": 10,
     "breed_cost": [
       {
         "id": 1001,
@@ -62,8 +62,8 @@
         "num": 1
       }
     ],
-    "grow_time": 21600,
-    "harvest_interval": 7200,
+    "grow_time": 10,
+    "harvest_interval": 10,
     "harvest_times": 3,
     "harvest_item_id": 10003,
     "harvest_num": 1,
