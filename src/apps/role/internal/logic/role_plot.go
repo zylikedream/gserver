@@ -13,8 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const waterDropID = int32(3001)
-
 var (
 	ErrPlotLocked      = errors.New("plot not unlocked")
 	ErrPlotNotEmpty    = errors.New("plot is not empty")
@@ -212,7 +210,7 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 
 	// 扣除水滴
 	if totalWaterCost > 0 {
-		waterCost := MakeGoodStack(int(waterDropID), int(totalWaterCost))
+		waterCost := MakeGoodStack(WATER_ITEM_ID, int(totalWaterCost))
 		if !r.Role.Bag.CheckGoods([]*gamecfg.GardenGoodStack{waterCost}) {
 			return nil, ErrGoodNotEnough
 		}

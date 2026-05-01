@@ -5,3 +5,7 @@ import "github.com/pkg/errors"
 var (
 	ErrVersionConflict = errors.New("optimistic lock version conflict")
 )
+
+var (
+	WATER_ITEM_ID = 3
+)
