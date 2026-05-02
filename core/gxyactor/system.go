@@ -145,6 +145,10 @@ func (a *actorApp) Host() string {
 	return a.host
 }
 
+func (a *actorApp) NodeInstanceName() string {
+	return a.nodeInstanceName
+}
+
 func (a *actorApp) Address() string {
 	return a.system.Address()
 }
