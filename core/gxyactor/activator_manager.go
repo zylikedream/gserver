@@ -3,9 +3,9 @@ package gxyactor
 import (
 	"context"
 	"fmt"
-	"gserver/core/gxyredis"
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
+	"gserver/core/gxyredis"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
@@ -154,7 +154,7 @@ func (a *actorActivator) Terminate(ctx context.Context, err error) {
 }
 
 func (a *actorActivator) registerActor(ctx context.Context, key string) error {
-	return gxyredis.Redis().Set(ctx, key, a.manager.nodeName, ActorLocateTTL).Err()
+	return gxyredis.Redis().Set(ctx, key, a.manager.nodeInstanceName, ActorLocateTTL).Err()
 }
 
 func (a *actorActivator) deRegisterActor(ctx context.Context, key string) {
@@ -169,16 +169,18 @@ func getActorLocateKey(kind string, id string) string {
 
 type activatorManager struct {
 	gxymodule.ModuleBase
-	nodeName       string
-	activatorMetas map[string]*activatorMeta
-	ctx            context.Context
+	nodeName         string
+	nodeInstanceName string
+	activatorMetas   map[string]*activatorMeta
+	ctx              context.Context
 }
 
-func NewActivatorManager(nodeName string) *activatorManager {
+func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorManager {
 	return &activatorManager{
-		nodeName:       nodeName,
-		activatorMetas: make(map[string]*activatorMeta),
-		ctx:            gxylog.NewContext(context.Background(), "activatorManager"),
+		nodeName:         nodeName,
+		nodeInstanceName: nodeInstanceName,
+		activatorMetas:   make(map[string]*activatorMeta),
+		ctx:              gxylog.NewContext(context.Background(), "activatorManager"),
 	}
 }
 
@@ -273,10 +275,10 @@ func (g *activatorManager) getActor(kind string, id string, spawn bool) (PID, er
 	}
 
 	if nodeName != "" {
-		// Redis 有记录 → 查 Consul 确认节点存活
+		// Redis 中存的是 nodeInstanceName（game-2@uid），直接传给 Consul 查地址
 		nodeHost := gxyservice.ServiceApp().GetAddressByNodeName(ctx, kind, nodeName)
 		if nodeHost != "" {
-			return actor.NewPID(nodeHost, id), nil
+			return g.spawnActor(nodeHost, kind, id)
 		}
 		// 节点已死 → fallback spawn（下面继续走）
 		glog.Warningf(ctx, "node %s for actor %s not alive, re-spawning", nodeName, key)

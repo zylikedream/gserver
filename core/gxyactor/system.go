@@ -17,11 +17,12 @@ import (
 // actorApp 基础Actor模块
 type actorApp struct {
 	gxyapp.App
-	system        *actor.ActorSystem
-	remote        *remote.Remote
-	nodeName      string
-	host          string
-	activatorMgr *activatorManager
+	system          *actor.ActorSystem
+	remote          *remote.Remote
+	nodeName        string
+	nodeInstanceName string
+	host            string
+	activatorMgr    *activatorManager
 }
 
 const (
@@ -40,11 +41,11 @@ func (a *actorApp) NodeName() string {
 }
 
 // NewActorSystem创建基础Actor模块
-func NewActorApp(nodeName string, host string) *actorApp {
-	// split host from nodeName(name@host)
+func NewActorApp(nodeName string, nodeInstanceName string, host string) *actorApp {
 	app = &actorApp{
-		nodeName: nodeName,
-		host:     host,
+		nodeName:         nodeName,
+		nodeInstanceName: nodeInstanceName,
+		host:             host,
 	}
 
 	return app
@@ -56,7 +57,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
-	a.activatorMgr = NewActivatorManager(a.nodeName)
+	a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName)
 	a.AddModule(ctx, a.activatorMgr)
 	return nil
 }

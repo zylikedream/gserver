@@ -2,6 +2,8 @@ package gxynode
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
@@ -23,10 +25,11 @@ import (
 
 type node struct {
 	gxymodule.ModuleBase
-	config string
-	Name   string
-	Host   string
-	apps   []string
+	config           string
+	Name             string
+	NodeInstanceName string
+	Host             string
+	apps             []string
 }
 
 func NewNode(config string) *node {
@@ -42,6 +45,7 @@ func (n *node) OnModInit(ctx context.Context) error {
 	n.Name = cfg.MustGet(ctx, "node.name").String()
 	n.Host = cfg.MustGet(ctx, "node.host").String()
 	n.apps = cfg.MustGet(ctx, "node.apps").Strings()
+	n.NodeInstanceName = fmt.Sprintf("%s@%x", n.Name, time.Now().UnixNano())
 	if n.Host == "" || n.Name == "" {
 		return gerror.New("no name or host'")
 	}
@@ -111,9 +115,9 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
-	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.Host))
+	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
 	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp(n.Name, n.Host))
-	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.Name))
+	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName))
 	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())
 }

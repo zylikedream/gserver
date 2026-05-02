@@ -2,25 +2,28 @@
 
 ## 概述
 
-Actor 定位系统管理 grain（虚拟 actor）在集群中的位置：gate 收到客户端请求时，通过定位系统找到目标 actor 的 PID（进程 ID），将消息路由到正确的节点。系统采用两层注册架构——Redis 做 actor 级缓存，Consul 做节点级服务发现。
+Actor 定位系统管理 grain（虚拟 actor）在集群中的位置：gate 收到客户端请求时，通过定位系统找到目标 actor 所在节点，将消息路由到正确的节点。系统采用两层架构——**Redis 存节点标识**，**Consul 做节点级服务发现**。
+
+核心设计原则：
+- **Redis 只存 `nodeInstanceName`，不存 address:port**，因此端口变化不影响缓存有效性
+- **TTL 设为 12h，不做续约**，避免周期性续约开销
+- **始终 spawnActor**：Redis 命中后仍然走远程 spawn，天然处理节点重启后 actor 丢失的场景
+- **NodeInstanceName**（`nodeName@uid`）每次节点启动时唯一生成，重启后不同，用于检测节点是否重启
 
 ## 数据结构
 
-### Redis — Actor 定位缓存
+### Redis — Actor 所在节点标识
 
 Key 格式：`gserver:locate:node:actor:{kind}:{id}`
 
-Value 为 JSON 序列化的 `ActorPid`：
-```json
-{"address": "192.168.1.100:34567", "id": "role_100008"}
-```
+Value 为 `nodeInstanceName`（即 `game-2@18f3a4b2c1d0`）。
 
 | 属性 | 值 |
 |------|-----|
-| TTL | 40s（`ActorLocateTTL`） |
-| 续约 | 每 30s 批量 `SETEX` 续一次（`renewAllActors`） |
-| 注册方式 | spawn 时 `SETNX`，续约时 `SETEX` |
-| 清理 | actor terminate 时 Lua CAS 删除（值匹配才删） |
+| TTL | 12h（`ActorLocateTTL`） |
+| 续约 | **无**（不续约，TTL 仅作崩溃安全网） |
+| 注册方式 | spawn 成功后 `SET key nodeInstanceName EX 12h` |
+| 清理 | actor terminate 时 `DEL key` |
 
 ### Consul — 节点服务注册
 
@@ -28,6 +31,7 @@ Service Key：`gserver-{nodeName}-{serviceName}`
 
 | 属性 | 值 |
 |------|-----|
+| 注册名 | `nodeInstanceName`（`game-2@uid`） |
 | TTL | 10s（配置 `registery.consul.ttl`） |
 | 续约 | 每 10s 刷新一次 |
 | 内容 | `NodeHost` = actor system address（`host:random_port`） |
@@ -42,104 +46,125 @@ GetRoleActor(roleID)
   → ActivateActor("role", roleID, spawn=true)
     → getActor("role", roleID, spawn=true)
       │
-      ├─ ① Redis Lookup ───────────────────────────────┐
-      │   LocateNode(key) → pidInfo                    │
-      │   ↓                                            │
-      │   命中 → 反序列化 PID，直接返回（不验证存活）     │ ← Bug 点
-      │   未命中 → 进入 ②                              │
-      │                                                │
-      ├─ ② Consul Lookup (only when Redis misses) ─────┤
-      │   GetServiceInfo("role", key, consistentHash)   │
-      │   ↓                                            │
-      │   找到节点 → spawnActor(node, kind, id)          │
-      │   无可用节点 → 返回错误                          │
-      │                                                │
-      └─ spawnActor ───────────────────────────────────┘
-           Send ActorActive 到目标节点 activator router
-           → consistent hash pool 选 activator
-           → SpawnNamed(props, actorID)
-           → SETNX 注册到 Redis（key 被抢则停止并报错）
+      ├─ ① Redis Lookup ──────────────────────────────────────┐
+      │   GET key → "game-2@18f3a4b2c1d0"                    │
+      │   ↓                                                   │
+      │   命中 → 提取 "game-2" → Consul 查 game-2 地址         │
+      │         ├── 节点存活 → spawnActor(node, kind, id)      │
+      │         │     ├── actor 已在 → SpawnNamed 返回已有 PID │
+      │         │     └── actor 不在 → spawn → SET key → 返回  │
+      │         └── 节点已死 → 进入 ②                          │
+      │   未命中 → 进入 ②                                     │
+      │                                                       │
+      └─ ② ConsistentHash Fallback ───────────────────────────┘
+           GetServiceInfo("role", key, consistentHash)
+           → 选节点 → spawnActor(node, kind, id)
+           → spawn → SET key → 返回
 ```
 
-### Actor 生命周期（注册/续约/注销）
+关键点：
+- **Redis 命中后不直接返回**，仍然走 spawnActor（节点重启后 actor 已经不在了）
+- **spawnActor 无超时**（`call` 的 `-1` 表示无超时），因为远程 spawn 可能慢但不该丢
+- **Consul 匹配使用完整 `nodeInstanceName`**：Redis 存的和 Consul 注册的都是 `game-2@uid`，直匹配
+
+### spawnActor（远程创建 actor）
 
 ```
+spawnActor(nodeHost, kind, id)
+  → activator.NewPID(nodeHost, routerName)
+  → Call(activator, &ActorActive{Kind, Id})
+    → activatorRouter 转发到 consistentHash pool
+      → actorActivator.SpawnNamed(props, id)
+        ├── ErrNameExists → 返回已有 PID
+        └── 成功 → registerActor: SET key EX 12h
+                → Touch 确认（异步，不影响返回）
+                → 返回新 PID
+```
+
+### Actor 生命周期
+
+```
+node 启动
+  → OnModInit 生成 nodeInstanceName = nodeName@unixNano
+  → 传给 actorApp 和 serviceApp
+  → serviceApp 以 nodeInstanceName 注册 Consul
+
 spawn 成功
-  → registerActor(): SETNX key, TTL=40s
-  → 启动续约定时器
-
-每 30s
-  → renewAllActors(): 批量 SETEX 所有 child key, TTL=40s
+  → registerActor(): SET key nodeInstanceName EX 12h
 
 actor terminate（正常退出）
-  → deRegisterActor(): Lua CAS 删除 key（验证值匹配）
+  → deRegisterActor(): DEL key
 
 进程崩溃（异常退出）
-  → Redis key 残留，直到 TTL=40s 过期
-  → Consul TTL=10s 过期后摘掉节点
+  → Redis key 残留（TTL 12h，无续约，残留不影响正确性）
+  → Consul TTL 10s 过期后摘掉节点
+  → 下次 getActor → Redis 命中 → Consul 查不到 → fallback 到一致性 Hash
 ```
 
-## 两层注册的脱节问题
+## 异常场景
 
-### 时序
+### 节点重启（端口变化）
 
 ```
-服务器 A 运行中
-  Consul: game-1@192.168.1.100:34567 (healthy, TTL 10s)
-  Redis:  actor:role:100008 → {address:"192.168.1.100:34567", id:"role_100008"} (TTL 40s)
+服务器 A（game-2）重启，端口从 34567 变 34568
+  → 新 nodeInstanceName: game-2@NEWuid
+  → Consul 注册新 entry
 
-服务器 A 崩溃/重启（新端口 34568）
-  T+0s  Consul: 旧 entry 开始 TTL 倒计时
-         Redis:  旧 entry 还有 40s 存活
-         getActor(role, 100008) → 命中 Redis → 返回旧地址 34567
-         → endpoint_writer 连旧地址 → 疯狂重试
-
-  T+10s Consul: 旧 entry TTL 过期，从服务列表摘掉
-         Redis:  旧 entry 还有 30s 存活
-         getActor(role, 100008) → 依然命中 Redis → 依然连旧地址
-
-  T+40s Redis: 旧 entry TTL 过期，自动删除
-         getActor(role, 100008) → Redis miss → 查 Consul → 拿到新节点地址
-         → 一切恢复正常
+getActor(role, 100008):
+  → Redis 还有旧的 game-2@OLDuid
+  → Consul 查 game-2@OLDUid → 不存在（重启后 uid 变了）
+  → fallback 一致性 Hash → 选中 game-2（新 entry）
+  → spawnActor → actor 重新创建 → SET game-2@NEWuid → 正常
 ```
 
-### 根因
+### 节点抖动（10min 断网后恢复）
 
-| 层 | TTL | 存活性判断 | getActor 是否用到 |
-|---|---|---|---|
-| Redis actor 缓存 | 40s | 无（只判断 key 是否存在） | **是**（优先查） |
-| Consul 节点健康 | 10s | 有（健康检查 + TTL） | **仅 Redis miss 时** |
+```
+节点 B 断网 10min，重新加入
+  → 同一 uid，Consul 恢复健康
+  → 期间可能部分 actor 被迁移到其他节点
+  → 恢复后 actor 仍在，继续服务
+```
 
-Redis TTL（40s）>> Consul TTL（10s），Redis 命中时 Consul 的健康信息完全被架空。
+### 节点抖动导致的数据分叉（TODO）
 
-## 错误码
+```
+节点 B 抖动 → 误认为下线
+  → 玩家在节点 A 创建新 actor（使用 DB 旧数据）
+  → 节点 B 恢复后，落地时间到 → 批量写 DB
+  → 可能覆盖节点 A 新写入的数据
+```
 
-| 错误 | 说明 |
-|------|------|
-| key already registered by another node | `SETNX` 注册失败，其他节点已持有（由 TTL 残留或并发触发） |
-| registration failed, key taken by another node | activator 收到 `SETNX` 失败的返回，停止本地 actor |
-| find actor node failed | Redis miss 后 Consul 也查不到健康节点 |
+当前版本尚未处理此问题，后续通过分布式事务或版本号解决。
 
 ## 代码位置
 
 | 文件 | 说明 |
 |------|------|
-| core/gxyactor/activator_manager.go | getActor、spawnActor、renewAllActors、RegisterActorKind |
-| core/gxyactor/system.go | actorApp 启动 remote、activatorManager 生命周期 |
-| core/gxylocator/gxylocator.go | LocateNode、MustRegisterActor（SETNX）、RegisterBatchActor（SETEX） |
-| core/gxylocator/script.go | Lua 脚本（批量注册、CAS 注销） |
-| core/gxyservice/service_app.go | 服务注册/发现，GetServiceInfo → Consul |
-| core/gxyregistery/types.go | ServiceInfo 结构体 |
-| src/apps/gateway/internal/logic/session.go | 客户端接入，调用 ActivateRole |
-| src/lib/actor.go | GetRoleActor / ActivateRole 封装 |
+| `core/gxynode/node.go` | 生成 `NodeInstanceName`，传入 actorApp 和 serviceApp |
+| `core/gxyactor/activator_manager.go` | getActor、spawnActor、registerActor（SET）、RegisterActorKind |
+| `core/gxyactor/system.go` | actorApp 启动 remote、activatorManager 生命周期 |
+| `core/gxyservice/service_app.go` | 以 `nodeInstanceName` 注册 Consul，`GetAddressByNodeName` |
+| `core/gxyregistery/types.go` | ServiceInfo 结构体 |
+| `src/apps/gateway/internal/logic/session.go` | 客户端接入，调用 ActivateRole |
+| `src/lib/actor.go` | GetRoleActor / ActivateRole 封装 |
 
 ## 设计决策
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
-| 定位缓存 | Redis，TTL=40s | 减少 Consul 查询 + 跨节点 spawn 开销 |
-| 注册互斥 | SETNX + 续约用 SETEX | 防双写，启动时清理后能自动恢复 |
-| 注销原子性 | Lua CAS（值匹配才删） | 防止误删其他节点的新注册 |
-| 批量续约 | Lua 脚本循环 SETEX | 减少续约开销 |
+| Redis 存什么 | `nodeInstanceName`（`nodeName@uid`） | 不依赖端口，重启后 uid 变化自动失效 |
+| TTL | 12h，不续约 | 避免续约开销，TTL 仅兜底；注册/注销用 SET/DEL 精确控制 |
+| Redis 命中后行为 | spawnActor（不直接返回 PID） | 节点重启后 actor 丢失，必须重新创建 |
+| 节点标识生命周期 | 每次启动生成新 uid | 用 uid 变化自然检测节点重启 |
+| Consul 注册名 | `nodeInstanceName` | 与 Redis 值直接匹配，无需额外映射 |
+| 注销方式 | DEL（不带 CAS） | 12h TTL 兜底，极端情况最多 12h 残留 |
 | 节点选择 | 一致性哈希 | 同一 ID 稳定路由到同一节点 |
-| 随机端口 | remote.Configure(host, 0) | 避免端口冲突（副作用：重启后地址全变） |
+| 随机端口 | `remote.Configure(host, 0)` | 避免端口冲突 |
+
+## 变更记录
+
+| 日期 | 变更 | 说明 |
+|------|------|------|
+| 2026-05-02 | v2 重构 | 以 `nodeInstanceName` 代替 `address:port`，去掉续约，去掉 gxylocator |
+| 之前 | v1 方案 | Redis 存 JSON ActorPid，TTL=40s，30s 续约；节点重启有 40s 窗口期 |

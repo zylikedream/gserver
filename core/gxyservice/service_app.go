@@ -11,10 +11,10 @@ import (
 
 type serviceApp struct {
 	gxyapp.App
-	Services    []IService
-	serviceInfo []*gxyregistery.ServiceInfo
-	registry    gxyregistery.IRegistery
-	nodeName    string
+	Services         []IService
+	serviceInfo      []*gxyregistery.ServiceInfo
+	registry         gxyregistery.IRegistery
+	nodeInstanceName string
 }
 
 var svrApp *serviceApp
@@ -23,9 +23,9 @@ func ServiceApp() *serviceApp {
 	return svrApp
 }
 
-func NewServiceApp(nodeName string) *serviceApp {
+func NewServiceApp(nodeInstanceName string) *serviceApp {
 	svrApp = &serviceApp{
-		nodeName: nodeName,
+		nodeInstanceName: nodeInstanceName,
 	}
 	return svrApp
 }
@@ -60,7 +60,7 @@ func (s *serviceApp) registerSevices() error {
 	for _, service := range s.Services {
 		svcInfo := gxyregistery.NewServiceInfo(
 			service.ServiceName(),
-			s.nodeName,
+			s.nodeInstanceName,
 			service.Host(),
 			service.Version(), service.Weight())
 		if err := s.registry.Register(context.Background(), svcInfo); err != nil {
@@ -93,15 +93,15 @@ func (s *serviceApp) GetServiceInfo(ctx context.Context, name string, key string
 	return selector.Select(ctx, name, key, services)
 }
 
-// GetAddressByNodeName 通过 nodeName 查找节点地址（从 Consul Watcher 本地缓存）
-func (s *serviceApp) GetAddressByNodeName(ctx context.Context, name string, nodeName string) string {
+// GetAddressByNodeName 通过 nodeInstanceName 查找节点地址（从 Consul Watcher 本地缓存）
+func (s *serviceApp) GetAddressByNodeName(ctx context.Context, name string, nodeInstanceName string) string {
 	services, err := s.registry.GetHashServices(ctx, name)
 	if err != nil {
 		glog.Errorf(ctx, "get services for node lookup failed:%+v", err)
 		return ""
 	}
 	for _, svc := range services.ServiceInfos {
-		if svc.NodeName == nodeName {
+		if svc.NodeName == nodeInstanceName {
 			return svc.NodeHost
 		}
 	}
