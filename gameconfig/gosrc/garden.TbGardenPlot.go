@@ -11,16 +11,16 @@ package gamecfg;
 
 
 type GardenTbGardenPlot struct {
-    _dataMap map[int32]*GardenPlot
-    _dataList []*GardenPlot
+    _dataMap map[int32]*GardenGardenPlot
+    _dataList []*GardenGardenPlot
 }
 
 func NewGardenTbGardenPlot(_buf []map[string]interface{}) (*GardenTbGardenPlot, error) {
-    _dataList := make([]*GardenPlot, 0, len(_buf))
-    dataMap := make(map[int32]*GardenPlot)
+    _dataList := make([]*GardenGardenPlot, 0, len(_buf))
+    dataMap := make(map[int32]*GardenGardenPlot)
 
     for _, _ele_ := range _buf {
-        if _v, err2 := NewGardenPlot(_ele_); err2 != nil {
+        if _v, err2 := NewGardenGardenPlot(_ele_); err2 != nil {
             return nil, err2
         } else {
             _dataList = append(_dataList, _v)
@@ -30,14 +30,16 @@ func NewGardenTbGardenPlot(_buf []map[string]interface{}) (*GardenTbGardenPlot, 
     return &GardenTbGardenPlot{_dataList:_dataList, _dataMap:dataMap}, nil
 }
 
-func (table *GardenTbGardenPlot) GetDataMap() map[int32]*GardenPlot {
+func (table *GardenTbGardenPlot) GetDataMap() map[int32]*GardenGardenPlot {
     return table._dataMap
 }
 
-func (table *GardenTbGardenPlot) GetDataList() []*GardenPlot {
+func (table *GardenTbGardenPlot) GetDataList() []*GardenGardenPlot {
     return table._dataList
 }
 
-func (table *GardenTbGardenPlot) Get(key int32) *GardenPlot {
+func (table *GardenTbGardenPlot) Get(key int32) *GardenGardenPlot {
     return table._dataMap[key]
 }
+
+

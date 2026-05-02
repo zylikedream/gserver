@@ -31,7 +31,7 @@ func (c *gameConfig) OnModInit(ctx context.Context) error {
 func (gc *gameConfig) initTables() error {
 	tables, err := gamecfg.NewTables(loader)
 	if err != nil {
-		return err
+		panic(err)
 	}
 	gc.Tables = tables
 	return nil

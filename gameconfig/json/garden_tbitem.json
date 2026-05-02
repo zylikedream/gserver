@@ -194,5 +194,47 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": true
+  },
+  {
+    "id": 10001,
+    "name": "玫瑰花瓣",
+    "desc": "娇艳的玫瑰花瓣，可用于任务和合成",
+    "major_type": 2,
+    "sub_type": 80,
+    "quality": 1,
+    "price": 5,
+    "max_stack": 999,
+    "icon": "icon_petal_rose",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": false
+  },
+  {
+    "id": 10002,
+    "name": "向日葵花瓣",
+    "desc": "明亮的向日葵花瓣，可用于任务和合成",
+    "major_type": 2,
+    "sub_type": 80,
+    "quality": 1,
+    "price": 5,
+    "max_stack": 999,
+    "icon": "icon_petal_sunflower",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": false
+  },
+  {
+    "id": 10003,
+    "name": "郁金香花瓣",
+    "desc": "优雅的郁金香花瓣，可用于任务和合成",
+    "major_type": 2,
+    "sub_type": 80,
+    "quality": 2,
+    "price": 10,
+    "max_stack": 999,
+    "icon": "icon_petal_tulip",
+    "use_type": 1,
+    "use_param": "",
+    "can_sell": false
   }
 ]

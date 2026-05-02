@@ -249,3 +249,11 @@ func (r *RoleGM) FinishBreed() error {
 	r.Role.Flower.MarkDirty()
 	return nil
 }
+
+// UnlockPlot 解锁地块
+// 用法: unlock_plot [地块ID]
+// 示例: unlock_plot 1
+func (r *RoleGM) UnlockPlot(plotID int) error {
+	r.Role.Plot.UnlockPlot(int32(plotID))
+	return nil
+}

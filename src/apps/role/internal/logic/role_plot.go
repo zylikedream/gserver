@@ -13,8 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const waterDropID = int32(3001)
-
 var (
 	ErrPlotLocked      = errors.New("plot not unlocked")
 	ErrPlotNotEmpty    = errors.New("plot is not empty")
@@ -156,7 +154,13 @@ func (r *RolePlot) ReqPlantFlower(ctx context.Context, req *pb.ReqPlantFlower) (
 	flowerID := req.FlowerId
 
 	// 检查花朵是否已解锁
-	if _, ok := r.Role.Flower.Flowers[flowerID]; !ok {
+	flower, ok := r.Role.Flower.Flowers[flowerID]
+	if !ok {
+		return nil, ErrFlowerLocked
+	}
+
+	// 检查花朵是否已收获
+	if flower.State != int32(pb.FlowerState_FLOWER_HARVESTED) {
 		return nil, ErrFlowerLocked
 	}
 
@@ -206,7 +210,7 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 
 	// 扣除水滴
 	if totalWaterCost > 0 {
-		waterCost := MakeGoodStack(int(waterDropID), int(totalWaterCost))
+		waterCost := MakeGoodStack(WATER_ITEM_ID, int(totalWaterCost))
 		if !r.Role.Bag.CheckGoods([]*gamecfg.GardenGoodStack{waterCost}) {
 			return nil, ErrGoodNotEnough
 		}
@@ -291,17 +295,16 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 }
 
 func (r *RolePlot) ReqRemovePlant(ctx context.Context, req *pb.ReqRemovePlant) (*pb.RspRemovePlant, error) {
-	now := time.Now()
 	for _, plotID := range req.PlotIds {
 		plot, ok := r.Plots[plotID]
 		if !ok {
 			return nil, ErrPlotLocked
 		}
 		state := getPlotState(plot)
-		if state == int32(pb.PlotState_PLOT_GROWING) && now.After(plot.StateTime) {
+		if state == int32(pb.PlotState_PLOT_HARVESTABLE) {
 			return nil, ErrPlotHarvestable
 		}
-		if state != int32(pb.PlotState_PLOT_PLANTED) && state != int32(pb.PlotState_PLOT_GROWING) {
+		if plot.State != int32(pb.PlotState_PLOT_PLANTED) && plot.State != int32(pb.PlotState_PLOT_GROWING) {
 			return nil, ErrPlotNotPlanted
 		}
 	}

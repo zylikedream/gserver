@@ -36,6 +36,12 @@ func NewTables(loader JsonLoader) (*Tables, error) {
     if tables.TbFlower, err = NewGardenTbFlower(buf) ; err != nil {
         return nil, err
     }
+    if buf, err = loader("garden_tbgardenplot") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGardenPlot, err = NewGardenTbGardenPlot(buf) ; err != nil {
+        return nil, err
+    }
     if buf, err = loader("garden_tbitemtag") ; err != nil {
         return nil, err
     }

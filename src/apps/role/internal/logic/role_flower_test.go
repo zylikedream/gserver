@@ -60,6 +60,9 @@ func initFlowerTestConfig(t *testing.T) {
 				map[string]interface{}{"id": float64(1001), "num": float64(2)},
 				map[string]interface{}{"id": float64(2001), "num": float64(1)},
 			},
+			"grow_time": float64(60), "harvest_interval": float64(30),
+			"harvest_times": float64(3), "harvest_item_id": float64(10001),
+			"harvest_num": float64(2), "water_cost": float64(5),
 		},
 		{
 			"id": float64(102), "name": "sunflower", "quality": float64(1),
@@ -67,6 +70,9 @@ func initFlowerTestConfig(t *testing.T) {
 			"breed_cost": []interface{}{
 				map[string]interface{}{"id": float64(1001), "num": float64(1)},
 			},
+			"grow_time": float64(120), "harvest_interval": float64(60),
+			"harvest_times": float64(2), "harvest_item_id": float64(10002),
+			"harvest_num": float64(1), "water_cost": float64(3),
 		},
 	}
 	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)

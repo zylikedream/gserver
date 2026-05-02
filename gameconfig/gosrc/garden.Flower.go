@@ -18,12 +18,12 @@ type GardenFlower struct {
     Quality GardenEItemQuality
     BreedTime int32
     BreedCost []*GardenGoodStack
-    GrowTime        int32
+    GrowTime int32
     HarvestInterval int32
-    HarvestTimes    int32
-    HarvestItemId   int32
-    HarvestNum      int32
-    WaterCost       int32
+    HarvestTimes int32
+    HarvestItemId int32
+    HarvestNum int32
+    WaterCost int32
 }
 
 const TypeId_GardenFlower = -1136119724

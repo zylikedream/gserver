@@ -13,6 +13,8 @@ import (
 	"github.com/gogf/gf/v2/os/gfile"
 	"github.com/gogo/protobuf/proto"
 	"github.com/spf13/viper"
+	"google.golang.org/protobuf/encoding/prototext"
+	googleProto "google.golang.org/protobuf/proto"
 )
 
 func CfgToViper(ctx context.Context, c *gcfg.Config) *viper.Viper {
@@ -50,6 +52,9 @@ func GetCurrenDir() string {
 func FormatObject(msg any) string {
 	if msg == nil {
 		return "nil{}"
+	}
+	if pbMsg, ok := msg.(googleProto.Message); ok {
+		return fmt.Sprintf("%T{%s}", msg, prototext.MarshalOptions{Multiline: false}.Format(pbMsg))
 	}
 	return fmt.Sprintf("%T%s", msg, gjson.MustEncode(msg))
 }

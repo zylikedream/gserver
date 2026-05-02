@@ -221,7 +221,6 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 }
 
 func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
-	glog.Debugf(ctx, "handle role msg, msg: %s", gxyutil.FormatObject(msg))
 	_, err := r.AutoHandleMsg(ctx, msg)
 	return err
 }
