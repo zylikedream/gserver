@@ -92,3 +92,18 @@ func (s *serviceApp) GetServiceInfo(ctx context.Context, name string, key string
 	glog.Debugf(ctx, "get service(%s:%s) success, services: %s", name, key, gxyutil.FormatObject(services))
 	return selector.Select(ctx, name, key, services)
 }
+
+// GetAddressByNodeName 通过 nodeName 查找节点地址（从 Consul Watcher 本地缓存）
+func (s *serviceApp) GetAddressByNodeName(ctx context.Context, name string, nodeName string) string {
+	services, err := s.registry.GetHashServices(ctx, name)
+	if err != nil {
+		glog.Errorf(ctx, "get services for node lookup failed:%+v", err)
+		return ""
+	}
+	for _, svc := range services.ServiceInfos {
+		if svc.NodeName == nodeName {
+			return svc.NodeHost
+		}
+	}
+	return ""
+}

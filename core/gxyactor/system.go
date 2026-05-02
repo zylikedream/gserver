@@ -56,7 +56,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
-	a.activatorMgr = NewActivatorManager()
+	a.activatorMgr = NewActivatorManager(a.nodeName)
 	a.AddModule(ctx, a.activatorMgr)
 	return nil
 }
