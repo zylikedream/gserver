@@ -8,6 +8,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
+	"gserver/core/gxyredis"
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
 	"gserver/gameconfig"
@@ -23,6 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gorm.io/gorm"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -297,7 +299,7 @@ func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo)
 func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
 }
 
-func (r *RoleMain) save(_ context.Context) error {
+func (r *RoleMain) save(ctx context.Context) error {
 	var errStr string
 	for _, mod := range r.Modules() {
 		rmod, _ := mod.(IRoleModule)
@@ -308,11 +310,41 @@ func (r *RoleMain) save(_ context.Context) error {
 		if modState == nil || !modState.IsDirty() {
 			continue
 		}
+
+		// 第一层：Redis 归属检查
+		key := getRoleLocateKey(r.RoleID)
+		owner, err := gxyredis.Redis().Get(ctx, key).Result()
+		if err == redis.Nil || owner == "" {
+			glog.Warningf(ctx, "actor %d not claimed in redis, skip save", r.RoleID)
+			continue
+		}
+		if err != nil {
+			glog.Errorf(ctx, "redis get failed for role %d: %v, skip save", r.RoleID, err)
+			continue
+		}
+		if owner != gxyactor.ActorApp().NodeInstanceName() {
+			glog.Warningf(ctx, "actor %d claimed by %s, skip save", r.RoleID, owner)
+			continue
+		}
+
+		// 第二层：版本号乐观锁写入
+		oldVersion := modState.GetVersion()
+		modState.SetVersion(oldVersion + 1)
 		modState.SetUpdateAt(time.Now())
 
-		if err := gxypgx.DB().Save(modState).Error; err != nil {
+		result := gxypgx.DB().Model(modState).
+			Select("*").
+			Where("role_id = ? AND version = ?", r.RoleID, oldVersion).
+			Updates(modState)
+		if result.Error != nil {
 			tableName := modState.(tabler).TableName()
-			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
+			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, result.Error)
+			continue
+		}
+		if result.RowsAffected == 0 {
+			tableName := modState.(tabler).TableName()
+			glog.Errorf(ctx, "version conflict on %s for role %d, oldVersion=%d, skip", tableName, r.RoleID, oldVersion)
+			// 不清 dirty，下次重试
 			continue
 		}
 		modState.ClearDirty()
@@ -321,6 +353,10 @@ func (r *RoleMain) save(_ context.Context) error {
 		return errors.New(errStr)
 	}
 	return nil
+}
+
+func getRoleLocateKey(roleID int64) string {
+	return fmt.Sprintf("gserver:locate:node:actor:role:%d", roleID)
 }
 
 func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
