@@ -1,7 +1,6 @@
 [
   {
     "id": 1,
-    "flower_id": 101,
     "level": 1,
     "upgrade_coin_cost": 0,
     "upgrade_essence_cost": 0,
@@ -9,11 +8,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 0,
     "essence_drop_rate_add": 0,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 2,
-    "flower_id": 101,
     "level": 2,
     "upgrade_coin_cost": 80,
     "upgrade_essence_cost": 1,
@@ -21,11 +20,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 1,
     "essence_drop_rate_add": 120,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 3,
-    "flower_id": 101,
     "level": 3,
     "upgrade_coin_cost": 120,
     "upgrade_essence_cost": 1,
@@ -33,11 +32,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 2,
     "essence_drop_rate_add": 240,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 4,
-    "flower_id": 101,
     "level": 4,
     "upgrade_coin_cost": 160,
     "upgrade_essence_cost": 2,
@@ -45,11 +44,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 3,
     "essence_drop_rate_add": 360,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 5,
-    "flower_id": 101,
     "level": 5,
     "upgrade_coin_cost": 200,
     "upgrade_essence_cost": 2,
@@ -57,11 +56,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 4,
     "essence_drop_rate_add": 480,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 6,
-    "flower_id": 101,
     "level": 6,
     "upgrade_coin_cost": 240,
     "upgrade_essence_cost": 3,
@@ -69,11 +68,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 5,
     "essence_drop_rate_add": 600,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 7,
-    "flower_id": 101,
     "level": 7,
     "upgrade_coin_cost": 280,
     "upgrade_essence_cost": 3,
@@ -81,11 +80,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 6,
     "essence_drop_rate_add": 720,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 8,
-    "flower_id": 101,
     "level": 8,
     "upgrade_coin_cost": 320,
     "upgrade_essence_cost": 4,
@@ -93,11 +92,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 7,
     "essence_drop_rate_add": 840,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 9,
-    "flower_id": 101,
     "level": 9,
     "upgrade_coin_cost": 360,
     "upgrade_essence_cost": 4,
@@ -105,11 +104,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 8,
     "essence_drop_rate_add": 960,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 10,
-    "flower_id": 101,
     "level": 10,
     "upgrade_coin_cost": 400,
     "upgrade_essence_cost": 5,
@@ -117,11 +116,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 9,
     "essence_drop_rate_add": 1080,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 11,
-    "flower_id": 101,
     "level": 11,
     "upgrade_coin_cost": 440,
     "upgrade_essence_cost": 5,
@@ -129,11 +128,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 10,
     "essence_drop_rate_add": 1200,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 12,
-    "flower_id": 101,
     "level": 12,
     "upgrade_coin_cost": 480,
     "upgrade_essence_cost": 6,
@@ -141,11 +140,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 11,
     "essence_drop_rate_add": 1320,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 13,
-    "flower_id": 101,
     "level": 13,
     "upgrade_coin_cost": 520,
     "upgrade_essence_cost": 6,
@@ -153,11 +152,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1440,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 14,
-    "flower_id": 101,
     "level": 14,
     "upgrade_coin_cost": 560,
     "upgrade_essence_cost": 7,
@@ -165,11 +164,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1560,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 15,
-    "flower_id": 101,
     "level": 15,
     "upgrade_coin_cost": 600,
     "upgrade_essence_cost": 7,
@@ -177,11 +176,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1680,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 16,
-    "flower_id": 101,
     "level": 16,
     "upgrade_coin_cost": 640,
     "upgrade_essence_cost": 8,
@@ -189,11 +188,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1800,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 17,
-    "flower_id": 101,
     "level": 17,
     "upgrade_coin_cost": 680,
     "upgrade_essence_cost": 8,
@@ -201,11 +200,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1920,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 18,
-    "flower_id": 101,
     "level": 18,
     "upgrade_coin_cost": 720,
     "upgrade_essence_cost": 9,
@@ -213,11 +212,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 2040,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 19,
-    "flower_id": 101,
     "level": 19,
     "upgrade_coin_cost": 760,
     "upgrade_essence_cost": 9,
@@ -225,11 +224,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 2160,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 101
   },
   {
     "id": 20,
-    "flower_id": 101,
     "level": 20,
     "upgrade_coin_cost": 800,
     "upgrade_essence_cost": 10,
@@ -237,11 +236,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 2200,
-    "essence_drop_num_add": 1
+    "essence_drop_num_add": 1,
+    "level_group": 101
   },
   {
     "id": 21,
-    "flower_id": 102,
     "level": 1,
     "upgrade_coin_cost": 0,
     "upgrade_essence_cost": 0,
@@ -249,11 +248,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 0,
     "essence_drop_rate_add": 0,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 22,
-    "flower_id": 102,
     "level": 2,
     "upgrade_coin_cost": 80,
     "upgrade_essence_cost": 1,
@@ -261,11 +260,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 1,
     "essence_drop_rate_add": 120,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 23,
-    "flower_id": 102,
     "level": 3,
     "upgrade_coin_cost": 120,
     "upgrade_essence_cost": 1,
@@ -273,11 +272,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 2,
     "essence_drop_rate_add": 240,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 24,
-    "flower_id": 102,
     "level": 4,
     "upgrade_coin_cost": 160,
     "upgrade_essence_cost": 2,
@@ -285,11 +284,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 3,
     "essence_drop_rate_add": 360,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 25,
-    "flower_id": 102,
     "level": 5,
     "upgrade_coin_cost": 200,
     "upgrade_essence_cost": 2,
@@ -297,11 +296,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 4,
     "essence_drop_rate_add": 480,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 26,
-    "flower_id": 102,
     "level": 6,
     "upgrade_coin_cost": 240,
     "upgrade_essence_cost": 3,
@@ -309,11 +308,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 5,
     "essence_drop_rate_add": 600,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 27,
-    "flower_id": 102,
     "level": 7,
     "upgrade_coin_cost": 280,
     "upgrade_essence_cost": 3,
@@ -321,11 +320,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 6,
     "essence_drop_rate_add": 720,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 28,
-    "flower_id": 102,
     "level": 8,
     "upgrade_coin_cost": 320,
     "upgrade_essence_cost": 4,
@@ -333,11 +332,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 7,
     "essence_drop_rate_add": 840,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 29,
-    "flower_id": 102,
     "level": 9,
     "upgrade_coin_cost": 360,
     "upgrade_essence_cost": 4,
@@ -345,11 +344,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 8,
     "essence_drop_rate_add": 960,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 30,
-    "flower_id": 102,
     "level": 10,
     "upgrade_coin_cost": 400,
     "upgrade_essence_cost": 5,
@@ -357,11 +356,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 9,
     "essence_drop_rate_add": 1080,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 31,
-    "flower_id": 102,
     "level": 11,
     "upgrade_coin_cost": 440,
     "upgrade_essence_cost": 5,
@@ -369,11 +368,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 10,
     "essence_drop_rate_add": 1200,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 32,
-    "flower_id": 102,
     "level": 12,
     "upgrade_coin_cost": 480,
     "upgrade_essence_cost": 6,
@@ -381,11 +380,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 11,
     "essence_drop_rate_add": 1320,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 33,
-    "flower_id": 102,
     "level": 13,
     "upgrade_coin_cost": 520,
     "upgrade_essence_cost": 6,
@@ -393,11 +392,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1440,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 34,
-    "flower_id": 102,
     "level": 14,
     "upgrade_coin_cost": 560,
     "upgrade_essence_cost": 7,
@@ -405,11 +404,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1560,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 35,
-    "flower_id": 102,
     "level": 15,
     "upgrade_coin_cost": 600,
     "upgrade_essence_cost": 7,
@@ -417,11 +416,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1680,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 36,
-    "flower_id": 102,
     "level": 16,
     "upgrade_coin_cost": 640,
     "upgrade_essence_cost": 8,
@@ -429,11 +428,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1800,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 37,
-    "flower_id": 102,
     "level": 17,
     "upgrade_coin_cost": 680,
     "upgrade_essence_cost": 8,
@@ -441,11 +440,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1920,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 38,
-    "flower_id": 102,
     "level": 18,
     "upgrade_coin_cost": 720,
     "upgrade_essence_cost": 9,
@@ -453,11 +452,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 2040,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 39,
-    "flower_id": 102,
     "level": 19,
     "upgrade_coin_cost": 760,
     "upgrade_essence_cost": 9,
@@ -465,11 +464,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 2160,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 102
   },
   {
     "id": 40,
-    "flower_id": 102,
     "level": 20,
     "upgrade_coin_cost": 800,
     "upgrade_essence_cost": 10,
@@ -477,11 +476,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 2200,
-    "essence_drop_num_add": 1
+    "essence_drop_num_add": 1,
+    "level_group": 102
   },
   {
     "id": 41,
-    "flower_id": 103,
     "level": 1,
     "upgrade_coin_cost": 0,
     "upgrade_essence_cost": 0,
@@ -489,11 +488,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 0,
     "essence_drop_rate_add": 0,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 42,
-    "flower_id": 103,
     "level": 2,
     "upgrade_coin_cost": 120,
     "upgrade_essence_cost": 1,
@@ -501,11 +500,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 1,
     "essence_drop_rate_add": 100,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 43,
-    "flower_id": 103,
     "level": 3,
     "upgrade_coin_cost": 180,
     "upgrade_essence_cost": 1,
@@ -513,11 +512,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 2,
     "essence_drop_rate_add": 200,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 44,
-    "flower_id": 103,
     "level": 4,
     "upgrade_coin_cost": 240,
     "upgrade_essence_cost": 2,
@@ -525,11 +524,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 3,
     "essence_drop_rate_add": 300,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 45,
-    "flower_id": 103,
     "level": 5,
     "upgrade_coin_cost": 300,
     "upgrade_essence_cost": 2,
@@ -537,11 +536,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 4,
     "essence_drop_rate_add": 400,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 46,
-    "flower_id": 103,
     "level": 6,
     "upgrade_coin_cost": 360,
     "upgrade_essence_cost": 3,
@@ -549,11 +548,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 5,
     "essence_drop_rate_add": 500,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 47,
-    "flower_id": 103,
     "level": 7,
     "upgrade_coin_cost": 420,
     "upgrade_essence_cost": 3,
@@ -561,11 +560,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 6,
     "essence_drop_rate_add": 600,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 48,
-    "flower_id": 103,
     "level": 8,
     "upgrade_coin_cost": 480,
     "upgrade_essence_cost": 4,
@@ -573,11 +572,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 7,
     "essence_drop_rate_add": 700,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 49,
-    "flower_id": 103,
     "level": 9,
     "upgrade_coin_cost": 540,
     "upgrade_essence_cost": 4,
@@ -585,11 +584,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 8,
     "essence_drop_rate_add": 800,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 50,
-    "flower_id": 103,
     "level": 10,
     "upgrade_coin_cost": 600,
     "upgrade_essence_cost": 5,
@@ -597,11 +596,11 @@
     "harvest_times_add": 0,
     "harvest_interval_reduce": 9,
     "essence_drop_rate_add": 900,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 51,
-    "flower_id": 103,
     "level": 11,
     "upgrade_coin_cost": 660,
     "upgrade_essence_cost": 5,
@@ -609,11 +608,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 10,
     "essence_drop_rate_add": 1000,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 52,
-    "flower_id": 103,
     "level": 12,
     "upgrade_coin_cost": 720,
     "upgrade_essence_cost": 6,
@@ -621,11 +620,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 11,
     "essence_drop_rate_add": 1100,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 53,
-    "flower_id": 103,
     "level": 13,
     "upgrade_coin_cost": 780,
     "upgrade_essence_cost": 6,
@@ -633,11 +632,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 12,
     "essence_drop_rate_add": 1200,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 54,
-    "flower_id": 103,
     "level": 14,
     "upgrade_coin_cost": 840,
     "upgrade_essence_cost": 7,
@@ -645,11 +644,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 13,
     "essence_drop_rate_add": 1300,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 55,
-    "flower_id": 103,
     "level": 15,
     "upgrade_coin_cost": 900,
     "upgrade_essence_cost": 7,
@@ -657,11 +656,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 14,
     "essence_drop_rate_add": 1400,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 56,
-    "flower_id": 103,
     "level": 16,
     "upgrade_coin_cost": 960,
     "upgrade_essence_cost": 8,
@@ -669,11 +668,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 15,
     "essence_drop_rate_add": 1500,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 57,
-    "flower_id": 103,
     "level": 17,
     "upgrade_coin_cost": 1020,
     "upgrade_essence_cost": 8,
@@ -681,11 +680,11 @@
     "harvest_times_add": 1,
     "harvest_interval_reduce": 15,
     "essence_drop_rate_add": 1600,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 58,
-    "flower_id": 103,
     "level": 18,
     "upgrade_coin_cost": 1080,
     "upgrade_essence_cost": 9,
@@ -693,11 +692,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 15,
     "essence_drop_rate_add": 1700,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 59,
-    "flower_id": 103,
     "level": 19,
     "upgrade_coin_cost": 1140,
     "upgrade_essence_cost": 9,
@@ -705,11 +704,11 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 15,
     "essence_drop_rate_add": 1800,
-    "essence_drop_num_add": 0
+    "essence_drop_num_add": 0,
+    "level_group": 103
   },
   {
     "id": 60,
-    "flower_id": 103,
     "level": 20,
     "upgrade_coin_cost": 1200,
     "upgrade_essence_cost": 10,
@@ -717,6 +716,7 @@
     "harvest_times_add": 2,
     "harvest_interval_reduce": 15,
     "essence_drop_rate_add": 1900,
-    "essence_drop_num_add": 1
+    "essence_drop_num_add": 1,
+    "level_group": 103
   }
 ]

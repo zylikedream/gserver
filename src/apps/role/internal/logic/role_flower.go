@@ -111,9 +111,9 @@ func (r *RoleFlower) GetFlowerLevel(flowerID int32) (level int32, breakStage int
 	if !ok {
 		return 1, 0
 	}
-	// Ensure legacy data without level gets Level=1
+	// Legacy data without level defaults to 1
 	if flower.Level == 0 {
-		flower.Level = 1
+		return 1, flower.BreakStage
 	}
 	return flower.Level, flower.BreakStage
 }
