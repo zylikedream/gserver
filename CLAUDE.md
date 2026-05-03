@@ -15,7 +15,7 @@ Project uses Go 1.25.1. No linter/formatter configured in Makefile.
 
 ## Tool Preferences
 
-- **Go 代码引用查询**：用 LSP tool（goToDefinition, findReferences, hover），不用 grep/find
+- **Go 代码引用,查询,读取**：尽量用 LSP tool（goToDefinition, findReferences, hover），不用 grep/find
 - **Web 搜索/浏览网页**：用 `playwright-cli` skill，不用 WebSearch/WebFetch
 
 ## Architecture Overview

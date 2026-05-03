@@ -329,40 +329,31 @@ func (r *RoleMain) save(ctx context.Context) error {
 
 		// 第二层：版本号乐观锁写入
 		oldVersion := modState.GetVersion()
-		modState.SetVersion(oldVersion + 1)
 		modState.SetUpdateAt(time.Now())
 
+		if oldVersion == 0 {
+			// version==0 表示新号，行还不存在，直接 Save（INSERT）
+			if err := gxypgx.DB().Save(modState).Error; err != nil {
+				tableName := modState.(tabler).TableName()
+				errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
+				continue
+			}
+			modState.ClearDirty()
+			continue
+		}
+
+		// version>0 表示有已有行，UPDATE + WHERE version 做冲突检测
+		modState.SetVersion(oldVersion + 1)
 		result := gxypgx.DB().Model(modState).
-			Select("*").
 			Where("role_id = ? AND version = ?", r.RoleID, oldVersion).
 			Updates(modState)
 		if result.Error != nil {
 			tableName := modState.(tabler).TableName()
-			modState.SetVersion(oldVersion) // 回滚版本号
 			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, result.Error)
 			continue
 		}
 		if result.RowsAffected == 0 {
-			tableName := modState.(tabler).TableName()
-			// 0 行可能有两种情况：版本冲突 or 新角色行不存在
-			var count int64
-			gxypgx.DB().Model(modState).
-				Where("role_id = ?", r.RoleID).
-				Count(&count)
-			if count == 0 {
-				// 新角色，首次写入 → Create
-				modState.SetVersion(0)
-				modState.SetUpdateAt(time.Now())
-				if err := gxypgx.DB().Create(modState).Error; err != nil {
-					errStr += fmt.Sprintf("create mod %s failed: %s", tableName, err)
-					continue
-				}
-				modState.ClearDirty()
-				continue
-			}
-			// 版本冲突 → 不清 dirty，下次重试
-			modState.SetVersion(oldVersion) // 回滚版本号
-			glog.Errorf(ctx, "version conflict on %s for role %d, oldVersion=%d, skip", tableName, r.RoleID, oldVersion)
+			modState.SetVersion(oldVersion) // 不清 dirty，下次重试
 			continue
 		}
 		modState.ClearDirty()
