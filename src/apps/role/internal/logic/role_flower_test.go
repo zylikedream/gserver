@@ -107,10 +107,10 @@ func initFlowerTestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TbFlowerBreak: level_group=1, break_stage=1, need_level=3
+	// TbFlowerBreak: level_group=1, break_stage=1, need_level=2
 	breaks := []map[string]interface{}{
 		{"id": float64(1), "level_group": float64(1), "break_stage": float64(1),
-			"need_level": float64(3),
+			"need_level": float64(2),
 			"coin_cost": float64(500), "essence_cost": float64(5),
 			"break_item_id": float64(6001), "break_item_num": float64(1),
 			"player_level_limit": float64(0)},
@@ -506,7 +506,7 @@ func TestBreakFlower_Success(t *testing.T) {
 func TestBreakFlower_LevelNotEnough(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
 	f.AddFlower(101)
-	// level=1, need_level=3
+	// level=1, need_level=2
 
 	_, err := f.ReqBreakFlower(context.Background(), &pb.ReqBreakFlower{FlowerId: 101})
 	if !errors.Is(err, ErrFlowerBreakLevel) {

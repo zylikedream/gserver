@@ -217,7 +217,7 @@ func (r *RoleFlower) ReqUpgradeFlower(ctx context.Context, req *pb.ReqUpgradeFlo
 
 	// Check breakthrough gate
 	nextBreak := gameconfig.GameConfig().GetFlowerBreakByGroup(cfg.LevelGroup, flower.BreakStage+1)
-	if nextBreak != nil && nextLevel >= nextBreak.NeedLevel {
+	if nextBreak != nil && nextLevel > nextBreak.NeedLevel {
 		return nil, ErrFlowerNeedBreak
 	}
 
@@ -260,6 +260,8 @@ func (r *RoleFlower) ReqBreakFlower(ctx context.Context, req *pb.ReqBreakFlower)
 	if flower.Level < breakCfg.NeedLevel {
 		return nil, ErrFlowerBreakLevel
 	}
+
+	// TODO: Check PlayerLevelLimit when player level system is implemented
 
 	// Build resource deduction list
 	var removeGoods []*gamecfg.GardenGoodStack

@@ -285,7 +285,7 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 			}
 			if dropRate > 0 && rand.Intn(10000) < int(dropRate) {
 				dropNum := flowerCfg.EssenceDropNum
-				if levelCfg != nil && levelCfg.EssenceDropNumAdd > 0 {
+				if levelCfg != nil {
 					dropNum += levelCfg.EssenceDropNumAdd
 				}
 				essenceItems = append(essenceItems, MakeGoodStack(int(flowerCfg.EssenceItemId), int(dropNum)))
