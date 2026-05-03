@@ -226,6 +226,22 @@ func (r *RoleGM) AddFlower(flowerID int) error {
 	return nil
 }
 
+// AddFlowerLevel 设置鲜花等级（用于测试）
+// 用法: add_flower_level [花ID] [等级]
+// 示例: add_flower_level 101 10
+func (r *RoleGM) AddFlowerLevel(flowerID int, level int) error {
+	flower, ok := r.Role.Flower.Flowers[int32(flowerID)]
+	if !ok {
+		return fmt.Errorf("flower %d not unlocked", flowerID)
+	}
+	if level < 1 {
+		return fmt.Errorf("level must be >= 1")
+	}
+	flower.Level = int32(level)
+	r.Role.Flower.MarkDirty()
+	return nil
+}
+
 // AddFlowerBreedGoods 一键添加培育所需材料
 // 用法: add_flower_breed_goods [花ID]
 // 示例: add_flower_breed_goods 101
