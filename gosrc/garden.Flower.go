@@ -24,6 +24,9 @@ type GardenFlower struct {
     HarvestItemId int32
     HarvestNum int32
     WaterCost int32
+    EssenceItemId int32
+    EssenceDropRate int32
+    EssenceDropNum int32
 }
 
 const TypeId_GardenFlower = -1136119724
@@ -58,6 +61,9 @@ func NewGardenFlower(_buf map[string]interface{}) (_v *GardenFlower, err error) 
     { var _ok_ bool; var __json_harvest_item_id__ interface{}; if __json_harvest_item_id__, _ok_ = _buf["harvest_item_id"]; !_ok_ || __json_harvest_item_id__ == nil { err = errors.New("harvest_item_id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_harvest_item_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.HarvestItemId = __x__ }}
     { var _ok_ bool; var __json_harvest_num__ interface{}; if __json_harvest_num__, _ok_ = _buf["harvest_num"]; !_ok_ || __json_harvest_num__ == nil { err = errors.New("harvest_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_harvest_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.HarvestNum = __x__ }}
     { var _ok_ bool; var __json_water_cost__ interface{}; if __json_water_cost__, _ok_ = _buf["water_cost"]; !_ok_ || __json_water_cost__ == nil { err = errors.New("water_cost error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_water_cost__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.WaterCost = __x__ }}
+    { var _ok_ bool; var __json_essence_item_id__ interface{}; if __json_essence_item_id__, _ok_ = _buf["essence_item_id"]; !_ok_ || __json_essence_item_id__ == nil { err = errors.New("essence_item_id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_essence_item_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.EssenceItemId = __x__ }}
+    { var _ok_ bool; var __json_essence_drop_rate__ interface{}; if __json_essence_drop_rate__, _ok_ = _buf["essence_drop_rate"]; !_ok_ || __json_essence_drop_rate__ == nil { err = errors.New("essence_drop_rate error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_essence_drop_rate__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.EssenceDropRate = __x__ }}
+    { var _ok_ bool; var __json_essence_drop_num__ interface{}; if __json_essence_drop_num__, _ok_ = _buf["essence_drop_num"]; !_ok_ || __json_essence_drop_num__ == nil { err = errors.New("essence_drop_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_essence_drop_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.EssenceDropNum = __x__ }}
     return
 }
 
