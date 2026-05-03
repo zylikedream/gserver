@@ -19,7 +19,10 @@
     "harvest_times": 3,
     "harvest_item_id": 10001,
     "harvest_num": 2,
-    "water_cost": 10
+    "water_cost": 10,
+    "essence_item_id": 11001,
+    "essence_drop_rate": 2500,
+    "essence_drop_num": 1
   },
   {
     "id": 102,
@@ -41,7 +44,10 @@
     "harvest_times": 5,
     "harvest_item_id": 10002,
     "harvest_num": 2,
-    "water_cost": 10
+    "water_cost": 10,
+    "essence_item_id": 11002,
+    "essence_drop_rate": 2200,
+    "essence_drop_num": 1
   },
   {
     "id": 103,
@@ -67,6 +73,9 @@
     "harvest_times": 3,
     "harvest_item_id": 10003,
     "harvest_num": 1,
-    "water_cost": 20
+    "water_cost": 20,
+    "essence_item_id": 11003,
+    "essence_drop_rate": 1800,
+    "essence_drop_num": 1
   }
 ]
