@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"math/rand"
 	"time"
 
 	"gserver/gameconfig"
@@ -237,9 +238,11 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 }
 
 func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlower) (*pb.RspHarvestFlower, error) {
-	// 校验所有地块状态，并收集收获物品
 	var harvestItems []*gamecfg.GardenGoodStack
+	var essenceItems []*gamecfg.GardenGoodStack
 	now := time.Now()
+
+	// 第一轮：校验所有地块状态
 	for _, plotID := range req.PlotIds {
 		plot, ok := r.Plots[plotID]
 		if !ok {
@@ -249,40 +252,89 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 		if state != int32(pb.PlotState_PLOT_HARVESTABLE) {
 			return nil, ErrPlotNotReady
 		}
-		_ = state // 使用 plot 的原始 state 判断
 		if plot.State != int32(pb.PlotState_PLOT_GROWING) || !now.After(plot.StateTime) {
 			return nil, ErrPlotNotReady
 		}
+	}
 
+	// 第二轮：计算收获产出（含等级加成）
+	for _, plotID := range req.PlotIds {
+		plot := r.Plots[plotID]
 		flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
 		if flowerCfg == nil {
 			return nil, errors.Errorf("flower config not found: %d", plot.FlowerID)
 		}
 
-		harvestItems = append(harvestItems, MakeGoodStack(int(flowerCfg.HarvestItemId), int(flowerCfg.HarvestNum)))
+		// 读鲜花升级加成
+		level, _ := r.Role.Flower.GetFlowerLevel(plot.FlowerID)
+		levelCfg := gameconfig.GameConfig().GetFlowerLevelByGroup(flowerCfg.LevelGroup, level)
+
+		// 计算最终收获值
+		finalNum := flowerCfg.HarvestNum
+		if levelCfg != nil {
+			finalNum += levelCfg.HarvestNumAdd
+		}
+
+		harvestItems = append(harvestItems, MakeGoodStack(int(flowerCfg.HarvestItemId), int(finalNum)))
+
+		// 精华掉落判定
+		if flowerCfg.EssenceItemId > 0 {
+			dropRate := flowerCfg.EssenceDropRate
+			if levelCfg != nil {
+				dropRate += levelCfg.EssenceDropRateAdd
+			}
+			if dropRate > 0 && rand.Intn(10000) < int(dropRate) {
+				dropNum := flowerCfg.EssenceDropNum
+				if levelCfg != nil && levelCfg.EssenceDropNumAdd > 0 {
+					dropNum += levelCfg.EssenceDropNumAdd
+				}
+				essenceItems = append(essenceItems, MakeGoodStack(int(flowerCfg.EssenceItemId), int(dropNum)))
+			}
+		}
 	}
 
-	// 添加收获物品到背包
+	// 发放花产品
 	if len(harvestItems) > 0 {
 		if err := r.Role.Bag.SaveGoods(ctx, nil, harvestItems, "harvest_flower"); err != nil {
 			return nil, err
 		}
 	}
 
-	// 更新地块状态
+	// 发放专属精华
+	if len(essenceItems) > 0 {
+		if err := r.Role.Bag.SaveGoods(ctx, nil, essenceItems, "harvest_essence"); err != nil {
+			return nil, err
+		}
+	}
+
+	// 更新地块状态（使用等级加成后的值）
 	for _, plotID := range req.PlotIds {
 		plot := r.Plots[plotID]
 		flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+
+		level, _ := r.Role.Flower.GetFlowerLevel(plot.FlowerID)
+		levelCfg := gameconfig.GameConfig().GetFlowerLevelByGroup(flowerCfg.LevelGroup, level)
+
+		finalTimes := flowerCfg.HarvestTimes
+		if levelCfg != nil {
+			finalTimes += levelCfg.HarvestTimesAdd
+		}
+
 		plot.HarvestCount++
-		if plot.HarvestCount >= flowerCfg.HarvestTimes {
-			// 收获完毕，重置为空地
+		if plot.HarvestCount >= finalTimes {
 			plot.FlowerID = 0
 			plot.State = int32(pb.PlotState_PLOT_EMPTY)
 			plot.HarvestCount = 0
 			plot.StateTime = time.Time{}
 		} else {
-			// 还有收获次数，继续生长
-			plot.StateTime = now.Add(time.Duration(flowerCfg.HarvestInterval) * time.Second)
+			finalInterval := flowerCfg.HarvestInterval
+			if levelCfg != nil {
+				finalInterval -= levelCfg.HarvestIntervalReduce
+			}
+			if finalInterval < 1 {
+				finalInterval = 1
+			}
+			plot.StateTime = now.Add(time.Duration(finalInterval) * time.Second)
 		}
 	}
 	r.MarkDirty()
