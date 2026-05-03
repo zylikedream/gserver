@@ -91,3 +91,79 @@ ID 段 `23001~23099`，文件 `protocol/client/flower.proto`。
 | 数据存储 | 单表 jsonb map | 同 RoleBag 模式，单行持久化 |
 | 完成检查 | 被动（now >= StateTime） | 不设定时器，客户端对比时间 |
 | StateTime | 存完成时间 | 客户端直接做倒计时 |
+
+---
+
+## 鲜花升级系统
+
+详见 [设计 spec](../superpowers/specs/2026-05-03-flower-upgrade-system-design.md)。
+
+### 数据模型扩展
+
+`FlowerData` 新增字段（自动跟随 jsonb 序列化，不需改数据库表结构）：
+
+| 字段 | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| level | int32 | 1 | 当前等级 |
+| break_stage | int32 | 0 | 突破阶段，0=未突破 |
+
+### Proto 接口扩展
+
+| 消息 | ID | 说明 |
+|------|----|------|
+| ReqUpgradeFlower / RspUpgradeFlower | 23007-23008 | 升级鲜花 |
+| ReqBreakFlower / RspBreakFlower | 23009-23010 | 突破 |
+
+`PFlowerInfo` 扩展 `level`、`break_stage` 字段。
+
+### 升级流程
+
+1. 校验花已解锁
+2. 通过 TbFlower.level_group 查找升级配置
+3. 校验是否被突破门槛拦住（查找下一级突破配置，若存在且 level >= need_level 则需先突破）
+4. 扣金币 + 专属精华 → level++
+
+### 突破流程
+
+1. 查找 TbFlowerBreak 下一阶段配置
+2. 校验等级（和预留玩家等级门槛，待玩家等级系统上线）
+3. 扣金币 + 专属精华 + 突破材料 → break_stage++
+
+### 收获结算变化
+
+- 花产品数量 = 基础 + 等级加成
+- 收获次数 = 基础 + 等级加成
+- 收获间隔 = 基础 - 等级缩减（最小 1s）
+- 额外按万分比概率掉落专属精华（含等级掉率加成）
+
+### 配置表
+
+| 表 | 主键 | 说明 |
+|----|------|------|
+| TbFlower | id | 花基础配置，新增 level_group、essence_item_id 等字段 |
+| TbFlowerLevel | level_group + level | 每级升级消耗和累计加成 |
+| TbFlowerBreak | level_group + break_stage | 突破条件和消耗 |
+
+### GM 命令
+
+| 命令 | 参数 | 说明 |
+|------|------|------|
+| add_flower_level | 花ID 等级 | 设置鲜花等级（用于测试） |
+
+### 错误码
+
+| 变量 | 说明 |
+|------|------|
+| ErrFlowerMaxLevel | 已达最大等级 |
+| ErrFlowerNeedBreak | 需先突破才能继续升级 |
+| ErrFlowerBreakMax | 已达最大突破阶段 |
+| ErrFlowerBreakLevel | 未达到突破所需等级 |
+| ErrFlowerBreakPlayerLevel | 玩家等级不足（预留） |
+
+### MVP 边界
+
+- 升级失败率、保底值 — 不做
+- 多次突破（首版仅 1 次）— 不做
+- 技能树分支、一键升级 — 不做
+- 鲜花互相吞噬或喂养 — 不做
+- 随机词条、外观随等级变化 — 不做
