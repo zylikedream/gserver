@@ -224,11 +224,15 @@ func (r *RoleFlower) ReqUpgradeFlower(ctx context.Context, req *pb.ReqUpgradeFlo
 	// Check and deduct resources
 	coinCost := MakeGoodStack(GOLD_ITEM_ID, int(levelCfg.UpgradeCoinCost))
 	essenceCost := MakeGoodStack(int(cfg.EssenceItemId), int(levelCfg.UpgradeEssenceCost))
-	if !r.Role.Bag.CheckGoods([]*gamecfg.GardenGoodStack{coinCost, essenceCost}) {
+	totalCost := []*gamecfg.GardenGoodStack{
+		coinCost,
+		essenceCost,
+	}
+	if !r.Role.Bag.CheckGoods(totalCost) {
 		return nil, ErrGoodNotEnough
 	}
 
-	if err := r.Role.Bag.SaveGoods(ctx, []*gamecfg.GardenGoodStack{coinCost, essenceCost}, nil, "flower_upgrade"); err != nil {
+	if err := r.Role.Bag.SaveGoods(ctx, totalCost, nil, "flower_upgrade"); err != nil {
 		return nil, err
 	}
 

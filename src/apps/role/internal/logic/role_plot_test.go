@@ -35,6 +35,8 @@ func initPlotTestConfig(t *testing.T) {
 			"grow_time": float64(60), "harvest_interval": float64(30),
 			"harvest_times": float64(3), "harvest_item_id": float64(10001),
 			"harvest_num": float64(2), "water_cost": float64(5),
+			"essence_item_id": float64(5001), "essence_drop_rate": float64(5000),
+			"essence_drop_num": float64(1), "level_group": float64(1),
 		},
 		{
 			"id": float64(102), "name": "sunflower", "quality": float64(1),
@@ -42,6 +44,8 @@ func initPlotTestConfig(t *testing.T) {
 			"grow_time": float64(120), "harvest_interval": float64(60),
 			"harvest_times": float64(2), "harvest_item_id": float64(10002),
 			"harvest_num": float64(1), "water_cost": float64(3),
+			"essence_item_id": float64(5002), "essence_drop_rate": float64(3000),
+			"essence_drop_num": float64(1), "level_group": float64(1),
 		},
 	}
 	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
@@ -61,7 +65,7 @@ func initPlotTestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TbItem: water_drop=3001, harvest products=10001,10002
+	// TbItem: water_drop=3001, harvest products=10001,10002, essence items=5001,5002
 	items := []map[string]interface{}{
 		{"id": float64(3001), "name": "water_drop", "desc": "", "major_type": float64(2),
 			"sub_type": float64(12), "quality": float64(1), "price": float64(5),
@@ -75,13 +79,47 @@ func initPlotTestConfig(t *testing.T) {
 			"sub_type": float64(80), "quality": float64(1), "price": float64(10),
 			"max_stack": float64(999), "icon": "", "use_type": float64(1),
 			"use_param": "", "can_sell": true},
+		{"id": float64(5001), "name": "rose_essence", "desc": "", "major_type": float64(2),
+			"sub_type": float64(90), "quality": float64(2), "price": float64(100),
+			"max_stack": float64(999), "icon": "", "use_type": float64(1),
+			"use_param": "", "can_sell": true},
+		{"id": float64(5002), "name": "sunflower_essence", "desc": "", "major_type": float64(2),
+			"sub_type": float64(90), "quality": float64(2), "price": float64(100),
+			"max_stack": float64(999), "icon": "", "use_type": float64(1),
+			"use_param": "", "can_sell": true},
 	}
 	tbItem, err := gamecfg.NewGardenTbItem(items)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbFlower: tbFlower, TbGardenPlot: tbGardenPlot}
+	// TbFlowerLevel: level_group=1, level 1 (base, no bonuses)
+	levels := []map[string]interface{}{
+		{"id": float64(1), "level_group": float64(1), "level": float64(1),
+			"upgrade_coin_cost": float64(0), "upgrade_essence_cost": float64(0),
+			"harvest_num_add": float64(0), "harvest_times_add": float64(0),
+			"harvest_interval_reduce": float64(0), "essence_drop_rate_add": float64(0),
+			"essence_drop_num_add": float64(0)},
+	}
+	tbFlowerLevel, err := gamecfg.NewGardenTbFlowerLevel(levels)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TbFlowerBreak: minimal entry to allow table init
+	breaks := []map[string]interface{}{
+		{"id": float64(1), "level_group": float64(1), "break_stage": float64(1),
+			"need_level": float64(99), "coin_cost": float64(0), "essence_cost": float64(0),
+			"break_item_id": float64(0), "break_item_num": float64(0),
+			"player_level_limit": float64(0)},
+	}
+	tbFlowerBreak, err := gamecfg.NewGardenTbFlowerBreak(breaks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbFlower: tbFlower, TbGardenPlot: tbGardenPlot,
+		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak}
 	plotCfgInited = true
 }
 
@@ -117,7 +155,7 @@ func setupTestPlotWithMaterials(t *testing.T) *RolePlot {
 	t.Helper()
 	p := setupTestPlot(t)
 	// 水滴
-	p.Role.Bag.Goods[3001] = bag.BagGood{GoodID: 3001, Num: 100}
+	p.Role.Bag.Goods[WATER_ITEM_ID] = bag.BagGood{GoodID: WATER_ITEM_ID, Num: 100}
 	// 解锁花并设为已收获状态（可种植）
 	p.Role.Flower.AddFlower(101)
 	p.Role.Flower.Flowers[101].State = int32(pb.FlowerState_FLOWER_HARVESTED)
@@ -263,8 +301,8 @@ func TestWaterFlower_Success(t *testing.T) {
 		t.Fatalf("expected GROWING, got %v", rsp.Plots[0].State)
 	}
 	// water 100 - 5 = 95
-	if p.Role.Bag.Goods[3001].Num != 95 {
-		t.Fatalf("expected water 95, got %d", p.Role.Bag.Goods[3001].Num)
+	if p.Role.Bag.Goods[WATER_ITEM_ID].Num != 95 {
+		t.Fatalf("expected water 95, got %d", p.Role.Bag.Goods[WATER_ITEM_ID].Num)
 	}
 	if !p.IsDirty() {
 		t.Fatal("expected dirty")
