@@ -7,6 +7,7 @@ var (
 )
 
 var (
+	GOLD_ITEM_ID  = 1
 	WATER_ITEM_ID = 3
 )
 
