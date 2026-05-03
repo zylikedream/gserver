@@ -28,6 +28,10 @@ const (
      */
     GardenEItemSubType_PREMIUM GardenEItemSubType = 4;
     /**
+     * 玩家经验
+     */
+    GardenEItemSubType_PLAYER_EXP GardenEItemSubType = 5;
+    /**
      * 种子
      */
     GardenEItemSubType_SEED GardenEItemSubType = 10;
