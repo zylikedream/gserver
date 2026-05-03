@@ -9,3 +9,11 @@ var (
 var (
 	WATER_ITEM_ID = 3
 )
+
+var (
+	ErrFlowerMaxLevel         = errors.New("flower already at max level")
+	ErrFlowerNeedBreak        = errors.New("flower needs breakthrough first")
+	ErrFlowerBreakMax         = errors.New("flower already at max break stage")
+	ErrFlowerBreakLevel       = errors.New("flower level not enough for breakthrough")
+	ErrFlowerBreakPlayerLevel = errors.New("player level not enough for breakthrough")
+)

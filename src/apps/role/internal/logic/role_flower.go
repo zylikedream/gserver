@@ -22,9 +22,11 @@ var (
 // ========== 数据模型 ==========
 
 type FlowerData struct {
-	FlowerID  int32     `json:"flower_id"`
-	State     int32     `json:"state"`
-	StateTime time.Time `json:"state_time"`
+	FlowerID   int32     `json:"flower_id"`
+	State      int32     `json:"state"`
+	StateTime  time.Time `json:"state_time"`
+	Level      int32     `json:"level"`       // 当前等级，默认 1
+	BreakStage int32     `json:"break_stage"` // 突破阶段，0=未突破，1=已突破
 }
 
 type FlowerMap map[int32]*FlowerData
