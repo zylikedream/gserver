@@ -63,6 +63,8 @@ func initFlowerTestConfig(t *testing.T) {
 			"grow_time": float64(60), "harvest_interval": float64(30),
 			"harvest_times": float64(3), "harvest_item_id": float64(10001),
 			"harvest_num": float64(2), "water_cost": float64(5),
+			"essence_item_id": float64(5001), "essence_drop_rate": float64(5000),
+			"essence_drop_num": float64(1), "level_group": float64(1),
 		},
 		{
 			"id": float64(102), "name": "sunflower", "quality": float64(1),
@@ -73,6 +75,8 @@ func initFlowerTestConfig(t *testing.T) {
 			"grow_time": float64(120), "harvest_interval": float64(60),
 			"harvest_times": float64(2), "harvest_item_id": float64(10002),
 			"harvest_num": float64(1), "water_cost": float64(3),
+			"essence_item_id": float64(5002), "essence_drop_rate": float64(3000),
+			"essence_drop_num": float64(1), "level_group": float64(1),
 		},
 	}
 	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
@@ -80,7 +84,46 @@ func initFlowerTestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbFlower: tbFlower}
+	// TbFlowerLevel: level_group=1, levels 1-3
+	levels := []map[string]interface{}{
+		{"id": float64(1), "level_group": float64(1), "level": float64(1),
+			"upgrade_coin_cost": float64(0), "upgrade_essence_cost": float64(0),
+			"harvest_num_add": float64(0), "harvest_times_add": float64(0),
+			"harvest_interval_reduce": float64(0), "essence_drop_rate_add": float64(0),
+			"essence_drop_num_add": float64(0)},
+		{"id": float64(2), "level_group": float64(1), "level": float64(2),
+			"upgrade_coin_cost": float64(100), "upgrade_essence_cost": float64(2),
+			"harvest_num_add": float64(0), "harvest_times_add": float64(0),
+			"harvest_interval_reduce": float64(5), "essence_drop_rate_add": float64(500),
+			"essence_drop_num_add": float64(0)},
+		{"id": float64(3), "level_group": float64(1), "level": float64(3),
+			"upgrade_coin_cost": float64(200), "upgrade_essence_cost": float64(3),
+			"harvest_num_add": float64(1), "harvest_times_add": float64(1),
+			"harvest_interval_reduce": float64(10), "essence_drop_rate_add": float64(1000),
+			"essence_drop_num_add": float64(0)},
+	}
+	tbFlowerLevel, err := gamecfg.NewGardenTbFlowerLevel(levels)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// TbFlowerBreak: level_group=1, break_stage=1, need_level=3
+	breaks := []map[string]interface{}{
+		{"id": float64(1), "level_group": float64(1), "break_stage": float64(1),
+			"need_level": float64(3),
+			"coin_cost": float64(500), "essence_cost": float64(5),
+			"break_item_id": float64(6001), "break_item_num": float64(1),
+			"player_level_limit": float64(0)},
+	}
+	tbFlowerBreak, err := gamecfg.NewGardenTbFlowerBreak(breaks)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gc.Tables = &gamecfg.Tables{
+		TbItem: tbItem, TbFlower: tbFlower,
+		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak,
+	}
 	flowerCfgInited = true
 }
 
@@ -112,6 +155,16 @@ func setupTestFlowerWithMaterials(t *testing.T) *RoleFlower {
 	f := setupTestFlower(t)
 	f.Role.Bag.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 100}
 	f.Role.Bag.Goods[2001] = bag.BagGood{GoodID: 2001, Num: 100}
+	return f
+}
+
+func setupTestFlowerWithEssence(t *testing.T) *RoleFlower {
+	t.Helper()
+	f := setupTestFlowerWithMaterials(t)
+	f.Role.Bag.Goods[5001] = bag.BagGood{GoodID: 5001, Num: 10} // rose essence
+	f.Role.Bag.Goods[5002] = bag.BagGood{GoodID: 5002, Num: 10} // sunflower essence
+	f.Role.Bag.Goods[GOLD_ITEM_ID] = bag.BagGood{GoodID: GOLD_ITEM_ID, Num: 1000}
+	f.Role.Bag.Goods[6001] = bag.BagGood{GoodID: 6001, Num: 5} // break material
 	return f
 }
 
@@ -345,8 +398,8 @@ func TestFlowerMap_ScanNil(t *testing.T) {
 
 func TestFlowerMap_ValueAndScan(t *testing.T) {
 	original := FlowerMap{
-		101: {FlowerID: 101, State: 1, StateTime: time.Unix(1700000000, 0)},
-		102: {FlowerID: 102, State: 2, StateTime: time.Unix(1700001000, 0)},
+		101: {FlowerID: 101, State: 1, StateTime: time.Unix(1700000000, 0), Level: 1, BreakStage: 0},
+		102: {FlowerID: 102, State: 2, StateTime: time.Unix(1700001000, 0), Level: 1, BreakStage: 0},
 	}
 
 	val, err := original.Value()
@@ -367,5 +420,96 @@ func TestFlowerMap_ValueAndScan(t *testing.T) {
 	}
 	if restored[102].FlowerID != 102 || restored[102].State != 2 {
 		t.Fatalf("unexpected restored[102]: %v", restored[102])
+	}
+}
+
+// ========== UpgradeFlower ==========
+
+func TestUpgradeFlower_Success(t *testing.T) {
+	f := setupTestFlowerWithEssence(t)
+	f.AddFlower(101)
+
+	rsp, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: 101})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rsp == nil {
+		t.Fatal("expected non-nil response")
+	}
+
+	fd := f.Flowers[101]
+	if fd.Level != 2 {
+		t.Fatalf("expected level 2, got %d", fd.Level)
+	}
+	// essence: 10 - 2 = 8
+	if f.Role.Bag.Goods[5001].Num != 8 {
+		t.Fatalf("expected essence 8, got %d", f.Role.Bag.Goods[5001].Num)
+	}
+	// gold: 1000 - 100 = 900
+	if f.Role.Bag.Goods[GOLD_ITEM_ID].Num != 900 {
+		t.Fatalf("expected gold 900, got %d", f.Role.Bag.Goods[GOLD_ITEM_ID].Num)
+	}
+}
+
+func TestUpgradeFlower_MaxLevel(t *testing.T) {
+	f := setupTestFlowerWithEssence(t)
+	f.AddFlower(101)
+	f.Flowers[101].Level = 3 // level_group=1 max level is 3
+
+	_, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: 101})
+	if !errors.Is(err, ErrFlowerMaxLevel) {
+		t.Fatalf("expected ErrFlowerMaxLevel, got %v", err)
+	}
+}
+
+func TestUpgradeFlower_NeedBreak(t *testing.T) {
+	f := setupTestFlowerWithEssence(t)
+	f.AddFlower(101)
+	f.Flowers[101].Level = 2 // trying to upgrade to Lv3, need break first
+
+	_, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: 101})
+	if !errors.Is(err, ErrFlowerNeedBreak) {
+		t.Fatalf("expected ErrFlowerNeedBreak, got %v", err)
+	}
+}
+
+func TestUpgradeFlower_NotUnlocked(t *testing.T) {
+	f := setupTestFlowerWithEssence(t)
+
+	_, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: 101})
+	if !errors.Is(err, ErrFlowerLocked) {
+		t.Fatalf("expected ErrFlowerLocked, got %v", err)
+	}
+}
+
+// ========== BreakFlower ==========
+
+func TestBreakFlower_Success(t *testing.T) {
+	f := setupTestFlowerWithEssence(t)
+	f.AddFlower(101)
+	f.Flowers[101].Level = 3
+
+	rsp, err := f.ReqBreakFlower(context.Background(), &pb.ReqBreakFlower{FlowerId: 101})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rsp == nil {
+		t.Fatal("expected non-nil response")
+	}
+
+	fd := f.Flowers[101]
+	if fd.BreakStage != 1 {
+		t.Fatalf("expected break_stage 1, got %d", fd.BreakStage)
+	}
+}
+
+func TestBreakFlower_LevelNotEnough(t *testing.T) {
+	f := setupTestFlowerWithEssence(t)
+	f.AddFlower(101)
+	// level=1, need_level=3
+
+	_, err := f.ReqBreakFlower(context.Background(), &pb.ReqBreakFlower{FlowerId: 101})
+	if !errors.Is(err, ErrFlowerBreakLevel) {
+		t.Fatalf("expected ErrFlowerBreakLevel, got %v", err)
 	}
 }
