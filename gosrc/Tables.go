@@ -18,6 +18,7 @@ type Tables struct {
     TbFlowerBreak *GardenTbFlowerBreak
     TbGardenPlot *GardenTbGardenPlot
     TbPlayerLevel *GardenTbPlayerLevel
+    TbMainTask *GardenTbMainTask
     TbItemTag *GardenTbItemTag
     TbGlobalConfig *GardenTbGlobalConfig
 }
@@ -61,6 +62,12 @@ func NewTables(loader JsonLoader) (*Tables, error) {
         return nil, err
     }
     if tables.TbPlayerLevel, err = NewGardenTbPlayerLevel(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbmaintask") ; err != nil {
+        return nil, err
+    }
+    if tables.TbMainTask, err = NewGardenTbMainTask(buf) ; err != nil {
         return nil, err
     }
     if buf, err = loader("garden_tbitemtag") ; err != nil {
