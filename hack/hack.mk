@@ -69,9 +69,7 @@ deploy: cli.install
 # Update subtree: protocol
 .PHONY: upproto
 upproto:
-	@git stash -q 2>/dev/null; \
 	git subtree pull --prefix=protocol/client git@gitee.com:zylikedream/mahong-protocol.git master; \
-	git stash pop -q 2>/dev/null; true
 
 # Push protocol changes to remote
 .PHONY: pushproto
