@@ -19,6 +19,7 @@ type GardenMainTask struct {
     Name string
     Desc string
     PreTaskId int32
+    ProgressMode GardenETaskProgressMode
     TargetType GardenETaskTargetType
     TargetParam int32
     TargetNum int32
@@ -39,6 +40,7 @@ func NewGardenMainTask(_buf map[string]interface{}) (_v *GardenMainTask, err err
     { var _ok_ bool; var __json_name__ interface{}; if __json_name__, _ok_ = _buf["name"]; !_ok_ || __json_name__ == nil { err = errors.New("name error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_name__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Name = __x__ }}
     { var _ok_ bool; var __json_desc__ interface{}; if __json_desc__, _ok_ = _buf["desc"]; !_ok_ || __json_desc__ == nil { err = errors.New("desc error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_desc__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Desc = __x__ }}
     { var _ok_ bool; var __json_pre_task_id__ interface{}; if __json_pre_task_id__, _ok_ = _buf["pre_task_id"]; !_ok_ || __json_pre_task_id__ == nil { err = errors.New("pre_task_id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_pre_task_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.PreTaskId = __x__ }}
+    { var _ok_ bool; var __json_progress_mode__ interface{}; if __json_progress_mode__, _ok_ = _buf["progress_mode"]; !_ok_ || __json_progress_mode__ == nil { err = errors.New("progress_mode error"); return } else { var __x__ GardenETaskProgressMode;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_progress_mode__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenETaskProgressMode(_x_) }; _v.ProgressMode = __x__ }}
     { var _ok_ bool; var __json_target_type__ interface{}; if __json_target_type__, _ok_ = _buf["target_type"]; !_ok_ || __json_target_type__ == nil { err = errors.New("target_type error"); return } else { var __x__ GardenETaskTargetType;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_target_type__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenETaskTargetType(_x_) }; _v.TargetType = __x__ }}
     { var _ok_ bool; var __json_target_param__ interface{}; if __json_target_param__, _ok_ = _buf["target_param"]; !_ok_ || __json_target_param__ == nil { err = errors.New("target_param error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_target_param__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.TargetParam = __x__ }}
     { var _ok_ bool; var __json_target_num__ interface{}; if __json_target_num__, _ok_ = _buf["target_num"]; !_ok_ || __json_target_num__ == nil { err = errors.New("target_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_target_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.TargetNum = __x__ }}

@@ -47,5 +47,9 @@ const (
      * 鲜花等级达到
      */
     GardenETaskTargetType_FLOWER_LEVEL GardenETaskTargetType = 9;
+    /**
+     * 拥有物品
+     */
+    GardenETaskTargetType_OWN_ITEM GardenETaskTargetType = 10;
 )
 
