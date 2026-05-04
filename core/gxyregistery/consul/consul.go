@@ -124,6 +124,9 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	if serviceID == "" {
 		return nil, gerror.New("get serviceID failed")
 	}
+	if len(service.GetEndpoints()) == 0 {
+		return nil, gerror.New("service endpoints empty")
+	}
 
 	metadata := service.GetMetadata()
 	meta := make(map[string]string)

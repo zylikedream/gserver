@@ -8,7 +8,6 @@ import (
 	"gserver/core/gxynet/message"
 
 	"github.com/gogf/gf/v2/os/glog"
-	"go.uber.org/zap"
 	protobuf "google.golang.org/protobuf/proto"
 )
 
@@ -17,7 +16,7 @@ var ctx = context.Background()
 func init() {
 	var err error
 	if err != nil {
-		glog.Fatalf(ctx, "NewMessageCodec failed", zap.Namespace("new failed"), zap.Error(err))
+		glog.Fatalf(ctx, "NewMessageCodec failed: %v", err)
 		return
 	}
 }

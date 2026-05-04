@@ -9,6 +9,7 @@ package consul
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -37,7 +38,15 @@ func createTestService() gsvc.Service {
 	}
 }
 
+func requireConsulIntegration(t *testing.T) {
+	t.Helper()
+	if os.Getenv("RUN_CONSUL_TESTS") != "1" {
+		t.Skip("set RUN_CONSUL_TESTS=1 to run Consul integration tests")
+	}
+}
+
 func Test_Registry_Basic(t *testing.T) {
+	requireConsulIntegration(t)
 	gtest.C(t, func(t *gtest.T) {
 		// Create registry
 		registry, err := New()
@@ -132,6 +141,7 @@ func Test_Registry_Basic(t *testing.T) {
 }
 
 func Test_Registry_Watch(t *testing.T) {
+	requireConsulIntegration(t)
 	gtest.C(t, func(t *gtest.T) {
 		// Create registry
 		registry, err := New()
@@ -204,6 +214,7 @@ func Test_Registry_Watch(t *testing.T) {
 }
 
 func Test_Registry_MultipleServices(t *testing.T) {
+	requireConsulIntegration(t)
 	gtest.C(t, func(t *gtest.T) {
 		// Create registry
 		registry, err := New()
@@ -319,6 +330,7 @@ func Test_Registry_Options(t *testing.T) {
 }
 
 func Test_Registry_MultipleServicesMetadataFiltering(t *testing.T) {
+	requireConsulIntegration(t)
 	gtest.C(t, func(t *gtest.T) {
 		// Create registry
 		registry, err := New()
@@ -385,6 +397,7 @@ func Test_Registry_MultipleServicesMetadataFiltering(t *testing.T) {
 }
 
 func Test_Registry_MultipleServicesVersionFiltering(t *testing.T) {
+	requireConsulIntegration(t)
 	gtest.C(t, func(t *gtest.T) {
 		// Create registry
 		registry, err := New()
