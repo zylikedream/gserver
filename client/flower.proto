@@ -16,6 +16,8 @@ message PFlowerInfo {
     int32 flower_id = 1;
     FlowerState state = 2;
     int64 state_time = 3;
+    int32 level = 4;        // 当前等级
+    int32 break_stage = 5;  // 突破阶段
 }
 
 message ReqFlowerInfo {
@@ -44,6 +46,26 @@ message ReqFinishBreed {
 
 message RspFinishBreed {
     option (msg_id) = 23006;
+    PFlowerInfo flower = 1;
+}
+
+message ReqUpgradeFlower {
+    option (msg_id) = 23007;
+    int32 flower_id = 1;
+}
+
+message RspUpgradeFlower {
+    option (msg_id) = 23008;
+    PFlowerInfo flower = 1;
+}
+
+message ReqBreakFlower {
+    option (msg_id) = 23009;
+    int32 flower_id = 1;
+}
+
+message RspBreakFlower {
+    option (msg_id) = 23010;
     PFlowerInfo flower = 1;
 }
 
