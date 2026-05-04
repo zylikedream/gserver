@@ -218,6 +218,30 @@ func (r *RoleGM) RemoveGoods(itemID int, num int) error {
 	return r.Role.Bag.SaveGoods(r.ctx, []*gamecfg.GardenGoodStack{MakeGoodStack(itemID, int(num))}, nil, "gm")
 }
 
+// SetPlayerLevel 设置玩家等级（用于测试）
+// 用法: set_player_level [等级]
+// 示例: set_player_level 10
+func (r *RoleGM) SetPlayerLevel(level int) error {
+	if level < 1 {
+		return fmt.Errorf("level must be >= 1")
+	}
+	cfg := gameconfig.GameConfig().TbPlayerLevel.Get(int32(level))
+	if cfg == nil {
+		return fmt.Errorf("player level config not found: %d", level)
+	}
+	oldExp := r.Role.Basic.getPlayerExp()
+	targetExp := int64(cfg.TotalExp)
+	if oldExp >= targetExp {
+		return nil
+	}
+	addExp := targetExp - oldExp
+	if err := r.Role.Bag.SaveGoods(r.ctx, nil, []*gamecfg.GardenGoodStack{MakeGoodStack(PLAYER_EXP_ITEM_ID, int(addExp))}, "gm"); err != nil {
+		return err
+	}
+	r.Role.Basic.RefreshLevelByExp(r.ctx, oldExp, targetExp, "gm")
+	return nil
+}
+
 // AddFlower 解锁花的培育权限
 // 用法: add_flower [花ID]
 // 示例: add_flower 101

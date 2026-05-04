@@ -30,6 +30,7 @@ type FlowerData struct {
 	BreakStage int32     `json:"break_stage"` // 突破阶段，0=未突破，1=已突破
 }
 
+
 type FlowerMap map[int32]*FlowerData
 
 func (m FlowerMap) Value() (driver.Value, error) {
@@ -209,10 +210,20 @@ func (r *RoleFlower) ReqUpgradeFlower(ctx context.Context, req *pb.ReqUpgradeFlo
 		return nil, errors.Errorf("flower config not found: %d", flowerID)
 	}
 
+	// if flower is not harvested, return error
+	if flower.State != int32(pb.FlowerState_FLOWER_HARVESTED) {
+		return nil, ErrFlowerWrongState
+	}
+
 	nextLevel := flower.Level + 1
 	levelCfg := gameconfig.GameConfig().GetFlowerLevelByGroup(cfg.LevelGroup, nextLevel)
 	if levelCfg == nil {
 		return nil, ErrFlowerMaxLevel
+	}
+
+	// 不能超过玩家等级
+	if r.Role.Basic.Level < nextLevel {
+		return nil, ErrPlayerLevelNotEnough
 	}
 
 	// Check breakthrough gate

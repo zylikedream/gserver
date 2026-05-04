@@ -435,6 +435,10 @@ func TestFlowerMap_ValueAndScan(t *testing.T) {
 func TestUpgradeFlower_Success(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
 	f.AddFlower(flowerTestID)
+	flower := f.Flowers[flowerTestID]
+	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	flower.StateTime = time.Now()
+
 	cfg := flowerConfig(t, flowerTestID)
 	levelCfg := flowerLevelConfig(t, cfg.LevelGroup, 2)
 	essenceID := int(cfg.EssenceItemId)
@@ -464,6 +468,10 @@ func TestUpgradeFlower_Success(t *testing.T) {
 func TestUpgradeFlower_MaxLevel(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
 	f.AddFlower(flowerTestID)
+	flower := f.Flowers[flowerTestID]
+	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	flower.StateTime = time.Now()
+
 	cfg := flowerConfig(t, flowerTestID)
 	f.Flowers[flowerTestID].Level = maxFlowerLevel(t, cfg.LevelGroup)
 
@@ -476,6 +484,10 @@ func TestUpgradeFlower_MaxLevel(t *testing.T) {
 func TestUpgradeFlower_NeedBreak(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
 	f.AddFlower(flowerTestID)
+	flower := f.Flowers[flowerTestID]
+	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	flower.StateTime = time.Now()
+
 	cfg := flowerConfig(t, flowerTestID)
 	breakCfg := flowerBreakConfig(t, cfg.LevelGroup, 1)
 	flowerLevelConfig(t, cfg.LevelGroup, breakCfg.NeedLevel+1)
