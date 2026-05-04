@@ -25,6 +25,7 @@ message RspBasicInfo {
     string name = 2;
     int64 create_tm = 3; // 创角时间
     string head = 4;
+    int32 level = 5; // 玩家等级
 }
 
 message ReqBasicSetHead {
@@ -35,4 +36,13 @@ message ReqBasicSetHead {
 message RspBasicSetHead {
     option (msg_id) = 20006;
     string head = 1;
+}
+
+message NotifyRoleLevelUp {
+    option (msg_id) = 20007;
+    int32 old_level = 1;
+    int32 new_level = 2;
+    int64 old_exp = 3;
+    int64 new_exp = 4;
+    repeated string unlock_desc = 5;
 }
