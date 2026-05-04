@@ -2,7 +2,7 @@
   {
     "level": 1,
     "need_exp": 20,
-    "unlock_desc": "????"
+    "unlock_desc": "初始等级"
   },
   {
     "level": 2,
@@ -22,7 +22,7 @@
   {
     "level": 5,
     "need_exp": 110,
-    "unlock_desc": "????2???"
+    "unlock_desc": "可解锁第2组花圃"
   },
   {
     "level": 6,
@@ -37,7 +37,7 @@
   {
     "level": 8,
     "need_exp": 230,
-    "unlock_desc": "????????????"
+    "unlock_desc": "可进行普通成长组鲜花突破"
   },
   {
     "level": 9,
@@ -47,7 +47,7 @@
   {
     "level": 10,
     "need_exp": 335,
-    "unlock_desc": "????3???"
+    "unlock_desc": "可解锁第3组花圃"
   },
   {
     "level": 11,
@@ -57,7 +57,7 @@
   {
     "level": 12,
     "need_exp": 460,
-    "unlock_desc": "????????????"
+    "unlock_desc": "可进行良品成长组鲜花突破"
   },
   {
     "level": 13,
@@ -97,6 +97,6 @@
   {
     "level": 20,
     "need_exp": 0,
-    "unlock_desc": "????????"
+    "unlock_desc": "当前版本等级上限"
   }
 ]
