@@ -20,6 +20,12 @@ import (
 
 var plotCfgInited bool
 
+const (
+	plotTestID      int32 = 1
+	plotTestFlower  int32 = 101
+	plotOtherFlower int32 = 102
+)
+
 func initPlotTestConfig(t *testing.T) {
 	t.Helper()
 	if plotCfgInited {
@@ -27,92 +33,33 @@ func initPlotTestConfig(t *testing.T) {
 	}
 	gc := gameconfig.NewGameConfig()
 
-	// TbFlower: rose=101, grow_time=60, harvest_interval=30, harvest_times=3, harvest_item_id=10001, harvest_num=2, water_cost=5
-	flowers := []map[string]interface{}{
-		{
-			"id": float64(101), "name": "rose", "quality": float64(1),
-			"breed_time": float64(10), "breed_cost": []interface{}{},
-			"grow_time": float64(60), "harvest_interval": float64(30),
-			"harvest_times": float64(3), "harvest_item_id": float64(10001),
-			"harvest_num": float64(2), "water_cost": float64(5),
-			"essence_item_id": float64(5001), "essence_drop_rate": float64(5000),
-			"essence_drop_num": float64(1), "level_group": float64(1),
-		},
-		{
-			"id": float64(102), "name": "sunflower", "quality": float64(1),
-			"breed_time": float64(20), "breed_cost": []interface{}{},
-			"grow_time": float64(120), "harvest_interval": float64(60),
-			"harvest_times": float64(2), "harvest_item_id": float64(10002),
-			"harvest_num": float64(1), "water_cost": float64(3),
-			"essence_item_id": float64(5002), "essence_drop_rate": float64(3000),
-			"essence_drop_num": float64(1), "level_group": float64(1),
-		},
-	}
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// TbGardenPlot: 1-12 free
-	plots := make([]map[string]interface{}, 12)
-	for i := 0; i < 12; i++ {
-		plots[i] = map[string]interface{}{
-			"id": float64(i + 1), "unlock_level": float64(0), "cost": []interface{}{},
-		}
-	}
-	tbGardenPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// TbItem: water_drop=3001, harvest products=10001,10002, essence items=5001,5002
-	items := []map[string]interface{}{
-		{"id": float64(3001), "name": "water_drop", "desc": "", "major_type": float64(2),
-			"sub_type": float64(12), "quality": float64(1), "price": float64(5),
-			"max_stack": float64(999), "icon": "", "use_type": float64(1),
-			"use_param": "", "can_sell": true},
-		{"id": float64(10001), "name": "rose_petal", "desc": "", "major_type": float64(2),
-			"sub_type": float64(80), "quality": float64(1), "price": float64(10),
-			"max_stack": float64(999), "icon": "", "use_type": float64(1),
-			"use_param": "", "can_sell": true},
-		{"id": float64(10002), "name": "sunflower_petal", "desc": "", "major_type": float64(2),
-			"sub_type": float64(80), "quality": float64(1), "price": float64(10),
-			"max_stack": float64(999), "icon": "", "use_type": float64(1),
-			"use_param": "", "can_sell": true},
-		{"id": float64(5001), "name": "rose_essence", "desc": "", "major_type": float64(2),
-			"sub_type": float64(90), "quality": float64(2), "price": float64(100),
-			"max_stack": float64(999), "icon": "", "use_type": float64(1),
-			"use_param": "", "can_sell": true},
-		{"id": float64(5002), "name": "sunflower_essence", "desc": "", "major_type": float64(2),
-			"sub_type": float64(90), "quality": float64(2), "price": float64(100),
-			"max_stack": float64(999), "icon": "", "use_type": float64(1),
-			"use_param": "", "can_sell": true},
-	}
+	// 物品配表从 gameconfig/json/ 加载，自动跟随配表结构变更
+	items := loadTestTable(t, "garden_tbitem")
 	tbItem, err := gamecfg.NewGardenTbItem(items)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TbFlowerLevel: level_group=1, level 1 (base, no bonuses)
-	levels := []map[string]interface{}{
-		{"id": float64(1), "level_group": float64(1), "level": float64(1),
-			"upgrade_coin_cost": float64(0), "upgrade_essence_cost": float64(0),
-			"harvest_num_add": float64(0), "harvest_times_add": float64(0),
-			"harvest_interval_reduce": float64(0), "essence_drop_rate_add": float64(0),
-			"essence_drop_num_add": float64(0)},
+	flowers := loadTestTable(t, "garden_tbflower")
+	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	// TbGardenPlot 从配表加载
+	plots := loadTestTable(t, "garden_tbgardenplot")
+	tbGardenPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	levels := loadTestTable(t, "garden_tbflowerlevel")
 	tbFlowerLevel, err := gamecfg.NewGardenTbFlowerLevel(levels)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// TbFlowerBreak: minimal entry to allow table init
-	breaks := []map[string]interface{}{
-		{"id": float64(1), "level_group": float64(1), "break_stage": float64(1),
-			"need_level": float64(99), "coin_cost": float64(0), "essence_cost": float64(0),
-			"break_item_id": float64(0), "break_item_num": float64(0),
-			"player_level_limit": float64(0)},
-	}
+	breaks := loadTestTable(t, "garden_tbflowerbreak")
 	tbFlowerBreak, err := gamecfg.NewGardenTbFlowerBreak(breaks)
 	if err != nil {
 		t.Fatal(err)
@@ -157,11 +104,43 @@ func setupTestPlotWithMaterials(t *testing.T) *RolePlot {
 	// 水滴
 	p.Role.Bag.Goods[WATER_ITEM_ID] = bag.BagGood{GoodID: WATER_ITEM_ID, Num: 100}
 	// 解锁花并设为已收获状态（可种植）
-	p.Role.Flower.AddFlower(101)
-	p.Role.Flower.Flowers[101].State = int32(pb.FlowerState_FLOWER_HARVESTED)
-	p.Role.Flower.AddFlower(102)
-	p.Role.Flower.Flowers[102].State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	p.Role.Flower.AddFlower(plotTestFlower)
+	p.Role.Flower.Flowers[plotTestFlower].State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	p.Role.Flower.AddFlower(plotOtherFlower)
+	p.Role.Flower.Flowers[plotOtherFlower].State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	return p
+}
+
+func plotFlowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
+	t.Helper()
+	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	if cfg == nil {
+		t.Fatalf("flower config not found: %d", flowerID)
+	}
+	return cfg
+}
+
+func plotLevelConfig(t *testing.T, levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
+	t.Helper()
+	cfg := gameconfig.GameConfig().GetFlowerLevelByGroup(levelGroup, level)
+	if cfg == nil {
+		t.Fatalf("flower level config not found: group=%d level=%d", levelGroup, level)
+	}
+	return cfg
+}
+
+func plotHarvestNum(t *testing.T, flowerID int32, level int32) int32 {
+	t.Helper()
+	cfg := plotFlowerConfig(t, flowerID)
+	levelCfg := plotLevelConfig(t, cfg.LevelGroup, level)
+	return cfg.HarvestNum + levelCfg.HarvestNumAdd
+}
+
+func plotHarvestTimes(t *testing.T, flowerID int32, level int32) int32 {
+	t.Helper()
+	cfg := plotFlowerConfig(t, flowerID)
+	levelCfg := plotLevelConfig(t, cfg.LevelGroup, level)
+	return cfg.HarvestTimes + levelCfg.HarvestTimesAdd
 }
 
 // ========== PlotMap Scan/Value ==========
@@ -208,11 +187,11 @@ func TestPlotMap_ValueAndScan(t *testing.T) {
 func TestUnlockPlot_Success(t *testing.T) {
 	p := setupTestPlot(t)
 
-	p.UnlockPlot(1)
+	p.UnlockPlot(plotTestID)
 
-	plot, ok := p.Plots[1]
+	plot, ok := p.Plots[plotTestID]
 	if !ok {
-		t.Fatal("expected plot 1 in map")
+		t.Fatalf("expected plot %d in map", plotTestID)
 	}
 	if plot.State != int32(pb.PlotState_PLOT_EMPTY) {
 		t.Fatalf("expected EMPTY, got %d", plot.State)
@@ -226,11 +205,11 @@ func TestUnlockPlot_Success(t *testing.T) {
 
 func TestPlantFlower_Success(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
+	p.UnlockPlot(plotTestID)
 
 	rsp, err := p.ReqPlantFlower(context.Background(), &pb.ReqPlantFlower{
-		PlotIds:  []int32{1},
-		FlowerId: 101,
+		PlotIds:  []int32{plotTestID},
+		FlowerId: plotTestFlower,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -241,8 +220,8 @@ func TestPlantFlower_Success(t *testing.T) {
 	if rsp.Plots[0].State != pb.PlotState_PLOT_PLANTED {
 		t.Fatalf("expected PLANTED, got %v", rsp.Plots[0].State)
 	}
-	if p.Plots[1].FlowerID != 101 {
-		t.Fatalf("expected flower 101, got %d", p.Plots[1].FlowerID)
+	if p.Plots[plotTestID].FlowerID != plotTestFlower {
+		t.Fatalf("expected flower %d, got %d", plotTestFlower, p.Plots[plotTestID].FlowerID)
 	}
 }
 
@@ -250,8 +229,8 @@ func TestPlantFlower_NotUnlocked(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
 
 	_, err := p.ReqPlantFlower(context.Background(), &pb.ReqPlantFlower{
-		PlotIds:  []int32{1},
-		FlowerId: 101,
+		PlotIds:  []int32{plotTestID},
+		FlowerId: plotTestFlower,
 	})
 	if !errors.Is(err, ErrPlotLocked) {
 		t.Fatalf("expected ErrPlotLocked, got %v", err)
@@ -260,10 +239,10 @@ func TestPlantFlower_NotUnlocked(t *testing.T) {
 
 func TestPlantFlower_FlowerNotBred(t *testing.T) {
 	p := setupTestPlot(t)
-	p.UnlockPlot(1)
+	p.UnlockPlot(plotTestID)
 
 	_, err := p.ReqPlantFlower(context.Background(), &pb.ReqPlantFlower{
-		PlotIds:  []int32{1},
+		PlotIds:  []int32{plotTestID},
 		FlowerId: 999,
 	})
 	if !errors.Is(err, ErrFlowerLocked) {
@@ -273,12 +252,12 @@ func TestPlantFlower_FlowerNotBred(t *testing.T) {
 
 func TestPlantFlower_NotEmpty(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
-	p.Plots[1].State = int32(pb.PlotState_PLOT_PLANTED)
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_PLANTED)
 
 	_, err := p.ReqPlantFlower(context.Background(), &pb.ReqPlantFlower{
-		PlotIds:  []int32{1},
-		FlowerId: 101,
+		PlotIds:  []int32{plotTestID},
+		FlowerId: plotTestFlower,
 	})
 	if !errors.Is(err, ErrPlotNotEmpty) {
 		t.Fatalf("expected ErrPlotNotEmpty, got %v", err)
@@ -289,20 +268,21 @@ func TestPlantFlower_NotEmpty(t *testing.T) {
 
 func TestWaterFlower_Success(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
-	p.Plots[1].FlowerID = 101
-	p.Plots[1].State = int32(pb.PlotState_PLOT_PLANTED)
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].FlowerID = plotTestFlower
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_PLANTED)
+	cfg := plotFlowerConfig(t, plotTestFlower)
+	waterBefore := p.Role.Bag.Goods[WATER_ITEM_ID].Num
 
-	rsp, err := p.ReqWaterFlower(context.Background(), &pb.ReqWaterFlower{PlotIds: []int32{1}})
+	rsp, err := p.ReqWaterFlower(context.Background(), &pb.ReqWaterFlower{PlotIds: []int32{plotTestID}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rsp.Plots[0].State != pb.PlotState_PLOT_GROWING {
 		t.Fatalf("expected GROWING, got %v", rsp.Plots[0].State)
 	}
-	// water 100 - 5 = 95
-	if p.Role.Bag.Goods[WATER_ITEM_ID].Num != 95 {
-		t.Fatalf("expected water 95, got %d", p.Role.Bag.Goods[WATER_ITEM_ID].Num)
+	if got, want := p.Role.Bag.Goods[WATER_ITEM_ID].Num, waterBefore-uint64(cfg.WaterCost); got != want {
+		t.Fatalf("expected water %d, got %d", want, got)
 	}
 	if !p.IsDirty() {
 		t.Fatal("expected dirty")
@@ -311,9 +291,9 @@ func TestWaterFlower_Success(t *testing.T) {
 
 func TestWaterFlower_NotPlanted(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
+	p.UnlockPlot(plotTestID)
 
-	_, err := p.ReqWaterFlower(context.Background(), &pb.ReqWaterFlower{PlotIds: []int32{1}})
+	_, err := p.ReqWaterFlower(context.Background(), &pb.ReqWaterFlower{PlotIds: []int32{plotTestID}})
 	if !errors.Is(err, ErrPlotNotPlanted) {
 		t.Fatalf("expected ErrPlotNotPlanted, got %v", err)
 	}
@@ -323,56 +303,56 @@ func TestWaterFlower_NotPlanted(t *testing.T) {
 
 func TestHarvestFlower_Success(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
-	p.Plots[1].FlowerID = 101
-	p.Plots[1].State = int32(pb.PlotState_PLOT_GROWING)
-	p.Plots[1].StateTime = time.Now().Add(-1 * time.Hour) // past, ready to harvest
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].FlowerID = plotTestFlower
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
+	p.Plots[plotTestID].StateTime = time.Now().Add(-1 * time.Hour) // past, ready to harvest
+	cfg := plotFlowerConfig(t, plotTestFlower)
+	wantHarvestNum := plotHarvestNum(t, plotTestFlower, 1)
 
-	rsp, err := p.ReqHarvestFlower(context.Background(), &pb.ReqHarvestFlower{PlotIds: []int32{1}})
+	rsp, err := p.ReqHarvestFlower(context.Background(), &pb.ReqHarvestFlower{PlotIds: []int32{plotTestID}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if rsp.Plots[0].HarvestCount != 1 {
 		t.Fatalf("expected harvest_count 1, got %d", rsp.Plots[0].HarvestCount)
 	}
-	// harvest_times=3, so still GROWING after first harvest
-	if p.Plots[1].State != int32(pb.PlotState_PLOT_GROWING) {
-		t.Fatalf("expected GROWING, got %d", p.Plots[1].State)
+	if p.Plots[plotTestID].State != int32(pb.PlotState_PLOT_GROWING) {
+		t.Fatalf("expected GROWING, got %d", p.Plots[plotTestID].State)
 	}
-	// got 2x rose_petal (10001)
-	if p.Role.Bag.Goods[10001].Num != 2 {
-		t.Fatalf("expected 2 petals, got %d", p.Role.Bag.Goods[10001].Num)
+	if got := p.Role.Bag.Goods[int(cfg.HarvestItemId)].Num; got != uint64(wantHarvestNum) {
+		t.Fatalf("expected harvest item %d num %d, got %d", cfg.HarvestItemId, wantHarvestNum, got)
 	}
 }
 
 func TestHarvestFlower_LastHarvest(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
-	p.Plots[1].FlowerID = 101
-	p.Plots[1].State = int32(pb.PlotState_PLOT_GROWING)
-	p.Plots[1].HarvestCount = 2 // harvest_times=3, this is the last
-	p.Plots[1].StateTime = time.Now().Add(-1 * time.Hour)
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].FlowerID = plotTestFlower
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
+	p.Plots[plotTestID].HarvestCount = plotHarvestTimes(t, plotTestFlower, 1) - 1
+	p.Plots[plotTestID].StateTime = time.Now().Add(-1 * time.Hour)
 
-	_, err := p.ReqHarvestFlower(context.Background(), &pb.ReqHarvestFlower{PlotIds: []int32{1}})
+	_, err := p.ReqHarvestFlower(context.Background(), &pb.ReqHarvestFlower{PlotIds: []int32{plotTestID}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	// should be EMPTY
-	if p.Plots[1].State != int32(pb.PlotState_PLOT_EMPTY) {
-		t.Fatalf("expected EMPTY, got %d", p.Plots[1].State)
+	if p.Plots[plotTestID].State != int32(pb.PlotState_PLOT_EMPTY) {
+		t.Fatalf("expected EMPTY, got %d", p.Plots[plotTestID].State)
 	}
-	if p.Plots[1].FlowerID != 0 {
-		t.Fatalf("expected flower_id 0, got %d", p.Plots[1].FlowerID)
+	if p.Plots[plotTestID].FlowerID != 0 {
+		t.Fatalf("expected flower_id 0, got %d", p.Plots[plotTestID].FlowerID)
 	}
 }
 
 func TestHarvestFlower_NotReady(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
-	p.Plots[1].State = int32(pb.PlotState_PLOT_GROWING)
-	p.Plots[1].StateTime = time.Now().Add(1 * time.Hour) // future, not ready
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
+	p.Plots[plotTestID].StateTime = time.Now().Add(1 * time.Hour) // future, not ready
 
-	_, err := p.ReqHarvestFlower(context.Background(), &pb.ReqHarvestFlower{PlotIds: []int32{1}})
+	_, err := p.ReqHarvestFlower(context.Background(), &pb.ReqHarvestFlower{PlotIds: []int32{plotTestID}})
 	if !errors.Is(err, ErrPlotNotReady) {
 		t.Fatalf("expected ErrPlotNotReady, got %v", err)
 	}
@@ -382,11 +362,11 @@ func TestHarvestFlower_NotReady(t *testing.T) {
 
 func TestRemovePlant_Success(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
-	p.Plots[1].FlowerID = 101
-	p.Plots[1].State = int32(pb.PlotState_PLOT_PLANTED)
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].FlowerID = plotTestFlower
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_PLANTED)
 
-	rsp, err := p.ReqRemovePlant(context.Background(), &pb.ReqRemovePlant{PlotIds: []int32{1}})
+	rsp, err := p.ReqRemovePlant(context.Background(), &pb.ReqRemovePlant{PlotIds: []int32{plotTestID}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -397,12 +377,12 @@ func TestRemovePlant_Success(t *testing.T) {
 
 func TestRemovePlant_Harvestable(t *testing.T) {
 	p := setupTestPlotWithMaterials(t)
-	p.UnlockPlot(1)
-	p.Plots[1].FlowerID = 101
-	p.Plots[1].State = int32(pb.PlotState_PLOT_GROWING)
-	p.Plots[1].StateTime = time.Now().Add(-1 * time.Hour) // past, harvestable
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].FlowerID = plotTestFlower
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
+	p.Plots[plotTestID].StateTime = time.Now().Add(-1 * time.Hour) // past, harvestable
 
-	_, err := p.ReqRemovePlant(context.Background(), &pb.ReqRemovePlant{PlotIds: []int32{1}})
+	_, err := p.ReqRemovePlant(context.Background(), &pb.ReqRemovePlant{PlotIds: []int32{plotTestID}})
 	if !errors.Is(err, ErrPlotHarvestable) {
 		t.Fatalf("expected ErrPlotHarvestable, got %v", err)
 	}
@@ -412,10 +392,10 @@ func TestRemovePlant_Harvestable(t *testing.T) {
 
 func TestPlotInfo_Harvestable(t *testing.T) {
 	p := setupTestPlot(t)
-	p.UnlockPlot(1)
-	p.Plots[1].FlowerID = 101
-	p.Plots[1].State = int32(pb.PlotState_PLOT_GROWING)
-	p.Plots[1].StateTime = time.Now().Add(-1 * time.Hour) // past
+	p.UnlockPlot(plotTestID)
+	p.Plots[plotTestID].FlowerID = plotTestFlower
+	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
+	p.Plots[plotTestID].StateTime = time.Now().Add(-1 * time.Hour) // past
 
 	rsp, err := p.ReqPlotInfo(context.Background(), &pb.ReqPlotInfo{})
 	if err != nil {

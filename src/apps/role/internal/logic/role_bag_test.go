@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
+	proto "google.golang.org/protobuf/proto"
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/apps/role/internal/logic/bag"
-	proto "google.golang.org/protobuf/proto"
 
 	"github.com/agiledragon/gomonkey/v2"
 )
@@ -24,16 +24,7 @@ func initTestGameConfig(t *testing.T) {
 		return
 	}
 	gc := gameconfig.NewGameConfig()
-	items := []map[string]interface{}{
-		{"id": float64(1001), "name": "seed", "desc": "", "major_type": float64(2),
-			"sub_type": float64(10), "quality": float64(1), "price": float64(10),
-			"max_stack": float64(99), "icon": "", "use_type": float64(1),
-			"use_param": "", "can_sell": true},
-		{"id": float64(1002), "name": "gold", "desc": "", "major_type": float64(1),
-			"sub_type": float64(1), "quality": float64(1), "price": float64(0),
-			"max_stack": float64(0), "icon": "", "use_type": float64(1),
-			"use_param": "", "can_sell": false},
-	}
+	items := loadTestTable(t, "garden_tbitem")
 	tbItem, err := gamecfg.NewGardenTbItem(items)
 	if err != nil {
 		t.Fatal(err)
@@ -58,6 +49,15 @@ func setupTestBag(t *testing.T) *RoleBag {
 
 func testGoodStack(id, num int32) *gamecfg.GardenGoodStack {
 	return &gamecfg.GardenGoodStack{Id: id, Num: num}
+}
+
+func itemConfig(t *testing.T, goodID int32) *gamecfg.GardenItem {
+	t.Helper()
+	cfg := gameconfig.GameConfig().TbItem.Get(goodID)
+	if cfg == nil {
+		t.Fatalf("item config not found: %d", goodID)
+	}
+	return cfg
 }
 
 // ========== classifyGoods ==========
@@ -102,7 +102,7 @@ func TestBagClassifyGoods_MergeSameID(t *testing.T) {
 func TestBagClassifyGoods_MultipleIDs(t *testing.T) {
 	result := classifyGoods([]*gamecfg.GardenGoodStack{
 		testGoodStack(1001, 5),
-		testGoodStack(1002, 10),
+		testGoodStack(int32(GOLD_ITEM_ID), 10),
 	})
 	if len(result) != 2 {
 		t.Fatalf("expected 2, got %d", len(result))
@@ -111,8 +111,8 @@ func TestBagClassifyGoods_MultipleIDs(t *testing.T) {
 	for _, g := range result {
 		counts[g.GoodID] = g.Num
 	}
-	if counts[1001] != 5 || counts[1002] != 10 {
-		t.Fatalf("expected {1001:5, 1002:10}, got %v", counts)
+	if counts[1001] != 5 || counts[GOLD_ITEM_ID] != 10 {
+		t.Fatalf("expected {1001:5, %d:10}, got %v", GOLD_ITEM_ID, counts)
 	}
 }
 
@@ -184,21 +184,22 @@ func TestBagAddSingleGood_Stack(t *testing.T) {
 
 func TestBagAddSingleGood_ExceedMaxStack(t *testing.T) {
 	b := setupTestBag(t)
-	goodsMap := GoodsMap{1001: {GoodID: 1001, Num: 90}}
+	maxStack := uint64(itemConfig(t, 1001).MaxStack)
+	goodsMap := GoodsMap{1001: {GoodID: 1001, Num: maxStack - 1}}
 
-	_, err := b.addSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 20})
+	_, err := b.addSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 2})
 	if !errors.Is(err, ErrGoodExceedMaxStack) {
 		t.Fatalf("expected ErrGoodExceedMaxStack, got %v", err)
 	}
 }
 
-func TestBagAddSingleGood_UnlimitedStack(t *testing.T) {
+func TestBagAddSingleGood_LargeStack(t *testing.T) {
 	b := setupTestBag(t)
-	goodsMap := GoodsMap{1002: {GoodID: 1002, Num: 999999}}
+	goodsMap := GoodsMap{GOLD_ITEM_ID: {GoodID: GOLD_ITEM_ID, Num: 1000}}
 
-	_, err := b.addSingleGood(goodsMap, bag.Good{GoodID: 1002, Num: 999999})
+	_, err := b.addSingleGood(goodsMap, bag.Good{GoodID: GOLD_ITEM_ID, Num: 1000})
 	if err != nil {
-		t.Fatalf("expected nil (unlimited stack), got %v", err)
+		t.Fatalf("expected nil, got %v", err)
 	}
 }
 
@@ -301,12 +302,12 @@ func TestBagSaveGoods_RemoveOnly(t *testing.T) {
 func TestBagSaveGoods_RemoveAndAdd(t *testing.T) {
 	b := setupTestBag(t)
 	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 50}
-	b.Goods[1002] = bag.BagGood{GoodID: 1002, Num: 100}
+	b.Goods[GOLD_ITEM_ID] = bag.BagGood{GoodID: GOLD_ITEM_ID, Num: 100}
 	ctx := context.Background()
 
 	err := b.SaveGoods(ctx,
 		[]*gamecfg.GardenGoodStack{testGoodStack(1001, 20)},
-		[]*gamecfg.GardenGoodStack{testGoodStack(1002, 50)},
+		[]*gamecfg.GardenGoodStack{testGoodStack(int32(GOLD_ITEM_ID), 50)},
 		"trade",
 	)
 	if err != nil {
@@ -315,8 +316,8 @@ func TestBagSaveGoods_RemoveAndAdd(t *testing.T) {
 	if b.Goods[1001].Num != 30 {
 		t.Fatalf("expected 1001 num 30, got %d", b.Goods[1001].Num)
 	}
-	if b.Goods[1002].Num != 150 {
-		t.Fatalf("expected 1002 num 150, got %d", b.Goods[1002].Num)
+	if b.Goods[GOLD_ITEM_ID].Num != 150 {
+		t.Fatalf("expected %d num 150, got %d", GOLD_ITEM_ID, b.Goods[GOLD_ITEM_ID].Num)
 	}
 }
 
@@ -336,15 +337,16 @@ func TestBagSaveGoods_RemoveFailed_Rollback(t *testing.T) {
 
 func TestBagSaveGoods_AddFailed_Rollback(t *testing.T) {
 	b := setupTestBag(t)
-	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 90}
+	maxStack := uint64(itemConfig(t, 1001).MaxStack)
+	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: maxStack - 1}
 	ctx := context.Background()
 
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 20)}, "test")
+	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 2)}, "test")
 	if err == nil {
 		t.Fatal("expected error")
 	}
-	if b.Goods[1001].Num != 90 {
-		t.Fatalf("expected rollback to 90, got %d", b.Goods[1001].Num)
+	if b.Goods[1001].Num != maxStack-1 {
+		t.Fatalf("expected rollback to %d, got %d", maxStack-1, b.Goods[1001].Num)
 	}
 }
 
