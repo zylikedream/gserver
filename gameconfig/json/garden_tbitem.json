@@ -12,7 +12,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 2,
@@ -27,7 +28,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 3,
@@ -42,7 +44,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 4,
@@ -57,7 +60,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 4002,
@@ -72,7 +76,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": true,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 5001,
@@ -87,7 +92,8 @@
     "use_type": 2,
     "use_param": "10001",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 5002,
@@ -102,7 +108,8 @@
     "use_type": 4,
     "use_param": "50",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 101,
@@ -117,7 +124,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 102,
@@ -132,7 +140,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 103,
@@ -147,7 +156,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 1001,
@@ -162,7 +172,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": true,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 2001,
@@ -177,7 +188,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": true,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 3001,
@@ -192,7 +204,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": true,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 4001,
@@ -207,7 +220,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": true,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 10001,
@@ -222,7 +236,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 10002,
@@ -237,7 +252,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 10003,
@@ -252,7 +268,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 11001,
@@ -267,7 +284,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 11002,
@@ -282,7 +300,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 11003,
@@ -297,7 +316,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 12001,
@@ -312,7 +332,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 12002,
@@ -327,7 +348,8 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 12003,
@@ -342,21 +364,23 @@
     "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": false
+    "auto_use_on_gain": false,
+    "show_in_bag": true
   },
   {
     "id": 5,
     "name": "玩家经验",
-    "desc": "用于提升玩家等级的经验值，获得后自动转换",
+    "desc": "用于提升玩家等级的经验值",
     "major_type": 1,
     "sub_type": 5,
     "quality": 1,
     "price": 0,
     "max_stack": 999999999,
     "icon": "icon_player_exp",
-    "use_type": 6,
+    "use_type": 1,
     "use_param": "",
     "can_sell": false,
-    "auto_use_on_gain": true
+    "auto_use_on_gain": false,
+    "show_in_bag": false
   }
 ]
