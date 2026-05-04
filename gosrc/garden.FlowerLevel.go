@@ -14,7 +14,7 @@ import "errors"
 
 type GardenFlowerLevel struct {
     Id int32
-    FlowerId int32
+    LevelGroup int32
     Level int32
     UpgradeCoinCost int32
     UpgradeEssenceCost int32
@@ -34,7 +34,7 @@ func (*GardenFlowerLevel) GetTypeId() int32 {
 func NewGardenFlowerLevel(_buf map[string]interface{}) (_v *GardenFlowerLevel, err error) {
     _v = &GardenFlowerLevel{}
     { var _ok_ bool; var __json_id__ interface{}; if __json_id__, _ok_ = _buf["id"]; !_ok_ || __json_id__ == nil { err = errors.New("id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Id = __x__ }}
-    { var _ok_ bool; var __json_flower_id__ interface{}; if __json_flower_id__, _ok_ = _buf["flower_id"]; !_ok_ || __json_flower_id__ == nil { err = errors.New("flower_id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_flower_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.FlowerId = __x__ }}
+    { var _ok_ bool; var __json_level_group__ interface{}; if __json_level_group__, _ok_ = _buf["level_group"]; !_ok_ || __json_level_group__ == nil { err = errors.New("level_group error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_level_group__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.LevelGroup = __x__ }}
     { var _ok_ bool; var __json_level__ interface{}; if __json_level__, _ok_ = _buf["level"]; !_ok_ || __json_level__ == nil { err = errors.New("level error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_level__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Level = __x__ }}
     { var _ok_ bool; var __json_upgrade_coin_cost__ interface{}; if __json_upgrade_coin_cost__, _ok_ = _buf["upgrade_coin_cost"]; !_ok_ || __json_upgrade_coin_cost__ == nil { err = errors.New("upgrade_coin_cost error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_upgrade_coin_cost__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.UpgradeCoinCost = __x__ }}
     { var _ok_ bool; var __json_upgrade_essence_cost__ interface{}; if __json_upgrade_essence_cost__, _ok_ = _buf["upgrade_essence_cost"]; !_ok_ || __json_upgrade_essence_cost__ == nil { err = errors.New("upgrade_essence_cost error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_upgrade_essence_cost__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.UpgradeEssenceCost = __x__ }}

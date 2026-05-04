@@ -14,7 +14,7 @@ import "errors"
 
 type GardenFlowerBreak struct {
     Id int32
-    FlowerId int32
+    LevelGroup int32
     BreakStage int32
     NeedLevel int32
     CoinCost int32
@@ -33,7 +33,7 @@ func (*GardenFlowerBreak) GetTypeId() int32 {
 func NewGardenFlowerBreak(_buf map[string]interface{}) (_v *GardenFlowerBreak, err error) {
     _v = &GardenFlowerBreak{}
     { var _ok_ bool; var __json_id__ interface{}; if __json_id__, _ok_ = _buf["id"]; !_ok_ || __json_id__ == nil { err = errors.New("id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Id = __x__ }}
-    { var _ok_ bool; var __json_flower_id__ interface{}; if __json_flower_id__, _ok_ = _buf["flower_id"]; !_ok_ || __json_flower_id__ == nil { err = errors.New("flower_id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_flower_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.FlowerId = __x__ }}
+    { var _ok_ bool; var __json_level_group__ interface{}; if __json_level_group__, _ok_ = _buf["level_group"]; !_ok_ || __json_level_group__ == nil { err = errors.New("level_group error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_level_group__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.LevelGroup = __x__ }}
     { var _ok_ bool; var __json_break_stage__ interface{}; if __json_break_stage__, _ok_ = _buf["break_stage"]; !_ok_ || __json_break_stage__ == nil { err = errors.New("break_stage error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_break_stage__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.BreakStage = __x__ }}
     { var _ok_ bool; var __json_need_level__ interface{}; if __json_need_level__, _ok_ = _buf["need_level"]; !_ok_ || __json_need_level__ == nil { err = errors.New("need_level error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_need_level__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.NeedLevel = __x__ }}
     { var _ok_ bool; var __json_coin_cost__ interface{}; if __json_coin_cost__, _ok_ = _buf["coin_cost"]; !_ok_ || __json_coin_cost__ == nil { err = errors.New("coin_cost error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_coin_cost__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.CoinCost = __x__ }}
