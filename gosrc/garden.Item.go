@@ -26,6 +26,7 @@ type GardenItem struct {
     UseParam string
     CanSell bool
     AutoUseOnGain bool
+    ShowInBag bool
 }
 
 const TypeId_GardenItem = -1350804660
@@ -49,6 +50,7 @@ func NewGardenItem(_buf map[string]interface{}) (_v *GardenItem, err error) {
     { var _ok_ bool; var __json_use_param__ interface{}; if __json_use_param__, _ok_ = _buf["use_param"]; !_ok_ || __json_use_param__ == nil { err = errors.New("use_param error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_use_param__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.UseParam = __x__ }}
     { var _ok_ bool; var __json_can_sell__ interface{}; if __json_can_sell__, _ok_ = _buf["can_sell"]; !_ok_ || __json_can_sell__ == nil { err = errors.New("can_sell error"); return } else { var __x__ bool;  { var _ok_ bool; if __x__, _ok_ = __json_can_sell__.(bool); !_ok_ { err = errors.New("__x__ error"); return } }; _v.CanSell = __x__ }}
     { var _ok_ bool; var __json_auto_use_on_gain__ interface{}; if __json_auto_use_on_gain__, _ok_ = _buf["auto_use_on_gain"]; !_ok_ || __json_auto_use_on_gain__ == nil { err = errors.New("auto_use_on_gain error"); return } else { var __x__ bool;  { var _ok_ bool; if __x__, _ok_ = __json_auto_use_on_gain__.(bool); !_ok_ { err = errors.New("__x__ error"); return } }; _v.AutoUseOnGain = __x__ }}
+    { var _ok_ bool; var __json_show_in_bag__ interface{}; if __json_show_in_bag__, _ok_ = _buf["show_in_bag"]; !_ok_ || __json_show_in_bag__ == nil { err = errors.New("show_in_bag error"); return } else { var __x__ bool;  { var _ok_ bool; if __x__, _ok_ = __json_show_in_bag__.(bool); !_ok_ { err = errors.New("__x__ error"); return } }; _v.ShowInBag = __x__ }}
     return
 }
 
