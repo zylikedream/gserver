@@ -105,6 +105,38 @@ func init() {
 		},
 	})
 
+		// --- flower upgrade/break ---
+		register(&Command{
+			Name:   "flower.upgrade",
+			Help:   "Upgrade a flower",
+			Params: []string{"flower_id"},
+			Exec: func(c *client.Client, args []string) error {
+				if len(args) < 1 {
+					return fmt.Errorf("usage: flower.upgrade <flower_id>")
+				}
+				flowerID, err := strconv.ParseInt(args[0], 10, 32)
+				if err != nil {
+					return fmt.Errorf("invalid flower_id: %v", err)
+				}
+				return c.Request(&pb.ReqUpgradeFlower{FlowerId: int32(flowerID)})
+			},
+		})
+		register(&Command{
+			Name:   "flower.break",
+			Help:   "Break/ascend a flower",
+			Params: []string{"flower_id"},
+			Exec: func(c *client.Client, args []string) error {
+				if len(args) < 1 {
+					return fmt.Errorf("usage: flower.break <flower_id>")
+				}
+				flowerID, err := strconv.ParseInt(args[0], 10, 32)
+				if err != nil {
+					return fmt.Errorf("invalid flower_id: %v", err)
+				}
+				return c.Request(&pb.ReqBreakFlower{FlowerId: int32(flowerID)})
+			},
+		})
+
 	// --- plot ---
 	register(&Command{
 		Name: "plot.info",
