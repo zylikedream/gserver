@@ -79,9 +79,7 @@ pushproto:
 # Update subtree: gameconfig
 .PHONY: upcfg
 upcfg:
-	@git stash -q 2>/dev/null; \
 	git subtree pull --prefix=gameconfig https://gitee.com/zylikedream/garden_config_go.git master; \
-	git stash pop -q 2>/dev/null; true
 
 # Parsing protobuf files and generating go files.
 .PHONY: pbraw
