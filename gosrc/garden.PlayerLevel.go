@@ -14,7 +14,7 @@ import "errors"
 
 type GardenPlayerLevel struct {
     Level int32
-    NeedExp int32
+    TotalExp int32
     UnlockDesc string
 }
 
@@ -27,7 +27,7 @@ func (*GardenPlayerLevel) GetTypeId() int32 {
 func NewGardenPlayerLevel(_buf map[string]interface{}) (_v *GardenPlayerLevel, err error) {
     _v = &GardenPlayerLevel{}
     { var _ok_ bool; var __json_level__ interface{}; if __json_level__, _ok_ = _buf["level"]; !_ok_ || __json_level__ == nil { err = errors.New("level error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_level__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Level = __x__ }}
-    { var _ok_ bool; var __json_need_exp__ interface{}; if __json_need_exp__, _ok_ = _buf["need_exp"]; !_ok_ || __json_need_exp__ == nil { err = errors.New("need_exp error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_need_exp__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.NeedExp = __x__ }}
+    { var _ok_ bool; var __json_total_exp__ interface{}; if __json_total_exp__, _ok_ = _buf["total_exp"]; !_ok_ || __json_total_exp__ == nil { err = errors.New("total_exp error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_total_exp__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.TotalExp = __x__ }}
     { var _ok_ bool; var __json_unlock_desc__ interface{}; if __json_unlock_desc__, _ok_ = _buf["unlock_desc"]; !_ok_ || __json_unlock_desc__ == nil { err = errors.New("unlock_desc error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_unlock_desc__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.UnlockDesc = __x__ }}
     return
 }

@@ -1,102 +1,102 @@
 [
   {
     "level": 1,
-    "need_exp": 20,
+    "total_exp": 0,
     "unlock_desc": "初始等级"
   },
   {
     "level": 2,
-    "need_exp": 35,
+    "total_exp": 20,
     "unlock_desc": ""
   },
   {
     "level": 3,
-    "need_exp": 55,
+    "total_exp": 55,
     "unlock_desc": ""
   },
   {
     "level": 4,
-    "need_exp": 80,
+    "total_exp": 110,
     "unlock_desc": ""
   },
   {
     "level": 5,
-    "need_exp": 110,
+    "total_exp": 190,
     "unlock_desc": "可解锁第2组花圃"
   },
   {
     "level": 6,
-    "need_exp": 145,
+    "total_exp": 300,
     "unlock_desc": ""
   },
   {
     "level": 7,
-    "need_exp": 185,
+    "total_exp": 445,
     "unlock_desc": ""
   },
   {
     "level": 8,
-    "need_exp": 230,
+    "total_exp": 630,
     "unlock_desc": "可进行普通成长组鲜花突破"
   },
   {
     "level": 9,
-    "need_exp": 280,
+    "total_exp": 860,
     "unlock_desc": ""
   },
   {
     "level": 10,
-    "need_exp": 335,
+    "total_exp": 1140,
     "unlock_desc": "可解锁第3组花圃"
   },
   {
     "level": 11,
-    "need_exp": 395,
+    "total_exp": 1475,
     "unlock_desc": ""
   },
   {
     "level": 12,
-    "need_exp": 460,
+    "total_exp": 1870,
     "unlock_desc": "可进行良品成长组鲜花突破"
   },
   {
     "level": 13,
-    "need_exp": 530,
+    "total_exp": 2330,
     "unlock_desc": ""
   },
   {
     "level": 14,
-    "need_exp": 605,
+    "total_exp": 2860,
     "unlock_desc": ""
   },
   {
     "level": 15,
-    "need_exp": 685,
+    "total_exp": 3465,
     "unlock_desc": ""
   },
   {
     "level": 16,
-    "need_exp": 770,
+    "total_exp": 4150,
     "unlock_desc": ""
   },
   {
     "level": 17,
-    "need_exp": 860,
+    "total_exp": 4920,
     "unlock_desc": ""
   },
   {
     "level": 18,
-    "need_exp": 955,
+    "total_exp": 5780,
     "unlock_desc": ""
   },
   {
     "level": 19,
-    "need_exp": 1055,
+    "total_exp": 6735,
     "unlock_desc": ""
   },
   {
     "level": 20,
-    "need_exp": 0,
+    "total_exp": 7790,
     "unlock_desc": "当前版本等级上限"
   }
 ]
