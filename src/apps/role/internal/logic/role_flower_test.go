@@ -55,9 +55,16 @@ func initFlowerTestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
+	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	gc.Tables = &gamecfg.Tables{
 		TbItem: tbItem, TbFlower: tbFlower,
 		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak,
+		TbPlayerLevel: tbPlayerLevel,
 	}
 	flowerCfgInited = true
 }
@@ -72,6 +79,10 @@ func setupTestFlower(t *testing.T) *RoleFlower {
 	t.Cleanup(patch.Reset)
 
 	main := &RoleMain{}
+	basicMod := &RoleBasic{
+		RoleModule:     RoleModule{Role: main},
+		RoleBasicState: RoleBasicState{Level: 20},
+	}
 	bagMod := &RoleBag{
 		RoleModule:   RoleModule{Role: main},
 		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
@@ -80,6 +91,7 @@ func setupTestFlower(t *testing.T) *RoleFlower {
 		RoleModule:      RoleModule{Role: main},
 		RoleFlowerState: RoleFlowerState{Flowers: make(FlowerMap)},
 	}
+	main.Basic = basicMod
 	main.Bag = bagMod
 	main.Flower = flowerMod
 	return flowerMod
@@ -504,6 +516,20 @@ func TestBreakFlower_Success(t *testing.T) {
 	fd := f.Flowers[flowerTestID]
 	if fd.BreakStage != 1 {
 		t.Fatalf("expected break_stage 1, got %d", fd.BreakStage)
+	}
+}
+
+func TestBreakFlower_PlayerLevelNotEnough(t *testing.T) {
+	f := setupTestFlowerWithEssence(t)
+	f.AddFlower(flowerTestID)
+	cfg := flowerConfig(t, flowerTestID)
+	breakCfg := flowerBreakConfig(t, cfg.LevelGroup, 1)
+	f.Role.Basic.Level = breakCfg.PlayerLevelLimit - 1
+	f.Flowers[flowerTestID].Level = breakCfg.NeedLevel
+
+	_, err := f.ReqBreakFlower(context.Background(), &pb.ReqBreakFlower{FlowerId: flowerTestID})
+	if !errors.Is(err, ErrFlowerBreakPlayerLevel) {
+		t.Fatalf("expected ErrFlowerBreakPlayerLevel, got %v", err)
 	}
 }
 

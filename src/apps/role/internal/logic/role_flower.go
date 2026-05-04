@@ -265,7 +265,9 @@ func (r *RoleFlower) ReqBreakFlower(ctx context.Context, req *pb.ReqBreakFlower)
 		return nil, ErrFlowerBreakLevel
 	}
 
-	// TODO: Check PlayerLevelLimit when player level system is implemented
+	if r.Role.Basic.Level < breakCfg.PlayerLevelLimit {
+		return nil, ErrFlowerBreakPlayerLevel
+	}
 
 	// Build resource deduction list
 	var removeGoods []*gamecfg.GardenGoodStack

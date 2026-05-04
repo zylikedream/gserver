@@ -6,10 +6,11 @@ import (
 	"reflect"
 	"testing"
 
-	proto "google.golang.org/protobuf/proto"
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/apps/role/internal/logic/bag"
+
+	proto "google.golang.org/protobuf/proto"
 
 	"github.com/agiledragon/gomonkey/v2"
 )
@@ -29,7 +30,14 @@ func initTestGameConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	gc.Tables = &gamecfg.Tables{TbItem: tbItem}
+
+	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
+	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbPlayerLevel: tbPlayerLevel}
 	testCfgInited = true
 }
 
@@ -41,10 +49,18 @@ func setupTestBag(t *testing.T) *RoleBag {
 		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
 	)
 	t.Cleanup(patch.Reset)
-	return &RoleBag{
-		RoleModule:   RoleModule{Role: &RoleMain{}},
+	main := &RoleMain{}
+	basicMod := &RoleBasic{
+		RoleModule:     RoleModule{Role: main},
+		RoleBasicState: RoleBasicState{Level: 1},
+	}
+	bagMod := &RoleBag{
+		RoleModule:   RoleModule{Role: main},
 		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
 	}
+	main.Basic = basicMod
+	main.Bag = bagMod
+	return bagMod
 }
 
 func testGoodStack(id, num int32) *gamecfg.GardenGoodStack {
@@ -282,6 +298,54 @@ func TestBagSaveGoods_AddOnly(t *testing.T) {
 	}
 	if !b.IsDirty() {
 		t.Fatal("expected dirty")
+	}
+}
+
+func TestBagSaveGoods_PlayerExpStored(t *testing.T) {
+	b := setupTestBag(t)
+	ctx := context.Background()
+
+	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(int32(PLAYER_EXP_ITEM_ID), 55)}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := b.Goods[PLAYER_EXP_ITEM_ID].Num; got != 55 {
+		t.Fatalf("expected exp item stored as 55, got %d", got)
+	}
+}
+
+func TestBagSaveGoods_NormalAndPlayerExpAdd(t *testing.T) {
+	b := setupTestBag(t)
+	ctx := context.Background()
+
+	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{
+		testGoodStack(1001, 10),
+		testGoodStack(int32(PLAYER_EXP_ITEM_ID), 20),
+	}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := b.Goods[1001].Num; got != 10 {
+		t.Fatalf("expected normal item 10, got %d", got)
+	}
+	if got := b.Goods[PLAYER_EXP_ITEM_ID].Num; got != 20 {
+		t.Fatalf("expected exp item 20, got %d", got)
+	}
+}
+
+func TestBagSaveGoods_PlayerExpRetainedBeyondConfiguredMaxLevel(t *testing.T) {
+	b := setupTestBag(t)
+	ctx := context.Background()
+
+	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(int32(PLAYER_EXP_ITEM_ID), 999999)}, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := b.Goods[PLAYER_EXP_ITEM_ID].Num; got != 999999 {
+		t.Fatalf("expected exp retained, got %d", got)
 	}
 }
 

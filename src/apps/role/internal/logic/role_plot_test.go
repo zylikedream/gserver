@@ -65,8 +65,14 @@ func initPlotTestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
+	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbFlower: tbFlower, TbGardenPlot: tbGardenPlot,
-		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak}
+		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak, TbPlayerLevel: tbPlayerLevel}
 	plotCfgInited = true
 }
 
@@ -80,6 +86,10 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	t.Cleanup(patch.Reset)
 
 	main := &RoleMain{}
+	basicMod := &RoleBasic{
+		RoleModule:     RoleModule{Role: main},
+		RoleBasicState: RoleBasicState{Level: 20},
+	}
 	bagMod := &RoleBag{
 		RoleModule:   RoleModule{Role: main},
 		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
@@ -92,6 +102,7 @@ func setupTestPlot(t *testing.T) *RolePlot {
 		RoleModule:    RoleModule{Role: main},
 		RolePlotState: RolePlotState{Plots: make(PlotMap)},
 	}
+	main.Basic = basicMod
 	main.Bag = bagMod
 	main.Flower = flowerMod
 	main.Plot = plotMod
@@ -198,6 +209,37 @@ func TestUnlockPlot_Success(t *testing.T) {
 	}
 	if !p.IsDirty() {
 		t.Fatal("expected dirty")
+	}
+}
+
+func TestReqUnlockPlot_PlayerLevelNotEnough(t *testing.T) {
+	p := setupTestPlot(t)
+	cfg := gameconfig.GameConfig().TbGardenPlot.Get(13)
+	for _, cost := range cfg.Cost {
+		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
+	}
+	p.Role.Basic.Level = cfg.UnlockLevel - 1
+
+	_, err := p.ReqUnlockPlot(context.Background(), &pb.ReqUnlockPlot{PlotId: 13})
+	if !errors.Is(err, ErrPlayerLevelNotEnough) {
+		t.Fatalf("expected ErrPlayerLevelNotEnough, got %v", err)
+	}
+}
+
+func TestReqUnlockPlot_WithRequiredPlayerLevel(t *testing.T) {
+	p := setupTestPlot(t)
+	cfg := gameconfig.GameConfig().TbGardenPlot.Get(13)
+	for _, cost := range cfg.Cost {
+		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
+	}
+	p.Role.Basic.Level = cfg.UnlockLevel
+
+	rsp, err := p.ReqUnlockPlot(context.Background(), &pb.ReqUnlockPlot{PlotId: 13})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rsp == nil || rsp.Plot == nil || rsp.Plot.PlotId != 13 {
+		t.Fatalf("unexpected response: %v", rsp)
 	}
 }
 

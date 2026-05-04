@@ -7,8 +7,9 @@ var (
 )
 
 var (
-	GOLD_ITEM_ID  = 1
-	WATER_ITEM_ID = 3
+	GOLD_ITEM_ID       = 1
+	WATER_ITEM_ID      = 3
+	PLAYER_EXP_ITEM_ID = 5
 )
 
 var (
@@ -17,4 +18,8 @@ var (
 	ErrFlowerBreakMax         = errors.New("flower already at max break stage")
 	ErrFlowerBreakLevel       = errors.New("flower level not enough for breakthrough")
 	ErrFlowerBreakPlayerLevel = errors.New("player level not enough for breakthrough")
+)
+
+var (
+	ErrPlayerLevelNotEnough = errors.New("player level not enough")
 )

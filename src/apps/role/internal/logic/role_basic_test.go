@@ -1,0 +1,84 @@
+package logic
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"gserver/gameconfig"
+	gamecfg "gserver/gameconfig/gosrc"
+	"gserver/src/apps/role/internal/logic/bag"
+
+	"github.com/agiledragon/gomonkey/v2"
+	proto "google.golang.org/protobuf/proto"
+)
+
+var basicCfgInited bool
+
+func initBasicTestConfig(t *testing.T) {
+	t.Helper()
+	if basicCfgInited {
+		return
+	}
+	gc := gameconfig.NewGameConfig()
+
+	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
+	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gc.Tables = &gamecfg.Tables{TbPlayerLevel: tbPlayerLevel}
+	basicCfgInited = true
+}
+
+func setupTestBasic(t *testing.T) *RoleBasic {
+	t.Helper()
+	initBasicTestConfig(t)
+
+	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
+		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
+	)
+	t.Cleanup(patch.Reset)
+
+	main := &RoleMain{}
+	basicMod := &RoleBasic{
+		RoleModule:     RoleModule{Role: main},
+		RoleBasicState: RoleBasicState{Level: 1},
+	}
+	bagMod := &RoleBag{
+		RoleModule:   RoleModule{Role: main},
+		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
+	}
+	main.Basic = basicMod
+	main.Bag = bagMod
+	return basicMod
+}
+
+func TestBasicRefreshLevelByExp_LevelByBagExp(t *testing.T) {
+	b := setupTestBasic(t)
+	b.Role.Bag.Goods[PLAYER_EXP_ITEM_ID] = bag.BagGood{GoodID: PLAYER_EXP_ITEM_ID, Num: 55}
+
+	oldLevel, newLevel := b.RefreshLevelByExp(context.Background(), 0, 55, "test")
+
+	if oldLevel != 1 || newLevel != 3 {
+		t.Fatalf("expected 1 -> 3, got %d -> %d", oldLevel, newLevel)
+	}
+	if b.Level != 3 {
+		t.Fatalf("expected level 3, got %d", b.Level)
+	}
+}
+
+func TestBasicRefreshLevelByExp_KeepMaxLevelAndRetainOverflowExp(t *testing.T) {
+	b := setupTestBasic(t)
+	b.Role.Bag.Goods[PLAYER_EXP_ITEM_ID] = bag.BagGood{GoodID: PLAYER_EXP_ITEM_ID, Num: 999999}
+
+	_, newLevel := b.RefreshLevelByExp(context.Background(), 0, 999999, "test")
+
+	if newLevel != 20 {
+		t.Fatalf("expected level 20, got %d", newLevel)
+	}
+	if got := b.Role.Bag.Goods[PLAYER_EXP_ITEM_ID].Num; got != 999999 {
+		t.Fatalf("expected exp retained, got %d", got)
+	}
+}

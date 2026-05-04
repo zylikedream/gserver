@@ -139,6 +139,10 @@ func (r *RolePlot) ReqUnlockPlot(ctx context.Context, req *pb.ReqUnlockPlot) (*p
 		return nil, ErrPlotNotEmpty
 	}
 
+	if r.Role.Basic.Level < cfg.UnlockLevel {
+		return nil, ErrPlayerLevelNotEnough
+	}
+
 	if !r.Role.Bag.CheckGoods(cfg.Cost) {
 		return nil, ErrGoodNotEnough
 	}
