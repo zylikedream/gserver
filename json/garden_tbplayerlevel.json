@@ -1,0 +1,102 @@
+[
+  {
+    "level": 1,
+    "need_exp": 20,
+    "unlock_desc": "????"
+  },
+  {
+    "level": 2,
+    "need_exp": 35,
+    "unlock_desc": ""
+  },
+  {
+    "level": 3,
+    "need_exp": 55,
+    "unlock_desc": ""
+  },
+  {
+    "level": 4,
+    "need_exp": 80,
+    "unlock_desc": ""
+  },
+  {
+    "level": 5,
+    "need_exp": 110,
+    "unlock_desc": "????2???"
+  },
+  {
+    "level": 6,
+    "need_exp": 145,
+    "unlock_desc": ""
+  },
+  {
+    "level": 7,
+    "need_exp": 185,
+    "unlock_desc": ""
+  },
+  {
+    "level": 8,
+    "need_exp": 230,
+    "unlock_desc": "????????????"
+  },
+  {
+    "level": 9,
+    "need_exp": 280,
+    "unlock_desc": ""
+  },
+  {
+    "level": 10,
+    "need_exp": 335,
+    "unlock_desc": "????3???"
+  },
+  {
+    "level": 11,
+    "need_exp": 395,
+    "unlock_desc": ""
+  },
+  {
+    "level": 12,
+    "need_exp": 460,
+    "unlock_desc": "????????????"
+  },
+  {
+    "level": 13,
+    "need_exp": 530,
+    "unlock_desc": ""
+  },
+  {
+    "level": 14,
+    "need_exp": 605,
+    "unlock_desc": ""
+  },
+  {
+    "level": 15,
+    "need_exp": 685,
+    "unlock_desc": ""
+  },
+  {
+    "level": 16,
+    "need_exp": 770,
+    "unlock_desc": ""
+  },
+  {
+    "level": 17,
+    "need_exp": 860,
+    "unlock_desc": ""
+  },
+  {
+    "level": 18,
+    "need_exp": 955,
+    "unlock_desc": ""
+  },
+  {
+    "level": 19,
+    "need_exp": 1055,
+    "unlock_desc": ""
+  },
+  {
+    "level": 20,
+    "need_exp": 0,
+    "unlock_desc": "????????"
+  }
+]
