@@ -31,5 +31,9 @@ const (
      * 获得增益
      */
     GardenEItemUseType_ADD_BUFF GardenEItemUseType = 5;
+    /**
+     * 增加玩家经验
+     */
+    GardenEItemUseType_ADD_PLAYER_EXP GardenEItemUseType = 6;
 )
 

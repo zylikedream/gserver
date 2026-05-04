@@ -11,7 +11,8 @@
     "icon": "icon_gold",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 2,
@@ -25,7 +26,8 @@
     "icon": "icon_diamond",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 3,
@@ -39,7 +41,8 @@
     "icon": "icon_water_drop",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 4,
@@ -53,7 +56,8 @@
     "icon": "icon_premium",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 4002,
@@ -67,7 +71,8 @@
     "icon": "icon_fountain",
     "use_type": 1,
     "use_param": "",
-    "can_sell": true
+    "can_sell": true,
+    "auto_use_on_gain": false
   },
   {
     "id": 5001,
@@ -81,7 +86,8 @@
     "icon": "icon_gift",
     "use_type": 2,
     "use_param": "10001",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 5002,
@@ -95,7 +101,8 @@
     "icon": "icon_energy_pot",
     "use_type": 4,
     "use_param": "50",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 101,
@@ -109,7 +116,8 @@
     "icon": "icon_seed_rose",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 102,
@@ -123,7 +131,8 @@
     "icon": "icon_seed_sunflower",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 103,
@@ -137,7 +146,8 @@
     "icon": "icon_seed_tulip",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 1001,
@@ -151,7 +161,8 @@
     "icon": "icon_soil",
     "use_type": 1,
     "use_param": "",
-    "can_sell": true
+    "can_sell": true,
+    "auto_use_on_gain": false
   },
   {
     "id": 2001,
@@ -165,7 +176,8 @@
     "icon": "icon_fertilizer",
     "use_type": 1,
     "use_param": "",
-    "can_sell": true
+    "can_sell": true,
+    "auto_use_on_gain": false
   },
   {
     "id": 3001,
@@ -179,7 +191,8 @@
     "icon": "icon_potion",
     "use_type": 1,
     "use_param": "",
-    "can_sell": true
+    "can_sell": true,
+    "auto_use_on_gain": false
   },
   {
     "id": 4001,
@@ -193,7 +206,8 @@
     "icon": "icon_energy",
     "use_type": 1,
     "use_param": "",
-    "can_sell": true
+    "can_sell": true,
+    "auto_use_on_gain": false
   },
   {
     "id": 10001,
@@ -207,7 +221,8 @@
     "icon": "icon_petal_rose",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 10002,
@@ -221,7 +236,8 @@
     "icon": "icon_petal_sunflower",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 10003,
@@ -235,7 +251,8 @@
     "icon": "icon_petal_tulip",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 11001,
@@ -249,7 +266,8 @@
     "icon": "icon_essence_rose",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 11002,
@@ -263,7 +281,8 @@
     "icon": "icon_essence_sunflower",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 11003,
@@ -277,7 +296,8 @@
     "icon": "icon_essence_tulip",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 12001,
@@ -291,7 +311,8 @@
     "icon": "icon_break_normal",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 12002,
@@ -305,7 +326,8 @@
     "icon": "icon_break_fine",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
   },
   {
     "id": 12003,
@@ -319,6 +341,22 @@
     "icon": "icon_break_rare",
     "use_type": 1,
     "use_param": "",
-    "can_sell": false
+    "can_sell": false,
+    "auto_use_on_gain": false
+  },
+  {
+    "id": 5,
+    "name": "????",
+    "desc": "????????????????????",
+    "major_type": 1,
+    "sub_type": 5,
+    "quality": 1,
+    "price": 0,
+    "max_stack": 999999999,
+    "icon": "icon_player_exp",
+    "use_type": 6,
+    "use_param": "",
+    "can_sell": false,
+    "auto_use_on_gain": true
   }
 ]

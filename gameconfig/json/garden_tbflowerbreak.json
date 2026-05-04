@@ -1,6 +1,7 @@
 [
   {
     "id": 1,
+    "level_group": 1,
     "break_stage": 1,
     "need_level": 10,
     "coin_cost": 1200,
@@ -12,17 +13,7 @@
   },
   {
     "id": 2,
-    "break_stage": 1,
-    "need_level": 10,
-    "coin_cost": 1400,
-    "essence_cost": 10,
-    "break_item_id": 12001,
-    "break_item_num": 1,
-    "player_level_limit": 10,
-    "level_group": 102
-  },
-  {
-    "id": 3,
+    "level_group": 2,
     "break_stage": 1,
     "need_level": 10,
     "coin_cost": 2200,
