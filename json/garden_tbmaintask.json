@@ -22,46 +22,28 @@
     ]
   },
   {
-    "id": 1002,
-    "chapter": 1,
-    "sort": 2,
-    "name": "第一份培育",
-    "desc": "开始培育玫瑰1次",
-    "pre_task_id": 1001,
-    "progress_mode": 1,
-    "target_type": 1,
-    "target_param": 101,
-    "target_num": 1,
-    "reward": [
-      {
-        "id": 5,
-        "num": 20
-      },
-      {
-        "id": 2001,
-        "num": 1
-      }
-    ]
-  },
-  {
     "id": 1003,
     "chapter": 1,
-    "sort": 3,
-    "name": "领取种子",
-    "desc": "领取玫瑰种子1次",
-    "pre_task_id": 1002,
-    "progress_mode": 1,
+    "sort": 2,
+    "name": "?????",
+    "desc": "?????????????",
+    "pre_task_id": 1001,
+    "progress_mode": 2,
     "target_type": 2,
     "target_param": 101,
     "target_num": 1,
     "reward": [
       {
         "id": 5,
-        "num": 20
+        "num": 30
       },
       {
         "id": 1,
         "num": 80
+      },
+      {
+        "id": 2001,
+        "num": 1
       }
     ]
   },
