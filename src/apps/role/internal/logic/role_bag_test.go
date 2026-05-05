@@ -485,7 +485,7 @@ func TestBagCheckGoods_Nil(t *testing.T) {
 // ========== MakeGoodStack ==========
 
 func TestMakeGoodStack(t *testing.T) {
-	s := MakeGoodStack(1001, 50)
+	s := bag.MakeGoodStack(1001, 50)
 	if s.Id != 1001 || s.Num != 50 {
 		t.Fatalf("expected {1001,50}, got {%d,%d}", s.Id, s.Num)
 	}

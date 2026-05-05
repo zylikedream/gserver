@@ -10,6 +10,7 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/pkg/errors"
 )
@@ -239,8 +240,8 @@ func (r *RoleFlower) ReqUpgradeFlower(ctx context.Context, req *pb.ReqUpgradeFlo
 	}
 
 	// Check and deduct resources
-	coinCost := MakeGoodStack(GOLD_ITEM_ID, int(levelCfg.UpgradeCoinCost))
-	essenceCost := MakeGoodStack(int(cfg.EssenceItemId), int(levelCfg.UpgradeEssenceCost))
+	coinCost := bag.MakeGoodStack(GOLD_ITEM_ID, int(levelCfg.UpgradeCoinCost))
+	essenceCost := bag.MakeGoodStack(int(cfg.EssenceItemId), int(levelCfg.UpgradeEssenceCost))
 	totalCost := []*gamecfg.GardenGoodStack{
 		coinCost,
 		essenceCost,
@@ -295,13 +296,13 @@ func (r *RoleFlower) ReqBreakFlower(ctx context.Context, req *pb.ReqBreakFlower)
 	// Build resource deduction list
 	var removeGoods []*gamecfg.GardenGoodStack
 	if breakCfg.CoinCost > 0 {
-		removeGoods = append(removeGoods, MakeGoodStack(GOLD_ITEM_ID, int(breakCfg.CoinCost)))
+		removeGoods = append(removeGoods, bag.MakeGoodStack(GOLD_ITEM_ID, int(breakCfg.CoinCost)))
 	}
 	if breakCfg.EssenceCost > 0 {
-		removeGoods = append(removeGoods, MakeGoodStack(int(cfg.EssenceItemId), int(breakCfg.EssenceCost)))
+		removeGoods = append(removeGoods, bag.MakeGoodStack(int(cfg.EssenceItemId), int(breakCfg.EssenceCost)))
 	}
 	if breakCfg.BreakItemNum > 0 {
-		removeGoods = append(removeGoods, MakeGoodStack(int(breakCfg.BreakItemId), int(breakCfg.BreakItemNum)))
+		removeGoods = append(removeGoods, bag.MakeGoodStack(int(breakCfg.BreakItemId), int(breakCfg.BreakItemNum)))
 	}
 
 	if !r.Role.Bag.CheckGoods(removeGoods) {

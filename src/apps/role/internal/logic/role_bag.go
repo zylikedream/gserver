@@ -340,10 +340,3 @@ func (r *RoleBag) ReqBagInfo(ctx context.Context, req *pb.ReqBagInfo) (*pb.RspBa
 	}
 	return msg, nil
 }
-
-func MakeGoodStack(GoodID, Num int) *gamecfg.GardenGoodStack {
-	return &gamecfg.GardenGoodStack{
-		Id:  int32(GoodID),
-		Num: int32(Num),
-	}
-}

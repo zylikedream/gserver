@@ -87,6 +87,10 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 	t.Cleanup(patch.Reset)
 
 	main := &RoleMain{eventBus: event.NewEventBus()}
+	basicMod := &RoleBasic{
+		RoleModule:     RoleModule{Role: main},
+		RoleBasicState: RoleBasicState{Level: 1},
+	}
 	bagMod := &RoleBag{
 		RoleModule:   RoleModule{Role: main},
 		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
@@ -99,6 +103,7 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 		RoleModule: RoleModule{Role: main},
 	}
 
+	main.Basic = basicMod
 	main.Bag = bagMod
 	main.Flower = flowerMod
 	main.ResidentOrder = orderMod
@@ -113,6 +118,7 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 	if err := orderMod.OnModInit(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	orderMod.OnCreate(context.Background())
 	return main, orderMod
 }
 
@@ -410,5 +416,107 @@ func TestOrderCompleteEvent(t *testing.T) {
 		}
 	default:
 		t.Fatal("expected EVENT_ORDER_COMPLETE to be published")
+	}
+}
+
+func TestSlotLocking_Level1(t *testing.T) {
+	// 等级1 → 只解锁 unlock_level <= 1 的 slot
+	_, orderMod := setupTestOrder(t, 101)
+
+	activeCount := 0
+	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+		if orderMod.Slots[cfg.Id] != nil {
+			activeCount++
+		}
+	}
+	if activeCount != 2 {
+		t.Fatalf("level 1: expected 2 active slots, got %d", activeCount)
+	}
+}
+
+func TestSlotLocking_NoBasic(t *testing.T) {
+	// Basic 模块不存在时，默认等级1（仍需要有花产品才能生成订单）
+	initOrderTestConfig(t)
+
+	main := &RoleMain{eventBus: event.NewEventBus()}
+	fakeFlower := &RoleFlower{
+		RoleModule:      RoleModule{Role: main},
+		RoleFlowerState: RoleFlowerState{Flowers: make(FlowerMap)},
+	}
+	fakeFlower.AddFlower(101)
+	fakeFlower.Flowers[101].State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	main.Flower = fakeFlower
+
+	orderMod := &RoleResidentOrder{
+		RoleModule: RoleModule{Role: main},
+	}
+	main.ResidentOrder = orderMod
+	orderMod.OnCreate(context.Background())
+
+	if len(orderMod.Slots) != 2 {
+		t.Fatalf("no Basic/level1: expected 2 active slots, got %d", len(orderMod.Slots))
+	}
+}
+
+func TestSlotLocking_LevelUp(t *testing.T) {
+	_, orderMod := setupTestOrder(t, 101)
+
+	checkActive := func(expected int) map[int32]bool {
+		active := make(map[int32]bool)
+		for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+			if orderMod.Slots[cfg.Id] != nil {
+				active[cfg.Id] = true
+			}
+		}
+		if len(active) != expected {
+			t.Fatalf("expected %d active slots, got %v", expected, active)
+		}
+		return active
+	}
+
+	// 等级1：2个slot
+	checkActive(2)
+
+	// 升级到3：新增 slot 3 (unlock=2) 和 slot 4 (unlock=3)
+	orderMod.Role.Basic.Level = 3
+	orderMod.ensureUnlockedSlots()
+	active := checkActive(4)
+	for _, id := range []int32{1, 2, 3, 4} {
+		if !active[id] {
+			t.Fatalf("slot %d should be active at level 3", id)
+		}
+	}
+
+	// 升级到5：新增 slot 5 (unlock=5)
+	orderMod.Role.Basic.Level = 5
+	orderMod.ensureUnlockedSlots()
+	active = checkActive(5)
+	for _, id := range []int32{1, 2, 3, 4, 5} {
+		if !active[id] {
+			t.Fatalf("slot %d should be active at level 5", id)
+		}
+	}
+
+	// 升级但无新slot解锁：数量不变
+	orderMod.Role.Basic.Level = 10
+	orderMod.ensureUnlockedSlots()
+	checkActive(5)
+}
+
+func TestSlotLocking_NoNewUnlock(t *testing.T) {
+	// 等级不变：再次调用 ensureUnlockedSlots 不应新增
+	_, orderMod := setupTestOrder(t, 101)
+
+	orderMod.ensureUnlockedSlots()
+
+	activeCount := 0
+	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+		if orderMod.Slots[cfg.Id] != nil {
+			activeCount++
+		}
+	}
+	// 等级1：2个slot，调用 ensureUnlockedSlots 后仍为2（已存在，不重复创建）
+	if activeCount != 2 {
+		t.Fatalf("expected 2 active slots (no new unlock), got %d", activeCount)
 	}
 }

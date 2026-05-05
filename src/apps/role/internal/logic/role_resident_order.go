@@ -10,6 +10,7 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/util"
 )
 
 // ========== 数据模型 ==========
@@ -48,22 +49,19 @@ func (r *RoleResidentOrder) OnCreate(ctx context.Context) {
 	if r.Slots == nil {
 		r.Slots = make(map[int32]*OrderSlotData)
 	}
+	playerLevel := int32(1)
+	if r.Role != nil && r.Role.Basic != nil {
+		playerLevel = r.Role.Basic.Level
+	}
 	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
-		r.refreshSlot(cfg.Id)
+		if cfg.UnlockLevel <= playerLevel {
+			r.refreshSlot(cfg.Id)
+		}
 	}
 	r.MarkDirty()
 }
 
 func (r *RoleResidentOrder) OnModInit(ctx context.Context) error {
-	if r.Slots == nil {
-		r.Slots = make(map[int32]*OrderSlotData)
-	}
-	if len(r.Slots) == 0 {
-		for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
-			r.refreshSlot(cfg.Id)
-		}
-		r.MarkDirty()
-	}
 	return nil
 }
 
@@ -95,7 +93,7 @@ func (r *RoleResidentOrder) refreshSlot(slotID int32) {
 		return
 	}
 
-	needKindCount := weightedRandom(filtered)
+	needKindCount := util.WeightedRandom(filtered)
 	demands := randomDemands(products, needKindCount, tpl.NeedMin, tpl.NeedMax)
 
 	reward := make([]bag.BagGood, len(tpl.Reward))
@@ -104,10 +102,11 @@ func (r *RoleResidentOrder) refreshSlot(slotID int32) {
 	}
 
 	r.Slots[slotID] = &OrderSlotData{
-		SlotID:     slotID,
-		ResidentID: residentID,
-		Demands:    demands,
-		Reward:     reward,
+		SlotID:      slotID,
+		ResidentID:  residentID,
+		Demands:     demands,
+		Reward:      reward,
+		CooldownEnd: 0,
 	}
 }
 
@@ -130,30 +129,14 @@ func (r *RoleResidentOrder) availableFlowerProducts() []int32 {
 
 // ========== 随机工具 ==========
 
-func filterKindProbs(probs []*gamecfg.GardenResidentOrderKindProb, availableCount int) []*gamecfg.GardenResidentOrderKindProb {
-	var filtered []*gamecfg.GardenResidentOrderKindProb
+func filterKindProbs(probs []*gamecfg.GardenProbEntry, availableCount int) []*gamecfg.GardenProbEntry {
+	var filtered []*gamecfg.GardenProbEntry
 	for _, p := range probs {
 		if int(p.Type) <= availableCount {
 			filtered = append(filtered, p)
 		}
 	}
 	return filtered
-}
-
-func weightedRandom(probs []*gamecfg.GardenResidentOrderKindProb) int32 {
-	total := int32(0)
-	for _, p := range probs {
-		total += p.Prob
-	}
-	r := rand.Int31n(total)
-	cumulative := int32(0)
-	for _, p := range probs {
-		cumulative += p.Prob
-		if r < cumulative {
-			return p.Type
-		}
-	}
-	return probs[len(probs)-1].Type
 }
 
 func randomDemands(products []int32, count int32, minNum, maxNum int32) []bag.BagGood {
@@ -179,9 +162,34 @@ func randomDemands(products []int32, count int32, minNum, maxNum int32) []bag.Ba
 	return demands
 }
 
+// ========== 等级解锁 ==========
+
+func (r *RoleResidentOrder) ensureUnlockedSlots() {
+	if r.Slots == nil {
+		r.Slots = make(map[int32]*OrderSlotData)
+	}
+	playerLevel := int32(1)
+	if r.Role != nil && r.Role.Basic != nil {
+		playerLevel = r.Role.Basic.Level
+	}
+	dirty := false
+	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+		if cfg.UnlockLevel <= playerLevel {
+			if _, ok := r.Slots[cfg.Id]; !ok {
+				r.refreshSlot(cfg.Id)
+				dirty = true
+			}
+		}
+	}
+	if dirty {
+		r.MarkDirty()
+	}
+}
+
 // ========== Proto handler ==========
 
 func (r *RoleResidentOrder) ReqOrderInfo(ctx context.Context, req *pb.ReqOrderInfo) (*pb.RspOrderInfo, error) {
+	r.ensureUnlockedSlots()
 	var slots []*pb.POrderSlot
 	for _, slotCfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
 		slot := r.Slots[slotCfg.Id]
@@ -198,6 +206,7 @@ func (r *RoleResidentOrder) ReqOrderInfo(ctx context.Context, req *pb.ReqOrderIn
 }
 
 func (r *RoleResidentOrder) ReqSubmitOrder(ctx context.Context, req *pb.ReqSubmitOrder) (*pb.RspSubmitOrder, error) {
+	r.ensureUnlockedSlots()
 	slot := r.Slots[req.SlotId]
 	if slot == nil {
 		return nil, ErrOrderSlotCooldown
@@ -209,7 +218,7 @@ func (r *RoleResidentOrder) ReqSubmitOrder(ctx context.Context, req *pb.ReqSubmi
 
 	demands := make([]*gamecfg.GardenGoodStack, len(slot.Demands))
 	for i, d := range slot.Demands {
-		demands[i] = &gamecfg.GardenGoodStack{Id: int32(d.GoodID), Num: int32(d.Num)}
+		demands[i] = bag.MakeGoodStack(d.GoodID, int(d.Num))
 	}
 	if !r.Role.Bag.CheckGoods(demands) {
 		return nil, ErrOrderNotEnough
@@ -221,7 +230,7 @@ func (r *RoleResidentOrder) ReqSubmitOrder(ctx context.Context, req *pb.ReqSubmi
 
 	rewards := make([]*gamecfg.GardenGoodStack, len(slot.Reward))
 	for i, rw := range slot.Reward {
-		rewards[i] = &gamecfg.GardenGoodStack{Id: int32(rw.GoodID), Num: int32(rw.Num)}
+		rewards[i] = bag.MakeGoodStack(rw.GoodID, int(rw.Num))
 	}
 	if err := r.Role.Bag.SaveGoods(ctx, nil, rewards, "order_reward", bag.OptNotifyReward()); err != nil {
 		return nil, err
@@ -230,12 +239,7 @@ func (r *RoleResidentOrder) ReqSubmitOrder(ctx context.Context, req *pb.ReqSubmi
 	slotCfg := gameconfig.GameConfig().TbResidentOrderSlot.Get(slot.SlotID)
 
 	r.refreshSlot(req.SlotId)
-
-	newSlot := r.Slots[req.SlotId]
-	if slotCfg != nil && newSlot != nil {
-		newSlot.CooldownEnd = now + int64(slotCfg.Cooldown)
-	}
-
+	r.Slots[req.SlotId].CooldownEnd = time.Now().Unix() + int64(slotCfg.Cooldown)
 	r.CompletedCount++
 
 	r.Role.PublishRoleEvent(event.EVENT_ORDER_COMPLETE, &event.OrderCompleteEventData{
@@ -264,11 +268,7 @@ func (r *RoleResidentOrder) ReqClaimOrderMilestone(ctx context.Context, req *pb.
 		}
 	}
 
-	rewards := make([]*gamecfg.GardenGoodStack, len(cfg.Reward))
-	for i, rw := range cfg.Reward {
-		rewards[i] = &gamecfg.GardenGoodStack{Id: rw.Id, Num: rw.Num}
-	}
-	if err := r.Role.Bag.SaveGoods(ctx, nil, rewards, "order_milestone", bag.OptNotifyReward()); err != nil {
+	if err := r.Role.Bag.SaveGoods(ctx, nil, cfg.Reward, "order_milestone", bag.OptNotifyReward()); err != nil {
 		return nil, err
 	}
 

@@ -74,3 +74,10 @@ func SlackGood2BagGood(stack *gamecfg.GardenGoodStack) BagGood {
 		UpdateTime: time.Now(),
 	}
 }
+
+func MakeGoodStack(GoodID, Num int) *gamecfg.GardenGoodStack {
+	return &gamecfg.GardenGoodStack{
+		Id:  int32(GoodID),
+		Num: int32(Num),
+	}
+}

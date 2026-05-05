@@ -11,6 +11,7 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/pkg/errors"
 )
@@ -221,7 +222,7 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 
 	// 扣除水滴
 	if totalWaterCost > 0 {
-		waterCost := MakeGoodStack(WATER_ITEM_ID, int(totalWaterCost))
+		waterCost := bag.MakeGoodStack(WATER_ITEM_ID, int(totalWaterCost))
 		if !r.Role.Bag.CheckGoods([]*gamecfg.GardenGoodStack{waterCost}) {
 			return nil, ErrGoodNotEnough
 		}
@@ -289,7 +290,7 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 			finalNum += levelCfg.HarvestNumAdd
 		}
 
-		harvestItems = append(harvestItems, MakeGoodStack(int(flowerCfg.HarvestItemId), int(finalNum)))
+		harvestItems = append(harvestItems, bag.MakeGoodStack(int(flowerCfg.HarvestItemId), int(finalNum)))
 		harvestFlowers = append(harvestFlowers, event.HarvestFlowerItem{
 			FlowerID:   plot.FlowerID,
 			PlotID:     plotID,
@@ -307,7 +308,7 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 				if levelCfg != nil {
 					dropNum += levelCfg.EssenceDropNumAdd
 				}
-				essenceItems = append(essenceItems, MakeGoodStack(int(flowerCfg.EssenceItemId), int(dropNum)))
+				essenceItems = append(essenceItems, bag.MakeGoodStack(int(flowerCfg.EssenceItemId), int(dropNum)))
 			}
 		}
 	}

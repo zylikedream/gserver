@@ -17,6 +17,7 @@ import (
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -208,14 +209,14 @@ func (r *RoleGM) ReqGMHelp(ctx context.Context, req *pb.ReqGMHelp) (*pb.RspGMHel
 // 用法: add_goods [物品ID] [数量]
 // 示例: add_goods 1001 10
 func (r *RoleGM) AddGoods(itemID int, num int) error {
-	return r.Role.Bag.SaveGoods(r.ctx, nil, []*gamecfg.GardenGoodStack{MakeGoodStack(itemID, int(num))}, "gm")
+	return r.Role.Bag.SaveGoods(r.ctx, nil, []*gamecfg.GardenGoodStack{bag.MakeGoodStack(itemID, int(num))}, "gm")
 }
 
 // RemoveGoods 移除物品或货币
 // 用法: remove_goods [物品ID] [数量]
 // 示例: remove_goods 1001 5
 func (r *RoleGM) RemoveGoods(itemID int, num int) error {
-	return r.Role.Bag.SaveGoods(r.ctx, []*gamecfg.GardenGoodStack{MakeGoodStack(itemID, int(num))}, nil, "gm")
+	return r.Role.Bag.SaveGoods(r.ctx, []*gamecfg.GardenGoodStack{bag.MakeGoodStack(itemID, int(num))}, nil, "gm")
 }
 
 // SetPlayerLevel 设置玩家等级（用于测试）
@@ -235,7 +236,7 @@ func (r *RoleGM) SetPlayerLevel(level int) error {
 		return nil
 	}
 	addExp := targetExp - oldExp
-	if err := r.Role.Bag.SaveGoods(r.ctx, nil, []*gamecfg.GardenGoodStack{MakeGoodStack(PLAYER_EXP_ITEM_ID, int(addExp))}, "gm"); err != nil {
+	if err := r.Role.Bag.SaveGoods(r.ctx, nil, []*gamecfg.GardenGoodStack{bag.MakeGoodStack(PLAYER_EXP_ITEM_ID, int(addExp))}, "gm"); err != nil {
 		return err
 	}
 	r.Role.Basic.RefreshLevelByExp(r.ctx, oldExp, targetExp, "gm")
