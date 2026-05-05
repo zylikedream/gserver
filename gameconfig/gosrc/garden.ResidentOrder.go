@@ -16,7 +16,7 @@ type GardenResidentOrder struct {
     Id int32
     Name string
     ResidentIds []int32
-    KindProbs []*GardenResidentOrderKindProb
+    KindProbs []*GardenProbEntry
     NeedMin int32
     NeedMax int32
     Reward []*GardenGoodStack
@@ -46,16 +46,16 @@ func NewGardenResidentOrder(_buf map[string]interface{}) (_v *GardenResidentOrde
                     }
                 }
     ; _v.ResidentIds = __x__ }}
-    { var _ok_ bool; var __json_kind_probs__ interface{}; if __json_kind_probs__, _ok_ = _buf["kind_probs"]; !_ok_ || __json_kind_probs__ == nil { err = errors.New("kind_probs error"); return } else { var __x__ []*GardenResidentOrderKindProb;  {
+    { var _ok_ bool; var __json_kind_probs__ interface{}; if __json_kind_probs__, _ok_ = _buf["kind_probs"]; !_ok_ || __json_kind_probs__ == nil { err = errors.New("kind_probs error"); return } else { var __x__ []*GardenProbEntry;  {
                     var _arr0_ []interface{}
                     var _ok0_ bool
                     if _arr0_, _ok0_ = (__json_kind_probs__).([]interface{}); !_ok0_ { err = errors.New("__x__ error"); return }
     
-                    __x__ = make([]*GardenResidentOrderKindProb, 0, len(_arr0_))
+                    __x__ = make([]*GardenProbEntry, 0, len(_arr0_))
                     
                     for _, _e0_ := range _arr0_ {
-                        var _list_v0_ *GardenResidentOrderKindProb
-                        { var _ok_ bool; var _x_ map[string]interface{}; if _x_, _ok_ = _e0_.(map[string]interface{}); !_ok_ { err = errors.New("_list_v0_ error"); return }; if _list_v0_, err = NewGardenResidentOrderKindProb(_x_); err != nil { return } }
+                        var _list_v0_ *GardenProbEntry
+                        { var _ok_ bool; var _x_ map[string]interface{}; if _x_, _ok_ = _e0_.(map[string]interface{}); !_ok_ { err = errors.New("_list_v0_ error"); return }; if _list_v0_, err = NewGardenProbEntry(_x_); err != nil { return } }
                         __x__ = append(__x__, _list_v0_)
                     }
                 }

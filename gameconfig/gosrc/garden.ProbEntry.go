@@ -12,19 +12,19 @@ package gamecfg;
 
 import "errors"
 
-type GardenResidentOrderKindProb struct {
+type GardenProbEntry struct {
     Type int32
     Prob int32
 }
 
-const TypeId_GardenResidentOrderKindProb = -345529362
+const TypeId_GardenProbEntry = -1458922108
 
-func (*GardenResidentOrderKindProb) GetTypeId() int32 {
-    return -345529362
+func (*GardenProbEntry) GetTypeId() int32 {
+    return -1458922108
 }
 
-func NewGardenResidentOrderKindProb(_buf map[string]interface{}) (_v *GardenResidentOrderKindProb, err error) {
-    _v = &GardenResidentOrderKindProb{}
+func NewGardenProbEntry(_buf map[string]interface{}) (_v *GardenProbEntry, err error) {
+    _v = &GardenProbEntry{}
     { var _ok_ bool; var __json_type__ interface{}; if __json_type__, _ok_ = _buf["type"]; !_ok_ || __json_type__ == nil { err = errors.New("type error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_type__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Type = __x__ }}
     { var _ok_ bool; var __json_prob__ interface{}; if __json_prob__, _ok_ = _buf["prob"]; !_ok_ || __json_prob__ == nil { err = errors.New("prob error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_prob__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Prob = __x__ }}
     return
