@@ -25,3 +25,4 @@ graphify-out/
 .playwright/
 .playwright-cli/
 .codex/
+.wolf/

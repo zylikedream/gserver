@@ -23,3 +23,10 @@ var (
 var (
 	ErrPlayerLevelNotEnough = errors.New("player level not enough")
 )
+
+var (
+	ErrOrderSlotCooldown        = errors.New("order slot is in cooldown")
+	ErrOrderNotEnough           = errors.New("not enough flower products for order")
+	ErrOrderMilestoneClaimed    = errors.New("milestone already claimed")
+	ErrOrderMilestoneNotReached = errors.New("completed count not enough for milestone")
+)

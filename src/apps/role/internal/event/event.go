@@ -12,6 +12,7 @@ const (
 	EVENT_HARVEST_FLOWER EventType = "harvest_flower"
 	EVENT_UNLOCK_PLOT    EventType = "unlock_plot"
 	EVENT_FLOWER_LEVEL   EventType = "flower_level"
+	EVENT_ORDER_COMPLETE EventType = "order_complete"
 )
 
 type GoodChange struct {
@@ -71,4 +72,8 @@ type FlowerLevelEventData struct {
 	FlowerID int32
 	OldLevel int32
 	NewLevel int32
+}
+
+type OrderCompleteEventData struct {
+	SlotID int32
 }

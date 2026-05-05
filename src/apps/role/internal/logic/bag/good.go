@@ -1,6 +1,9 @@
 package bag
 
-import "time"
+import (
+	gamecfg "gserver/gameconfig/gosrc"
+	"time"
+)
 
 // Type constants
 const (
@@ -62,4 +65,12 @@ func (g *BagGood) Update(num uint64) GoodOp {
 	g.Num = num
 	g.UpdateTime = time.Now()
 	return Op
+}
+
+func SlackGood2BagGood(stack *gamecfg.GardenGoodStack) BagGood {
+	return BagGood{
+		GoodID:     int(stack.Id),
+		Num:        uint64(stack.Num),
+		UpdateTime: time.Now(),
+	}
 }

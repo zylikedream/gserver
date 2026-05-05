@@ -70,6 +70,7 @@ type roleModules struct {
 	Flower   *RoleFlower
 	Plot     *RolePlot
 	MainTask *RoleMainTask
+	ResidentOrder *RoleResidentOrder
 	GM       *RoleGM
 }
 

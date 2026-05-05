@@ -266,6 +266,16 @@ func (r *RoleGM) AddFlowerLevel(flowerID int, level int) error {
 	return nil
 }
 
+// AddOrderFlower 设置鲜花为已培育完成状态（用于订单生成测试）
+// 用法: add_order_flower [花ID]
+func (r *RoleGM) AddOrderFlower(flowerID int) error {
+	r.Role.Flower.AddFlower(int32(flowerID))
+	if flower, ok := r.Role.Flower.Flowers[int32(flowerID)]; ok {
+		flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
+	}
+	return nil
+}
+
 // AddFlowerBreedGoods 一键添加培育所需材料
 // 用法: add_flower_breed_goods [花ID]
 // 示例: add_flower_breed_goods 101
