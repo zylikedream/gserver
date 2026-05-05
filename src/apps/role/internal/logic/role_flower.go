@@ -130,11 +130,7 @@ func (r *RoleFlower) ReqFlowerInfo(ctx context.Context, req *pb.ReqFlowerInfo) (
 }
 
 func PFlowerInfo(flower *FlowerData) *pb.PFlowerInfo {
-	now := time.Now()
-	state := flower.State
-	if state == int32(pb.FlowerState_FLOWER_BREEDING) && now.After(flower.StateTime) {
-		state = int32(pb.FlowerState_FLOWER_BREED_DONE)
-	}
+	state := getFlowerDisplayState(flower, time.Now())
 	return &pb.PFlowerInfo{
 		FlowerId:   flower.FlowerID,
 		State:      pb.FlowerState(state),
@@ -142,6 +138,14 @@ func PFlowerInfo(flower *FlowerData) *pb.PFlowerInfo {
 		Level:      flower.Level,
 		BreakStage: flower.BreakStage,
 	}
+}
+
+func getFlowerDisplayState(flower *FlowerData, now time.Time) int32 {
+	state := flower.State
+	if state == int32(pb.FlowerState_FLOWER_BREEDING) && now.After(flower.StateTime) {
+		return int32(pb.FlowerState_FLOWER_BREED_DONE)
+	}
+	return state
 }
 
 func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (*pb.RspStartBreed, error) {

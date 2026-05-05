@@ -3,7 +3,9 @@ package logic
 import (
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
+	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"time"
 )
 
 func RoleTaskEventTypes() []event.EventType {
@@ -24,6 +26,8 @@ func CalcCurrentStateProgress(role *RoleMain, currentProgress int32, targetType 
 	switch targetType {
 	case gamecfg.GardenETaskTargetType_OWN_ITEM:
 		return int32(role.Bag.GetGood(int(targetParam)).Num)
+	case gamecfg.GardenETaskTargetType_BREED_FINISH:
+		return getBreedFinishProgress(role, targetParam)
 	case gamecfg.GardenETaskTargetType_PLAYER_LEVEL:
 		return role.Basic.Level
 	case gamecfg.GardenETaskTargetType_UNLOCK_PLOT:
@@ -159,6 +163,35 @@ func getFlowerLevelProgress(role *RoleMain, flowerID int32) int32 {
 		}
 	}
 	return maxLevel
+}
+
+func getBreedFinishProgress(role *RoleMain, flowerID int32) int32 {
+	now := time.Now()
+	if flowerID > 0 {
+		flower, ok := role.Flower.Flowers[flowerID]
+		if !ok {
+			return 0
+		}
+		if isBreedFinishedState(flower, now) {
+			return 1
+		}
+		return 0
+	}
+	var count int32
+	for _, flower := range role.Flower.Flowers {
+		if isBreedFinishedState(flower, now) {
+			count++
+		}
+	}
+	return count
+}
+
+func isBreedFinishedState(flower *FlowerData, now time.Time) bool {
+	if flower == nil {
+		return false
+	}
+	state := getFlowerDisplayState(flower, now)
+	return state == int32(pb.FlowerState_FLOWER_BREED_DONE) || state == int32(pb.FlowerState_FLOWER_HARVESTED)
 }
 
 func getItemProgressAdd(role *RoleMain, targetParam int32, data event.GoodChangeEventData) int32 {

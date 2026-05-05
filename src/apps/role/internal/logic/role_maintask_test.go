@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
@@ -203,5 +204,43 @@ func TestMainTaskOwnItemCurrentState(t *testing.T) {
 
 	if got := CalcCurrentStateProgress(mt.Role, mt.Progress, cfg.TargetType, cfg.TargetParam); got != 5 {
 		t.Fatalf("expected own item progress 5, got %d", got)
+	}
+}
+
+func TestMainTaskBreedFinishCurrentStateHarvested(t *testing.T) {
+	_, mt, _ := setupTestMainTask(t)
+	mt.Role.Flower.Flowers[101] = &FlowerData{
+		FlowerID:  101,
+		State:     int32(pb.FlowerState_FLOWER_HARVESTED),
+		StateTime: time.Now(),
+	}
+	cfg := &gamecfg.GardenMainTask{
+		ProgressMode: gamecfg.GardenETaskProgressMode_CURRENT_STATE,
+		TargetType:   gamecfg.GardenETaskTargetType_BREED_FINISH,
+		TargetParam:  101,
+		TargetNum:    1,
+	}
+
+	if got := CalcCurrentStateProgress(mt.Role, mt.Progress, cfg.TargetType, cfg.TargetParam); got != 1 {
+		t.Fatalf("expected breed finish progress 1, got %d", got)
+	}
+}
+
+func TestMainTaskBreedFinishCurrentStateBreedDone(t *testing.T) {
+	_, mt, _ := setupTestMainTask(t)
+	mt.Role.Flower.Flowers[101] = &FlowerData{
+		FlowerID:  101,
+		State:     int32(pb.FlowerState_FLOWER_BREEDING),
+		StateTime: time.Now().Add(-time.Minute),
+	}
+	cfg := &gamecfg.GardenMainTask{
+		ProgressMode: gamecfg.GardenETaskProgressMode_CURRENT_STATE,
+		TargetType:   gamecfg.GardenETaskTargetType_BREED_FINISH,
+		TargetParam:  101,
+		TargetNum:    1,
+	}
+
+	if got := CalcCurrentStateProgress(mt.Role, mt.Progress, cfg.TargetType, cfg.TargetParam); got != 1 {
+		t.Fatalf("expected breed finish progress 1, got %d", got)
 	}
 }
