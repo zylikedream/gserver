@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/event"
 	"time"
 )
 
@@ -37,9 +38,30 @@ func (r *RoleBasic) PersistState() IPersistState {
 }
 
 func (r *RoleBasic) OnModInit(ctx context.Context) error {
+	r.subscribeEvents()
 	exp := r.getPlayerExp()
 	r.RefreshLevelByExp(ctx, exp, exp, "module_init")
 	return nil
+}
+
+func (r *RoleBasic) subscribeEvents() {
+	if r.Role == nil {
+		return
+	}
+	r.Role.SubscribeRoleEvent(event.EVENT_GOOD_CHANGE, r.onGoodChangeEvent)
+}
+
+func (r *RoleBasic) onGoodChangeEvent(param event.EventParam) {
+	data, ok := param.Data.(event.GoodChangeEventData)
+	if !ok {
+		return
+	}
+	for _, change := range data.Changes {
+		if change.GoodID == PLAYER_EXP_ITEM_ID {
+			r.RefreshLevelByExp(context.Background(), int64(change.PreNum), int64(change.Num), change.Reason)
+			return
+		}
+	}
 }
 
 func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName) (*pb.RspBasicSetName, error) {
@@ -90,6 +112,15 @@ func (r *RoleBasic) RefreshLevelByExp(ctx context.Context, oldExp int64, newExp 
 		r.MarkDirty()
 		if newLevel > oldLevel {
 			r.notifyRoleLevelUp(ctx, oldLevel, newLevel, oldExp, newExp)
+		}
+		if r.Role != nil {
+			r.Role.PublishRoleEvent(event.EVENT_PLAYER_LEVEL, event.PlayerLevelEventData{
+				OldLevel: oldLevel,
+				NewLevel: newLevel,
+				OldExp:   oldExp,
+				NewExp:   newExp,
+				Reason:   reason,
+			})
 		}
 	}
 	return oldLevel, newLevel

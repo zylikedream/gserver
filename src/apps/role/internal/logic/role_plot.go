@@ -10,6 +10,7 @@ import (
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/event"
 
 	"github.com/pkg/errors"
 )
@@ -151,6 +152,7 @@ func (r *RolePlot) ReqUnlockPlot(ctx context.Context, req *pb.ReqUnlockPlot) (*p
 	}
 
 	r.UnlockPlot(plotID)
+	r.Role.PublishRoleEvent(event.EVENT_UNLOCK_PLOT, event.UnlockPlotEventData{PlotID: plotID})
 
 	return &pb.RspUnlockPlot{Plot: pPlotInfo(r.Plots[plotID])}, nil
 }
@@ -187,6 +189,10 @@ func (r *RolePlot) ReqPlantFlower(ctx context.Context, req *pb.ReqPlantFlower) (
 		plot.State = int32(pb.PlotState_PLOT_PLANTED)
 	}
 	r.MarkDirty()
+	r.Role.PublishRoleEvent(event.EVENT_PLANT_FLOWER, event.PlantFlowerEventData{
+		FlowerID: flowerID,
+		PlotIDs:  append([]int32(nil), req.PlotIds...),
+	})
 
 	rsp := &pb.RspPlantFlower{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {
@@ -233,6 +239,9 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 		plot.StateTime = now.Add(time.Duration(flowerCfg.GrowTime) * time.Second)
 	}
 	r.MarkDirty()
+	r.Role.PublishRoleEvent(event.EVENT_WATER_FLOWER, event.WaterFlowerEventData{
+		PlotIDs: append([]int32(nil), req.PlotIds...),
+	})
 
 	rsp := &pb.RspWaterFlower{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {
@@ -244,6 +253,7 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlower) (*pb.RspHarvestFlower, error) {
 	var harvestItems []*gamecfg.GardenGoodStack
 	var essenceItems []*gamecfg.GardenGoodStack
+	var harvestFlowers []event.HarvestFlowerItem
 	now := time.Now()
 
 	// 第一轮：校验所有地块状态
@@ -280,6 +290,11 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 		}
 
 		harvestItems = append(harvestItems, MakeGoodStack(int(flowerCfg.HarvestItemId), int(finalNum)))
+		harvestFlowers = append(harvestFlowers, event.HarvestFlowerItem{
+			FlowerID:   plot.FlowerID,
+			PlotID:     plotID,
+			HarvestNum: finalNum,
+		})
 
 		// 精华掉落判定
 		if flowerCfg.EssenceItemId > 0 {
@@ -342,6 +357,10 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 		}
 	}
 	r.MarkDirty()
+	r.Role.PublishRoleEvent(event.EVENT_HARVEST_FLOWER, event.HarvestFlowerEventData{
+		Items:   append([]*gamecfg.GardenGoodStack(nil), harvestItems...),
+		Flowers: harvestFlowers,
+	})
 
 	rsp := &pb.RspHarvestFlower{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {

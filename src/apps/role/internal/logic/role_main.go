@@ -21,10 +21,10 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
+	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gorm.io/gorm"
-	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -63,13 +63,14 @@ const (
 )
 
 type roleModules struct {
-	Bag    *RoleBag
-	Basic  *RoleBasic
-	Public *RolePublic
-	Extra  *RoleExtra
-	Flower *RoleFlower
-	Plot   *RolePlot
-	GM     *RoleGM
+	Bag      *RoleBag
+	Basic    *RoleBasic
+	Public   *RolePublic
+	Extra    *RoleExtra
+	Flower   *RoleFlower
+	Plot     *RolePlot
+	MainTask *RoleMainTask
+	GM       *RoleGM
 }
 
 type RoleMain struct {
@@ -379,6 +380,20 @@ func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 		return
 	}
 	r.Send(r.session, svrMsg)
+}
+
+func (r *RoleMain) PublishRoleEvent(eventType event.EventType, data any) {
+	if r.eventBus == nil {
+		return
+	}
+	r.eventBus.Publish(eventType, data)
+}
+
+func (r *RoleMain) SubscribeRoleEvent(eventType event.EventType, handler func(event.EventParam)) event.EventRef {
+	if r.eventBus == nil {
+		return ""
+	}
+	return r.eventBus.Subscribe(eventType, handler)
 }
 
 func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (*pb.RspAccountLogin, error) {

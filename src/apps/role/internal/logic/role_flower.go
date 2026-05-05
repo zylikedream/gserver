@@ -9,6 +9,7 @@ import (
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/event"
 
 	"github.com/pkg/errors"
 )
@@ -29,7 +30,6 @@ type FlowerData struct {
 	Level      int32     `json:"level"`       // 当前等级，默认 1
 	BreakStage int32     `json:"break_stage"` // 突破阶段，0=未突破，1=已突破
 }
-
 
 type FlowerMap map[int32]*FlowerData
 
@@ -175,6 +175,7 @@ func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (
 	flower.State = int32(pb.FlowerState_FLOWER_BREEDING)
 	flower.StateTime = time.Now().Add(time.Duration(cfg.BreedTime) * time.Second)
 	r.MarkDirty()
+	r.Role.PublishRoleEvent(event.EVENT_BREED_START, event.BreedStartEventData{FlowerID: flowerID})
 
 	return &pb.RspStartBreed{Flower: PFlowerInfo(flower)}, nil
 }
@@ -193,6 +194,7 @@ func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed)
 	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	flower.StateTime = time.Now()
 	r.MarkDirty()
+	r.Role.PublishRoleEvent(event.EVENT_BREED_FINISH, event.BreedFinishEventData{FlowerID: flowerID})
 
 	return &pb.RspFinishBreed{Flower: PFlowerInfo(flower)}, nil
 }
@@ -247,8 +249,14 @@ func (r *RoleFlower) ReqUpgradeFlower(ctx context.Context, req *pb.ReqUpgradeFlo
 		return nil, err
 	}
 
+	oldLevel := flower.Level
 	flower.Level = nextLevel
 	r.MarkDirty()
+	r.Role.PublishRoleEvent(event.EVENT_FLOWER_LEVEL, event.FlowerLevelEventData{
+		FlowerID: flowerID,
+		OldLevel: oldLevel,
+		NewLevel: nextLevel,
+	})
 
 	return &pb.RspUpgradeFlower{Flower: PFlowerInfo(flower)}, nil
 }

@@ -104,6 +104,26 @@ func (gc *gameConfig) GetPlayerLevelUnlockDescs(oldLevel int32, newLevel int32) 
 	return descs
 }
 
+func (gc *gameConfig) GetFirstMainTask() *gamecfg.GardenMainTask {
+	tasks := gc.sortedMainTasks()
+	for _, cfg := range tasks {
+		if cfg.PreTaskId == 0 {
+			return cfg
+		}
+	}
+	return nil
+}
+
+func (gc *gameConfig) GetNextMainTask(taskID int32) *gamecfg.GardenMainTask {
+	tasks := gc.sortedMainTasks()
+	for _, cfg := range tasks {
+		if cfg.PreTaskId == taskID {
+			return cfg
+		}
+	}
+	return nil
+}
+
 func (gc *gameConfig) sortedPlayerLevels() []*gamecfg.GardenPlayerLevel {
 	if gc == nil || gc.TbPlayerLevel == nil {
 		return nil
@@ -113,6 +133,23 @@ func (gc *gameConfig) sortedPlayerLevels() []*gamecfg.GardenPlayerLevel {
 		return levels[i].Level < levels[j].Level
 	})
 	return levels
+}
+
+func (gc *gameConfig) sortedMainTasks() []*gamecfg.GardenMainTask {
+	if gc == nil || gc.TbMainTask == nil {
+		return nil
+	}
+	tasks := append([]*gamecfg.GardenMainTask(nil), gc.TbMainTask.GetDataList()...)
+	sort.Slice(tasks, func(i, j int) bool {
+		if tasks[i].Chapter != tasks[j].Chapter {
+			return tasks[i].Chapter < tasks[j].Chapter
+		}
+		if tasks[i].Sort != tasks[j].Sort {
+			return tasks[i].Sort < tasks[j].Sort
+		}
+		return tasks[i].Id < tasks[j].Id
+	})
+	return tasks
 }
 
 func loader(file string) ([]map[string]interface{}, error) {

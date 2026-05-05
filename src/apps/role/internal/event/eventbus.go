@@ -4,11 +4,15 @@ import "github.com/gogf/gf/v2/util/guid"
 
 type EventRef string
 type EventType string
-type EventSubType string
 
 type EventParam struct {
 	EType EventType
 	Data  any
+}
+
+type queuedEvent struct {
+	eventType EventType
+	data      any
 }
 
 type eventHandler struct {
@@ -24,6 +28,8 @@ type IEventBus interface {
 
 type EventBus struct {
 	eventHandlers map[EventType][]eventHandler
+	eventQueue    []queuedEvent
+	publishing    bool
 }
 
 func NewEventBus() *EventBus {
@@ -53,11 +59,23 @@ func (e *EventBus) Unsubscribe(eventType EventType, ref EventRef) {
 }
 
 func (e *EventBus) Publish(eventType EventType, data any) {
-	handlers := e.eventHandlers[eventType]
-	for _, h := range handlers {
-		h.handler(EventParam{
-			EType: eventType,
-			Data:  data,
-		})
+	e.eventQueue = append(e.eventQueue, queuedEvent{eventType: eventType, data: data})
+	if e.publishing {
+		return
+	}
+	e.publishing = true
+	defer func() {
+		e.publishing = false
+	}()
+	for len(e.eventQueue) > 0 {
+		ev := e.eventQueue[0]
+		e.eventQueue = e.eventQueue[1:]
+		handlers := append([]eventHandler(nil), e.eventHandlers[ev.eventType]...)
+		for _, h := range handlers {
+			h.handler(EventParam{
+				EType: ev.eventType,
+				Data:  ev.data,
+			})
+		}
 	}
 }

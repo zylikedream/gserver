@@ -8,6 +8,7 @@ import (
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
+	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/gogf/gf/v2/os/glog"
@@ -256,6 +257,21 @@ func (r *RoleBag) notifyGoodUpdate(ctx context.Context, updates map[int]bag.Good
 
 // 通知物品变更事件
 func (r *RoleBag) onGoodUpdateEvent(ctx context.Context, updates map[int]bag.GoodUpdate) {
+	if r.Role == nil {
+		return
+	}
+	changes := make([]event.GoodChange, 0, len(updates))
+	for _, update := range updates {
+		changes = append(changes, event.GoodChange{
+			GoodID:    update.GoodID,
+			PreNum:    update.PreNum,
+			Num:       update.Num,
+			AddNum:    update.AddNum,
+			RemoveNum: update.RemoveNum,
+			Reason:    update.Reason,
+		})
+	}
+	r.Role.PublishRoleEvent(event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{Changes: changes})
 }
 
 // 保存物品变更操作
