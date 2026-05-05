@@ -1,33 +1,11 @@
 [
   {
-    "id": 1001,
-    "chapter": 1,
-    "sort": 1,
-    "name": "初到花园",
-    "desc": "领取初始资源，准备开始经营",
-    "pre_task_id": 0,
-    "progress_mode": 1,
-    "target_type": 6,
-    "target_param": 1,
-    "target_num": 1,
-    "reward": [
-      {
-        "id": 1,
-        "num": 100
-      },
-      {
-        "id": 1001,
-        "num": 2
-      }
-    ]
-  },
-  {
     "id": 1003,
     "chapter": 1,
-    "sort": 2,
+    "sort": 1,
     "name": "第一份培育",
     "desc": "完成玫瑰培育并领取玫瑰种子",
-    "pre_task_id": 1001,
+    "pre_task_id": 0,
     "progress_mode": 2,
     "target_type": 2,
     "target_param": 101,
