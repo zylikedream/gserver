@@ -2,6 +2,8 @@ package logic
 
 import (
 	"context"
+	"database/sql/driver"
+	"encoding/json"
 	"math/rand"
 	"time"
 
@@ -11,6 +13,8 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/util"
+
+	"github.com/pkg/errors"
 )
 
 // ========== 数据模型 ==========
@@ -23,11 +27,63 @@ type OrderSlotData struct {
 	CooldownEnd int64         `json:"cooldown_end"`
 }
 
+type OrderSlotMap map[int32]*OrderSlotData
+
+func (m OrderSlotMap) Value() (driver.Value, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return json.Marshal(m)
+}
+
+func (m *OrderSlotMap) Scan(value interface{}) error {
+	if value == nil {
+		*m = make(OrderSlotMap)
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("invalid type for OrderSlotMap")
+	}
+	var slotMap map[int32]*OrderSlotData
+	if err := json.Unmarshal(bytes, &slotMap); err != nil {
+		return err
+	}
+	*m = OrderSlotMap(slotMap)
+	return nil
+}
+
+type Int32List []int32
+
+func (l Int32List) Value() (driver.Value, error) {
+	if l == nil {
+		return nil, nil
+	}
+	return json.Marshal(l)
+}
+
+func (l *Int32List) Scan(value interface{}) error {
+	if value == nil {
+		*l = make(Int32List, 0)
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("invalid type for Int32List")
+	}
+	var list []int32
+	if err := json.Unmarshal(bytes, &list); err != nil {
+		return err
+	}
+	*l = Int32List(list)
+	return nil
+}
+
 type RoleResidentOrderState struct {
 	RolePersistState
-	Slots             map[int32]*OrderSlotData `gorm:"column:slots;type:jsonb"`
-	CompletedCount    int32                    `gorm:"column:completed_count"`
-	ClaimedMilestones []int32                  `gorm:"column:claimed_milestones;type:jsonb"`
+	Slots             OrderSlotMap `gorm:"column:slots;type:jsonb"`
+	CompletedCount    int32        `gorm:"column:completed_count"`
+	ClaimedMilestones Int32List    `gorm:"column:claimed_milestones;type:jsonb"`
 }
 
 func (RoleResidentOrderState) TableName() string { return "role_resident_order" }
@@ -47,7 +103,7 @@ func (r *RoleResidentOrder) PersistState() IPersistState {
 
 func (r *RoleResidentOrder) OnCreate(ctx context.Context) {
 	if r.Slots == nil {
-		r.Slots = make(map[int32]*OrderSlotData)
+		r.Slots = make(OrderSlotMap)
 	}
 	playerLevel := int32(1)
 	if r.Role != nil && r.Role.Basic != nil {
@@ -106,7 +162,7 @@ func (r *RoleResidentOrder) refreshSlot(slotID int32) {
 		ResidentID:  residentID,
 		Demands:     demands,
 		Reward:      reward,
-		CooldownEnd: 0,
+		CooldownEnd: time.Now().Unix() + int64(slotCfg.Cooldown),
 	}
 }
 
@@ -166,7 +222,7 @@ func randomDemands(products []int32, count int32, minNum, maxNum int32) []bag.Ba
 
 func (r *RoleResidentOrder) ensureUnlockedSlots() {
 	if r.Slots == nil {
-		r.Slots = make(map[int32]*OrderSlotData)
+		r.Slots = make(OrderSlotMap)
 	}
 	playerLevel := int32(1)
 	if r.Role != nil && r.Role.Basic != nil {
@@ -239,7 +295,6 @@ func (r *RoleResidentOrder) ReqSubmitOrder(ctx context.Context, req *pb.ReqSubmi
 	slotCfg := gameconfig.GameConfig().TbResidentOrderSlot.Get(slot.SlotID)
 
 	r.refreshSlot(req.SlotId)
-	r.Slots[req.SlotId].CooldownEnd = time.Now().Unix() + int64(slotCfg.Cooldown)
 	r.CompletedCount++
 
 	r.Role.PublishRoleEvent(event.EVENT_ORDER_COMPLETE, &event.OrderCompleteEventData{
