@@ -166,6 +166,7 @@ func (r *RoleMain) initRoleModules(ctx context.Context) {
 }
 
 func (r *RoleMain) initModules(ctx context.Context) error {
+	r.SetSelfMod(r)
 	r.initRoleModules(ctx)
 	if err := r.loadModules(ctx); err != nil {
 		return err
@@ -308,6 +309,9 @@ func (r *RoleMain) save(ctx context.Context) error {
 			continue
 		}
 		modState := rmod.PersistState()
+		if modState != nil {
+			glog.Debugf(ctx, "save mod %s, dirty: %v", modState.(tabler).TableName(), modState.IsDirty())
+		}
 		if modState == nil || !modState.IsDirty() {
 			continue
 		}
@@ -492,13 +496,20 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 }
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
+	glog.Debugf(ctx, "role stopped, roleID: %d, err: %v", r.RoleID, err)
 	if serr := r.StopModule(ctx); serr != nil {
 		glog.Errorf(ctx, "stop module error, roleID: %d, err: %v", r.RoleID, err)
 	}
+
+	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
+}
+
+func (r *RoleMain) OnModStop(ctx context.Context) error {
+	glog.Infof(ctx, "role stop, roleID: %d", r.RoleID)
 	if serr := r.save(ctx); serr != nil {
 		glog.Errorf(ctx, "save error, roleID: %d, err: %+v", r.RoleID, serr)
 	}
-	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
+	return nil
 }
 
 func (r *RoleMain) GetRolePublic(ctx context.Context) *pb.PRolePublic {

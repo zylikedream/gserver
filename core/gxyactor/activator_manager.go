@@ -99,7 +99,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *hashableActorActive:
 		props := a.meta.Props.Clone()
-		pid, err := SpawnNamed(props, msg.Id, msg.Id)
+		pid, err := a.SpawnNamed(props, msg.Id, msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
 				a.Respond(&remote.ActorPidResponse{Pid: pid})
