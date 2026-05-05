@@ -19,6 +19,10 @@ type Tables struct {
     TbGardenPlot *GardenTbGardenPlot
     TbPlayerLevel *GardenTbPlayerLevel
     TbMainTask *GardenTbMainTask
+    TbResident *GardenTbResident
+    TbResidentOrderSlot *GardenTbResidentOrderSlot
+    TbResidentOrder *GardenTbResidentOrder
+    TbResidentOrderProgressReward *GardenTbResidentOrderProgressReward
     TbItemTag *GardenTbItemTag
     TbGlobalConfig *GardenTbGlobalConfig
 }
@@ -68,6 +72,30 @@ func NewTables(loader JsonLoader) (*Tables, error) {
         return nil, err
     }
     if tables.TbMainTask, err = NewGardenTbMainTask(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbresident") ; err != nil {
+        return nil, err
+    }
+    if tables.TbResident, err = NewGardenTbResident(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbresidentorderslot") ; err != nil {
+        return nil, err
+    }
+    if tables.TbResidentOrderSlot, err = NewGardenTbResidentOrderSlot(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbresidentorder") ; err != nil {
+        return nil, err
+    }
+    if tables.TbResidentOrder, err = NewGardenTbResidentOrder(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbresidentorderprogressreward") ; err != nil {
+        return nil, err
+    }
+    if tables.TbResidentOrderProgressReward, err = NewGardenTbResidentOrderProgressReward(buf) ; err != nil {
         return nil, err
     }
     if buf, err = loader("garden_tbitemtag") ; err != nil {

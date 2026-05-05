@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "name": "花坊姑娘",
+    "avatar": "resident_avatar_1",
+    "portrait": "resident_portrait_1",
+    "order_text": "此花娇嫩，运送途中务必小心。"
+  },
+  {
+    "id": 2,
+    "name": "富商",
+    "avatar": "resident_avatar_2",
+    "portrait": "resident_portrait_2",
+    "order_text": "只要是我想要的，钱不是问题！"
+  },
+  {
+    "id": 3,
+    "name": "官员",
+    "avatar": "resident_avatar_3",
+    "portrait": "resident_portrait_3",
+    "order_text": "官务在身，送交府上管家即可。"
+  },
+  {
+    "id": 4,
+    "name": "闺阁小姐",
+    "avatar": "resident_avatar_4",
+    "portrait": "resident_portrait_4",
+    "order_text": "花有花语，物寄心意。"
+  },
+  {
+    "id": 5,
+    "name": "爱花少年",
+    "avatar": "resident_avatar_5",
+    "portrait": "resident_portrait_5",
+    "order_text": "听说你的花园里开了好花。"
+  }
+]
