@@ -232,6 +232,45 @@ func init() {
 		},
 	})
 
+	// --- order ---
+	register(&Command{
+		Name: "order.info",
+		Help: "Get order info",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqOrderInfo{})
+		},
+	})
+	register(&Command{
+		Name:   "order.submit",
+		Help:   "Submit an order",
+		Params: []string{"slot_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: order.submit <slot_id>")
+			}
+			slotID, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid slot_id: %v", err)
+			}
+			return c.Request(&pb.ReqSubmitOrder{SlotId: int32(slotID)})
+		},
+	})
+	register(&Command{
+		Name:   "order.claim",
+		Help:   "Claim order milestone reward",
+		Params: []string{"id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: order.claim <id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid id: %v", err)
+			}
+			return c.Request(&pb.ReqClaimOrderMilestone{Id: int32(id)})
+		},
+	})
+
 	// --- gm ---
 	register(&Command{
 		Name:   "gm.cmd",

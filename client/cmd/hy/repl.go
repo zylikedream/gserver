@@ -1,34 +1,63 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"hy_client/pkg/client"
+
+	"github.com/peterh/liner"
 )
 
 type REPL struct {
 	client *client.Client
-	reader *bufio.Reader
+	line   *liner.State
+}
+
+func historyFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".hy_history"
+	}
+	return filepath.Join(home, ".hy_history")
 }
 
 func NewREPL(c *client.Client) *REPL {
+	line := liner.NewLiner()
+	line.SetCtrlCAborts(true)
+
+	if f, err := os.Open(historyFile()); err == nil {
+		line.ReadHistory(f)
+		f.Close()
+	}
+
 	return &REPL{
 		client: c,
-		reader: bufio.NewReader(os.Stdin),
+		line:   line,
 	}
 }
 
 func (r *REPL) Run() {
+	defer func() {
+		if f, err := os.Create(historyFile()); err == nil {
+			r.line.WriteHistory(f)
+			f.Close()
+		}
+		r.line.Close()
+	}()
+
 	fmt.Println("Type 'help' for available commands, 'quit' to exit.")
 
 	for {
-		fmt.Print("hy> ")
-		line, err := r.reader.ReadString('\n')
+		line, err := r.line.Prompt("hy> ")
 		if err != nil {
-			fmt.Printf("\nread error: %v\n", err)
+			if err == liner.ErrPromptAborted {
+				fmt.Println("\nbye.")
+				return
+			}
+			fmt.Printf("\nerror: %v\n", err)
 			return
 		}
 
@@ -36,6 +65,8 @@ func (r *REPL) Run() {
 		if line == "" {
 			continue
 		}
+
+		r.line.AppendHistory(line)
 
 		switch line {
 		case "quit", "exit":
@@ -60,7 +91,6 @@ func (r *REPL) execute(line string) {
 	name := parts[0]
 	args := parts[1:]
 
-	// reconnect is the only command that works when disconnected
 	if name != "reconnect" && name != "help" && name != "quit" && name != "exit" && !r.client.IsConnected() {
 		fmt.Println("disconnected from server. type 'reconnect' to reconnect.")
 		return
@@ -78,7 +108,6 @@ func (r *REPL) execute(line string) {
 }
 
 // parseArgs splits a line into arguments, respecting double-quoted strings.
-// Example: gm.cmd "add item 1001 10" → ["gm.cmd", "add item 1001 10"]
 func parseArgs(line string) []string {
 	var args []string
 	var current strings.Builder
