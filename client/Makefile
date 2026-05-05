@@ -14,6 +14,6 @@ clean:
 	rm -rf bin/ pb/
 
 proto-update:
-	git subtree pull --prefix=proto/client proto master 
+	git subtree pull --prefix=proto/client proto master  --squash
 	@mkdir -p pb
 	protoc -I proto/client --go_out=pb --go_opt=paths=source_relative proto/client/*.proto
