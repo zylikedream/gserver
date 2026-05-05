@@ -142,6 +142,9 @@ func EventTypeByTaskTarget(targetType gamecfg.GardenETaskTargetType) event.Event
 }
 
 func getUnlockPlotProgress(role *RoleMain, plotID int32) int32 {
+	if role == nil || role.Plot == nil {
+		return 0
+	}
 	if plotID > 0 {
 		if _, ok := role.Plot.Plots[plotID]; ok {
 			return 1
@@ -152,6 +155,9 @@ func getUnlockPlotProgress(role *RoleMain, plotID int32) int32 {
 }
 
 func getFlowerLevelProgress(role *RoleMain, flowerID int32) int32 {
+	if role == nil || role.Flower == nil {
+		return 0
+	}
 	if flowerID > 0 {
 		level, _ := role.Flower.GetFlowerLevel(flowerID)
 		return level
@@ -166,6 +172,9 @@ func getFlowerLevelProgress(role *RoleMain, flowerID int32) int32 {
 }
 
 func getBreedFinishProgress(role *RoleMain, flowerID int32) int32 {
+	if role == nil || role.Flower == nil {
+		return 0
+	}
 	now := time.Now()
 	if flowerID > 0 {
 		flower, ok := role.Flower.Flowers[flowerID]
@@ -195,6 +204,9 @@ func isBreedFinishedState(flower *FlowerData, now time.Time) bool {
 }
 
 func getItemProgressAdd(role *RoleMain, targetParam int32, data event.GoodChangeEventData) int32 {
+	if role == nil {
+		return 0
+	}
 	var total uint64
 	for _, change := range data.Changes {
 		if change.AddNum == 0 {
@@ -214,6 +226,9 @@ func getItemProgressAdd(role *RoleMain, targetParam int32, data event.GoodChange
 }
 
 func isFlowerProduct(role *RoleMain, goodID int32) bool {
+	if role == nil || gameconfig.GameConfig() == nil || gameconfig.GameConfig().TbFlower == nil {
+		return false
+	}
 	for _, cfg := range gameconfig.GameConfig().TbFlower.GetDataList() {
 		if cfg.HarvestItemId == goodID {
 			return true

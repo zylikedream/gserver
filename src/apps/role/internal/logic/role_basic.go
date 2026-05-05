@@ -38,6 +38,10 @@ func (r *RoleBasic) PersistState() IPersistState {
 }
 
 func (r *RoleBasic) OnModInit(ctx context.Context) error {
+	return nil
+}
+
+func (r *RoleBasic) OnModStart(ctx context.Context) error {
 	r.subscribeEvents()
 	exp := r.getPlayerExp()
 	r.RefreshLevelByExp(ctx, exp, exp, "module_init")

@@ -39,6 +39,10 @@ func (r *RoleMainTask) OnCreate(ctx context.Context) {
 }
 
 func (r *RoleMainTask) OnModInit(ctx context.Context) error {
+	return nil
+}
+
+func (r *RoleMainTask) OnModStart(ctx context.Context) error {
 	r.subscribeEvents()
 	if r.CurrentTaskID == 0 && r.Status != int32(pb.MainTaskStatus_MAIN_TASK_FINISHED) {
 		r.acceptTask(gameconfig.GameConfig().GetFirstMainTask())
@@ -75,9 +79,14 @@ func (r *RoleMainTask) ReqClaimMainTask(ctx context.Context, req *pb.ReqClaimMai
 			return nil, err
 		}
 	}
+	claimedTask := &pb.PMainTaskInfo{
+		TaskId:   cfg.Id,
+		Progress: cfg.TargetNum,
+		Status:   pb.MainTaskStatus_MAIN_TASK_FINISHED,
+	}
 	r.acceptTask(gameconfig.GameConfig().GetNextMainTask(cfg.Id))
 	r.notifyMainTaskUpdate(ctx)
-	return &pb.RspClaimMainTask{Task: r.PMainTaskInfo()}, nil
+	return &pb.RspClaimMainTask{Task: claimedTask}, nil
 }
 
 func (r *RoleMainTask) PMainTaskInfo() *pb.PMainTaskInfo {

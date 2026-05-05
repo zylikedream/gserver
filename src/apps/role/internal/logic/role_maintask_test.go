@@ -98,14 +98,17 @@ func setupTestMainTask(t *testing.T) (*RoleMain, *RoleMainTask, *[]proto.Message
 	if err := mainTaskMod.OnModInit(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	if err := mainTaskMod.OnModStart(context.Background()); err != nil {
+		t.Fatal(err)
+	}
 	return main, mainTaskMod, &sent
 }
 
 func TestMainTaskInitFirstTask(t *testing.T) {
 	_, mt, _ := setupTestMainTask(t)
 
-	if mt.CurrentTaskID != 1001 {
-		t.Fatalf("expected first task 1001, got %d", mt.CurrentTaskID)
+	if mt.CurrentTaskID != 1003 {
+		t.Fatalf("expected first task 1003, got %d", mt.CurrentTaskID)
 	}
 	if mt.Progress != 0 {
 		t.Fatalf("expected progress 0, got %d", mt.Progress)
@@ -117,13 +120,14 @@ func TestMainTaskInitFirstTask(t *testing.T) {
 
 func TestMainTaskAfterAcceptGoodEvent(t *testing.T) {
 	main, mt, _ := setupTestMainTask(t)
+	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1007))
 
 	main.PublishRoleEvent(event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{
-		Changes: []event.GoodChange{{GoodID: GOLD_ITEM_ID, PreNum: 0, Num: 1, AddNum: 1}},
+		Changes: []event.GoodChange{{GoodID: 10001, PreNum: 0, Num: 2, AddNum: 2}},
 	})
 
-	if mt.Progress != 1 {
-		t.Fatalf("expected progress 1, got %d", mt.Progress)
+	if mt.Progress != 2 {
+		t.Fatalf("expected progress 2, got %d", mt.Progress)
 	}
 	if mt.Status != int32(pb.MainTaskStatus_MAIN_TASK_CLAIMABLE) {
 		t.Fatalf("expected claimable, got %d", mt.Status)
@@ -139,17 +143,21 @@ func TestMainTaskClaimAdvancesAndNotifiesNextTask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rsp.Task.TaskId != 1002 {
-		t.Fatalf("expected next task 1002, got %d", rsp.Task.TaskId)
+	if rsp.Task.TaskId != 1003 {
+		t.Fatalf("expected claimed task 1003, got %d", rsp.Task.TaskId)
 	}
-	if rsp.Task.Progress != 0 || rsp.Task.Status != pb.MainTaskStatus_MAIN_TASK_IN_PROGRESS {
+	if rsp.Task.Progress != 1 || rsp.Task.Status != pb.MainTaskStatus_MAIN_TASK_FINISHED {
 		t.Fatalf("unexpected task state: %v", rsp.Task)
 	}
 	if len(*sent) == 0 {
 		t.Fatal("expected task update notification")
 	}
-	if _, ok := (*sent)[len(*sent)-1].(*pb.NotifyMainTaskUpdate); !ok {
+	notify, ok := (*sent)[len(*sent)-1].(*pb.NotifyMainTaskUpdate)
+	if !ok {
 		t.Fatalf("expected NotifyMainTaskUpdate, got %T", (*sent)[len(*sent)-1])
+	}
+	if notify.Task.TaskId != 1004 || notify.Task.Status != pb.MainTaskStatus_MAIN_TASK_IN_PROGRESS {
+		t.Fatalf("expected notify next task 1004 in progress, got %v", notify.Task)
 	}
 }
 
