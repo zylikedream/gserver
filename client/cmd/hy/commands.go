@@ -216,6 +216,22 @@ func init() {
 		},
 	})
 
+	// --- maintask ---
+	register(&Command{
+		Name: "maintask.info",
+		Help: "Get main task info",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqMainTaskInfo{})
+		},
+	})
+	register(&Command{
+		Name: "maintask.claim",
+		Help: "Claim main task reward",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqClaimMainTask{})
+		},
+	})
+
 	// --- gm ---
 	register(&Command{
 		Name:   "gm.cmd",

@@ -21,6 +21,8 @@ func TestRegistryRegistersAllMessages(t *testing.T) {
 		{"21001", "ReqBagInfo"},
 		{"22001", "ReqGMCommand"},
 		{"23001", "ReqFlowerInfo"},
+		{"25001", "ReqMainTaskInfo"},
+		{"25003", "ReqClaimMainTask"},
 	}
 
 	for _, tc := range testCases {
