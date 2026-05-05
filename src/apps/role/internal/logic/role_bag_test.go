@@ -8,6 +8,7 @@ import (
 
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
+	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
 
 	proto "google.golang.org/protobuf/proto"
@@ -524,6 +525,13 @@ func TestBagSaveGoods_DefaultOpts(t *testing.T) {
 func TestBagSaveGoods_NotifyRewardOpts(t *testing.T) {
 	b := setupTestBag(t)
 	ctx := context.Background()
+	var sent []proto.Message
+	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
+		func(_ *RoleMain, _ context.Context, msg proto.Message) {
+			sent = append(sent, msg)
+		},
+	)
+	defer patch.Reset()
 
 	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptNotifyReward())
 	if err != nil {
@@ -531,5 +539,22 @@ func TestBagSaveGoods_NotifyRewardOpts(t *testing.T) {
 	}
 	if b.Goods[1001].Num != 10 {
 		t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
+	}
+	var gotReward bool
+	for _, msg := range sent {
+		reward, ok := msg.(*pb.NotifyBagReward)
+		if !ok {
+			continue
+		}
+		gotReward = true
+		if len(reward.Goods) != 1 {
+			t.Fatalf("expected 1 reward good, got %d", len(reward.Goods))
+		}
+		if reward.Goods[0].PropId != 1001 || reward.Goods[0].Num != 10 {
+			t.Fatalf("unexpected reward payload: %v", reward.Goods[0])
+		}
+	}
+	if !gotReward {
+		t.Fatal("expected NotifyBagReward")
 	}
 }

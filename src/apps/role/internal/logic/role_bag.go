@@ -230,12 +230,33 @@ func (r *RoleBag) onBagChange(ctx context.Context, ops []bag.GoodOp, reason stri
 	}
 
 	r.notifyBagUpdate(ctx, updates, opts)
+	r.notifyBagReward(ctx, updates, opts)
 	r.onGoodUpdateEvent(ctx, updates)
 }
 
 // 通知客户端背包变更
 func (r *RoleBag) notifyBagUpdate(ctx context.Context, updates map[int]bag.GoodUpdate, opts bag.SaveGoodsOpts) {
 	r.notifyGoodUpdate(ctx, updates, opts)
+}
+
+func (r *RoleBag) notifyBagReward(ctx context.Context, updates map[int]bag.GoodUpdate, opts bag.SaveGoodsOpts) {
+	if !opts.NotifyReward || len(updates) == 0 {
+		return
+	}
+	msg := &pb.NotifyBagReward{Goods: make([]*pb.PGoodInfo, 0, len(updates))}
+	for _, update := range updates {
+		if update.AddNum == 0 {
+			continue
+		}
+		msg.Goods = append(msg.Goods, &pb.PGoodInfo{
+			PropId: int32(update.GoodID),
+			Num:    int64(update.AddNum),
+		})
+	}
+	if len(msg.Goods) == 0 {
+		return
+	}
+	r.Role.SendClient(ctx, msg)
 }
 
 func (r *RoleBag) notifyGoodUpdate(ctx context.Context, updates map[int]bag.GoodUpdate, opts bag.SaveGoodsOpts) {

@@ -7,6 +7,7 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"gserver/src/apps/role/internal/logic/bag"
 
 	"github.com/pkg/errors"
 )
@@ -75,7 +76,7 @@ func (r *RoleMainTask) ReqClaimMainTask(ctx context.Context, req *pb.ReqClaimMai
 		return nil, ErrMainTaskNotClaimable
 	}
 	if len(cfg.Reward) > 0 {
-		if err := r.Role.Bag.SaveGoods(ctx, nil, cfg.Reward, "main_task"); err != nil {
+		if err := r.Role.Bag.SaveGoods(ctx, nil, cfg.Reward, "main_task", bag.OptNotifyReward()); err != nil {
 			return nil, err
 		}
 	}

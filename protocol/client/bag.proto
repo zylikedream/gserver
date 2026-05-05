@@ -24,6 +24,11 @@ message NotifyBagUpdate{
     repeated PBagGoodUpdate goods = 1;
 }
 
+message NotifyBagReward{
+    option (msg_id) = 21004;
+    repeated PGoodInfo goods = 1;
+}
+
 message PBagGoodUpdate{
     int32 prop_id = 1;
     int64 pre_num = 2;
