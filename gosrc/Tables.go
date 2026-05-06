@@ -24,6 +24,7 @@ type Tables struct {
     TbResidentOrder *GardenTbResidentOrder
     TbResidentOrderProgressReward *GardenTbResidentOrderProgressReward
     TbItemTag *GardenTbItemTag
+    TbFriendConfig *GardenTbFriendConfig
     TbGlobalConfig *GardenTbGlobalConfig
 }
 
@@ -102,6 +103,12 @@ func NewTables(loader JsonLoader) (*Tables, error) {
         return nil, err
     }
     if tables.TbItemTag, err = NewGardenTbItemTag(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbfriendconfig") ; err != nil {
+        return nil, err
+    }
+    if tables.TbFriendConfig, err = NewGardenTbFriendConfig(buf) ; err != nil {
         return nil, err
     }
     if buf, err = loader("garden_tbglobalconfig") ; err != nil {
