@@ -21,6 +21,9 @@ type RolePublicState struct {
 	Name       string    `gorm:"column:name"`
 	Head       string    `gorm:"column:head"`
 	CreateTime time.Time `gorm:"column:create_time"`
+	Level      int32     `gorm:"column:level"`
+	LastLoginAt time.Time `gorm:"column:last_login_at"`
+	IsOnline    bool      `gorm:"column:is_online"`
 }
 
 func (RolePublicState) TableName() string { return "role_public" }
@@ -43,6 +46,8 @@ func (r *RolePublic) UpdateRolePublic(ctx context.Context) {
 	r.Name = role.Basic.RoleName
 	r.Head = role.Basic.Head
 	r.CreateTime = role.Basic.CreateTm
+	r.Level = role.Basic.Level
+	r.LastLoginAt = role.Basic.LoginTm
 	r.MarkDirty()
 }
 
@@ -56,6 +61,9 @@ func GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
 		Name:       rolePublic.Name,
 		Head:       rolePublic.Head,
 		CreateTime: rolePublic.CreateTime.Unix(),
+		Level:      rolePublic.Level,
+		LastLoginAt: rolePublic.LastLoginAt.Unix(),
+		IsOnline:   rolePublic.IsOnline,
 	}
 }
 
