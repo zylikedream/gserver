@@ -88,6 +88,13 @@ func (r *RolePlot) OnModInit(ctx context.Context) error {
 	return nil
 }
 
+// ========== 持久化 ==========
+
+func (r *RolePlot) forceSave(ctx context.Context) error {
+	r.MarkDirty()
+	return r.Role.saveRoleModule(ctx, r)
+}
+
 // ========== 公开方法 ==========
 
 func (r *RolePlot) UnlockPlot(plotID int32) {
@@ -153,6 +160,9 @@ func (r *RolePlot) ReqUnlockPlot(ctx context.Context, req *pb.ReqUnlockPlot) (*p
 	}
 
 	r.UnlockPlot(plotID)
+	if err := r.forceSave(ctx); err != nil {
+		return nil, err
+	}
 	r.Role.PublishRoleEvent(event.EVENT_UNLOCK_PLOT, event.UnlockPlotEventData{PlotID: plotID})
 
 	return &pb.RspUnlockPlot{Plot: pPlotInfo(r.Plots[plotID])}, nil
@@ -189,7 +199,9 @@ func (r *RolePlot) ReqPlantFlower(ctx context.Context, req *pb.ReqPlantFlower) (
 		plot.FlowerID = flowerID
 		plot.State = int32(pb.PlotState_PLOT_PLANTED)
 	}
-	r.MarkDirty()
+	if err := r.forceSave(ctx); err != nil {
+		return nil, err
+	}
 	r.Role.PublishRoleEvent(event.EVENT_PLANT_FLOWER, event.PlantFlowerEventData{
 		FlowerID: flowerID,
 		PlotIDs:  append([]int32(nil), req.PlotIds...),
@@ -239,7 +251,9 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 		plot.State = int32(pb.PlotState_PLOT_GROWING)
 		plot.StateTime = now.Add(time.Duration(flowerCfg.GrowTime) * time.Second)
 	}
-	r.MarkDirty()
+	if err := r.forceSave(ctx); err != nil {
+		return nil, err
+	}
 	r.Role.PublishRoleEvent(event.EVENT_WATER_FLOWER, event.WaterFlowerEventData{
 		PlotIDs: append([]int32(nil), req.PlotIds...),
 	})
@@ -357,7 +371,9 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 			plot.StateTime = now.Add(time.Duration(finalInterval) * time.Second)
 		}
 	}
-	r.MarkDirty()
+	if err := r.forceSave(ctx); err != nil {
+		return nil, err
+	}
 	r.Role.PublishRoleEvent(event.EVENT_HARVEST_FLOWER, event.HarvestFlowerEventData{
 		Items:   append([]*gamecfg.GardenGoodStack(nil), harvestItems...),
 		Flowers: harvestFlowers,
@@ -393,7 +409,9 @@ func (r *RolePlot) ReqRemovePlant(ctx context.Context, req *pb.ReqRemovePlant) (
 		plot.HarvestCount = 0
 		plot.StateTime = time.Time{}
 	}
-	r.MarkDirty()
+	if err := r.forceSave(ctx); err != nil {
+		return nil, err
+	}
 
 	rsp := &pb.RspRemovePlant{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {
