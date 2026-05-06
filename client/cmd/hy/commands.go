@@ -285,47 +285,59 @@ func init() {
 	})
 	register(&Command{
 		Name:   "friend.send_request",
-		Help:   "Send friend request to a player",
-		Params: []string{"target_id"},
+		Help:   "Send friend request to player(s)",
+		Params: []string{"target_id..."},
 		Exec: func(c *client.Client, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.send_request <target_id>")
+				return fmt.Errorf("usage: friend.send_request <target_id...>")
 			}
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid target_id: %v", err)
+			ids := make([]int64, 0, len(args))
+			for _, a := range args {
+				id, err := strconv.ParseInt(a, 10, 64)
+				if err != nil {
+					return fmt.Errorf("invalid target_id %q: %v", a, err)
+				}
+				ids = append(ids, id)
 			}
-			return c.Request(&pb.ReqSendRequest{TargetId: id})
+			return c.Request(&pb.ReqSendRequest{TargetIds: ids})
 		},
 	})
 	register(&Command{
 		Name:   "friend.accept",
-		Help:   "Accept a friend request",
-		Params: []string{"from_id"},
+		Help:   "Accept friend request(s)",
+		Params: []string{"from_id..."},
 		Exec: func(c *client.Client, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.accept <from_id>")
+				return fmt.Errorf("usage: friend.accept <from_id...>")
 			}
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid from_id: %v", err)
+			ids := make([]int64, 0, len(args))
+			for _, a := range args {
+				id, err := strconv.ParseInt(a, 10, 64)
+				if err != nil {
+					return fmt.Errorf("invalid from_id %q: %v", a, err)
+				}
+				ids = append(ids, id)
 			}
-			return c.Request(&pb.ReqAcceptRequest{FromId: id})
+			return c.Request(&pb.ReqAcceptRequest{FromIds: ids})
 		},
 	})
 	register(&Command{
 		Name:   "friend.reject",
-		Help:   "Reject a friend request",
-		Params: []string{"from_id"},
+		Help:   "Reject friend request(s)",
+		Params: []string{"from_id..."},
 		Exec: func(c *client.Client, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.reject <from_id>")
+				return fmt.Errorf("usage: friend.reject <from_id...>")
 			}
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid from_id: %v", err)
+			ids := make([]int64, 0, len(args))
+			for _, a := range args {
+				id, err := strconv.ParseInt(a, 10, 64)
+				if err != nil {
+					return fmt.Errorf("invalid from_id %q: %v", a, err)
+				}
+				ids = append(ids, id)
 			}
-			return c.Request(&pb.ReqRejectRequest{FromId: id})
+			return c.Request(&pb.ReqRejectRequest{FromIds: ids})
 		},
 	})
 	register(&Command{
