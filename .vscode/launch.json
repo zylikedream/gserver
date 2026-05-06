@@ -21,7 +21,8 @@
             "args": [
                 "-config game.toml"
             ],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
         },
         {
             "name": "Run gate",
@@ -32,7 +33,8 @@
             "args": [
                 "-config gate.toml"
             ],
-            "cwd": "${workspaceFolder}"
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
         },
         {
             "name": "Launch Package",
