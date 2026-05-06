@@ -4,6 +4,7 @@ option go_package="./pb;pb";
 package galaxy.protocol;
 
 import "msg_options.proto";
+import "bag.proto";
 
 enum FlowerState {
     FLOWER_UNLOCKED   = 0;
@@ -82,6 +83,7 @@ message PPlotInfo {
     PlotState state     = 3;
     int32 harvest_count = 4;
     int64 state_time    = 5;
+    bool can_steal      = 6;
 }
 
 message ReqPlotInfo {
@@ -142,4 +144,28 @@ message ReqRemovePlant {
 message RspRemovePlant {
     option (msg_id) = 24012;
     repeated PPlotInfo plots = 1;
+}
+
+// 查看好友花园 (24013)
+message ReqFriendPlotInfo {
+    option (msg_id) = 24013;
+    int64 friend_id = 1;
+}
+message RspFriendPlotInfo {
+    option (msg_id) = 24014;
+    repeated PPlotInfo plots = 1;
+    int32 steal_used  = 2;
+    int32 steal_limit = 3;
+}
+
+// 偷花 (24015)
+message ReqStealFlower {
+    option (msg_id) = 24015;
+    int64 friend_id = 1;
+    int32 plot_id   = 2;
+}
+message RspStealFlower {
+    option (msg_id) = 24016;
+    bool              success = 1;
+    repeated PGoodInfo rewards = 2;
 }
