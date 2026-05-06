@@ -54,15 +54,6 @@ func lockBoth(tx *gorm.DB, a, b int64) (first, second *FriendData, err error) {
 	return
 }
 
-func removeFromSlice(s Int64List, id int64) Int64List {
-	for i, v := range s {
-		if v == id {
-			return append(s[:i], s[i+1:]...)
-		}
-	}
-	return s
-}
-
 // SendRequest 发起好友申请
 func SendRequest(ctx context.Context, fromID, toID int64, cfg *Config) error {
 	if fromID == toID {
@@ -103,8 +94,8 @@ func SendRequest(ctx context.Context, fromID, toID int64, cfg *Config) error {
 		return errors.New("对方申请列表已满")
 	}
 
-	me.Outgoing = append(me.Outgoing, toID)
-	target.Incoming = append(target.Incoming, fromID)
+	me.Outgoing = append(me.Outgoing, ApplyEntry{PlayerID: toID, ApplyAt: now})
+	target.Incoming = append(target.Incoming, ApplyEntry{PlayerID: fromID, ApplyAt: now})
 
 	if err := saveRow(tx, me); err != nil {
 		return err
@@ -140,11 +131,12 @@ func AcceptRequest(ctx context.Context, myID, fromID int64, cfg *Config) error {
 		return errors.New("对方好友数量已达上限")
 	}
 
-	me.Friends = append(me.Friends, fromID)
-	other.Friends = append(other.Friends, myID)
+	now := time.Now().Unix()
+	me.Friends = append(me.Friends, FriendEntry{PlayerID: fromID, AddedAt: now})
+	other.Friends = append(other.Friends, FriendEntry{PlayerID: myID, AddedAt: now})
 
-	me.Incoming = removeFromSlice(me.Incoming, fromID)
-	other.Outgoing = removeFromSlice(other.Outgoing, myID)
+	me.Incoming = me.Incoming.Remove(fromID)
+	other.Outgoing = other.Outgoing.Remove(myID)
 
 	if err := saveRow(tx, me); err != nil {
 		return err
@@ -174,8 +166,8 @@ func RejectRequest(ctx context.Context, myID, fromID int64) error {
 		return ErrApplyNotFound
 	}
 
-	me.Incoming = removeFromSlice(me.Incoming, fromID)
-	other.Outgoing = removeFromSlice(other.Outgoing, myID)
+	me.Incoming = me.Incoming.Remove(fromID)
+	other.Outgoing = other.Outgoing.Remove(myID)
 
 	if err := saveRow(tx, me); err != nil {
 		return err
@@ -201,8 +193,8 @@ func RemoveFriend(ctx context.Context, myID, targetID int64, cfg *Config) error 
 	}
 	me, other := a, b
 
-	me.Friends = removeFromSlice(me.Friends, targetID)
-	other.Friends = removeFromSlice(other.Friends, myID)
+	me.Friends = me.Friends.Remove(targetID)
+	other.Friends = other.Friends.Remove(myID)
 
 	cdUntil := time.Now().Unix() + int64(cfg.DeleteReapplyCD)
 	me.Cooldowns = append(me.Cooldowns, CooldownEntry{TargetID: targetID, Until: cdUntil})

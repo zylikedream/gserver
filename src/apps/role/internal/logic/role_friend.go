@@ -3,11 +3,15 @@ package logic
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
+	"gserver/src/lib"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
@@ -17,17 +21,47 @@ import (
 // ---- write operations (call friend service via HTTP) ----
 
 func (r *RoleMain) ReqSendRequest(ctx context.Context, req *pb.ReqSendRequest) (*pb.RspSendRequest, error) {
-	err := callFriendWrite(ctx, "send_request", r.RoleID, req.TargetId)
-	return &pb.RspSendRequest{}, err
+	successIDs, err := callFriendBatch(ctx, "send_request", r.RoleID, req.TargetIds)
+	if err != nil {
+		return &pb.RspSendRequest{}, err
+	}
+	rsp := &pb.RspSendRequest{}
+	for _, id := range successIDs {
+		public := GetRolePublic(ctx, id)
+		if public == nil {
+			continue
+		}
+		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
+		r.notifyPlayer(ctx, id, &pb.NotifyNewRequest{
+			ApplyInfo: &pb.PApplyInfo{
+				PlayerInfo: GetRolePublic(ctx, r.RoleID),
+			},
+		})
+	}
+	return rsp, nil
 }
 
 func (r *RoleMain) ReqAcceptRequest(ctx context.Context, req *pb.ReqAcceptRequest) (*pb.RspAcceptRequest, error) {
-	err := callFriendWrite(ctx, "accept_request", r.RoleID, req.FromId)
-	return &pb.RspAcceptRequest{}, err
+	successIDs, err := callFriendBatch(ctx, "accept_request", r.RoleID, req.FromIds)
+	if err != nil {
+		return &pb.RspAcceptRequest{}, err
+	}
+	rsp := &pb.RspAcceptRequest{}
+	for _, id := range successIDs {
+		public := GetRolePublic(ctx, id)
+		if public == nil {
+			continue
+		}
+		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
+		r.notifyPlayer(ctx, id, &pb.NotifyNewFriend{
+			FriendInfo: &pb.PFriendInfo{PlayerInfo: GetRolePublic(ctx, r.RoleID)},
+		})
+	}
+	return rsp, nil
 }
 
 func (r *RoleMain) ReqRejectRequest(ctx context.Context, req *pb.ReqRejectRequest) (*pb.RspRejectRequest, error) {
-	err := callFriendWrite(ctx, "reject_request", r.RoleID, req.FromId)
+	_, err := callFriendBatch(ctx, "reject_request", r.RoleID, req.FromIds)
 	return &pb.RspRejectRequest{}, err
 }
 
@@ -50,13 +84,14 @@ func (r *RoleMain) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (*p
 		Limit: cfg.FriendMaxCount,
 		Total: int32(len(friendIDs)),
 	}
-	for _, friendID := range friendIDs {
-		public := GetRolePublic(ctx, friendID)
+	for _, f := range friendIDs {
+		public := GetRolePublic(ctx, f.PlayerID)
 		if public == nil {
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{
-			PlayerInfo: public,
+			PlayerInfo:  public,
+			FriendSince: f.AddedAt,
 		})
 	}
 	return rsp, nil
@@ -69,23 +104,25 @@ func (r *RoleMain) ReqApplyList(ctx context.Context, req *pb.ReqApplyList) (*pb.
 	}
 
 	rsp := &pb.RspApplyList{}
-	for _, fromID := range data.Incoming {
-		public := GetRolePublic(ctx, fromID)
+	for _, a := range data.Incoming {
+		public := GetRolePublic(ctx, a.PlayerID)
 		if public == nil {
 			continue
 		}
 		rsp.Incoming = append(rsp.Incoming, &pb.PApplyInfo{
 			PlayerInfo: public,
+			ApplyAt:    a.ApplyAt,
 			Status:     0,
 		})
 	}
-	for _, toID := range data.Outgoing {
-		public := GetRolePublic(ctx, toID)
+	for _, a := range data.Outgoing {
+		public := GetRolePublic(ctx, a.PlayerID)
 		if public == nil {
 			continue
 		}
 		rsp.Outgoing = append(rsp.Outgoing, &pb.PApplyInfo{
 			PlayerInfo: public,
+			ApplyAt:    a.ApplyAt,
 			Status:     0,
 		})
 	}
@@ -126,17 +163,57 @@ func (r *RoleMain) ReqSearchPlayer(ctx context.Context, req *pb.ReqSearchPlayer)
 
 // ---- HTTP helpers ----
 
+type friendEntryJSON struct {
+	PlayerID int64 `json:"player_id"`
+	AddedAt  int64 `json:"added_at"`
+}
+
+type applyEntryJSON struct {
+	PlayerID int64 `json:"player_id"`
+	ApplyAt  int64 `json:"apply_at"`
+}
+
 type friendDataJSON struct {
-	PlayerID int64   `json:"player_id"`
-	Friends  []int64 `json:"friends"`
-	Incoming []int64 `json:"incoming"`
-	Outgoing []int64 `json:"outgoing"`
+	PlayerID int64             `json:"player_id"`
+	Friends  []friendEntryJSON `json:"friends"`
+	Incoming []applyEntryJSON  `json:"incoming"`
+	Outgoing []applyEntryJSON  `json:"outgoing"`
 }
 
 func callFriendWrite(ctx context.Context, path string, a, b int64) error {
 	_, err := gxyhttp.HttpSystem().PostService(ctx, "friend",
 		fmt.Sprintf("%s?a=%d&b=%d", path, a, b))
 	return err
+}
+
+func callFriendBatch(ctx context.Context, path string, a int64, ids []int64) ([]int64, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	strs := make([]string, len(ids))
+	for i, id := range ids {
+		strs[i] = fmt.Sprintf("%d", id)
+	}
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "friend",
+		fmt.Sprintf("%s?a=%d&bs=%s", path, a, strings.Join(strs, ",")))
+	if err != nil {
+		return nil, err
+	}
+
+	var items []struct {
+		TargetID int64 `json:"target_id"`
+		Success  bool  `json:"success"`
+	}
+	if err := gconv.Scan(rsp.Data, &items); err != nil {
+		return nil, gerror.Wrap(err, "parse batch result failed")
+	}
+	var successIDs []int64
+	for _, item := range items {
+		if item.Success {
+			successIDs = append(successIDs, item.TargetID)
+		}
+	}
+	return successIDs, nil
 }
 
 func callFriendData(ctx context.Context, playerID int64) (*friendDataJSON, error) {
@@ -152,12 +229,36 @@ func callFriendData(ctx context.Context, playerID int64) (*friendDataJSON, error
 	return &fd, nil
 }
 
-func callFriendList(ctx context.Context, playerID int64) ([]int64, error) {
+func callFriendList(ctx context.Context, playerID int64) ([]friendEntryJSON, error) {
 	fd, err := callFriendData(ctx, playerID)
 	if err != nil {
 		return nil, err
 	}
 	return fd.Friends, nil
+}
+
+// ---- cross-actor notification ----
+
+func (r *RoleMain) notifyPlayer(ctx context.Context, targetID int64, msg proto.Message) {
+	pid, err := lib.GetRoleActor(targetID, false)
+	if err != nil {
+		glog.Warningf(ctx, "notifyPlayer: get actor failed, target=%d, err=%v", targetID, err)
+		return
+	}
+	if pid == nil {
+		return
+	}
+	r.Send(pid, msg)
+}
+
+func (r *RoleMain) NotifyNewRequest(ctx context.Context, msg *pb.NotifyNewRequest) error {
+	r.SendClient(ctx, msg)
+	return nil
+}
+
+func (r *RoleMain) NotifyNewFriend(ctx context.Context, msg *pb.NotifyNewFriend) error {
+	r.SendClient(ctx, msg)
+	return nil
 }
 
 // ---- relation check ----
@@ -175,13 +276,13 @@ func getRelation(ctx context.Context, myID, targetID int64) (relation, error) {
 	if err != nil {
 		return relationStranger, nil
 	}
-	for _, id := range fd.Friends {
-		if id == targetID {
+	for _, f := range fd.Friends {
+		if f.PlayerID == targetID {
 			return relationFriend, nil
 		}
 	}
-	for _, id := range fd.Outgoing {
-		if id == targetID {
+	for _, a := range fd.Outgoing {
+		if a.PlayerID == targetID {
 			return relationApplied, nil
 		}
 	}

@@ -23,25 +23,27 @@ message PPlayerInfo {
 // 发送申请 (27003)
 message ReqSendRequest {
     option (msg_id) = 27003;
-    int64 target_id = 1;
+    repeated int64 target_ids = 1;
 }
 message RspSendRequest {
     option (msg_id) = 27004;
+    repeated PFriendInfo friends = 1;
 }
 
 // 同意申请 (27005)
 message ReqAcceptRequest {
     option (msg_id) = 27005;
-    int64 from_id = 1;
+    repeated int64 from_ids = 1;
 }
 message RspAcceptRequest {
     option (msg_id) = 27006;
+    repeated PFriendInfo friends = 1;
 }
 
 // 拒绝申请 (27007)
 message ReqRejectRequest {
     option (msg_id) = 27007;
-    int64 from_id = 1;
+    repeated int64 from_ids = 1;
 }
 message RspRejectRequest {
     option (msg_id) = 27008;
@@ -84,4 +86,16 @@ message ReqRemoveFriend {
 }
 message RspRemoveFriend {
     option (msg_id) = 27014;
+}
+
+// 通知：收到新的好友申请 (27015)
+message NotifyNewRequest {
+    option (msg_id) = 27015;
+    PApplyInfo apply_info = 1;
+}
+
+// 通知：新增好友 (27016)
+message NotifyNewFriend {
+    option (msg_id) = 27016;
+    PFriendInfo friend_info = 1;
 }

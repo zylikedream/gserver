@@ -16,37 +16,40 @@ type FriendHandler struct {
 
 type SendRequestReq struct {
 	g.Meta `path:"/send_request"`
-	A int64 `p:"a"`
-	B int64 `p:"b"`
+	A  int64   `p:"a"`
+	Bs []int64 `p:"bs"`
 }
 
 func (h *FriendHandler) SendRequest(ctx context.Context, req *SendRequestReq) (any, error) {
 	cfg := LoadConfig()
-	err := SendRequest(ctx, req.A, req.B, cfg)
-	return nil, mapErr(err)
+	return batchResult(req.Bs, func(id int64) error {
+		return SendRequest(ctx, req.A, id, cfg)
+	})
 }
 
 type AcceptRequestReq struct {
 	g.Meta `path:"/accept_request"`
-	A int64 `p:"a"`
-	B int64 `p:"b"`
+	A  int64   `p:"a"`
+	Bs []int64 `p:"bs"`
 }
 
 func (h *FriendHandler) AcceptRequest(ctx context.Context, req *AcceptRequestReq) (any, error) {
 	cfg := LoadConfig()
-	err := AcceptRequest(ctx, req.A, req.B, cfg)
-	return nil, mapErr(err)
+	return batchResult(req.Bs, func(id int64) error {
+		return AcceptRequest(ctx, req.A, id, cfg)
+	})
 }
 
 type RejectRequestReq struct {
 	g.Meta `path:"/reject_request"`
-	A int64 `p:"a"`
-	B int64 `p:"b"`
+	A  int64   `p:"a"`
+	Bs []int64 `p:"bs"`
 }
 
 func (h *FriendHandler) RejectRequest(ctx context.Context, req *RejectRequestReq) (any, error) {
-	err := RejectRequest(ctx, req.A, req.B)
-	return nil, mapErr(err)
+	return batchResult(req.Bs, func(id int64) error {
+		return RejectRequest(ctx, req.A, id)
+	})
 }
 
 type RemoveFriendReq struct {
@@ -80,4 +83,23 @@ func mapErr(err error) error {
 		return nil
 	}
 	return gxyhttp.NewErrCode(1, err.Error())
+}
+
+type batchItem struct {
+	TargetID int64  `json:"target_id"`
+	Success  bool   `json:"success"`
+	Error    string `json:"error,omitempty"`
+}
+
+func batchResult(ids []int64, fn func(int64) error) (any, error) {
+	items := make([]batchItem, 0, len(ids))
+	for _, id := range ids {
+		err := fn(id)
+		item := batchItem{TargetID: id, Success: err == nil}
+		if err != nil {
+			item.Error = err.Error()
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }

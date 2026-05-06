@@ -10,17 +10,68 @@ import (
 	"gorm.io/gorm"
 )
 
-// Int64List JSONB 支持的 int64 切片
-type Int64List []int64
+// FriendEntry 好友记录
+type FriendEntry struct {
+	PlayerID int64 `json:"player_id"`
+	AddedAt  int64 `json:"added_at"` // unix 时间戳
+}
 
-func (l Int64List) Value() (driver.Value, error)  { return json.Marshal(l) }
-func (l *Int64List) Scan(val interface{}) error {
-	if val == nil { return nil }
+type FriendList []FriendEntry
+
+func (l FriendList) Value() (driver.Value, error)  { return json.Marshal(l) }
+func (l *FriendList) Scan(val interface{}) error {
+	if val == nil {
+		return nil
+	}
 	return json.Unmarshal(val.([]byte), l)
 }
-func (l Int64List) Has(id int64) bool {
-	for _, v := range l { if v == id { return true } }
+func (l FriendList) Has(id int64) bool {
+	for _, v := range l {
+		if v.PlayerID == id {
+			return true
+		}
+	}
 	return false
+}
+func (l FriendList) Remove(id int64) FriendList {
+	for i, v := range l {
+		if v.PlayerID == id {
+			return append(l[:i], l[i+1:]...)
+		}
+	}
+	return l
+}
+
+// ApplyEntry 申请记录
+type ApplyEntry struct {
+	PlayerID int64 `json:"player_id"`
+	ApplyAt  int64 `json:"apply_at"` // unix 时间戳
+}
+
+type ApplyList []ApplyEntry
+
+func (l ApplyList) Value() (driver.Value, error)  { return json.Marshal(l) }
+func (l *ApplyList) Scan(val interface{}) error {
+	if val == nil {
+		return nil
+	}
+	return json.Unmarshal(val.([]byte), l)
+}
+func (l ApplyList) Has(id int64) bool {
+	for _, v := range l {
+		if v.PlayerID == id {
+			return true
+		}
+	}
+	return false
+}
+func (l ApplyList) Remove(id int64) ApplyList {
+	for i, v := range l {
+		if v.PlayerID == id {
+			return append(l[:i], l[i+1:]...)
+		}
+	}
+	return l
 }
 
 // CooldownEntry 冷却记录
@@ -29,7 +80,6 @@ type CooldownEntry struct {
 	Until    int64 `json:"until"` // unix 时间戳
 }
 
-// CooldownList JSONB 支持的冷却列表
 type CooldownList []CooldownEntry
 
 func (l CooldownList) Value() (driver.Value, error)  { return json.Marshal(l) }
@@ -41,9 +91,9 @@ func (l *CooldownList) Scan(val interface{}) error {
 // FriendData 单行全量玩家好友数据
 type FriendData struct {
 	PlayerID  int64         `gorm:"column:player_id;primaryKey"`
-	Friends   Int64List     `gorm:"column:friends;type:jsonb;default:'[]'"`
-	Incoming  Int64List     `gorm:"column:incoming;type:jsonb;default:'[]'"`  // 收到谁的申请（未处理）
-	Outgoing  Int64List     `gorm:"column:outgoing;type:jsonb;default:'[]'"`  // 向谁发过申请（未处理）
+	Friends   FriendList    `gorm:"column:friends;type:jsonb;default:'[]'"`
+	Incoming  ApplyList     `gorm:"column:incoming;type:jsonb;default:'[]'"`  // 收到谁的申请（未处理）
+	Outgoing  ApplyList     `gorm:"column:outgoing;type:jsonb;default:'[]'"`  // 向谁发过申请（未处理）
 	Cooldowns CooldownList  `gorm:"column:cooldowns;type:jsonb;default:'[]'"`
 	UpdateAt  time.Time     `gorm:"column:update_at;autoUpdateTime"`
 }
