@@ -1,0 +1,11 @@
+[
+  {
+    "unlock_level": 6,
+    "friend_max_count": 50,
+    "apply_send_limit": 30,
+    "apply_receive_limit": 50,
+    "apply_expire_seconds": 604800,
+    "delete_reapply_cd_seconds": 86400,
+    "search_result_limit": 20
+  }
+]
