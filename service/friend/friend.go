@@ -155,6 +155,37 @@ func AcceptRequest(ctx context.Context, myID, fromID int64, cfg *Config) error {
 	return tx.Commit().Error
 }
 
+// RejectRequest 拒绝好友申请
+func RejectRequest(ctx context.Context, myID, fromID int64) error {
+	tx := openTx(ctx)
+	defer tx.Rollback()
+
+	a, b, err := lockBoth(tx, myID, fromID)
+	if err != nil {
+		return err
+	}
+
+	if a.PlayerID != myID {
+		a, b = b, a
+	}
+	me, other := a, b
+
+	if !me.Incoming.Has(fromID) {
+		return ErrApplyNotFound
+	}
+
+	me.Incoming = removeFromSlice(me.Incoming, fromID)
+	other.Outgoing = removeFromSlice(other.Outgoing, myID)
+
+	if err := saveRow(tx, me); err != nil {
+		return err
+	}
+	if err := saveRow(tx, other); err != nil {
+		return err
+	}
+	return tx.Commit().Error
+}
+
 // RemoveFriend 删除好友
 func RemoveFriend(ctx context.Context, myID, targetID int64, cfg *Config) error {
 	tx := openTx(ctx)
