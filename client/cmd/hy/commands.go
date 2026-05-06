@@ -271,6 +271,93 @@ func init() {
 		},
 	})
 
+	// --- friend ---
+	register(&Command{
+		Name:   "friend.search",
+		Help:   "Search players by name",
+		Params: []string{"name"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: friend.search <name>")
+			}
+			return c.Request(&pb.ReqSearchPlayer{Name: args[0]})
+		},
+	})
+	register(&Command{
+		Name:   "friend.send_request",
+		Help:   "Send friend request to a player",
+		Params: []string{"target_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: friend.send_request <target_id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid target_id: %v", err)
+			}
+			return c.Request(&pb.ReqSendRequest{TargetId: id})
+		},
+	})
+	register(&Command{
+		Name:   "friend.accept",
+		Help:   "Accept a friend request",
+		Params: []string{"from_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: friend.accept <from_id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid from_id: %v", err)
+			}
+			return c.Request(&pb.ReqAcceptRequest{FromId: id})
+		},
+	})
+	register(&Command{
+		Name:   "friend.reject",
+		Help:   "Reject a friend request",
+		Params: []string{"from_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: friend.reject <from_id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid from_id: %v", err)
+			}
+			return c.Request(&pb.ReqRejectRequest{FromId: id})
+		},
+	})
+	register(&Command{
+		Name: "friend.list",
+		Help: "Get friend list",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqFriendList{})
+		},
+	})
+	register(&Command{
+		Name: "friend.apply_list",
+		Help: "Get friend apply list",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqApplyList{})
+		},
+	})
+	register(&Command{
+		Name:   "friend.remove",
+		Help:   "Remove a friend",
+		Params: []string{"target_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: friend.remove <target_id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid target_id: %v", err)
+			}
+			return c.Request(&pb.ReqRemoveFriend{TargetId: id})
+		},
+	})
+
 	// --- gm ---
 	register(&Command{
 		Name:   "gm.cmd",
