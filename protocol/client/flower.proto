@@ -167,6 +167,5 @@ message ReqStealFlower {
 message RspStealFlower {
     option (msg_id) = 24016;
     bool              success = 1;
-    string            error   = 2;
-    repeated PGoodInfo rewards = 3;
+    repeated PGoodInfo rewards = 2;
 }

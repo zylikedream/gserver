@@ -69,6 +69,7 @@ type roleModules struct {
 	Extra         *RoleExtra
 	Flower        *RoleFlower
 	Plot          *RolePlot
+	Steal         *RoleSteal
 	MainTask      *RoleMainTask
 	ResidentOrder *RoleResidentOrder
 	GM            *RoleGM
@@ -302,6 +303,66 @@ func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo)
 func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
 }
 
+func (r *RoleMain) saveRoleModule(ctx context.Context, rmod IRoleModule) error {
+	modState := rmod.PersistState()
+	if modState == nil {
+		return nil
+	}
+
+	if modState != nil {
+		glog.Debugf(ctx, "save mod %s, dirty: %v", modState.(tabler).TableName(), modState.IsDirty())
+	}
+	if !modState.IsDirty() {
+		return nil
+	}
+
+	// 第一层：Redis 归属检查
+	key := getRoleLocateKey(r.RoleID)
+	owner, err := gxyredis.Redis().Get(ctx, key).Result()
+	if err == redis.Nil || owner == "" {
+		glog.Warningf(ctx, "actor %d not claimed in redis, skip save", r.RoleID)
+		return nil
+	}
+	if err != nil {
+		glog.Errorf(ctx, "redis get failed for role %d: %v, skip save", r.RoleID, err)
+		return nil
+	}
+	if owner != gxyactor.ActorApp().NodeInstanceName() {
+		glog.Warningf(ctx, "actor %d claimed by %s, skip save", r.RoleID, owner)
+		return nil
+	}
+
+	// 第二层：版本号乐观锁写入
+	oldVersion := modState.GetVersion()
+	modState.SetUpdateAt(time.Now())
+
+	if oldVersion == 0 {
+		// version==0 表示新号，行还不存在，直接 Save（INSERT）
+		if err := gxypgx.DB().Save(modState).Error; err != nil {
+			tableName := modState.(tabler).TableName()
+			return fmt.Errorf("save mod %s failed: %s", tableName, err)
+		}
+		modState.ClearDirty()
+		return nil
+	}
+
+	// version>0 表示有已有行，UPDATE + WHERE version 做冲突检测
+	modState.SetVersion(oldVersion + 1)
+	result := gxypgx.DB().Model(modState).
+		Where("role_id = ? AND version = ?", r.RoleID, oldVersion).
+		Updates(modState)
+	if result.Error != nil {
+		tableName := modState.(tabler).TableName()
+		return fmt.Errorf("save mod %s failed: %s", tableName, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		modState.SetVersion(oldVersion) // 不清 dirty，下次重试
+		return nil
+	}
+	modState.ClearDirty()
+	return nil
+}
+
 func (r *RoleMain) save(ctx context.Context) error {
 	var errStr string
 	for _, mod := range r.Modules() {
@@ -309,60 +370,9 @@ func (r *RoleMain) save(ctx context.Context) error {
 		if rmod == nil {
 			continue
 		}
-		modState := rmod.PersistState()
-		if modState != nil {
-			glog.Debugf(ctx, "save mod %s, dirty: %v", modState.(tabler).TableName(), modState.IsDirty())
+		if err := r.saveRoleModule(ctx, rmod); err != nil {
+			errStr += err.Error()
 		}
-		if modState == nil || !modState.IsDirty() {
-			continue
-		}
-
-		// 第一层：Redis 归属检查
-		key := getRoleLocateKey(r.RoleID)
-		owner, err := gxyredis.Redis().Get(ctx, key).Result()
-		if err == redis.Nil || owner == "" {
-			glog.Warningf(ctx, "actor %d not claimed in redis, skip save", r.RoleID)
-			continue
-		}
-		if err != nil {
-			glog.Errorf(ctx, "redis get failed for role %d: %v, skip save", r.RoleID, err)
-			continue
-		}
-		if owner != gxyactor.ActorApp().NodeInstanceName() {
-			glog.Warningf(ctx, "actor %d claimed by %s, skip save", r.RoleID, owner)
-			continue
-		}
-
-		// 第二层：版本号乐观锁写入
-		oldVersion := modState.GetVersion()
-		modState.SetUpdateAt(time.Now())
-
-		if oldVersion == 0 {
-			// version==0 表示新号，行还不存在，直接 Save（INSERT）
-			if err := gxypgx.DB().Save(modState).Error; err != nil {
-				tableName := modState.(tabler).TableName()
-				errStr += fmt.Sprintf("save mod %s failed: %s", tableName, err)
-				continue
-			}
-			modState.ClearDirty()
-			continue
-		}
-
-		// version>0 表示有已有行，UPDATE + WHERE version 做冲突检测
-		modState.SetVersion(oldVersion + 1)
-		result := gxypgx.DB().Model(modState).
-			Where("role_id = ? AND version = ?", r.RoleID, oldVersion).
-			Updates(modState)
-		if result.Error != nil {
-			tableName := modState.(tabler).TableName()
-			errStr += fmt.Sprintf("save mod %s failed: %s", tableName, result.Error)
-			continue
-		}
-		if result.RowsAffected == 0 {
-			modState.SetVersion(oldVersion) // 不清 dirty，下次重试
-			continue
-		}
-		modState.ClearDirty()
 	}
 	if errStr != "" {
 		return errors.New(errStr)

@@ -19,6 +19,7 @@ func InitRoleSchema(ctx context.Context) {
 		&RolePublicState{},
 		&RoleFlowerState{},
 		&RolePlotState{},
+			&RoleStealState{},
 		&RoleMainTaskState{},
 		&RoleResidentOrderState{},
 		&StealRecord{},

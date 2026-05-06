@@ -290,3 +290,14 @@ func getRelation(ctx context.Context, myID, targetID int64) (relation, error) {
 	}
 	return relationStranger, nil
 }
+
+func isFriend(ctx context.Context, myID, targetID int64) bool {
+	var count int64
+	err := gxypgx.DB().WithContext(ctx).Table("friend_relation").
+		Where("player_id = ? AND friend_id = ?", myID, targetID).
+		Count(&count).Error
+	if err != nil {
+		return false
+	}
+	return count > 0
+}

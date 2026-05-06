@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"gserver/core/gxypgx"
+
+	"github.com/gogf/gf/v2/os/glog"
 )
 
 type StealRecord struct {
@@ -30,13 +32,16 @@ func countPlotStolen(ctx context.Context, ownerID int64, plotID int32) (int64, e
 	return count, err
 }
 
-func countDailySteal(ctx context.Context, stealerID, ownerID int64) (int64, error) {
-	todayStart := time.Now().Truncate(24 * time.Hour)
+func hasStealRecord(ctx context.Context, stealerID, ownerID int64, plotID int32) bool {
 	var count int64
 	err := gxypgx.DB().WithContext(ctx).Model(&StealRecord{}).
-		Where("stealer_id = ? AND owner_id = ? AND steal_time >= ?", stealerID, ownerID, todayStart).
+		Where("stealer_id = ? AND owner_id = ? AND plot_id = ?", stealerID, ownerID, plotID).
 		Count(&count).Error
-	return count, err
+	if err != nil {
+		glog.Errorf(ctx, "hasStealRecord error: %v", err)
+		return true
+	}
+	return count > 0
 }
 
 func deletePlotStealRecords(ctx context.Context, ownerID int64, plotID int32) error {
