@@ -20,6 +20,11 @@ type GardenFriendConfig struct {
     ApplyExpireSeconds int32
     DeleteReapplyCdSeconds int32
     SearchResultLimit int32
+    StealUnlockLevel int32
+    StealPerFriendDailyLimit int32
+    StealRewardNum int32
+    FlowerMaxBeStolenTimes int32
+    OwnerMinKeepNum int32
 }
 
 const TypeId_GardenFriendConfig = 2126193337
@@ -37,6 +42,11 @@ func NewGardenFriendConfig(_buf map[string]interface{}) (_v *GardenFriendConfig,
     { var _ok_ bool; var __json_apply_expire_seconds__ interface{}; if __json_apply_expire_seconds__, _ok_ = _buf["apply_expire_seconds"]; !_ok_ || __json_apply_expire_seconds__ == nil { err = errors.New("apply_expire_seconds error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_apply_expire_seconds__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.ApplyExpireSeconds = __x__ }}
     { var _ok_ bool; var __json_delete_reapply_cd_seconds__ interface{}; if __json_delete_reapply_cd_seconds__, _ok_ = _buf["delete_reapply_cd_seconds"]; !_ok_ || __json_delete_reapply_cd_seconds__ == nil { err = errors.New("delete_reapply_cd_seconds error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_delete_reapply_cd_seconds__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.DeleteReapplyCdSeconds = __x__ }}
     { var _ok_ bool; var __json_search_result_limit__ interface{}; if __json_search_result_limit__, _ok_ = _buf["search_result_limit"]; !_ok_ || __json_search_result_limit__ == nil { err = errors.New("search_result_limit error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_search_result_limit__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.SearchResultLimit = __x__ }}
+    { var _ok_ bool; var __json_steal_unlock_level__ interface{}; if __json_steal_unlock_level__, _ok_ = _buf["steal_unlock_level"]; !_ok_ || __json_steal_unlock_level__ == nil { err = errors.New("steal_unlock_level error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_steal_unlock_level__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.StealUnlockLevel = __x__ }}
+    { var _ok_ bool; var __json_steal_per_friend_daily_limit__ interface{}; if __json_steal_per_friend_daily_limit__, _ok_ = _buf["steal_per_friend_daily_limit"]; !_ok_ || __json_steal_per_friend_daily_limit__ == nil { err = errors.New("steal_per_friend_daily_limit error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_steal_per_friend_daily_limit__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.StealPerFriendDailyLimit = __x__ }}
+    { var _ok_ bool; var __json_steal_reward_num__ interface{}; if __json_steal_reward_num__, _ok_ = _buf["steal_reward_num"]; !_ok_ || __json_steal_reward_num__ == nil { err = errors.New("steal_reward_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_steal_reward_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.StealRewardNum = __x__ }}
+    { var _ok_ bool; var __json_flower_max_be_stolen_times__ interface{}; if __json_flower_max_be_stolen_times__, _ok_ = _buf["flower_max_be_stolen_times"]; !_ok_ || __json_flower_max_be_stolen_times__ == nil { err = errors.New("flower_max_be_stolen_times error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_flower_max_be_stolen_times__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.FlowerMaxBeStolenTimes = __x__ }}
+    { var _ok_ bool; var __json_owner_min_keep_num__ interface{}; if __json_owner_min_keep_num__, _ok_ = _buf["owner_min_keep_num"]; !_ok_ || __json_owner_min_keep_num__ == nil { err = errors.New("owner_min_keep_num error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_owner_min_keep_num__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.OwnerMinKeepNum = __x__ }}
     return
 }
 

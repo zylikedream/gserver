@@ -6,6 +6,11 @@
     "apply_receive_limit": 50,
     "apply_expire_seconds": 604800,
     "delete_reapply_cd_seconds": 86400,
-    "search_result_limit": 20
+    "search_result_limit": 20,
+    "steal_unlock_level": 6,
+    "steal_per_friend_daily_limit": 10,
+    "steal_reward_num": 1,
+    "flower_max_be_stolen_times": 3,
+    "owner_min_keep_num": 1
   }
 ]
