@@ -425,6 +425,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	}
 	r.Timer().Cancel(ctx, SignleAliveOnce.Name)
 	r.state = RoleStateLogined
+	r.Public.IsOnline = true
 	if err := r.afterRoleLogin(ctx); err != nil {
 		return nil, err
 	}
@@ -459,6 +460,9 @@ func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
 	r.Timer().AddTick(ctx, SessionAliveCheckTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.checkSessionAlive(ctx)
 	})
+	r.Timer().AddTick(ctx, PublicUpdateTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+		r.Public.UpdateRolePublic(ctx)
+	})
 	return nil
 }
 
@@ -484,6 +488,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	r.Timer().Cancel(ctx, SessionAliveCheckTick.Name)
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
+	r.Public.IsOnline = false
 	r.Public.UpdateRolePublic(ctx)
 	if err := r.save(ctx); err != nil {
 		return err
