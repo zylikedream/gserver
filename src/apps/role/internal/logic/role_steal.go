@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gserver/core/gxypgx"
+	"gorm.io/gorm/clause"
 	"gserver/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
@@ -194,8 +195,8 @@ func (r *RoleSteal) ReqStealFlower(ctx context.Context, req *pb.ReqStealFlower) 
 	var row struct {
 		Plots PlotMap `gorm:"column:plots;type:jsonb"`
 	}
-	err := tx.Table("role_plot").
-		Set("gorm:query_option", "FOR UPDATE").
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Table("role_plot").
 		Where("role_id = ?", friendID).First(&row).Error
 	if err != nil {
 		return nil, err

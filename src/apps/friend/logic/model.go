@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"gserver/core/gxypgx"
+
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // FriendEntry 好友记录
@@ -18,7 +20,7 @@ type FriendEntry struct {
 
 type FriendList []FriendEntry
 
-func (l FriendList) Value() (driver.Value, error)  { return json.Marshal(l) }
+func (l FriendList) Value() (driver.Value, error) { return json.Marshal(l) }
 func (l *FriendList) Scan(val interface{}) error {
 	if val == nil {
 		return nil
@@ -50,7 +52,7 @@ type ApplyEntry struct {
 
 type ApplyList []ApplyEntry
 
-func (l ApplyList) Value() (driver.Value, error)  { return json.Marshal(l) }
+func (l ApplyList) Value() (driver.Value, error) { return json.Marshal(l) }
 func (l *ApplyList) Scan(val interface{}) error {
 	if val == nil {
 		return nil
@@ -82,20 +84,22 @@ type CooldownEntry struct {
 
 type CooldownList []CooldownEntry
 
-func (l CooldownList) Value() (driver.Value, error)  { return json.Marshal(l) }
+func (l CooldownList) Value() (driver.Value, error) { return json.Marshal(l) }
 func (l *CooldownList) Scan(val interface{}) error {
-	if val == nil { return nil }
+	if val == nil {
+		return nil
+	}
 	return json.Unmarshal(val.([]byte), l)
 }
 
 // FriendData 单行全量玩家好友数据
 type FriendData struct {
-	PlayerID  int64         `gorm:"column:player_id;primaryKey"`
-	Friends   FriendList    `gorm:"column:friends;type:jsonb;default:'[]'"`
-	Incoming  ApplyList     `gorm:"column:incoming;type:jsonb;default:'[]'"`  // 收到谁的申请（未处理）
-	Outgoing  ApplyList     `gorm:"column:outgoing;type:jsonb;default:'[]'"`  // 向谁发过申请（未处理）
-	Cooldowns CooldownList  `gorm:"column:cooldowns;type:jsonb;default:'[]'"`
-	UpdateAt  time.Time     `gorm:"column:update_at;autoUpdateTime"`
+	PlayerID  int64        `gorm:"column:player_id;primaryKey"`
+	Friends   FriendList   `gorm:"column:friends;type:jsonb;default:'[]'"`
+	Incoming  ApplyList    `gorm:"column:incoming;type:jsonb;default:'[]'"` // 收到谁的申请（未处理）
+	Outgoing  ApplyList    `gorm:"column:outgoing;type:jsonb;default:'[]'"` // 向谁发过申请（未处理）
+	Cooldowns CooldownList `gorm:"column:cooldowns;type:jsonb;default:'[]'"`
+	UpdateAt  time.Time    `gorm:"column:update_at;autoUpdateTime"`
 }
 
 func (FriendData) TableName() string { return "friend_data" }
@@ -117,7 +121,7 @@ func openTx(ctx context.Context) *gorm.DB {
 
 func lockRow(tx *gorm.DB, playerID int64) (*FriendData, error) {
 	var d FriendData
-	err := tx.Set("gorm:query_option", "FOR UPDATE").
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		First(&d, playerID).Error
 	if err == nil {
 		return &d, nil
