@@ -12,7 +12,6 @@ import (
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/net/gclient"
 	"github.com/gogf/gf/v2/net/ghttp"
 )
 
@@ -24,44 +23,23 @@ func HttpSystem() *httpApp {
 
 type httpApp struct {
 	gxyapp.App
-	nodeName string
-	host     string
-	server   *ghttp.Server
-	client   *gclient.Client
 }
 
-func NewHttpApp(nodeName string, host string) *httpApp {
+func NewHttpApp() *httpApp {
+	return &httpApp{}
+}
+
+func (h *httpApp) NewHttpServer(host string) *ghttp.Server {
 	svr := g.Server()
 	svr.SetAddr(fmt.Sprintf("%s:%d", host, 0))
 	svr.SetLogger(gxylog.GetLogger().Clone())
 	svr.SetLogLevel("debug")
-	app = &httpApp{
-		nodeName: nodeName,
-		host:     host,
-		server:   svr,
-		client:   gclient.New(),
-	}
-	return app
-}
-
-func (h *httpApp) Address() string {
-	return h.server.GetListenedAddress()
+	g.Client()
+	return svr
 }
 
 func (h *httpApp) OnModStart(ctx context.Context) error {
-	if err := h.server.Start(); err != nil {
-		return err
-	}
 	return nil
-}
-
-func (h *httpApp) RegisterObject(ctx context.Context, obj any) error {
-	h.server.Shutdown()
-	return nil
-}
-
-func (h *httpApp) Server() *ghttp.Server {
-	return h.server
 }
 
 func (h *httpApp) PostService(ctx context.Context, service string, uri string, msg ...any) (*Response, error) {
@@ -75,7 +53,7 @@ func (h *httpApp) PostService(ctx context.Context, service string, uri string, m
 }
 
 func (h *httpApp) Post(ctx context.Context, url string, msg ...any) (*Response, error) {
-	rsp, err := h.client.Post(ctx, url, msg...)
+	rsp, err := g.Client().Post(ctx, url, msg...)
 	if err != nil {
 		return nil, gerror.Newf("post error: %v ", err)
 	}
@@ -104,7 +82,7 @@ func (h *httpApp) GetService(ctx context.Context, service string, msg ...any) (*
 }
 
 func (h *httpApp) Get(ctx context.Context, url string, msg ...any) (*Response, error) {
-	rsp, err := h.client.Get(ctx, url, msg...)
+	rsp, err := g.Client().Get(ctx, url, msg...)
 	if err != nil {
 		return nil, gerror.Newf("get error: %v ", err)
 	}

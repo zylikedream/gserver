@@ -35,5 +35,5 @@ func (s *Service) Version() string {
 }
 
 func (s *Service) Host() string {
-	return ""
+	return ServiceApp().Host
 }

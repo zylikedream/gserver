@@ -1,4 +1,4 @@
-package friend
+package logic
 
 import (
 	"context"

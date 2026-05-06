@@ -3,19 +3,18 @@ package gxyhttp
 import (
 	"context"
 	"gserver/core/gxyservice"
-	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/net/ghttp"
 	"github.com/gogf/gf/v2/os/glog"
-	"github.com/gogf/gf/v2/os/gstructs"
 )
 
 type HttpService struct {
 	gxyservice.Service
+	Svr *ghttp.Server
 }
 
 func (h *HttpService) Host() string {
-	return app.Address()
+	return h.Svr.GetListenedAddress()
 }
 
 // 响应结构
@@ -25,8 +24,7 @@ type Response struct {
 	Data    any    `json:"data,omitempty"`
 }
 
-func (h *HttpService) SetHandler(ctx context.Context, name string, handler any) {
-	server := app.server
+func SetHandler(server *ghttp.Server, ctx context.Context, name string, handler any) {
 	if server.Status() == ghttp.ServerStatusRunning {
 		glog.Warningf(ctx, "http server is running, can not set handler")
 		return
@@ -36,14 +34,6 @@ func (h *HttpService) SetHandler(ctx context.Context, name string, handler any) 
 		group.Middleware(ghttp.MiddlewareHandlerResponse)
 		group.Bind(handler)
 	})
-}
-
-func GetReqUri(req any) string {
-	fs, _ := gstructs.TagFields(req, []string{"path"})
-	if len(fs) > 0 {
-		return fs[0].TagValue
-	}
-	return gxyutil.GetObjectName(req)
 }
 
 func NewErrCode(code int, msg string) *ErrCode {

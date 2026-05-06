@@ -2,40 +2,37 @@ package logic
 
 import (
 	"context"
-	"encoding/json"
-	"net/url"
-	"strconv"
+	"fmt"
 
+	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/net/gclient"
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/gogf/gf/v2/util/gconv"
 )
-
-const friendServiceURL = "http://127.0.0.1:6801"
 
 // ---- write operations (call friend service via HTTP) ----
 
 func (r *RoleMain) ReqSendRequest(ctx context.Context, req *pb.ReqSendRequest) (*pb.RspSendRequest, error) {
-	err := callFriendWrite(ctx, "/friend/send_request", r.RoleID, req.TargetId)
+	err := callFriendWrite(ctx, "send_request", r.RoleID, req.TargetId)
 	return &pb.RspSendRequest{}, err
 }
 
 func (r *RoleMain) ReqAcceptRequest(ctx context.Context, req *pb.ReqAcceptRequest) (*pb.RspAcceptRequest, error) {
-	err := callFriendWrite(ctx, "/friend/accept_request", r.RoleID, req.FromId)
+	err := callFriendWrite(ctx, "accept_request", r.RoleID, req.FromId)
 	return &pb.RspAcceptRequest{}, err
 }
 
 func (r *RoleMain) ReqRejectRequest(ctx context.Context, req *pb.ReqRejectRequest) (*pb.RspRejectRequest, error) {
-	err := callFriendWrite(ctx, "/friend/reject_request", r.RoleID, req.FromId)
+	err := callFriendWrite(ctx, "reject_request", r.RoleID, req.FromId)
 	return &pb.RspRejectRequest{}, err
 }
 
 func (r *RoleMain) ReqRemoveFriend(ctx context.Context, req *pb.ReqRemoveFriend) (*pb.RspRemoveFriend, error) {
-	err := callFriendWrite(ctx, "/friend/remove_friend", r.RoleID, req.TargetId)
+	err := callFriendWrite(ctx, "remove_friend", r.RoleID, req.TargetId)
 	return &pb.RspRemoveFriend{}, err
 }
 
@@ -145,43 +142,6 @@ func (r *RoleMain) ReqSearchPlayer(ctx context.Context, req *pb.ReqSearchPlayer)
 
 // ---- HTTP helpers ----
 
-type friendResponse struct {
-	Code    int             `json:"code"`
-	Message string          `json:"message,omitempty"`
-	Data    json.RawMessage `json:"data,omitempty"`
-}
-
-func callFriendGet(ctx context.Context, path string, params map[string]string) ([]byte, error) {
-	vals := url.Values{}
-	for k, v := range params {
-		vals.Set(k, v)
-	}
-	url := friendServiceURL + path + "?" + vals.Encode()
-	rsp, err := gclient.New().Get(ctx, url)
-	if err != nil {
-		return nil, gerror.Wrapf(err, "friend service call failed: %s", path)
-	}
-	defer rsp.Body.Close()
-	body := rsp.ReadAll()
-
-	var result friendResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, gerror.Wrapf(err, "unmarshal friend response failed")
-	}
-	if result.Code != 0 {
-		return nil, gerror.New(result.Message)
-	}
-	return result.Data, nil
-}
-
-func callFriendWrite(ctx context.Context, path string, a, b int64) error {
-	_, err := callFriendGet(ctx, path, map[string]string{
-		"a": strconv.FormatInt(a, 10),
-		"b": strconv.FormatInt(b, 10),
-	})
-	return err
-}
-
 type friendDataJSON struct {
 	PlayerID  int64   `json:"player_id"`
 	Friends   []int64 `json:"friends"`
@@ -189,15 +149,20 @@ type friendDataJSON struct {
 	Outgoing  []int64 `json:"outgoing"`
 }
 
+func callFriendWrite(ctx context.Context, path string, a, b int64) error {
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "friend",
+		fmt.Sprintf("%s?a=%d&b=%d", path, a, b))
+	return err
+}
+
 func callFriendData(ctx context.Context, playerID int64) (*friendDataJSON, error) {
-	data, err := callFriendGet(ctx, "/friend/list", map[string]string{
-		"player_id": strconv.FormatInt(playerID, 10),
-	})
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "friend",
+		fmt.Sprintf("list?player_id=%d", playerID))
 	if err != nil {
 		return nil, err
 	}
 	var fd friendDataJSON
-	if err := json.Unmarshal(data, &fd); err != nil {
+	if err := gconv.Scan(rsp.Data, &fd); err != nil {
 		return nil, gerror.Wrap(err, "parse friend data failed")
 	}
 	return &fd, nil

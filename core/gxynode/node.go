@@ -15,6 +15,7 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/core/gxyservice"
 	"gserver/core/gxyutil"
+	"gserver/src/apps/friend"
 	"gserver/src/apps/gateway"
 	"gserver/src/apps/role"
 
@@ -68,7 +69,7 @@ func (n *node) OnModStart(ctx context.Context) error {
 	glog.Infof(context.Background(), "node %s starting....", n.Name)
 
 	loaded := map[string]bool{}
-	deps := []string{"redis", "pgx", "actor", "service"}
+	deps := []string{"redis", "pgx", "actor", "service", "http"}
 	for _, dep := range deps {
 		if err := n.loadApp(ctx, dep, loaded); err != nil {
 			return err
@@ -116,8 +117,9 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
 	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
-	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp(n.Name, n.Host))
-	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName))
+	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp())
+	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName, n.Host))
+	gxyapp.RegisterApp("friend", friend.NewFriendApp())
 	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())
 }
