@@ -26,3 +26,4 @@ graphify-out/
 .playwright-cli/
 .codex/
 .wolf/
+__debug_*

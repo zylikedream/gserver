@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gserver/gameconfig"
+
 	"gorm.io/gorm"
 )
 
@@ -144,6 +145,9 @@ func AcceptRequest(ctx context.Context, myID, fromID int64, cfg *Config) error {
 	if err := saveRow(tx, other); err != nil {
 		return err
 	}
+	if err := addRelation(tx, myID, fromID, now); err != nil {
+		return err
+	}
 	return tx.Commit().Error
 }
 
@@ -204,6 +208,9 @@ func RemoveFriend(ctx context.Context, myID, targetID int64, cfg *Config) error 
 		return err
 	}
 	if err := saveRow(tx, other); err != nil {
+		return err
+	}
+	if err := removeRelation(tx, myID, targetID); err != nil {
 		return err
 	}
 	return tx.Commit().Error

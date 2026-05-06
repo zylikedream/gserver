@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
+	"gserver/src/apps/api"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"gorm.io/gorm"
@@ -16,8 +17,8 @@ type FriendHandler struct {
 
 type SendRequestReq struct {
 	g.Meta `path:"/send_request"`
-	A  int64   `p:"a"`
-	Bs []int64 `p:"bs"`
+	A      int64   `p:"a"`
+	Bs     []int64 `p:"bs"`
 }
 
 func (h *FriendHandler) SendRequest(ctx context.Context, req *SendRequestReq) (any, error) {
@@ -29,8 +30,8 @@ func (h *FriendHandler) SendRequest(ctx context.Context, req *SendRequestReq) (a
 
 type AcceptRequestReq struct {
 	g.Meta `path:"/accept_request"`
-	A  int64   `p:"a"`
-	Bs []int64 `p:"bs"`
+	A      int64   `p:"a"`
+	Bs     []int64 `p:"bs"`
 }
 
 func (h *FriendHandler) AcceptRequest(ctx context.Context, req *AcceptRequestReq) (any, error) {
@@ -42,8 +43,8 @@ func (h *FriendHandler) AcceptRequest(ctx context.Context, req *AcceptRequestReq
 
 type RejectRequestReq struct {
 	g.Meta `path:"/reject_request"`
-	A  int64   `p:"a"`
-	Bs []int64 `p:"bs"`
+	A      int64   `p:"a"`
+	Bs     []int64 `p:"bs"`
 }
 
 func (h *FriendHandler) RejectRequest(ctx context.Context, req *RejectRequestReq) (any, error) {
@@ -54,8 +55,8 @@ func (h *FriendHandler) RejectRequest(ctx context.Context, req *RejectRequestReq
 
 type RemoveFriendReq struct {
 	g.Meta `path:"/remove_friend"`
-	A int64 `p:"a"`
-	B int64 `p:"b"`
+	A      int64 `p:"a"`
+	B      int64 `p:"b"`
 }
 
 func (h *FriendHandler) RemoveFriend(ctx context.Context, req *RemoveFriendReq) (any, error) {
@@ -65,7 +66,7 @@ func (h *FriendHandler) RemoveFriend(ctx context.Context, req *RemoveFriendReq) 
 }
 
 type ListReq struct {
-	g.Meta  `path:"/list"`
+	g.Meta   `path:"/list"`
 	PlayerID int64 `p:"player_id"`
 }
 
@@ -85,17 +86,11 @@ func mapErr(err error) error {
 	return gxyhttp.NewErrCode(1, err.Error())
 }
 
-type batchItem struct {
-	TargetID int64  `json:"target_id"`
-	Success  bool   `json:"success"`
-	Error    string `json:"error,omitempty"`
-}
-
 func batchResult(ids []int64, fn func(int64) error) (any, error) {
-	items := make([]batchItem, 0, len(ids))
+	items := make([]api.FriendBatchItem, 0, len(ids))
 	for _, id := range ids {
 		err := fn(id)
-		item := batchItem{TargetID: id, Success: err == nil}
+		item := api.FriendBatchItem{TargetID: id, Success: err == nil}
 		if err != nil {
 			item.Error = err.Error()
 		}

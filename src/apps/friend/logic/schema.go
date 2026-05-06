@@ -9,8 +9,8 @@ import (
 )
 
 func InitFriendSchema(ctx context.Context) {
-	if err := gxypgx.DB().AutoMigrate(&FriendData{}); err != nil {
+	if err := gxypgx.DB().AutoMigrate(&FriendData{}, &FriendRelation{}); err != nil {
 		glog.Fatal(ctx, err)
 	}
-	glog.Info(ctx, "[schema] friend_data table migrated successfully")
+	glog.Info(ctx, "[schema] friend tables migrated successfully")
 }

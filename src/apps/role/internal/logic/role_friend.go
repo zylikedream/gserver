@@ -9,6 +9,7 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
+	"gserver/src/apps/api"
 	"gserver/src/lib"
 
 	"google.golang.org/protobuf/proto"
@@ -16,16 +17,17 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
+	"github.com/pkg/errors"
 )
 
 // ---- write operations (call friend service via HTTP) ----
 
 func (r *RoleMain) ReqSendRequest(ctx context.Context, req *pb.ReqSendRequest) (*pb.RspSendRequest, error) {
 	successIDs, err := callFriendBatch(ctx, "send_request", r.RoleID, req.TargetIds)
-	if err != nil {
-		return &pb.RspSendRequest{}, err
-	}
 	rsp := &pb.RspSendRequest{}
+	if len(successIDs) == 0 {
+		return rsp, err
+	}
 	for _, id := range successIDs {
 		public := GetRolePublic(ctx, id)
 		if public == nil {
@@ -43,10 +45,10 @@ func (r *RoleMain) ReqSendRequest(ctx context.Context, req *pb.ReqSendRequest) (
 
 func (r *RoleMain) ReqAcceptRequest(ctx context.Context, req *pb.ReqAcceptRequest) (*pb.RspAcceptRequest, error) {
 	successIDs, err := callFriendBatch(ctx, "accept_request", r.RoleID, req.FromIds)
-	if err != nil {
-		return &pb.RspAcceptRequest{}, err
-	}
 	rsp := &pb.RspAcceptRequest{}
+	if len(successIDs) == 0 {
+		return rsp, err
+	}
 	for _, id := range successIDs {
 		public := GetRolePublic(ctx, id)
 		if public == nil {
@@ -200,20 +202,20 @@ func callFriendBatch(ctx context.Context, path string, a int64, ids []int64) ([]
 		return nil, err
 	}
 
-	var items []struct {
-		TargetID int64 `json:"target_id"`
-		Success  bool  `json:"success"`
-	}
-	if err := gconv.Scan(rsp.Data, &items); err != nil {
+	result := []api.FriendBatchItem{}
+	if err := gconv.Scan(rsp.Data, &result); err != nil {
 		return nil, gerror.Wrap(err, "parse batch result failed")
 	}
 	var successIDs []int64
-	for _, item := range items {
+	for _, item := range result {
+		if item.Error != "" {
+			err = errors.New(item.Error)
+		}
 		if item.Success {
 			successIDs = append(successIDs, item.TargetID)
 		}
 	}
-	return successIDs, nil
+	return successIDs, err
 }
 
 func callFriendData(ctx context.Context, playerID int64) (*friendDataJSON, error) {

@@ -100,6 +100,15 @@ type FriendData struct {
 
 func (FriendData) TableName() string { return "friend_data" }
 
+// FriendRelation 好友关系表（一条好友关系两行）
+type FriendRelation struct {
+	PlayerID int64 `gorm:"column:player_id;primaryKey"`
+	FriendID int64 `gorm:"column:friend_id;primaryKey"`
+	AddedAt  int64 `gorm:"column:added_at"`
+}
+
+func (FriendRelation) TableName() string { return "friend_relation" }
+
 // ---- DB 操作 ----
 
 func openTx(ctx context.Context) *gorm.DB {
@@ -122,4 +131,17 @@ func lockRow(tx *gorm.DB, playerID int64) (*FriendData, error) {
 
 func saveRow(tx *gorm.DB, d *FriendData) error {
 	return tx.Save(d).Error
+}
+
+func addRelation(tx *gorm.DB, a, b, addedAt int64) error {
+	return tx.Create([]*FriendRelation{
+		{PlayerID: a, FriendID: b, AddedAt: addedAt},
+		{PlayerID: b, FriendID: a, AddedAt: addedAt},
+	}).Error
+}
+
+func removeRelation(tx *gorm.DB, a, b int64) error {
+	return tx.Where(
+		"(player_id = ? AND friend_id = ?) OR (player_id = ? AND friend_id = ?)", a, b, b, a,
+	).Delete(&FriendRelation{}).Error
 }
