@@ -18,10 +18,10 @@ const (
 
 type RolePublicState struct {
 	RolePersistState
-	Name       string    `gorm:"column:name"`
-	Head       string    `gorm:"column:head"`
-	CreateTime time.Time `gorm:"column:create_time"`
-	Level      int32     `gorm:"column:level"`
+	Name        string    `gorm:"column:name"`
+	Head        string    `gorm:"column:head"`
+	CreateTime  time.Time `gorm:"column:create_time"`
+	Level       int32     `gorm:"column:level"`
 	LastLoginAt time.Time `gorm:"column:last_login_at"`
 	IsOnline    bool      `gorm:"column:is_online"`
 }
@@ -56,14 +56,19 @@ func GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
 	if rolePublic == nil {
 		return nil
 	}
+
+	return PRolePublic(rolePublic)
+}
+
+func PRolePublic(rolePublic *RolePublicState) *pb.PRolePublic {
 	return &pb.PRolePublic{
-		RoleId:     rolePublic.RoleID,
-		Name:       rolePublic.Name,
-		Head:       rolePublic.Head,
-		CreateTime: rolePublic.CreateTime.Unix(),
-		Level:      rolePublic.Level,
+		RoleId:      rolePublic.RoleID,
+		Name:        rolePublic.Name,
+		Head:        rolePublic.Head,
+		CreateTime:  rolePublic.CreateTime.Unix(),
+		Level:       rolePublic.Level,
 		LastLoginAt: rolePublic.LastLoginAt.Unix(),
-		IsOnline:   rolePublic.IsOnline,
+		IsOnline:    rolePublic.IsOnline,
 	}
 }
 

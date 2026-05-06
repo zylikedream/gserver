@@ -48,6 +48,10 @@ func (r *RoleBasic) OnModStart(ctx context.Context) error {
 	return nil
 }
 
+func (r *RoleBasic) OnCreate(ctx context.Context) {
+	r.CreateTm = time.Now()
+}
+
 func (r *RoleBasic) subscribeEvents() {
 	if r.Role == nil {
 		return
@@ -76,6 +80,7 @@ func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName
 		Name: req.Name,
 	}
 	r.RoleName = req.Name
+	r.Role.Public.UpdateRolePublic(ctx)
 	r.MarkDirty()
 	return rsp, nil
 }

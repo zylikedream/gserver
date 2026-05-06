@@ -63,15 +63,15 @@ const (
 )
 
 type roleModules struct {
-	Bag      *RoleBag
-	Basic    *RoleBasic
-	Public   *RolePublic
-	Extra    *RoleExtra
-	Flower   *RoleFlower
-	Plot     *RolePlot
-	MainTask *RoleMainTask
+	Bag           *RoleBag
+	Basic         *RoleBasic
+	Public        *RolePublic
+	Extra         *RoleExtra
+	Flower        *RoleFlower
+	Plot          *RolePlot
+	MainTask      *RoleMainTask
 	ResidentOrder *RoleResidentOrder
-	GM       *RoleGM
+	GM            *RoleGM
 }
 
 type RoleMain struct {
@@ -417,7 +417,6 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 			return nil, err
 		}
 		firstLogin = true
-		r.Basic.CreateTm = now
 	}
 	r.Basic.LoginTm = now
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
@@ -440,6 +439,7 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 		rmod := mod.(IRoleModule)
 		rmod.OnCreate(ctx)
 	}
+
 	r.Public.UpdateRolePublic(ctx)
 	// 发放初始物品
 	initItems := gameconfig.GameConfig().TbGlobalConfig.Get().InitItems

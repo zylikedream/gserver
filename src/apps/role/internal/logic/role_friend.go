@@ -95,15 +95,7 @@ func (r *RoleMain) ReqApplyList(ctx context.Context, req *pb.ReqApplyList) (*pb.
 func (r *RoleMain) ReqSearchPlayer(ctx context.Context, req *pb.ReqSearchPlayer) (*pb.RspSearchPlayer, error) {
 	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
 
-	var publics []struct {
-		RoleID      int64  `gorm:"column:role_id"`
-		Name        string `gorm:"column:name"`
-		Head        string `gorm:"column:head"`
-		CreateTime  int64  `gorm:"column:create_time"`
-		Level       int32  `gorm:"column:level"`
-		LastLoginAt int64  `gorm:"column:last_login_at"`
-		IsOnline    bool   `gorm:"column:is_online"`
-	}
+	publics := []RolePublicState{}
 	err := gxypgx.DB().WithContext(ctx).
 		Table("role_public").
 		Where("name LIKE ?", "%"+req.Name+"%").
@@ -116,15 +108,7 @@ func (r *RoleMain) ReqSearchPlayer(ctx context.Context, req *pb.ReqSearchPlayer)
 	rsp := &pb.RspSearchPlayer{}
 	for _, p := range publics {
 		info := &pb.PPlayerInfo{
-			PlayerInfo: &pb.PRolePublic{
-				RoleId:      p.RoleID,
-				Name:        p.Name,
-				Head:        p.Head,
-				CreateTime:  p.CreateTime,
-				Level:       p.Level,
-				LastLoginAt: p.LastLoginAt,
-				IsOnline:    p.IsOnline,
-			},
+			PlayerInfo: PRolePublic(&p),
 		}
 		if p.RoleID == r.RoleID {
 			info.Relation = 0
@@ -143,10 +127,10 @@ func (r *RoleMain) ReqSearchPlayer(ctx context.Context, req *pb.ReqSearchPlayer)
 // ---- HTTP helpers ----
 
 type friendDataJSON struct {
-	PlayerID  int64   `json:"player_id"`
-	Friends   []int64 `json:"friends"`
-	Incoming  []int64 `json:"incoming"`
-	Outgoing  []int64 `json:"outgoing"`
+	PlayerID int64   `json:"player_id"`
+	Friends  []int64 `json:"friends"`
+	Incoming []int64 `json:"incoming"`
+	Outgoing []int64 `json:"outgoing"`
 }
 
 func callFriendWrite(ctx context.Context, path string, a, b int64) error {
