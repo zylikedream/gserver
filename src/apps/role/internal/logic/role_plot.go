@@ -304,6 +304,15 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 			finalNum += levelCfg.HarvestNumAdd
 		}
 
+		// 扣除被偷数量
+		stolenCount, _ := countPlotStolen(ctx, r.RoleID, plotID)
+		minKeep := gameconfig.GameConfig().TbFriendConfig.Get().OwnerMinKeepNum
+		if int64(finalNum)-stolenCount > int64(minKeep) {
+			finalNum = finalNum - int32(stolenCount)
+		} else {
+			finalNum = minKeep
+		}
+
 		harvestItems = append(harvestItems, bag.MakeGoodStack(int(flowerCfg.HarvestItemId), int(finalNum)))
 		harvestFlowers = append(harvestFlowers, event.HarvestFlowerItem{
 			FlowerID:   plot.FlowerID,
@@ -360,6 +369,7 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 			plot.State = int32(pb.PlotState_PLOT_EMPTY)
 			plot.HarvestCount = 0
 			plot.StateTime = time.Time{}
+			_ = deletePlotStealRecords(ctx, r.RoleID, plotID)
 		} else {
 			finalInterval := flowerCfg.HarvestInterval
 			if levelCfg != nil {
