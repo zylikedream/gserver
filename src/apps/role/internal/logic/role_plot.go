@@ -88,6 +88,16 @@ func (r *RolePlot) OnModInit(ctx context.Context) error {
 	return nil
 }
 
+func (r *RolePlot) OnCreate(ctx context.Context) {
+	// 遍历配置表，初始化所有地块为锁定状态
+	level := r.Role.Basic.Level
+	for _, cfg := range gameconfig.GameConfig().TbGardenPlot.GetDataList() {
+		if level >= cfg.UnlockLevel {
+			r.UnlockPlot(cfg.Id)
+		}
+	}
+}
+
 // ========== 持久化 ==========
 
 func (r *RolePlot) forceSave(ctx context.Context) error {
