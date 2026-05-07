@@ -15,6 +15,7 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/core/gxyservice"
 	"gserver/core/gxyutil"
+	"gserver/src/apps/chat"
 	"gserver/src/apps/friend"
 	"gserver/src/apps/gateway"
 	"gserver/src/apps/role"
@@ -119,6 +120,7 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
 	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp())
 	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName, n.Host))
+	gxyapp.RegisterApp("chat", chat.NewChatApp())
 	gxyapp.RegisterApp("friend", friend.NewFriendApp())
 	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())

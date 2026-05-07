@@ -1,7 +1,7 @@
 [node]
     name = "game"
     host = "127.0.0.1"
-	apps = ["role", "friend"]
+	apps = ["chat", "role", "friend"]
 [postgres]
 #	url = "postgresql://postgres.roepimjsbdawvohntmfq:%40Supabase252525@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require&pool_max_conns=20&pool_min_conns=5"
 	url = "postgresql://postgres:%40zyc0131@127.0.0.1:5432/postgres?sslmode=disable"
