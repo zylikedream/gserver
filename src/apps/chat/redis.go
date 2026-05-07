@@ -55,11 +55,8 @@ type chatMsgJSON struct {
 	Timestamp  int64  `json:"timestamp"`
 }
 
-func msgToJSON(msg *pb.PChatMsg) string {
-	b, _ := json.Marshal(&chatMsgJSON{
-		SenderID: msg.SenderId, SenderName: msg.SenderName,
-		Content: msg.Content, Timestamp: msg.Timestamp,
-	})
+func msgToJSON(msg *chatMsgJSON) string {
+	b, _ := json.Marshal(msg)
 	return string(b)
 }
 
@@ -102,10 +99,9 @@ func LeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
 
 // ===== 世界频道 =====
 
-func StoreWorldMsg(ctx context.Context, msg *pb.PChatMsg, lobbyID int64) error {
+func StoreWorldMsgData(ctx context.Context, data string, lobbyID int64) error {
 	cfg := GetConfig()
 	key := fmt.Sprintf("chat:msg:lobby:%d", lobbyID)
-	data := msgToJSON(msg)
 	pipe := gxyredis.Redis().Pipeline()
 	pipe.LPush(ctx, key, data)
 	pipe.LTrim(ctx, key, 0, int64(cfg.WorldMsgKeep-1))
@@ -115,9 +111,8 @@ func StoreWorldMsg(ctx context.Context, msg *pb.PChatMsg, lobbyID int64) error {
 	return nil
 }
 
-func PublishWorldChat(ctx context.Context, msg *pb.PChatMsg, lobbyID int64) error {
+func PublishWorldChatData(ctx context.Context, data string, lobbyID int64) error {
 	channel := fmt.Sprintf("chat:pub:lobby:%d", lobbyID)
-	data := msgToJSON(msg)
 	return gxyredis.Redis().Publish(ctx, channel, data).Err()
 }
 
@@ -132,9 +127,8 @@ func GetWorldHistory(ctx context.Context, lobbyID int64, count int) ([]*pb.PChat
 
 // ===== 系统频道 =====
 
-func StoreSystemMsg(ctx context.Context, msg *pb.PChatMsg) error {
+func StoreSystemMsgData(ctx context.Context, data string) error {
 	cfg := GetConfig()
-	data := msgToJSON(msg)
 	pipe := gxyredis.Redis().Pipeline()
 	pipe.LPush(ctx, "chat:msg:system", data)
 	pipe.LTrim(ctx, "chat:msg:system", 0, int64(cfg.SystemMsgKeep-1))
@@ -144,8 +138,7 @@ func StoreSystemMsg(ctx context.Context, msg *pb.PChatMsg) error {
 	return nil
 }
 
-func PublishSystemChat(ctx context.Context, msg *pb.PChatMsg) error {
-	data := msgToJSON(msg)
+func PublishSystemChatData(ctx context.Context, data string) error {
 	return gxyredis.Redis().Publish(ctx, "chat:pub:system", data).Err()
 }
 
@@ -169,6 +162,11 @@ func StorePrivateMsg(ctx context.Context, senderID, targetID int64, content stri
 		return 0, fmt.Errorf("chat store private msg: %w", err)
 	}
 	return msg.CreatedAt.Unix(), nil
+}
+
+func PublishPrivateChat(ctx context.Context, targetRoleID int64, data string) error {
+	channel := fmt.Sprintf("chat:pub:private:%d", targetRoleID)
+	return gxyredis.Redis().Publish(ctx, channel, data).Err()
 }
 
 func GetPrivateHistory(ctx context.Context, roleID, friendID int64, count int) ([]*pb.PChatMsg, error) {

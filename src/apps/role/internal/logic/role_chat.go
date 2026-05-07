@@ -3,13 +3,16 @@ package logic
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
-	"gserver/core/gxyactor"
+	"gserver/core/gxyhttp"
 	"gserver/protocol/pb"
 	"gserver/src/apps/chat"
-	"gserver/src/lib"
+
+	"github.com/gogf/gf/v2/util/gconv"
 )
 
 var (
@@ -43,17 +46,17 @@ func (r *RoleChat) OnCreate(ctx context.Context) {}
 // ===== Proto Handlers =====
 
 func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.RspChatInit, error) {
-	lobbyID, err := chat.JoinLobby(ctx, r.RoleID)
+	lobbyID, err := callChatJoinLobby(ctx, r.RoleID)
 	if err != nil {
 		return nil, err
 	}
 	r.lastLobbyID = lobbyID
 
 	cfg := chat.GetConfig()
-	worldMsgs, _ := chat.GetWorldHistory(ctx, lobbyID, cfg.WorldMsgKeep)
-	systemMsgs, _ := chat.GetSystemHistory(ctx, cfg.SystemMsgKeep)
+	worldMsgs, _ := callChatWorldHistory(ctx, lobbyID, cfg.WorldMsgKeep)
+	systemMsgs, _ := callChatSystemHistory(ctx, cfg.SystemMsgKeep)
 
-	chat.RegisterRole(r.RoleID, lobbyID, r.Role.Self())
+	chat.RegisterLocalRole(r.RoleID, lobbyID, r.Role.Self())
 
 	return &pb.RspChatInit{
 		LobbyId:        int32(lobbyID),
@@ -74,17 +77,8 @@ func (r *RoleChat) ReqSendWorldChat(ctx context.Context, req *pb.ReqSendWorldCha
 	}
 	r.lastWorldChatTime = time.Now()
 
-	msg := &pb.PChatMsg{
-		SenderId:   r.RoleID,
-		SenderName: r.Role.Basic.RoleName,
-		Content:    strings.TrimSpace(req.Content),
-		Timestamp:  time.Now().Unix(),
-	}
-
-	if err := chat.StoreWorldMsg(ctx, msg, r.lastLobbyID); err != nil {
-		return nil, err
-	}
-	if err := chat.PublishWorldChat(ctx, msg, r.lastLobbyID); err != nil {
+	if err := callChatSendWorld(ctx, r.RoleID, r.Role.Basic.RoleName,
+		strings.TrimSpace(req.Content), r.lastLobbyID); err != nil {
 		return nil, err
 	}
 
@@ -96,7 +90,7 @@ func (r *RoleChat) ReqWorldChatHistory(ctx context.Context, req *pb.ReqWorldChat
 	if count <= 0 {
 		count = chat.GetConfig().WorldMsgKeep
 	}
-	msgs, err := chat.GetWorldHistory(ctx, r.lastLobbyID, count)
+	msgs, err := callChatWorldHistory(ctx, r.lastLobbyID, count)
 	if err != nil {
 		return nil, err
 	}
@@ -114,19 +108,10 @@ func (r *RoleChat) ReqSendPrivateChat(ctx context.Context, req *pb.ReqSendPrivat
 		return nil, ErrChatNotFriend
 	}
 
-	ts, err := chat.StorePrivateMsg(ctx, r.RoleID, req.TargetId, strings.TrimSpace(req.Content))
+	_, err := callChatStorePrivate(ctx, r.RoleID, req.TargetId,
+		r.Role.Basic.RoleName, strings.TrimSpace(req.Content))
 	if err != nil {
 		return nil, err
-	}
-
-	pid, err := lib.GetRoleActor(req.TargetId, false)
-	if err == nil && pid != nil {
-		gxyactor.LocalSend(pid, &pb.NotifyPrivateChat{
-			SenderId:   r.RoleID,
-			SenderName: r.Role.Basic.RoleName,
-			Content:    strings.TrimSpace(req.Content),
-			Timestamp:  ts,
-		})
 	}
 
 	return &pb.RspSendPrivateChat{}, nil
@@ -137,7 +122,7 @@ func (r *RoleChat) ReqPrivateChatHistory(ctx context.Context, req *pb.ReqPrivate
 	if count <= 0 {
 		count = 50
 	}
-	msgs, err := chat.GetPrivateHistory(ctx, r.RoleID, req.FriendId, count)
+	msgs, err := callChatPrivateHistory(ctx, r.RoleID, req.FriendId, count)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +134,7 @@ func (r *RoleChat) ReqSystemChatHistory(ctx context.Context, req *pb.ReqSystemCh
 	if count <= 0 {
 		count = chat.GetConfig().SystemMsgKeep
 	}
-	msgs, err := chat.GetSystemHistory(ctx, count)
+	msgs, err := callChatSystemHistory(ctx, count)
 	if err != nil {
 		return nil, err
 	}
@@ -160,8 +145,8 @@ func (r *RoleChat) ReqSystemChatHistory(ctx context.Context, req *pb.ReqSystemCh
 
 func (r *RoleChat) chatLeave(ctx context.Context) {
 	if r.lastLobbyID > 0 {
-		_ = chat.LeaveLobby(ctx, r.RoleID, r.lastLobbyID)
-		chat.UnregisterRole(r.RoleID)
+		_ = callChatLeaveLobby(ctx, r.RoleID, r.lastLobbyID)
+		chat.UnregisterLocalRole(r.RoleID)
 		r.lastLobbyID = 0
 	}
 }
@@ -175,4 +160,89 @@ func validateChatMsg(content string, maxLen int) error {
 		return ErrChatMsgTooLong
 	}
 	return nil
+}
+
+// ===== HTTP helpers =====
+
+func callChatJoinLobby(ctx context.Context, roleID int64) (int64, error) {
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("join_lobby?role_id=%d", roleID))
+	if err != nil {
+		return 0, err
+	}
+	data := struct {
+		LobbyID string `json:"lobby_id"`
+	}{}
+	if err := gconv.Scan(rsp.Data, &data); err != nil {
+		return 0, fmt.Errorf("parse lobby_id: %w", err)
+	}
+	return gconv.Int64(data.LobbyID), nil
+}
+
+func callChatLeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("leave_lobby?role_id=%d&lobby_id=%d", roleID, lobbyID))
+	return err
+}
+
+func callChatSendWorld(ctx context.Context, senderID int64, senderName, content string, lobbyID int64) error {
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("send_world?sender_id=%d&sender_name=%s&content=%s&lobby_id=%d",
+			senderID, url.QueryEscape(senderName), url.QueryEscape(content), lobbyID))
+	return err
+}
+
+func callChatStorePrivate(ctx context.Context, senderID, targetID int64, senderName, content string) (int64, error) {
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("store_private?sender_id=%d&target_id=%d&sender_name=%s&content=%s",
+			senderID, targetID, url.QueryEscape(senderName), url.QueryEscape(content)))
+	if err != nil {
+		return 0, err
+	}
+	data := struct {
+		Timestamp int64 `json:"timestamp"`
+	}{}
+	if err := gconv.Scan(rsp.Data, &data); err != nil {
+		return 0, fmt.Errorf("parse timestamp: %w", err)
+	}
+	return data.Timestamp, nil
+}
+
+func callChatWorldHistory(ctx context.Context, lobbyID int64, count int) ([]*pb.PChatMsg, error) {
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("world_history?lobby_id=%d&count=%d", lobbyID, count))
+	if err != nil {
+		return nil, err
+	}
+	var msgs []*pb.PChatMsg
+	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
+		return nil, fmt.Errorf("parse world history: %w", err)
+	}
+	return msgs, nil
+}
+
+func callChatPrivateHistory(ctx context.Context, roleID, friendID int64, count int) ([]*pb.PChatMsg, error) {
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("private_history?role_id=%d&friend_id=%d&count=%d", roleID, friendID, count))
+	if err != nil {
+		return nil, err
+	}
+	var msgs []*pb.PChatMsg
+	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
+		return nil, fmt.Errorf("parse private history: %w", err)
+	}
+	return msgs, nil
+}
+
+func callChatSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, error) {
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("system_history?count=%d", count))
+	if err != nil {
+		return nil, err
+	}
+	var msgs []*pb.PChatMsg
+	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
+		return nil, fmt.Errorf("parse system history: %w", err)
+	}
+	return msgs, nil
 }

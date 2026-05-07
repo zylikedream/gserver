@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gserver/core/gxyapp"
+	"gserver/core/gxyservice"
 	"gserver/gameconfig"
 )
 
@@ -22,15 +23,6 @@ func (c *chatApp) ServiceName() string {
 func (c *chatApp) OnModInit(ctx context.Context) error {
 	c.AddModule(ctx, gameconfig.NewGameConfig())
 	InitChatSchema(ctx)
-	return nil
-}
-
-func (c *chatApp) OnModStart(ctx context.Context) error {
-	StartRelay(ctx)
-	return nil
-}
-
-func (c *chatApp) OnModStop(ctx context.Context) error {
-	StopRelay()
+	gxyservice.ServiceApp().LoadService(ctx, NewChatService())
 	return nil
 }
