@@ -2,8 +2,10 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -65,6 +67,9 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 }
 
 func (r *RoleChat) ReqSendWorldChat(ctx context.Context, req *pb.ReqSendWorldChat) (*pb.RspSendWorldChat, error) {
+	if r.lastLobbyID == 0 {
+		return nil, errors.New("聊天未初始化")
+	}
 	cfg := chat.GetConfig()
 
 	if err := validateChatMsg(req.Content, cfg.MsgMaxLength); err != nil {
@@ -85,6 +90,9 @@ func (r *RoleChat) ReqSendWorldChat(ctx context.Context, req *pb.ReqSendWorldCha
 }
 
 func (r *RoleChat) ReqWorldChatHistory(ctx context.Context, req *pb.ReqWorldChatHistory) (*pb.RspWorldChatHistory, error) {
+	if r.lastLobbyID == 0 {
+		return nil, errors.New("聊天未初始化")
+	}
 	count := int(req.Count)
 	if count <= 0 {
 		count = chat.GetConfig().WorldMsgKeep
@@ -185,22 +193,18 @@ func callChatLeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
 }
 
 func callChatSendWorld(ctx context.Context, sender *pb.PRolePublic, content string, lobbyID int64) error {
-	body := map[string]any{
-		"sender":   sender,
-		"content":  content,
-		"lobby_id": lobbyID,
-	}
-	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat", "send_world", body)
+	sj, _ := json.Marshal(sender)
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("send_world?sender=%s&content=%s&lobby_id=%d",
+			url.QueryEscape(string(sj)), url.QueryEscape(content), lobbyID))
 	return err
 }
 
 func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID int64, content string) (int64, error) {
-	body := map[string]any{
-		"sender":    sender,
-		"target_id": targetID,
-		"content":   content,
-	}
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat", "store_private", body)
+	sj, _ := json.Marshal(sender)
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("store_private?sender=%s&target_id=%d&content=%s",
+			url.QueryEscape(string(sj)), targetID, url.QueryEscape(content)))
 	if err != nil {
 		return 0, err
 	}

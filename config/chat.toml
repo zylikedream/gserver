@@ -1,0 +1,27 @@
+[node]
+    name = "game"
+    host = "127.0.0.1"
+	apps = ["chat"]
+[postgres]
+#	url = "postgresql://postgres.roepimjsbdawvohntmfq:%40Supabase252525@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require&pool_max_conns=20&pool_min_conns=5"
+	url = "postgresql://postgres:%40zyc0131@127.0.0.1:5432/postgres?sslmode=disable"
+[redis]
+	addr = "localhost:6379"
+	password = "@zyc0131"
+	db = 0
+	dial_timeout = "5s"
+[log]
+	path = "./log"
+	level = "all"
+	file = "{Y-m-d}.log"
+	stStatus = 0
+# [registery.etcd]	
+# 	etcd_servers = ["localhost:2379"]
+# 	update_interval = "10s"
+# 	log_level = "error"
+[registery]
+	type = "consul"
+[registery.consul]	
+	address = "localhost:8500"
+	ttl = "10s"
+	refresh_ttl = "10s"

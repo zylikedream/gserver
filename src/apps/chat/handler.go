@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"gserver/protocol/pb"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/net/ghttp"
 )
 
 type ChatHandler struct {
@@ -47,37 +47,35 @@ func (h *ChatHandler) LeaveLobby(ctx context.Context, req *LeaveLobbyReq) (any, 
 
 // ===== 世界频道 =====
 
-func (h *ChatHandler) SendWorldChat(r *ghttp.Request) {
-	var req struct {
-		Sender  *pb.PRolePublic `json:"sender"`
-		Content string          `json:"content"`
-		LobbyID int64           `json:"lobby_id"`
-	}
-	if err := r.Parse(&req); err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
-	}
+type SendWorldChatReq struct {
+	g.Meta  `path:"/send_world"`
+	Sender  string `p:"sender" v:"required"`
+	Content string `p:"content" v:"required"`
+	LobbyID int64  `p:"lobby_id" v:"required"`
+}
+
+func (h *ChatHandler) SendWorldChat(ctx context.Context, req *SendWorldChatReq) (any, error) {
 	cfg := GetConfig()
 	trimmed := strings.TrimSpace(req.Content)
 	if trimmed == "" {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: "消息不能为空"})
-		return
+		return nil, gxyhttp.NewErrCode(1, "消息不能为空")
 	}
 	if len([]rune(trimmed)) > cfg.MsgMaxLength {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: "消息超过字数限制"})
-		return
+		return nil, gxyhttp.NewErrCode(1, "消息超过字数限制")
 	}
-	msg := &chatMsgJSON{Sender: req.Sender, Content: trimmed, Timestamp: time.Now().Unix()}
+	var sender *pb.PRolePublic
+	if err := json.Unmarshal([]byte(req.Sender), &sender); err != nil {
+		return nil, gxyhttp.NewErrCode(1, "parse sender error")
+	}
+	msg := &chatMsgJSON{Sender: sender, Content: trimmed, Timestamp: time.Now().Unix()}
 	data := msgToJSON(msg)
-	if err := StoreWorldMsgData(r.Context(), data, req.LobbyID); err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
+	if err := StoreWorldMsgData(ctx, data, req.LobbyID); err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
-	if err := PublishWorldChatData(r.Context(), data, req.LobbyID); err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
+	if err := PublishWorldChatData(ctx, data, req.LobbyID); err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
-	r.Response.WriteJson(gxyhttp.Response{Code: 0})
+	return nil, nil
 }
 
 type WorldHistoryReq struct {
@@ -101,26 +99,26 @@ func (h *ChatHandler) WorldHistory(ctx context.Context, req *WorldHistoryReq) (a
 
 // ===== 系统频道 =====
 
-func (h *ChatHandler) SendSystemChat(r *ghttp.Request) {
-	var req struct {
-		Sender  *pb.PRolePublic `json:"sender"`
-		Content string          `json:"content"`
+type SendSystemChatReq struct {
+	g.Meta  `path:"/send_system"`
+	Sender  string `p:"sender"`
+	Content string `p:"content" v:"required"`
+}
+
+func (h *ChatHandler) SendSystemChat(ctx context.Context, req *SendSystemChatReq) (any, error) {
+	var sender *pb.PRolePublic
+	if req.Sender != "" {
+		_ = json.Unmarshal([]byte(req.Sender), &sender)
 	}
-	if err := r.Parse(&req); err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
-	}
-	msg := &chatMsgJSON{Sender: req.Sender, Content: strings.TrimSpace(req.Content), Timestamp: time.Now().Unix()}
+	msg := &chatMsgJSON{Sender: sender, Content: strings.TrimSpace(req.Content), Timestamp: time.Now().Unix()}
 	data := msgToJSON(msg)
-	if err := StoreSystemMsgData(r.Context(), data); err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
+	if err := StoreSystemMsgData(ctx, data); err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
-	if err := PublishSystemChatData(r.Context(), data); err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
+	if err := PublishSystemChatData(ctx, data); err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
-	r.Response.WriteJson(gxyhttp.Response{Code: 0})
+	return nil, nil
 }
 
 type SystemHistoryReq struct {
@@ -143,24 +141,25 @@ func (h *ChatHandler) SystemHistory(ctx context.Context, req *SystemHistoryReq) 
 
 // ===== 私聊 =====
 
-func (h *ChatHandler) StorePrivateMsg(r *ghttp.Request) {
-	var req struct {
-		Sender   *pb.PRolePublic `json:"sender"`
-		TargetID int64           `json:"target_id"`
-		Content  string          `json:"content"`
+type StorePrivateMsgReq struct {
+	g.Meta   `path:"/store_private"`
+	Sender   string `p:"sender" v:"required"`
+	TargetID int64  `p:"target_id" v:"required"`
+	Content  string `p:"content" v:"required"`
+}
+
+func (h *ChatHandler) StorePrivateMsg(ctx context.Context, req *StorePrivateMsgReq) (any, error) {
+	var sender *pb.PRolePublic
+	if err := json.Unmarshal([]byte(req.Sender), &sender); err != nil {
+		return nil, gxyhttp.NewErrCode(1, "parse sender error")
 	}
-	if err := r.Parse(&req); err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
-	}
-	ts, err := StorePrivateMsg(r.Context(), req.Sender.GetRoleId(), req.TargetID, strings.TrimSpace(req.Content))
+	ts, err := StorePrivateMsg(ctx, sender.GetRoleId(), req.TargetID, strings.TrimSpace(req.Content))
 	if err != nil {
-		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
-		return
+		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
-	notify := &chatMsgJSON{Sender: req.Sender, Content: strings.TrimSpace(req.Content), Timestamp: ts}
-	_ = PublishPrivateChat(r.Context(), req.TargetID, msgToJSON(notify))
-	r.Response.WriteJson(gxyhttp.Response{Code: 0, Data: map[string]int64{"timestamp": ts}})
+	notify := &chatMsgJSON{Sender: sender, Content: strings.TrimSpace(req.Content), Timestamp: ts}
+	_ = PublishPrivateChat(ctx, req.TargetID, msgToJSON(notify))
+	return map[string]int64{"timestamp": ts}, nil
 }
 
 type PrivateHistoryReq struct {
