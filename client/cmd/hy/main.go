@@ -63,6 +63,9 @@ func main() {
 	})
 
 	c.OnResponse(func(msg proto.Message) {
+		if prettyPrintResponse(msg) {
+			return
+		}
 		printProtoJSON("←", msg)
 	})
 

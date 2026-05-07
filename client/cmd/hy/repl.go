@@ -144,17 +144,34 @@ func parseArgs(line string) []string {
 }
 
 func (r *REPL) printHelp() {
-	fmt.Println("Available commands:")
-	fmt.Println("  help                    Show this help")
-	fmt.Println("  quit                    Exit")
-	fmt.Println("  reconnect               Reconnect to server")
-	fmt.Println("")
-	for name, cmd := range commands {
-		paramsStr := strings.Join(cmd.Params, " ")
-		if paramsStr != "" {
-			fmt.Printf("  %-25s %s (%s)\n", name, cmd.Help, paramsStr)
-		} else {
-			fmt.Printf("  %-25s %s\n", name, cmd.Help)
+	fmt.Println("Commands:")
+	fmt.Println("  help          Show this help")
+	fmt.Println("  quit          Exit")
+	fmt.Println("  reconnect     Reconnect to server")
+
+	// Group commands by category
+	grouped := make(map[string][]string)
+	var groupOrder []string
+	seen := make(map[string]bool)
+	for _, name := range commandOrder {
+		g := groupOf(name)
+		grouped[g] = append(grouped[g], name)
+		if !seen[g] {
+			seen[g] = true
+			groupOrder = append(groupOrder, g)
+		}
+	}
+
+	for _, g := range groupOrder {
+		fmt.Printf("\n[%s]\n", g)
+		for _, name := range grouped[g] {
+			cmd := commands[name]
+			paramsStr := strings.Join(cmd.Params, " ")
+			if paramsStr != "" {
+				fmt.Printf("  %-25s %s (%s)\n", name, cmd.Help, paramsStr)
+			} else {
+				fmt.Printf("  %-25s %s\n", name, cmd.Help)
+			}
 		}
 	}
 }

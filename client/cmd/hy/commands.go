@@ -16,13 +16,41 @@ type Command struct {
 	Name   string
 	Help   string
 	Params []string
+	Group  string
 	Exec   func(c *client.Client, args []string) error
 }
 
 var commands = map[string]*Command{}
+var commandOrder []string
 
 func register(cmd *Command) {
 	commands[cmd.Name] = cmd
+	commandOrder = append(commandOrder, cmd.Name)
+}
+
+var groupDefs = []struct {
+	prefix, label string
+}{
+	{"basic", "角色"},
+	{"bag", "背包"},
+	{"flower", "花园"},
+	{"breed", "花园"},
+	{"plot", "花园"},
+	{"maintask", "任务"},
+	{"order", "任务"},
+	{"friend", "好友"},
+	{"chat", "聊天"},
+	{"gm", "GM"},
+}
+
+func groupOf(name string) string {
+	prefix := strings.SplitN(name, ".", 2)[0]
+	for _, g := range groupDefs {
+		if prefix == g.prefix {
+			return g.label
+		}
+	}
+	return "其他"
 }
 
 func init() {
@@ -405,6 +433,96 @@ func init() {
 		},
 	})
 
+	// --- chat ---
+	register(&Command{
+		Name: "chat.init",
+		Help: "Initialize chat (login)",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqChatInit{})
+		},
+	})
+	register(&Command{
+		Name:   "chat.world",
+		Help:   "Send message to world channel",
+		Params: []string{"content"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: chat.world <content>")
+			}
+			return c.Request(&pb.ReqSendWorldChat{Content: args[0]})
+		},
+	})
+	register(&Command{
+		Name:   "chat.world_history",
+		Help:   "Fetch world chat history",
+		Params: []string{"count"},
+		Exec: func(c *client.Client, args []string) error {
+			count := int32(20)
+			if len(args) >= 1 {
+				n, err := strconv.ParseInt(args[0], 10, 32)
+				if err != nil {
+					return fmt.Errorf("invalid count: %v", err)
+				}
+				count = int32(n)
+			}
+			return c.Request(&pb.ReqWorldChatHistory{Count: count})
+		},
+	})
+	register(&Command{
+		Name:   "chat.private",
+		Help:   "Send private message to a friend",
+		Params: []string{"target_id", "content"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: chat.private <target_id> <content>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid target_id: %v", err)
+			}
+			return c.Request(&pb.ReqSendPrivateChat{TargetId: id, Content: args[1]})
+		},
+	})
+	register(&Command{
+		Name:   "chat.private_history",
+		Help:   "Fetch private chat history with a friend",
+		Params: []string{"friend_id", "count"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: chat.private_history <friend_id> [count]")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid friend_id: %v", err)
+			}
+			count := int32(20)
+			if len(args) >= 2 {
+				n, err := strconv.ParseInt(args[1], 10, 32)
+				if err != nil {
+					return fmt.Errorf("invalid count: %v", err)
+				}
+				count = int32(n)
+			}
+			return c.Request(&pb.ReqPrivateChatHistory{FriendId: id, Count: count})
+		},
+	})
+	register(&Command{
+		Name:   "chat.system_history",
+		Help:   "Fetch system chat history",
+		Params: []string{"count"},
+		Exec: func(c *client.Client, args []string) error {
+			count := int32(20)
+			if len(args) >= 1 {
+				n, err := strconv.ParseInt(args[0], 10, 32)
+				if err != nil {
+					return fmt.Errorf("invalid count: %v", err)
+				}
+				count = int32(n)
+			}
+			return c.Request(&pb.ReqSystemChatHistory{Count: count})
+		},
+	})
+
 	// --- gm ---
 	register(&Command{
 		Name:   "gm.cmd",
@@ -435,6 +553,44 @@ func printProtoJSON(prefix string, msg proto.Message) {
 		return
 	}
 	fmt.Printf("%s %s %s\n", prefix, name, string(jsonBytes))
+}
+
+func prettyPrintResponse(msg proto.Message) bool {
+	switch m := msg.(type) {
+	case *pb.RspGMHelp:
+		printGMHelp(m)
+		return true
+	case *pb.RspGMCommand:
+		printGMResult(m)
+		return true
+	}
+	return false
+}
+
+func printGMHelp(rsp *pb.RspGMHelp) {
+	fmt.Println("← RspGMHelp")
+	if len(rsp.Commands) == 0 {
+		fmt.Println("  (no commands)")
+		return
+	}
+	for _, cmd := range rsp.Commands {
+		fmt.Printf("  %-25s %s\n", cmd.Name, cmd.Brief)
+		if cmd.Usage != "" {
+			fmt.Printf("  %27s%s\n", "", cmd.Usage)
+		}
+		if cmd.Example != "" {
+			fmt.Printf("  %27sex: %s\n", "", cmd.Example)
+		}
+	}
+}
+
+func printGMResult(rsp *pb.RspGMCommand) {
+	fmt.Println("← RspGMCommand")
+	if rsp.Result != "" {
+		for _, line := range strings.Split(rsp.Result, "\\n") {
+			fmt.Printf("  %s\n", line)
+		}
+	}
 }
 
 func parsePlotIDs(args []string) []int32 {
