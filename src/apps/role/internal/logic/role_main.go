@@ -73,6 +73,7 @@ type roleModules struct {
 	MainTask      *RoleMainTask
 	ResidentOrder *RoleResidentOrder
 	GM            *RoleGM
+	Chat          *RoleChat
 }
 
 type RoleMain struct {
@@ -506,6 +507,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.Stop(errors.New("single alive timeout"))
 	})
+	r.Chat.chatLeave(ctx)
 	r.state = RoleStateLogout
 	glog.Infof(ctx, "role logout, roleID: %d, reason %s", r.RoleID, reason)
 	return nil
@@ -513,6 +515,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	glog.Debugf(ctx, "role stopped, roleID: %d, err: %v", r.RoleID, err)
+	r.Chat.chatLeave(ctx)
 	if serr := r.StopModule(ctx); serr != nil {
 		glog.Errorf(ctx, "stop module error, roleID: %d, err: %v", r.RoleID, err)
 	}

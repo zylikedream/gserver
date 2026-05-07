@@ -23,6 +23,7 @@ func InitRoleSchema(ctx context.Context) {
 		&RoleMainTaskState{},
 		&RoleResidentOrderState{},
 		&StealRecord{},
+		&RoleChatState{},
 	); err != nil {
 		glog.Fatal(ctx, err)
 	}
