@@ -1,0 +1,105 @@
+// ID: 28001~28099
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+
+// === 通用 ===
+
+message PChatMsg {
+    int64 sender_id = 1;
+    string sender_name = 2;
+    string content = 3;
+    int64 timestamp = 4;
+}
+
+// === 登录初始化 ===
+
+// 聊天初始化 (28001) - 登录时自动调用
+message ReqChatInit {
+    option (msg_id) = 28001;
+}
+message RspChatInit {
+    option (msg_id) = 28002;
+    int32 lobby_id = 1;
+    repeated PChatMsg world_messages = 2;
+    repeated PChatMsg system_messages = 3;
+}
+
+// === 世界频道 ===
+
+// 发送世界消息 (28003)
+message ReqSendWorldChat {
+    option (msg_id) = 28003;
+    string content = 1;
+}
+message RspSendWorldChat {
+    option (msg_id) = 28004;
+}
+
+// 拉取世界频道历史 (28005)
+message ReqWorldChatHistory {
+    option (msg_id) = 28005;
+    int32 count = 1;
+}
+message RspWorldChatHistory {
+    option (msg_id) = 28006;
+    repeated PChatMsg messages = 1;
+}
+
+// 世界频道消息通知 (28007) - 服务端推送
+message NotifyWorldChat {
+    option (msg_id) = 28007;
+    PChatMsg message = 1;
+}
+
+// === 私聊 ===
+
+// 发送私聊 (28008)
+message ReqSendPrivateChat {
+    option (msg_id) = 28008;
+    int64 target_id = 1;
+    string content = 2;
+}
+message RspSendPrivateChat {
+    option (msg_id) = 28009;
+}
+
+// 拉取私聊历史 (28010)
+message ReqPrivateChatHistory {
+    option (msg_id) = 28010;
+    int64 friend_id = 1;
+    int32 count =  2;
+}
+message RspPrivateChatHistory {
+    option (msg_id) = 28011;
+    repeated PChatMsg messages = 1;
+}
+
+// 私聊消息通知 (28012) - 服务端推送
+message NotifyPrivateChat {
+    option (msg_id) = 28012;
+    int64 sender_id = 1;
+    string sender_name = 2;
+    string content = 3;
+    int64 timestamp = 4;
+}
+
+// === 系统频道 ===
+
+// 拉取系统消息 (28013)
+message ReqSystemChatHistory {
+    option (msg_id) = 28013;
+    int32 count = 1;
+}
+message RspSystemChatHistory {
+    option (msg_id) = 28014;
+    repeated PChatMsg messages = 1;
+}
+
+// 系统消息通知 (28015) - 服务端推送
+message NotifySystemChat {
+    option (msg_id) = 28015;
+    PChatMsg message = 1;
+}
