@@ -216,6 +216,41 @@ func init() {
 		},
 	})
 
+	register(&Command{
+		Name:   "flower.friend_plot",
+		Help:   "View friend's garden plots",
+		Params: []string{"friend_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: flower.friend_plot <friend_id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid friend_id: %v", err)
+			}
+			return c.Request(&pb.ReqFriendPlotInfo{FriendId: id})
+		},
+	})
+	register(&Command{
+		Name:   "flower.steal",
+		Help:   "Steal a flower from friend's garden",
+		Params: []string{"friend_id", "plot_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: flower.steal <friend_id> <plot_id>")
+			}
+			friendID, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid friend_id: %v", err)
+			}
+			plotID, err := strconv.ParseInt(args[1], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid plot_id: %v", err)
+			}
+			return c.Request(&pb.ReqStealFlower{FriendId: friendID, PlotId: int32(plotID)})
+		},
+	})
+
 	// --- maintask ---
 	register(&Command{
 		Name: "maintask.info",
