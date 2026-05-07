@@ -536,14 +536,7 @@ func (r *RoleMain) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleMain) GetRolePublic(ctx context.Context) *pb.PRolePublic {
-	return &pb.PRolePublic{
-		RoleId:     r.RoleID,
-		Name:       r.Basic.RoleName,
-		Head:       r.Basic.Head,
-		CreateTime: r.Basic.CreateTm.Unix(),
-	}
-}
+
 
 // GetBag 实现 roleSender 接口，供兄弟模块跨模块访问背包
 func (r *RoleMain) GetBag() *RoleBag { return r.Bag }

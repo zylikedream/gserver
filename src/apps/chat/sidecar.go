@@ -126,14 +126,11 @@ func handleSidecarMsg(ctx context.Context, msg *redis.Message) {
 			glog.Warningf(ctx, "[chat] sidecar parse private msg error: %v", err)
 			return
 		}
-		if entry, ok := localRoles.Load(targetID); ok {
-			e := entry.(*roleEntry)
-			gxyactor.LocalSend(e.pid, &pb.NotifyPrivateChat{
-				SenderId:   chatMsg.SenderId,
-				SenderName: chatMsg.SenderName,
-				Content:    chatMsg.Content,
-				Timestamp:  chatMsg.Timestamp,
-			})
-		}
+			if entry, ok := localRoles.Load(targetID); ok {
+				e := entry.(*roleEntry)
+				gxyactor.LocalSend(e.pid, &pb.NotifyPrivateChat{
+					Message: chatMsg,
+				})
+			}
 	}
 }

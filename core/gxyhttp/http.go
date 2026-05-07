@@ -8,6 +8,7 @@ import (
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"
 	"net/http"
+	"sync/atomic"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -29,12 +30,17 @@ func NewHttpApp() *httpApp {
 	return &httpApp{}
 }
 
+var httpServerSeq int64
+
 func (h *httpApp) NewHttpServer(host string) *ghttp.Server {
-	svr := g.Server()
+	// 生成一个唯一的服务器名称
+	// 服务器名称格式为: gserver-序号
+	// 序号从1开始递增
+	seq := atomic.AddInt64(&httpServerSeq, 1)
+	svr := ghttp.GetServer(fmt.Sprintf("gserver-%d", seq))
 	svr.SetAddr(fmt.Sprintf("%s:%d", host, 0))
 	svr.SetLogger(gxylog.GetLogger().Clone())
 	svr.SetLogLevel("debug")
-	g.Client()
 	return svr
 }
 

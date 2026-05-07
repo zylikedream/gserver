@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -77,7 +76,7 @@ func (r *RoleChat) ReqSendWorldChat(ctx context.Context, req *pb.ReqSendWorldCha
 	}
 	r.lastWorldChatTime = time.Now()
 
-	if err := callChatSendWorld(ctx, r.RoleID, r.Role.Basic.RoleName,
+	if err := callChatSendWorld(ctx, r.Role.Public.GetRolePublic(ctx),
 		strings.TrimSpace(req.Content), r.lastLobbyID); err != nil {
 		return nil, err
 	}
@@ -108,8 +107,8 @@ func (r *RoleChat) ReqSendPrivateChat(ctx context.Context, req *pb.ReqSendPrivat
 		return nil, ErrChatNotFriend
 	}
 
-	_, err := callChatStorePrivate(ctx, r.RoleID, req.TargetId,
-		r.Role.Basic.RoleName, strings.TrimSpace(req.Content))
+	_, err := callChatStorePrivate(ctx, r.Role.Public.GetRolePublic(ctx),
+		req.TargetId, strings.TrimSpace(req.Content))
 	if err != nil {
 		return nil, err
 	}
@@ -185,17 +184,23 @@ func callChatLeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
 	return err
 }
 
-func callChatSendWorld(ctx context.Context, senderID int64, senderName, content string, lobbyID int64) error {
-	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
-		fmt.Sprintf("send_world?sender_id=%d&sender_name=%s&content=%s&lobby_id=%d",
-			senderID, url.QueryEscape(senderName), url.QueryEscape(content), lobbyID))
+func callChatSendWorld(ctx context.Context, sender *pb.PRolePublic, content string, lobbyID int64) error {
+	body := map[string]any{
+		"sender":   sender,
+		"content":  content,
+		"lobby_id": lobbyID,
+	}
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat", "send_world", body)
 	return err
 }
 
-func callChatStorePrivate(ctx context.Context, senderID, targetID int64, senderName, content string) (int64, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
-		fmt.Sprintf("store_private?sender_id=%d&target_id=%d&sender_name=%s&content=%s",
-			senderID, targetID, url.QueryEscape(senderName), url.QueryEscape(content)))
+func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID int64, content string) (int64, error) {
+	body := map[string]any{
+		"sender":    sender,
+		"target_id": targetID,
+		"content":   content,
+	}
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat", "store_private", body)
 	if err != nil {
 		return 0, err
 	}

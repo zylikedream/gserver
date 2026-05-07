@@ -49,10 +49,9 @@ return 1`)
 // ===== 聊天消息 JSON =====
 
 type chatMsgJSON struct {
-	SenderID   int64  `json:"sender_id"`
-	SenderName string `json:"sender_name"`
-	Content    string `json:"content"`
-	Timestamp  int64  `json:"timestamp"`
+	Sender    *pb.PRolePublic `json:"sender"`
+	Content   string          `json:"content"`
+	Timestamp int64           `json:"timestamp"`
 }
 
 func msgToJSON(msg *chatMsgJSON) string {
@@ -66,8 +65,9 @@ func jsonToMsg(data string) (*pb.PChatMsg, error) {
 		return nil, err
 	}
 	return &pb.PChatMsg{
-		SenderId: j.SenderID, SenderName: j.SenderName,
-		Content: j.Content, Timestamp: j.Timestamp,
+		Sender:    j.Sender,
+		Content:   j.Content,
+		Timestamp: j.Timestamp,
 	}, nil
 }
 
@@ -183,7 +183,9 @@ func GetPrivateHistory(ctx context.Context, roleID, friendID int64, count int) (
 	for i := len(msgs) - 1; i >= 0; i-- {
 		m := msgs[i]
 		result = append(result, &pb.PChatMsg{
-			SenderId:  m.SenderID,
+			Sender: &pb.PRolePublic{
+				RoleId: m.SenderID,
+			},
 			Content:   m.Content,
 			Timestamp: m.CreatedAt.Unix(),
 		})

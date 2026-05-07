@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"gserver/core/gxyhttp"
+	"gserver/protocol/pb"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/gogf/gf/v2/net/ghttp"
 )
 
 type ChatHandler struct {
@@ -45,35 +47,37 @@ func (h *ChatHandler) LeaveLobby(ctx context.Context, req *LeaveLobbyReq) (any, 
 
 // ===== 世界频道 =====
 
-type SendWorldChatReq struct {
-	g.Meta     `path:"/send_world"`
-	SenderID   int64  `p:"sender_id" v:"required"`
-	SenderName string `p:"sender_name"`
-	Content    string `p:"content" v:"required"`
-	LobbyID    int64  `p:"lobby_id" v:"required"`
-}
-
-func (h *ChatHandler) SendWorldChat(ctx context.Context, req *SendWorldChatReq) (any, error) {
+func (h *ChatHandler) SendWorldChat(r *ghttp.Request) {
+	var req struct {
+		Sender  *pb.PRolePublic `json:"sender"`
+		Content string          `json:"content"`
+		LobbyID int64           `json:"lobby_id"`
+	}
+	if err := r.Parse(&req); err != nil {
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
+	}
 	cfg := GetConfig()
 	trimmed := strings.TrimSpace(req.Content)
 	if trimmed == "" {
-		return nil, gxyhttp.NewErrCode(1, "消息不能为空")
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: "消息不能为空"})
+		return
 	}
 	if len([]rune(trimmed)) > cfg.MsgMaxLength {
-		return nil, gxyhttp.NewErrCode(1, "消息超过字数限制")
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: "消息超过字数限制"})
+		return
 	}
-	msg := &chatMsgJSON{
-		SenderID: req.SenderID, SenderName: req.SenderName,
-		Content: trimmed, Timestamp: time.Now().Unix(),
-	}
+	msg := &chatMsgJSON{Sender: req.Sender, Content: trimmed, Timestamp: time.Now().Unix()}
 	data := msgToJSON(msg)
-	if err := StoreWorldMsgData(ctx, data, req.LobbyID); err != nil {
-		return nil, gxyhttp.NewErrCode(1, err.Error())
+	if err := StoreWorldMsgData(r.Context(), data, req.LobbyID); err != nil {
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
 	}
-	if err := PublishWorldChatData(ctx, data, req.LobbyID); err != nil {
-		return nil, gxyhttp.NewErrCode(1, err.Error())
+	if err := PublishWorldChatData(r.Context(), data, req.LobbyID); err != nil {
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
 	}
-	return nil, nil
+	r.Response.WriteJson(gxyhttp.Response{Code: 0})
 }
 
 type WorldHistoryReq struct {
@@ -97,26 +101,26 @@ func (h *ChatHandler) WorldHistory(ctx context.Context, req *WorldHistoryReq) (a
 
 // ===== 系统频道 =====
 
-type SendSystemChatReq struct {
-	g.Meta     `path:"/send_system"`
-	SenderID   int64  `p:"sender_id"`
-	SenderName string `p:"sender_name"`
-	Content    string `p:"content" v:"required"`
-}
-
-func (h *ChatHandler) SendSystemChat(ctx context.Context, req *SendSystemChatReq) (any, error) {
-	msg := &chatMsgJSON{
-		SenderID: req.SenderID, SenderName: req.SenderName,
-		Content: strings.TrimSpace(req.Content), Timestamp: time.Now().Unix(),
+func (h *ChatHandler) SendSystemChat(r *ghttp.Request) {
+	var req struct {
+		Sender  *pb.PRolePublic `json:"sender"`
+		Content string          `json:"content"`
 	}
+	if err := r.Parse(&req); err != nil {
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
+	}
+	msg := &chatMsgJSON{Sender: req.Sender, Content: strings.TrimSpace(req.Content), Timestamp: time.Now().Unix()}
 	data := msgToJSON(msg)
-	if err := StoreSystemMsgData(ctx, data); err != nil {
-		return nil, gxyhttp.NewErrCode(1, err.Error())
+	if err := StoreSystemMsgData(r.Context(), data); err != nil {
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
 	}
-	if err := PublishSystemChatData(ctx, data); err != nil {
-		return nil, gxyhttp.NewErrCode(1, err.Error())
+	if err := PublishSystemChatData(r.Context(), data); err != nil {
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
 	}
-	return nil, nil
+	r.Response.WriteJson(gxyhttp.Response{Code: 0})
 }
 
 type SystemHistoryReq struct {
@@ -139,26 +143,24 @@ func (h *ChatHandler) SystemHistory(ctx context.Context, req *SystemHistoryReq) 
 
 // ===== 私聊 =====
 
-type StorePrivateMsgReq struct {
-	g.Meta    `path:"/store_private"`
-	SenderID  int64  `p:"sender_id" v:"required"`
-	TargetID  int64  `p:"target_id" v:"required"`
-	Content   string `p:"content" v:"required"`
-	SenderName string `p:"sender_name"`
-}
-
-func (h *ChatHandler) StorePrivateMsg(ctx context.Context, req *StorePrivateMsgReq) (any, error) {
-	ts, err := StorePrivateMsg(ctx, req.SenderID, req.TargetID, strings.TrimSpace(req.Content))
+func (h *ChatHandler) StorePrivateMsg(r *ghttp.Request) {
+	var req struct {
+		Sender   *pb.PRolePublic `json:"sender"`
+		TargetID int64           `json:"target_id"`
+		Content  string          `json:"content"`
+	}
+	if err := r.Parse(&req); err != nil {
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
+	}
+	ts, err := StorePrivateMsg(r.Context(), req.Sender.GetRoleId(), req.TargetID, strings.TrimSpace(req.Content))
 	if err != nil {
-		return nil, gxyhttp.NewErrCode(1, err.Error())
+		r.Response.WriteJson(gxyhttp.Response{Code: 1, Message: err.Error()})
+		return
 	}
-	// PubSub 推送给接收者
-	notify := &chatMsgJSON{
-		SenderID: req.SenderID, SenderName: req.SenderName,
-		Content: strings.TrimSpace(req.Content), Timestamp: ts,
-	}
-	_ = PublishPrivateChat(ctx, req.TargetID, msgToJSON(notify))
-	return map[string]int64{"timestamp": ts}, nil
+	notify := &chatMsgJSON{Sender: req.Sender, Content: strings.TrimSpace(req.Content), Timestamp: ts}
+	_ = PublishPrivateChat(r.Context(), req.TargetID, msgToJSON(notify))
+	r.Response.WriteJson(gxyhttp.Response{Code: 0, Data: map[string]int64{"timestamp": ts}})
 }
 
 type PrivateHistoryReq struct {

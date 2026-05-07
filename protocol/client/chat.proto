@@ -4,14 +4,14 @@ option go_package="./pb;pb";
 package galaxy.protocol;
 
 import "msg_options.proto";
+import "role.proto";
 
 // === 通用 ===
 
 message PChatMsg {
-    int64 sender_id = 1;
-    string sender_name = 2;
-    string content = 3;
-    int64 timestamp = 4;
+    PRolePublic sender = 1;
+    string content = 2;
+    int64 timestamp = 3;
 }
 
 // === 登录初始化 ===
@@ -80,10 +80,7 @@ message RspPrivateChatHistory {
 // 私聊消息通知 (28012) - 服务端推送
 message NotifyPrivateChat {
     option (msg_id) = 28012;
-    int64 sender_id = 1;
-    string sender_name = 2;
-    string content = 3;
-    int64 timestamp = 4;
+    PChatMsg message = 1;
 }
 
 // === 系统频道 ===

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
+	"gserver/src/apps/api"
 	"time"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
@@ -18,12 +19,7 @@ const (
 
 type RolePublicState struct {
 	RolePersistState
-	Name        string    `gorm:"column:name"`
-	Head        string    `gorm:"column:head"`
-	CreateTime  time.Time `gorm:"column:create_time"`
-	Level       int32     `gorm:"column:level"`
-	LastLoginAt time.Time `gorm:"column:last_login_at"`
-	IsOnline    bool      `gorm:"column:is_online"`
+	api.RolePublicData
 }
 
 func (RolePublicState) TableName() string { return "role_public" }
@@ -49,6 +45,10 @@ func (r *RolePublic) UpdateRolePublic(ctx context.Context) {
 	r.Level = role.Basic.Level
 	r.LastLoginAt = role.Basic.LoginTm
 	r.MarkDirty()
+}
+
+func (r *RolePublic) GetRolePublic(ctx context.Context) *pb.PRolePublic {
+	return PRolePublic(&r.RolePublicState)
 }
 
 func GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
