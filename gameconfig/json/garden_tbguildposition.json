@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1,
+    "name": "会长",
+    "can_approve": true,
+    "can_edit_notice": true,
+    "can_kick": true,
+    "can_appoint_vice": true,
+    "can_transfer_leader": true,
+    "can_disband": true
+  },
+  {
+    "id": 2,
+    "name": "副会长",
+    "can_approve": true,
+    "can_edit_notice": true,
+    "can_kick": true,
+    "can_appoint_vice": false,
+    "can_transfer_leader": false,
+    "can_disband": false
+  },
+  {
+    "id": 3,
+    "name": "成员",
+    "can_approve": false,
+    "can_edit_notice": false,
+    "can_kick": false,
+    "can_appoint_vice": false,
+    "can_transfer_leader": false,
+    "can_disband": false
+  }
+]

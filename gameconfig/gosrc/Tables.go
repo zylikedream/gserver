@@ -23,6 +23,10 @@ type Tables struct {
     TbResidentOrderSlot *GardenTbResidentOrderSlot
     TbResidentOrder *GardenTbResidentOrder
     TbResidentOrderProgressReward *GardenTbResidentOrderProgressReward
+    TbGuildConfig *GardenTbGuildConfig
+    TbGuildLevel *GardenTbGuildLevel
+    TbGuildPosition *GardenTbGuildPosition
+    TbGuildChat *GardenTbGuildChat
     TbItemTag *GardenTbItemTag
     TbFriendConfig *GardenTbFriendConfig
     TbGlobalConfig *GardenTbGlobalConfig
@@ -97,6 +101,30 @@ func NewTables(loader JsonLoader) (*Tables, error) {
         return nil, err
     }
     if tables.TbResidentOrderProgressReward, err = NewGardenTbResidentOrderProgressReward(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbguildconfig") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGuildConfig, err = NewGardenTbGuildConfig(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbguildlevel") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGuildLevel, err = NewGardenTbGuildLevel(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbguildposition") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGuildPosition, err = NewGardenTbGuildPosition(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("garden_tbguildchat") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGuildChat, err = NewGardenTbGuildChat(buf) ; err != nil {
         return nil, err
     }
     if buf, err = loader("garden_tbitemtag") ; err != nil {

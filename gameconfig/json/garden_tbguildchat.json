@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1,
+    "name": "公会",
+    "message_limit": 60,
+    "cooldown": 3,
+    "history_limit": 50,
+    "show_red_dot": true
+  }
+]
