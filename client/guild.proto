@@ -1,0 +1,233 @@
+// ID: 29001~29099
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+import "role.proto";
+import "chat.proto";
+
+// ==================== 枚举 ====================
+
+enum EGuildPosition {
+    EGUILD_POSITION_UNKNOWN = 0;
+    EGUILD_POSITION_LEADER = 1;
+    EGUILD_POSITION_VICE_LEADER = 2;
+    EGUILD_POSITION_MEMBER = 3;
+}
+
+// ==================== 数据结构 ====================
+
+message PGuildBasic {
+    int64  id = 1;
+    string name = 2;
+    int32  level = 3;
+    string icon = 4;
+    string declaration = 5;
+    string announcement = 6;
+    bool   need_approval = 7;
+    int32  member_count = 8;
+    int32  member_limit = 9;
+    int64  leader_id = 10;
+    int64  created_at = 11;
+}
+
+message PGuildMember {
+    PRolePublic    player_info = 1;
+    EGuildPosition position    = 2;
+    int64          joined_at   = 3;
+}
+
+message PGuildApply {
+    int64       apply_id   = 1;
+    int64       guild_id   = 2;
+    PRolePublic player_info = 3;
+    int64       created_at = 4;
+}
+
+message PGuildLog {
+    string content   = 1;
+    int64  created_at = 2;
+}
+
+// ==================== Req / Rsp ====================
+
+// 申请加入公会 (29007)
+message ReqApplyGuild {
+    option (msg_id) = 29007;
+    int64 guild_id = 1;
+    int64 role_id  = 2;  // 服务端填充
+}
+message RspApplyGuild {
+    option (msg_id) = 29008;
+}
+
+// 申请列表 (29011)
+message ReqGuildApplyList {
+    option (msg_id) = 29011;
+}
+message RspGuildApplyList {
+    option (msg_id) = 29012;
+    repeated PGuildApply applies = 1;
+}
+
+// 审批加入 (29013)
+message ReqApproveApply {
+    option (msg_id) = 29013;
+    repeated int64 apply_ids = 1;  // 支持批量审批
+    bool           approve   = 2;  // true=同意 false=拒绝
+    int64          role_id   = 3;  // 服务端填充
+}
+message RspApproveApply {
+    option (msg_id) = 29014;
+}
+
+// 踢出成员 (29015)
+message ReqKickMember {
+    option (msg_id) = 29015;
+    int64  target_id = 1;
+    string reason    = 2;
+    int64  role_id   = 3;  // 服务端填充
+}
+message RspKickMember {
+    option (msg_id) = 29016;
+}
+
+// 退出公会 (29017)
+message ReqLeaveGuild {
+    option (msg_id) = 29017;
+    int64 role_id = 1;  // 服务端填充
+}
+message RspLeaveGuild {
+    option (msg_id) = 29018;
+}
+
+// 解散公会 (29029)
+message ReqDisbandGuild {
+    option (msg_id) = 29029;
+    int64 role_id = 1;  // 服务端填充
+}
+message RspDisbandGuild {
+    option (msg_id) = 29030;
+}
+
+// 任命/取消副会长 (29019)
+message ReqSetViceLeader {
+    option (msg_id) = 29019;
+    int64 target_id = 1;
+    bool  set       = 2;  // true=任命 false=取消
+    int64 role_id   = 3;  // 服务端填充
+}
+message RspSetViceLeader {
+    option (msg_id) = 29020;
+}
+
+// 转让会长 (29021)
+message ReqTransferLeader {
+    option (msg_id) = 29021;
+    int64 target_id = 1;
+    int64 role_id   = 2;  // 服务端填充
+}
+message RspTransferLeader {
+    option (msg_id) = 29022;
+}
+
+// 修改公会信息 (29023)
+message ReqUpdateGuildInfo {
+    option (msg_id) = 29023;
+    string declaration  = 1;
+    string announcement = 2;
+    bool   need_approval = 3;
+    int64  role_id       = 4;  // 服务端填充
+}
+message RspUpdateGuildInfo {
+    option (msg_id) = 29024;
+}
+
+// 公会大厅信息 (29025)
+message ReqGuildInfo {
+    option (msg_id) = 29025;
+}
+message RspGuildInfo {
+    option (msg_id) = 29026;
+    PGuildBasic          guild   = 1;
+    repeated PGuildMember members = 2;
+    repeated PGuildLog   logs    = 3;
+}
+
+// 公会日志 (29027)
+message ReqGuildLogs {
+    option (msg_id) = 29027;
+}
+message RspGuildLogs {
+    option (msg_id) = 29028;
+    repeated PGuildLog logs = 1;
+}
+
+// 创建公会 (29031, HTTP)
+message ReqCreateGuild {
+    option (msg_id) = 29031;
+    string name          = 1;
+    string declaration   = 2;
+    string icon          = 3;
+    bool   need_approval = 4;
+}
+message RspCreateGuild {
+    option (msg_id) = 29032;
+    int64 guild_id = 1;
+}
+
+// 搜索公会 (29033, HTTP)
+message ReqSearchGuild {
+    option (msg_id) = 29033;
+    string keyword = 1;
+}
+message RspSearchGuild {
+    option (msg_id) = 29034;
+    repeated PGuildBasic guilds = 1;
+}
+
+// ==================== 通知（直接携带数据） ====================
+
+// 公会内容变更（含成员列表）(29051)
+message NotifyGuildInfo {
+    option (msg_id) = 29051;
+    PGuildBasic          guild   = 1;
+    PGuildMember         self    = 2;
+    repeated PGuildMember members = 3;
+}
+
+// 公会基本信息变更 (29052)
+message NotifyGuildBasic {
+    option (msg_id) = 29052;
+    PGuildBasic guild = 1;
+}
+
+// 被踢出公会 (29053)
+message NotifyGuildKicked {
+    option (msg_id) = 29053;
+    string reason = 1;
+}
+
+// 申请列表变更 (29054)
+message NotifyGuildApply {
+    option (msg_id) = 29054;
+    repeated PGuildApply applies = 1;
+}
+
+// 公会聊天通知 (29055)
+message NotifyGuildChat {
+    option (msg_id) = 29055;
+    PChatMsg message = 1;
+}
+
+// ==================== Actor 内部消息 ====================
+
+// 无需 msg_id，走 gxyactor.Request 内部路由
+message ActorCreateGuild {
+    int64  leader_id    = 1;
+    string name         = 2;
+    string declaration  = 3;
+    string icon         = 4;
+    bool   need_approval = 5;
+}
