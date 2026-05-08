@@ -45,11 +45,10 @@
 
 | 操作类型 | 实现方式 | 说明 |
 |---------|---------|------|
-| 只读操作（搜索、查看基本信息、申请列表、日志） | HTTP | 不需要激活 actor，直接查 DB |
-| 创建公会 | HTTP | 先扣消耗 → HTTP 创建（写入 DB + 激活 actor） |
-| 申请加入（需审核） | HTTP | 只写 guild_apply 表，原子门在审批时做 |
-| 加入公会（无需审核） | Actor 消息 | 直接改成员列表 + role_guild，atomic gate |
-| 写操作（审批、踢人、任命、转让、修改信息、退出、解散） | Actor 消息 | 需要操作公会状态，mailbox 串行化保护 |
+| 创建公会 | HTTP | 公会 actor 还不存在，必须先创建后再激活 |
+| 搜索公会 | HTTP | 跨全服搜索，不能走单个 actor |
+| 写操作（加入、申请、审批、踢人、任命、转让、修改信息、退出、解散） | Actor 消息 | 需要操作公会状态，mailbox 串行化保护 |
+| 读操作（公会大厅信息、申请列表、日志列表） | Actor 消息 | 激活 actor 后直接从内存缓存读取 |
 | 定时任务（自动转让、过期清理） | Actor 内部 Timer | 在 guild actor 的 DayRefresh 中执行 |
 | 聊天推送 | Redis pub/sub + sidecar | 由 chat 模块统一处理 |
 
@@ -296,30 +295,30 @@ func (h *GuildHandler) Create(ctx context.Context, req *CreateGuildReq) (any, er
 }
 ```
 
-### 4.2 申请加入（需审核 → HTTP）
+### 4.2 申请加入（需审核 → Actor 消息）
 
-需审核时，申请只是写入 `guild_apply` 表，不涉及公会状态变更，走 HTTP：
+需审核时，申请写入 `guild_apply` 表并检查玩家是否已有公会。走 actor 消息保持统一：
 
 ```go
-func (h *GuildHandler) ApplyGuild(ctx context.Context, req *ApplyGuildReq) (any, error) {
+func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ApplyGuildReq) (*pb.RspApplyGuild, error) {
     // 检查玩家无公会
     var state RoleGuildState
     gxypgx.DB().First(&state, req.RoleID)
     if state.GuildID > 0 {
-        return nil, gxyhttp.NewErrCode(1, "你已加入公会")
+        return nil, ErrPlayerAlreadyInGuild
     }
 
     // 写入申请
     cfg := gamecfg.GetGuildConfig()
     gxypgx.DB().Create(&GuildApply{
-        GuildID: req.GuildID, RoleID: req.RoleID,
+        GuildID: g.GuildID, RoleID: req.RoleID,
         Status: 0, ExpireAt: time.Now().Add(time.Duration(cfg.ApplyExpireHours) * time.Hour),
     })
-    return nil, nil
+    return &pb.RspApplyGuild{}, nil
 }
 ```
 
-原子门在审批时做（见下方 4.3），同一个玩家申请多个公会最终只有第一个批准的生效。
+原子门在审批时做（见下方 4.4），同一个玩家申请多个公会最终只有第一个批准的生效。
 
 ### 4.3 直接加入（无需审核 → Actor 消息）
 
@@ -500,19 +499,16 @@ func (g *GuildActor) notifyMembers(ctx context.Context, msg proto.Message, exclu
 
 ---
 
-## 6. 读操作（HTTP）
+## 6. HTTP 接口
 
-以下操作不修改状态，不需要激活 actor，直接由 HTTP handler 处理：
+HTTP handler 只处理 2 个"还不存在/跨全服"的操作：
 
 | 接口 | Path | 说明 |
 |------|------|------|
 | 创建公会 | `POST /create` | 创建公会记录并激活 actor |
-| 申请加入（需审核） | `POST /apply` | 写入申请记录 |
 | 搜索公会 | `POST /search` | 按名称模糊搜索或按 ID 精确搜索 |
-| 公会大厅信息 | `POST /info` | 返回公会基本信息+成员列表（限成员） |
-| 公会基本信息 | `POST /basic` | 返回公会基本信息（公开） |
-| 申请列表 | `POST /apply_list` | 返回当前申请列表（限会长/副会长） |
-| 公会日志 | `POST /log_list` | 返回公会日志 |
+
+所有需要 `guild_id` 的操作（包括读：公会大厅信息、申请列表、日志）都走 actor 消息，激活后从内存缓存返回。
 
 ### 6.1 搜索公会
 
@@ -524,40 +520,16 @@ type SearchGuildReq struct {
 
 func (h *GuildHandler) Search(ctx context.Context, req *SearchGuildReq) (any, error) {
     var guilds []Guild
-    // 数字 → ID 精确搜索
     if id, err := strconv.ParseInt(req.Keyword, 10, 64); err == nil {
         gxypgx.DB().Where("id = ?", id).Find(&guilds)
     } else {
-        // 文字 → 名称模糊搜索
         gxypgx.DB().Where("name LIKE ?", "%"+req.Keyword+"%").Limit(20).Find(&guilds)
     }
     return guilds, nil
 }
 ```
 
-### 6.2 公会大厅信息
-
-```go
-type GuildInfoReq struct {
-    g.Meta `path:"/info"`
-    GuildID int64 `p:"guild_id" v:"required"`
-}
-
-func (h *GuildHandler) Info(ctx context.Context, req *GuildInfoReq) (any, error) {
-    var guild Guild
-    if err := gxypgx.DB().First(&guild, req.GuildID).Error; err != nil {
-        return nil, gxyhttp.NewErrCode(1, "公会不存在")
-    }
-
-    var members []GuildMember
-    gxypgx.DB().Where("guild_id = ?", req.GuildID).Find(&members)
-
-    return map[string]any{
-        "guild":   guild,
-        "members": members,
-    }, nil
-}
-```
+> 注意：首版搜索直接从 guild 表读取。后续搜索量大了可以增加 `GuildPublic` 缓存表（类似 `RolePublic`），只存名称、等级、图标等简要信息，用于搜索列表展示。玩家点击进入详情再激活 guild actor。
 
 ---
 
@@ -714,7 +686,7 @@ type roleModules struct {
 }
 ```
 
-### 8.3 Proto Handler 示例（写操作 → Actor 消息 + 读操作 → HTTP）
+### 8.3 Proto Handler 示例
 
 ```go
 // role_guild.go
@@ -788,7 +760,7 @@ func (r *RoleGuild) ReqSearchGuild(ctx context.Context, req *pb.ReqSearchGuild) 
 ```
 src/apps/guild/
 ├── guild_app.go          # App 注册、OnModInit、AutoMigrate
-├── guild_service.go       # HTTP service 启动（只读接口）
+├── guild_service.go       # HTTP service 启动（创建 & 搜索）
 ├── logic/
 │   ├── model.go           # GORM 模型
 │   ├── schema.go          # AutoMigrate 调用
