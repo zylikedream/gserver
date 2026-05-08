@@ -15,23 +15,23 @@
 │  guild_app.go    ─── App 注册，AutoMigrate          │
 │                                                     │
 │  guild_actor.go  ─── 公会 Actor（核心）             │
-│   ├── 数据：GuildInfo + Members 内存缓存            │
+│   ├── 数据：Guild + Members + ApplyList + Logs      │
+│   │    统一 JSONB 单表，全量加载到内存              │
 │   ├── 生命周期：OnModStart 加载，TickSave 持久化    │
 │   ├── 定时器：DayRefresh 自动转让/清理              │
 │   └── 写操作：创建/审批/踢人/转让/修改信息/解散    │
 │                                                     │
 │  handler.go      ─── HTTP 只读操作                  │
-│   └── 搜索公会、查看公会基本信息                    │
+│   └── 搜索公会、创建公会                            │
 │                                                     │
-│  model.go        ─── GORM 模型                      │
+│  model.go        ─── GORM 模型（含 JSONB 嵌入列）   │
 │  schema.go       ─── AutoMigrate                    │
-│  guild.go        ─── 核心业务逻辑函数               │
 │                                                     │
 ├─────────────────────────────────────────────────────┤
 │ src/apps/role/internal/logic/role_guild.go           │
 │  RoleGuild 子模块                                    │
 │  ├── 持久化：RoleGuildState（role_id → guild_id）   │
-│  ├── 读操作 → HTTP guild service                    │
+│  ├── 读操作 → 激活 guild actor → actor 消息        │
 │  └── 写操作 → 激活 guild actor → actor 消息        │
 │                                                     │
 ├─────────────────────────────────────────────────────┤
@@ -56,63 +56,55 @@
 
 ## 2. 数据模型
 
-### 2.1 guild 表 — 公会主表
+### 2.1 guild 表 — 公会主表（JSONB 单表）
+
+所有公会数据存储在单张表的 JSONB 列中。GORM 原生支持 `serializer:json`，读写 JSONB 列不需要额外代码。
 
 ```go
 type Guild struct {
-    ID           int64     `gorm:"column:id;primaryKey;autoIncrement"`
-    Name         string    `gorm:"column:name;uniqueIndex;size:32"`
-    Level        int32     `gorm:"column:level"`
-    Icon         string    `gorm:"column:icon;size:256"`
-    Declaration  string    `gorm:"column:declaration;size:200"`
-    Announcement string    `gorm:"column:announcement;size:500"`
-    NeedApproval bool      `gorm:"column:need_approval"`
-    MemberCount  int32     `gorm:"column:member_count"`
-    LeaderID     int64     `gorm:"column:leader_id"`
-    CreatedAt    time.Time `gorm:"column:created_at"`
-    UpdatedAt    time.Time `gorm:"column:updated_at"`
-    Version      int64     `gorm:"column:version"` // 乐观锁
+    ID           int64         `gorm:"column:id;primaryKey;autoIncrement"`
+    Name         string        `gorm:"column:name;uniqueIndex;size:32"`
+    Level        int32         `gorm:"column:level"`
+    Icon         string        `gorm:"column:icon;size:256"`
+    Declaration  string        `gorm:"column:declaration;size:200"`
+    Announcement string        `gorm:"column:announcement;size:500"`
+    NeedApproval bool          `gorm:"column:need_approval"`
+    MemberCount  int32         `gorm:"column:member_count"`
+    LeaderID     int64         `gorm:"column:leader_id"`
+    Members      []GuildMember `gorm:"type:jsonb;serializer:json"`    // 成员列表
+    ApplyList    []GuildApply  `gorm:"type:jsonb;serializer:json"`    // 申请列表
+    Logs         []GuildLog    `gorm:"type:jsonb;serializer:json"`    // 公会日志
+    CreatedAt    time.Time     `gorm:"column:created_at"`
+    UpdatedAt    time.Time     `gorm:"column:updated_at"`
+    Version      int64         `gorm:"column:version"` // 乐观锁
 }
-```
 
-### 2.2 guild_member 表 — 成员
-
-```go
 type GuildMember struct {
-    GuildID  int64 `gorm:"column:guild_id;primaryKey"`
-    RoleID   int64 `gorm:"column:role_id;primaryKey"`
-    Position int32 `gorm:"column:position"` // 1=会长 2=副会长 3=成员
-    JoinedAt int64 `gorm:"column:joined_at"`
+    RoleID   int64 `json:"role_id"`
+    Position int32 `json:"position"`  // 1=会长 2=副会长 3=成员
+    JoinedAt int64 `json:"joined_at"`
 }
-```
 
-### 2.3 guild_apply 表 — 申请
-
-```go
 type GuildApply struct {
-    ID        int64     `gorm:"column:id;primaryKey;autoIncrement"`
-    GuildID   int64     `gorm:"column:guild_id;index"`
-    RoleID    int64     `gorm:"column:role_id"`
-    Status    int32     `gorm:"column:status"` // 0=待处理 1=同意 2=拒绝
-    CreatedAt time.Time `gorm:"column:created_at"`
-    ExpireAt  time.Time `gorm:"column:expire_at"`
+    ID        int64     `json:"id"`         // 自增 ID（apply_id）
+    RoleID    int64     `json:"role_id"`
+    Status    int32     `json:"status"`     // 0=待处理 1=同意 2=拒绝
+    CreatedAt time.Time `json:"created_at"`
+    ExpireAt  time.Time `json:"expire_at"`
 }
-```
 
-### 2.4 guild_log 表 — 公会日志
-
-```go
 type GuildLog struct {
-    ID        int64     `gorm:"column:id;primaryKey;autoIncrement"`
-    GuildID   int64     `gorm:"column:guild_id;index"`
-    Content   string    `gorm:"column:content;size:500"`
-    CreatedAt time.Time `gorm:"column:created_at"`
+    Content   string    `json:"content"`
+    CreatedAt time.Time `json:"created_at"`
 }
 ```
 
-日志保留最近 N 条（由配置决定），按 `created_at DESC` 查询。
+设计要点：
+- **GuildMember 不存 PRolePublic**，需要时由 `GetRolePublic(ctx, roleID)` 动态查询（走 Redis 缓存）
+- **Logs 保留最近 N 条**，`addLog` 追加到内存并写 DB，超出上限时裁剪
+- **ApplyList** 在 `OnModStart` 时过滤 `status=0` 的加载到内存，审批/拒绝后更新内存状态
 
-### 2.5 role_guild 表 — RoleGuild 子模块状态
+### 2.2 role_guild 表 — RoleGuild 子模块状态
 
 ```go
 type RoleGuildState struct {
@@ -121,18 +113,7 @@ type RoleGuildState struct {
 }
 ```
 
-这是 role 侧的唯一公会数据，只存「我在哪个公会」。
-
-### 2.6 完整关系图
-
-```
-guild (1) ──→ guild_member (N) ←── role_guild (1)
-  │              ↑ role_id 关联到 role_main
-  │
-  └──→ guild_apply (N)
-  │
-  └──→ guild_log (N)
-```
+这是 role 侧的唯一公会数据，只存「我在哪个公会」。仍然是独立表（不走 JSONB），因为 guild actor 需要通过原子 UPDATE 来做并发控制。
 
 ---
 
@@ -141,37 +122,35 @@ guild (1) ──→ guild_member (N) ←── role_guild (1)
 ### 3.1 激活与加载
 
 ```go
-type GuildInfo struct {
-    *Guild
-    Members []*GuildMember
+type GuildData struct {
+    Guild     *Guild
+    Members   []*GuildMember
+    ApplyList []*GuildApply   // 仅 status=0 的申请
+    Logs      []*GuildLog     // 最多 MaxLogCount 条
 }
 
 type GuildActor struct {
     gxymodule.ModuleBase
     *gxyactor.ActorBase
     GuildID int64
-    Data    *GuildInfo // 内存缓存
+    Data    *GuildData       // 内存缓存
 }
 
 func (g *GuildActor) OnModStart(ctx context.Context) error {
-    // 1. 从 DB 加载
-    g.Data = &GuildInfo{Guild: &Guild{}}
-    gxypgx.DB().First(g.Data.Guild, g.GuildID)
-    gxypgx.DB().Where("guild_id = ?", g.GuildID).Find(&g.Data.Members)
+    g.Data = &GuildData{Guild: &Guild{}}
+    if err := gxypgx.DB().First(g.Data.Guild, g.GuildID).Error; err != nil {
+        return err
+    }
+    // 从 JSONB 列加载到内存切片
+    g.Data.Members = g.Data.Guild.Members
+    g.Data.ApplyList = filterPendingApplies(g.Data.Guild.ApplyList)
+    g.Data.Logs = g.Data.Guild.Logs
 
-    // 2. 注册定时器
     g.Timer().AddTick(ctx, PersistTick, g.TickSave)
     g.Timer().AddCron(ctx, gxytimer.DayRefresh, g.onDayRefresh)
 
-    glog.Infof(ctx, "guild actor started, guildID=%d, members=%d",
-        g.GuildID, len(g.Data.Members))
-    return nil
-}
-
-func (g *GuildActor) OnModStop(ctx context.Context) error {
-    // 关闭时做一次保存
-    g.TickSave(ctx)
-    glog.Infof(ctx, "guild actor stopped, guildID=%d", g.GuildID)
+    glog.Infof(ctx, "guild actor started, guildID=%d, members=%d, applies=%d",
+        g.GuildID, len(g.Data.Members), len(g.Data.ApplyList))
     return nil
 }
 ```
@@ -183,6 +162,10 @@ func (g *GuildActor) TickSave(ctx context.Context, _ ...gxytimer.TimerActiveInfo
     if g.Data == nil {
         return
     }
+    // 将内存切片写回 JSONB 列
+    g.Data.Guild.Members = g.Data.Members
+    g.Data.Guild.ApplyList = g.Data.Guild.ApplyList  // 保存全部（含已处理的）
+    g.Data.Guild.Logs = g.Data.Logs
     gxypgx.DB().Save(g.Data.Guild)
 }
 ```
@@ -198,13 +181,37 @@ func (g *GuildActor) onDayRefresh(ctx context.Context, _ gxytimer.TimerActiveInf
             g.transferLeader(ctx, g.Data.Guild.LeaderID, newLeader)
             g.addLog(ctx, fmt.Sprintf("会长 %d 因长期未上线自动转让给 %d",
                 g.Data.Guild.LeaderID, newLeader))
-            g.notifyMembers(ctx, &pb.NotifyGuildInfo{})
+            g.notifyGuildInfo(ctx, g.Data.Guild.LeaderID)
         }
     }
 
-    // 2. 清理过期申请
-    gxypgx.DB().Where("guild_id = ? AND status = 0 AND expire_at < NOW()",
-        g.GuildID).Delete(&GuildApply{})
+    // 2. 清理过期申请（内存 + DB）
+    now := time.Now()
+    valid := make([]*GuildApply, 0, len(g.Data.ApplyList))
+    for _, a := range g.Data.ApplyList {
+        if a.ExpireAt.After(now) {
+            valid = append(valid, a)
+        }
+    }
+    g.Data.ApplyList = valid
+    g.Data.Guild.ApplyList = valid
+}
+```
+
+### 3.4 日志辅助函数
+
+```go
+const MaxLogCount = 100
+
+func (g *GuildActor) addLog(ctx context.Context, content string) {
+    entry := &GuildLog{Content: content, CreatedAt: time.Now()}
+    g.Data.Logs = append(g.Data.Logs, entry)
+    if len(g.Data.Logs) > MaxLogCount {
+        g.Data.Logs = g.Data.Logs[len(g.Data.Logs)-MaxLogCount:]
+    }
+    // 日志作为审计记录，实时落盘
+    g.Data.Guild.Logs = g.Data.Logs
+    gxypgx.DB().Save(g.Data.Guild)
 }
 ```
 
@@ -224,7 +231,7 @@ func (g *GuildActor) onDayRefresh(ctx context.Context, _ gxytimer.TimerActiveInf
 func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) (*pb.RspCreateGuild, error) {
     // 1. 条件检查（角色侧）
     basic := r.Role.GetBasic()
-    cfg := gamecfg.GetGuildConfig()
+    cfg := gameconfig.GameConfig().TbGuildConfig.Get()
     if basic.Level < cfg.UnlockLevel {
         return nil, ErrLevelNotEnough
     }
@@ -241,9 +248,8 @@ func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) 
     }
 
     // 3. HTTP 创建公会（handler 负责写入 DB + 激活 actor）
-    rsp, err := callGuildCreate(ctx, req.Name, req.Declaration, req.Icon, req.NeedApproval)
+    rsp, err := callGuildCreate(ctx, r.RoleID, req.Name, req.Declaration, req.Icon, req.NeedApproval)
     if err != nil {
-        // 创建失败需要退款
         r.Role.GetBag().SaveGoods(ctx, cfg.CreateCost, nil, "create_guild_refund")
         return nil, err
     }
@@ -267,142 +273,153 @@ func (h *GuildHandler) Create(ctx context.Context, req *CreateGuildReq) (any, er
         return nil, gxyhttp.NewErrCode(1, "公会名称已存在")
     }
 
-    // 2. 写入公会记录
+    // 2. 写入公会记录（含初始化 Members/Logs JSONB）
     guild := &Guild{
         Name: req.Name, Level: 1, LeaderID: req.LeaderID,
         Declaration: req.Declaration, Icon: req.Icon,
         NeedApproval: req.NeedApproval, MemberCount: 1,
+        Members: []GuildMember{
+            {RoleID: req.LeaderID, Position: gamecfg.GardenEGuildPosition_LEADER, JoinedAt: time.Now().Unix()},
+        },
+        Logs: []GuildLog{
+            {Content: "公会创建成功", CreatedAt: time.Now()},
+        },
     }
-    gxypgx.DB().Create(guild)
+    if err := gxypgx.DB().Create(guild).Error; err != nil {
+        return nil, gxyhttp.NewErrCode(1, fmt.Sprintf("创建公会失败: %v", err))
+    }
 
-    // 3. 写入成员
-    gxypgx.DB().Create(&GuildMember{
-        GuildID: guild.ID, RoleID: req.LeaderID,
-        Position: PositionLeader, JoinedAt: time.Now().Unix(),
-    })
+    // 3. 更新 role_guild
+    gxypgx.DB().Exec(
+        "INSERT INTO role_guild (role_id, guild_id) VALUES (?, ?) ON CONFLICT (role_id) DO UPDATE SET guild_id = ?",
+        req.LeaderID, guild.ID, guild.ID,
+    )
 
-    // 4. 更新 role_guild
-    gxypgx.DB().Model(&RoleGuildState{}).
-        Where("role_id = ?", req.LeaderID).Update("guild_id", guild.ID)
-
-    // 5. 激活 guild actor（从 DB 加载数据到内存）
-    lib.ActivateGuild(guild.ID)
-
-    // 6. 写日志
-    gxypgx.DB().Create(&GuildLog{GuildID: guild.ID, Content: "公会创建成功"})
+    // 4. 激活 guild actor（OnModStart 从 DB 加载）
+    lib.GetGuildActor(guild.ID)
 
     return map[string]int64{"guild_id": guild.ID}, nil
 }
 ```
 
-### 4.2 申请加入（需审核 → Actor 消息）
+### 4.2 申请加入公会（Actor 消息，内部根据 NeedApproval 分流）
 
-需审核时，申请写入 `guild_apply` 表并检查玩家是否已有公会。走 actor 消息保持统一：
+guild actor 根据 `NeedApproval` 决定是直接加入还是创建申请。
 
 ```go
-func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ApplyGuildReq) (*pb.RspApplyGuild, error) {
-    // 检查玩家无公会
-    var state RoleGuildState
-    gxypgx.DB().First(&state, req.RoleID)
-    if state.GuildID > 0 {
+func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ReqApplyGuild) (*pb.RspApplyGuild, error) {
+    var state GuildRoleState
+    if err := gxypgx.DB().Where("role_id = ?", req.RoleID).First(&state).Error; err == nil && state.GuildID > 0 {
         return nil, ErrPlayerAlreadyInGuild
     }
 
-    // 写入申请
-    cfg := gamecfg.GetGuildConfig()
-    gxypgx.DB().Create(&GuildApply{
-        GuildID: g.GuildID, RoleID: req.RoleID,
-        Status: 0, ExpireAt: time.Now().Add(time.Duration(cfg.ApplyExpireHours) * time.Hour),
-    })
-    return &pb.RspApplyGuild{}, nil
+    if g.Data.Guild.NeedApproval {
+        return g.createApply(ctx, req)
+    }
+    return g.joinDirect(ctx, req)
 }
-```
 
-原子门在审批时做（见下方 4.4），同一个玩家申请多个公会最终只有第一个批准的生效。
+// createApply 创建申请
+func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqApplyGuild) error {
+    cfg := gameconfig.GameConfig().TbGuildConfig.Get()
+    if cfg == nil {
+        return errors.New("公会配置未找到")
+    }
+    apply := &GuildApply{
+        ID:        g.nextApplyID(),
+        RoleID:    req.RoleID,
+        Status:    0,
+        CreatedAt: time.Now(),
+        ExpireAt:  time.Now().Add(time.Duration(cfg.ApplyExpireHours) * time.Hour),
+    }
+    g.Data.ApplyList = append(g.Data.ApplyList, apply)
+    g.Data.Guild.ApplyList = g.Data.ApplyList
+    g.notifyApplyUpdate(ctx)
+    return nil
+}
 
-### 4.3 直接加入（无需审核 → Actor 消息）
-
-无需审核时，"加入"是修改公会成员列表的写操作，走 actor 消息：
-
-```go
-func (g *GuildActor) JoinGuild(ctx context.Context, req *pb.JoinGuildReq) error {
-    // 1. 检查成员上限
-    cfg := getLevelConfig(g.Data.Guild.Level)
-    if len(g.Data.Members) >= int(cfg.MemberLimit) {
+// addMember — 原子操作：核验成员上限 → 原子门 → 追加成员 → 通知
+func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
+    levelCfg := gameconfig.GameConfig().TbGuildLevel.Get(g.Data.Guild.Level)
+    if levelCfg == nil {
+        return errors.New("公会等级配置未找到")
+    }
+    if len(g.Data.Members) >= int(levelCfg.MemberLimit) {
         return ErrGuildFull
     }
 
-    // 2. 原子门：只有当前没公会的玩家才能加入
     result := gxypgx.DB().Model(&RoleGuildState{}).
-        Where("role_id = ? AND guild_id = 0", req.RoleID).
+        Where("role_id = ? AND guild_id = 0", roleID).
         Update("guild_id", g.GuildID)
     if result.RowsAffected == 0 {
         return ErrPlayerAlreadyInGuild
     }
-
-    // 3. 写入成员
-    g.Data.Members = append(g.Data.Members, &GuildMember{
-        GuildID: g.GuildID, RoleID: req.RoleID,
-        Position: PositionMember, JoinedAt: time.Now().Unix(),
-    })
-    gxypgx.DB().Create(&GuildMember{GuildID: g.GuildID, RoleID: req.RoleID, Position: PositionMember})
+    member := &GuildMember{RoleID: roleID, Position: gamecfg.GardenEGuildPosition_MEMBER, JoinedAt: time.Now().Unix()}
+    g.Data.Members = append(g.Data.Members, member)
+    g.Data.Guild.Members = g.Data.Members
     g.Data.Guild.MemberCount = int32(len(g.Data.Members))
-    gxypgx.DB().Save(g.Data.Guild)
-
-    // 4. 通知
-    g.notifyPlayer(ctx, req.RoleID, &pb.NotifyGuildInfo{})
-    g.notifyMembers(ctx, &pb.NotifyGuildInfo{}, req.RoleID)
-
-    g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", req.RoleID))
+    g.notifyGuildInfo(ctx, roleID)
+    g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", roleID))
     return nil
+}
+
+// joinDirect 直接加入（免审批）
+func (g *GuildActor) joinDirect(ctx context.Context, req *pb.ReqApplyGuild) error {
+    return g.addMember(ctx, req.RoleID)
 }
 ```
 
-### 4.4 审批加入
+原子门在审批时也做（见下方 4.4），同一个玩家申请多个公会最终只有第一个批准的生效。
+
+### 4.3 审批加入
 
 ```go
-func (g *GuildActor) ApproveApply(ctx context.Context, req *pb.ApproveApplyReq) error {
-    // 1. 检查权限（会长/副会长）
+func (g *GuildActor) ApproveApply(ctx context.Context, req *pb.ReqApproveApply) error {
     if !g.canApprove(req.OperatorID) {
         return ErrPermissionDenied
     }
 
-    // 2. 检查成员上限
-    cfg := getLevelConfig(g.Data.Guild.Level)
-    if len(g.Data.Members) >= int(cfg.MemberLimit) {
-        return ErrGuildFull
+    for _, applyID := range req.ApplyIds {
+        if err := g.processSingleApply(ctx, applyID, req.Approve); err != nil {
+            return err
+        }
+    }
+    return nil
+}
+
+// processSingleApply 处理单个申请审批
+func (g *GuildActor) processSingleApply(ctx context.Context, applyID int64, approve bool) error {
+    var apply *GuildApply
+    for _, a := range g.Data.ApplyList {
+        if a.ID == applyID && a.Status == 0 {
+            apply = a
+            break
+        }
+    }
+    if apply == nil {
+        return ErrApplyExpired
     }
 
-    // 3. 原子门：只有当前没公会的玩家才能加入
-    result := gxypgx.DB().Model(&RoleGuildState{}).
-        Where("role_id = ? AND guild_id = 0", req.TargetID).
-        Update("guild_id", g.GuildID)
-    if result.RowsAffected == 0 {
-        return ErrPlayerAlreadyInGuild
+    // 拒绝：仅更新状态
+    if !approve {
+        apply.Status = 2
+        g.Data.Guild.ApplyList = g.Data.ApplyList
+        g.notifyApplyUpdate(ctx)
+        return nil
     }
 
-    // 4. 写入成员
-    g.Data.Members = append(g.Data.Members, &GuildMember{
-        GuildID: g.GuildID, RoleID: req.TargetID,
-        Position: PositionMember, JoinedAt: time.Now().Unix(),
-    })
-    gxypgx.DB().Create(&GuildMember{GuildID: g.GuildID, RoleID: req.TargetID, Position: PositionMember})
-    g.Data.Guild.MemberCount = int32(len(g.Data.Members))
-
-    // 5. 更新申请状态
-    gxypgx.DB().Model(&GuildApply{}).
-        Where("id = ?", req.ApplyID).Update("status", 1)
-
-    // 6. 通知申请人 + 全体成员
-    g.notifyPlayer(ctx, req.TargetID, &pb.NotifyGuildInfo{})
-    g.notifyMembers(ctx, &pb.NotifyGuildInfo{}, req.TargetID)
-
-    g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", req.TargetID))
+    // 同意
+    apply.Status = 1
+    g.Data.Guild.ApplyList = g.Data.ApplyList
+    if err := g.addMember(ctx, apply.RoleID); err != nil {
+        return err
+    }
+    g.notifyApplyUpdate(ctx)
     return nil
 }
 ```
 
-### 4.5 踢出成员
+### 4.4 踢出成员
 
 ```go
 func (g *GuildActor) KickMember(ctx context.Context, req *pb.KickMemberReq) error {
@@ -412,64 +429,81 @@ func (g *GuildActor) KickMember(ctx context.Context, req *pb.KickMemberReq) erro
 
     // 1. 从成员列表移除
     g.Data.Members = removeMember(g.Data.Members, req.TargetID)
+    g.Data.Guild.Members = g.Data.Members
     g.Data.Guild.MemberCount = int32(len(g.Data.Members))
 
-    // 2. DB 删除
-    gxypgx.DB().Delete(&GuildMember{}, "guild_id = ? AND role_id = ?", g.GuildID, req.TargetID)
-    gxypgx.DB().Save(g.Data.Guild)
-
-    // 3. 更新 role_guild（被踢者）
-    gxypgx.DB().Model(&RoleGuildState{}).
+    // 2. 更新 role_guild（被踢者）
+    gxypgx.DB().Model(&GuildRoleState{}).
         Where("role_id = ?", req.TargetID).Update("guild_id", 0)
 
-    // 4. 通知
+    // 3. 通知
     g.notifyPlayer(ctx, req.TargetID, &pb.NotifyGuildKicked{Reason: req.Reason})
-    g.notifyMembers(ctx, &pb.NotifyGuildInfo{}, req.TargetID)
+    g.notifyGuildInfo(ctx, req.TargetID)
 
     g.addLog(ctx, fmt.Sprintf("玩家 %d 被 %d 踢出公会", req.TargetID, req.OperatorID))
     return nil
 }
 ```
 
-### 4.6 其他写操作
+### 4.5 其他写操作
 
 | 操作 | Actor 消息 | 说明 |
 |------|-----------|------|
-| 拒绝申请 | `RejectApply` | 更新 apply status=2 |
-| 会长转让 | `TransferLeader` | 双方 position 互换，通知全员 |
-| 任命副会长 | `AppointViceLeader` | 检查上限，更新 position，通知全员 |
-| 取消副会长 | `RemoveViceLeader` | 更新 position=3，通知全员 |
+| 拒绝申请 | `RejectApply` | 更新 apply status=2，通知 `NotifyGuildApply` |
+| 会长转让 | `TransferLeader` | 双方 position 互换，通知 `NotifyGuildInfo` |
+| 任命副会长 | `AppointViceLeader` | 检查上限，更新 position，通知 `NotifyGuildInfo` |
+| 取消副会长 | `RemoveViceLeader` | 更新 position=3，通知 `NotifyGuildInfo` |
 | 修改宣言/公告 | `UpdateGuildInfo` | 更新 DB，通知 `NotifyGuildBasic` |
 | 修改审核开关 | `ToggleApproval` | 更新 `need_approval`，通知 `NotifyGuildBasic` |
-| 退出公会 | `LeaveGuild` | 移出 member，更新 role_guild，通知全员 |
-| 解散公会 | `DisbandGuild` | 必须只剩会长 1 人，清空 member + apply + log，通知全员 |
+| 退出公会 | `LeaveGuild` | 移出 member，更新 role_guild，通知 `NotifyGuildInfo` |
+| 解散公会 | `DisbandGuild` | 必须只剩会长 1 人，清空 member + apply + log，通知 `NotifyGuildInfo` |
 
 ---
 
 ## 5. 通知协议
 
-简化后共 3 个通知协议：
+通知协议共 4 个，推送时直接携带数据，客户端收到后可直接更新 UI：
 
-| 协议 | 触发场景 | 客户端行为 |
-|------|---------|-----------|
-| `NotifyGuildInfo` | 成员加入/退出/被踢、职位变动、会长转让、解散 | 重新拉取公会大厅（含成员列表） |
-| `NotifyGuildBasic` | 宣言修改、公告修改、审核开关变更 | 重新拉取公会基本信息 |
-| `NotifyGuildKicked` | 被踢出公会 | 弹出提示，跳转到公会列表界面 |
+### 5.1 协议定义
 
-Role actor 接收后直接推客户端：
+```protobuf
+// 公会信息变更（含成员列表）(29051)
+message NotifyGuildInfo {
+    option (msg_id) = 29051;
+    PGuildBasic        guild   = 1;
+    PGuildMember       self    = 2;              // 自己的成员信息
+    repeated PGuildMember members = 3;           // 成员列表
+}
 
-```go
-func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
-    switch m := msg.(type) {
-    case *pb.NotifyGuildInfo, *pb.NotifyGuildBasic, *pb.NotifyGuildKicked:
-        r.SendClient(ctx, m.(proto.Message))
-        return nil
-    }
-    ...
+// 公会基本信息变更（不包含成员列表）(29052)
+message NotifyGuildBasic {
+    option (msg_id) = 29052;
+    PGuildBasic guild = 1;
+}
+
+// 被踢出公会 (29053)
+message NotifyGuildKicked {
+    option (msg_id) = 29053;
+    string reason = 1;
+}
+
+// 申请列表变更 (29054)
+message NotifyGuildApply {
+    option (msg_id) = 29054;
+    repeated PGuildApply applies = 1;            // 当前的申请列表
 }
 ```
 
-通知函数：
+### 5.2 触发场景
+
+| 协议 | 触发场景 | 推送目标 |
+|------|---------|---------|
+| `NotifyGuildInfo` | 成员加入/退出/被踢、职位变动、会长转让、解散 | 全体成员 |
+| `NotifyGuildBasic` | 宣言修改、公告修改、审核开关变更 | 全体成员 |
+| `NotifyGuildKicked` | 被踢出公会 | 被踢的玩家 |
+| `NotifyGuildApply` | 新申请、审批/拒绝申请 | 会长/副会长 |
+
+### 5.3 通知函数
 
 ```go
 // 通知单个玩家
@@ -481,12 +515,17 @@ func (g *GuildActor) notifyPlayer(ctx context.Context, roleID int64, msg proto.M
     g.Send(pid, msg)
 }
 
-// 通知全体成员（可选排除）
-func (g *GuildActor) notifyMembers(ctx context.Context, msg proto.Message, exclude ...int64) {
+// 通知全部成员（包含 PRolePublic 信息的 NotifyGuildInfo）
+func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
+    msg := g.buildNotifyGuildInfo(ctx)
     excludeSet := toSet(exclude)
     for _, m := range g.Data.Members {
         if excludeSet.Contains(m.RoleID) {
             continue
+        }
+        // 填充 self 字段
+        if m.RoleID == /* receiver */ {
+            msg.Self = g.buildPGuildMember(ctx, m)
         }
         pid, err := lib.GetRoleActor(m.RoleID, false)
         if err != nil || pid == nil {
@@ -494,6 +533,34 @@ func (g *GuildActor) notifyMembers(ctx context.Context, msg proto.Message, exclu
         }
         g.Send(pid, msg)
     }
+}
+
+// 通知审批权限者申请列表变化
+func (g *GuildActor) notifyApplyUpdate(ctx context.Context) {
+    msg := g.buildNotifyGuildApply(ctx)
+    for _, m := range g.Data.Members {
+        if m.Position > 2 {
+            continue // 只有会长(1)/副会长(2)
+        }
+        pid, err := lib.GetRoleActor(m.RoleID, false)
+        if err != nil || pid == nil {
+            continue
+        }
+        g.Send(pid, msg)
+    }
+}
+```
+
+### 5.4 Role actor 接收后直接推客户端
+
+```go
+func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
+    switch m := msg.(type) {
+    case *pb.NotifyGuildInfo, *pb.NotifyGuildBasic, *pb.NotifyGuildKicked, *pb.NotifyGuildApply:
+        r.SendClient(ctx, m.(proto.Message))
+        return nil
+    }
+    ...
 }
 ```
 
@@ -514,7 +581,7 @@ HTTP handler 只处理 2 个"还不存在/跨全服"的操作：
 
 ```go
 type SearchGuildReq struct {
-    g.Meta `path:"/search"`
+    g.Meta  `path:"/search"`
     Keyword string `p:"keyword"` // 公会名称或 ID
 }
 
@@ -525,7 +592,23 @@ func (h *GuildHandler) Search(ctx context.Context, req *SearchGuildReq) (any, er
     } else {
         gxypgx.DB().Where("name LIKE ?", "%"+req.Keyword+"%").Limit(20).Find(&guilds)
     }
-    return guilds, nil
+
+    result := make([]*pb.PGuildBasic, 0, len(guilds))
+    for _, g := range guilds {
+        cfg := gameconfig.GameConfig().TbGuildLevel.Get(g.Level)
+        memberLimit := int32(30)
+        if cfg != nil {
+            memberLimit = cfg.MemberLimit
+        }
+        result = append(result, &pb.PGuildBasic{
+            Id: g.ID, Name: g.Name, Level: g.Level,
+            Icon: g.Icon, Declaration: g.Declaration,
+            NeedApproval: g.NeedApproval,
+            MemberCount:  g.MemberCount, MemberLimit: memberLimit,
+            LeaderId: g.LeaderID, CreatedAt: g.CreatedAt.Unix(),
+        })
+    }
+    return result, nil
 }
 ```
 
@@ -644,6 +727,7 @@ func handleSidecarMsg(ctx context.Context, msg *redis.Message) {
 ```go
 type RoleGuildState struct {
     RolePersistState
+    GuildID int64 `gorm:"column:guild_id"` // 0=无公会
 }
 
 func (RoleGuildState) TableName() string { return "role_guild" }
@@ -694,31 +778,37 @@ type roleModules struct {
 // 创建公会 → HTTP（先扣消耗 → HTTP 创建 → 激活 actor）
 func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) (*pb.RspCreateGuild, error) {
     basic := r.Role.GetBasic()
-    cfg := gamecfg.GetGuildConfig()
-    if basic.Level < cfg.UnlockLevel {
-        return nil, ErrLevelNotEnough
+    guildCfg := gameconfig.GameConfig().TbGuildConfig.Get()
+    if guildCfg == nil {
+        return nil, fmt.Errorf("公会配置未找到")
+    }
+    if basic.Level < guildCfg.UnlockLevel {
+        return nil, fmt.Errorf("等级不足，需要 Lv%d", guildCfg.UnlockLevel)
     }
     if r.GuildID > 0 {
-        return nil, ErrAlreadyInGuild
+        return nil, fmt.Errorf("你已加入公会")
+    }
+    if !r.Role.GetBag().CheckGoods(guildCfg.CreateCost) {
+        return nil, fmt.Errorf("创建公会消耗不足")
     }
     // 先扣消耗
-    if err := r.Role.GetBag().SaveGoods(ctx, nil, cfg.CreateCost, "create_guild"); err != nil {
+    if err := r.Role.GetBag().SaveGoods(ctx, nil, guildCfg.CreateCost, "create_guild"); err != nil {
         return nil, err
     }
     // HTTP 创建
-    rsp, err := callGuildCreate(ctx, req.Name, req.Declaration, req.Icon, req.NeedApproval)
+    guildID, err := callGuildCreate(ctx, r.RoleID, req.Name, req.Declaration, req.Icon, req.NeedApproval)
     if err != nil {
-        r.Role.GetBag().SaveGoods(ctx, cfg.CreateCost, nil, "create_guild_refund")
+        r.Role.GetBag().SaveGoods(ctx, guildCfg.CreateCost, nil, "create_guild_refund")
         return nil, err
     }
-    r.GuildID = rsp.GuildID
-    chat.RegisterRoleGuildChat(r.RoleID, r.GuildID, r.Role.Self())
-    return &pb.RspCreateGuild{GuildId: rsp.GuildID}, nil
+    r.GuildID = guildID
+    chat.RegisterRoleGuildChat(r.RoleID, guildID, r.Role.Self())
+    return &pb.RspCreateGuild{GuildId: guildID}, nil
 }
 
 // 审批加入 → Actor 消息（需要 mailbox 串行化）
 func (r *RoleGuild) ReqApproveApply(ctx context.Context, req *pb.ReqApproveApply) (*pb.RspApproveApply, error) {
-    pid, err := lib.ActivateGuild(req.GuildId)
+    pid, err := lib.GetGuildActor(req.GuildId)
     if err != nil {
         return nil, err
     }
@@ -736,7 +826,11 @@ func (r *RoleGuild) ReqSearchGuild(ctx context.Context, req *pb.ReqSearchGuild) 
     if err != nil {
         return nil, err
     }
-    // parse rsp ...
+    var guilds []*pb.PGuildBasic
+    if err := gconv.Scan(rsp.Data, &guilds); err != nil {
+        return nil, fmt.Errorf("parse search result: %w", err)
+    }
+    return &pb.RspSearchGuild{Guilds: guilds}, nil
 }
 ```
 
@@ -748,10 +842,10 @@ func (r *RoleGuild) ReqSearchGuild(ctx context.Context, req *pb.ReqSearchGuild) 
 
 | 配置结构体 | 用途 |
 |-----------|------|
-| `gamecfg.GardenGuildConfig` | 解锁等级、创建消耗、字数限制、申请过期时间等 |
-| `gamecfg.GardenGuildLevel` | 等级对应的成员上限、副会长上限 |
-| `gamecfg.GardenGuildPosition` | 各职位的权限配置 |
-| `gamecfg.GardenGuildChat` | 聊天字数上限、冷却、历史保留数量 |
+| `gameconfig.GameConfig().TbGuildConfig.Get()` | 解锁等级、创建消耗、字数限制、申请过期时间等 |
+| `gameconfig.GameConfig().TbGuildLevel.Get(level)` | 等级对应的成员上限、副会长上限 |
+| `gameconfig.GameConfig().TbGuildPosition.Get(position)` | 各职位的权限配置 |
+| `gameconfig.GameConfig().TbGuildChat.Get(1)` | 聊天字数上限、冷却、历史保留数量 |
 
 ---
 
@@ -762,11 +856,10 @@ src/apps/guild/
 ├── guild_app.go          # App 注册、OnModInit、AutoMigrate
 ├── guild_service.go       # HTTP service 启动（创建 & 搜索）
 ├── logic/
-│   ├── model.go           # GORM 模型
+│   ├── model.go           # GORM 模型（单表 JSONB）
 │   ├── schema.go          # AutoMigrate 调用
-│   ├── guild.go           # 核心业务逻辑函数
-│   ├── guild_actor.go     # 公会 actor（生命周期、Timer、写操作）
-│   └── handler.go         # HTTP handler（只读操作）
+│   ├── guild_actor.go     # 公会 actor（生命周期、Timer、写操作、通知）
+│   └── handler.go         # HTTP handler（创建 & 搜索）
 
 src/apps/role/internal/logic/
 ├── role_guild.go          # RoleGuild 子模块
@@ -781,6 +874,6 @@ src/apps/chat/
 
 ## 11. 已知待解决问题（后续迭代）
 
-- 公会等级成长（首版默认 1 级，配置取 `GardenGuildLevel[1]`）
+- 公会等级成长（首版默认 1 级，配置取 `TbGuildLevel[1]`）
 - 公会财富展示（首版展示位保留但显示 0）
 - 后续入口预留（建设、商店、种植等只显示"功能暂未开放"）

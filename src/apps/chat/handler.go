@@ -139,6 +139,58 @@ func (h *ChatHandler) SystemHistory(ctx context.Context, req *SystemHistoryReq) 
 	return msgs, nil
 }
 
+// ===== 公会频道 =====
+
+type SendGuildChatReq struct {
+	g.Meta  `path:"/send_guild"`
+	Sender  string `p:"sender" v:"required"`
+	GuildID int64  `p:"guild_id" v:"required"`
+	Content string `p:"content" v:"required"`
+}
+
+func (h *ChatHandler) SendGuildChat(ctx context.Context, req *SendGuildChatReq) (any, error) {
+	cfg := GetConfig()
+	trimmed := strings.TrimSpace(req.Content)
+	if trimmed == "" {
+		return nil, gxyhttp.NewErrCode(1, "消息不能为空")
+	}
+	if len([]rune(trimmed)) > cfg.MsgMaxLength {
+		return nil, gxyhttp.NewErrCode(1, "消息超过字数限制")
+	}
+	var sender *pb.PRolePublic
+	if err := json.Unmarshal([]byte(req.Sender), &sender); err != nil {
+		return nil, gxyhttp.NewErrCode(1, "parse sender error")
+	}
+	msg := &chatMsgJSON{Sender: sender, Content: trimmed, Timestamp: time.Now().Unix()}
+	data := msgToJSON(msg)
+	if err := StoreGuildMsgData(ctx, data, req.GuildID); err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
+	}
+	if err := PublishGuildChatData(ctx, data, req.GuildID); err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
+	}
+	return nil, nil
+}
+
+type GuildHistoryReq struct {
+	g.Meta  `path:"/guild_history"`
+	GuildID int64 `p:"guild_id" v:"required"`
+	Count   int   `p:"count"`
+}
+
+func (h *ChatHandler) GuildHistory(ctx context.Context, req *GuildHistoryReq) (any, error) {
+	cfg := GetConfig()
+	count := req.Count
+	if count <= 0 {
+		count = cfg.WorldMsgKeep
+	}
+	msgs, err := GetGuildHistory(ctx, req.GuildID, count)
+	if err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
+	}
+	return msgs, nil
+}
+
 // ===== 私聊 =====
 
 type StorePrivateMsgReq struct {

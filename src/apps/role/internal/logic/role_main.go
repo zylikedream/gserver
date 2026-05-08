@@ -74,6 +74,7 @@ type roleModules struct {
 	ResidentOrder *RoleResidentOrder
 	GM            *RoleGM
 	Chat          *RoleChat
+	Guild         *RoleGuild
 }
 
 type RoleMain struct {
@@ -230,6 +231,9 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 	switch m := msg.(type) {
 	case *pb.NotifyWorldChat, *pb.NotifySystemChat, *pb.NotifyPrivateChat:
+		r.SendClient(ctx, m.(proto.Message))
+		return nil
+	case *pb.NotifyGuildInfo, *pb.NotifyGuildBasic, *pb.NotifyGuildKicked, *pb.NotifyGuildApply, *pb.NotifyGuildChat:
 		r.SendClient(ctx, m.(proto.Message))
 		return nil
 	}

@@ -150,6 +150,34 @@ func GetSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, error) {
 	return parseMsgList(results)
 }
 
+// ===== 公会频道 =====
+
+func StoreGuildMsgData(ctx context.Context, data string, guildID int64) error {
+	cfg := GetConfig()
+	key := fmt.Sprintf("chat:msg:guild:%d", guildID)
+	pipe := gxyredis.Redis().Pipeline()
+	pipe.LPush(ctx, key, data)
+	pipe.LTrim(ctx, key, 0, int64(cfg.WorldMsgKeep-1))
+	if _, err := pipe.Exec(ctx); err != nil {
+		return fmt.Errorf("chat store guild msg: %w", err)
+	}
+	return nil
+}
+
+func PublishGuildChatData(ctx context.Context, data string, guildID int64) error {
+	channel := fmt.Sprintf("chat:pub:guild:%d", guildID)
+	return gxyredis.Redis().Publish(ctx, channel, data).Err()
+}
+
+func GetGuildHistory(ctx context.Context, guildID int64, count int) ([]*pb.PChatMsg, error) {
+	key := fmt.Sprintf("chat:msg:guild:%d", guildID)
+	results, err := gxyredis.Redis().LRange(ctx, key, 0, int64(count-1)).Result()
+	if err != nil {
+		return nil, err
+	}
+	return parseMsgList(results)
+}
+
 // ===== 私聊 (PostgreSQL) =====
 
 func StorePrivateMsg(ctx context.Context, senderID, targetID int64, content string) (int64, error) {

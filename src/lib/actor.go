@@ -28,3 +28,15 @@ func ActivateRole(roleID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
 	}
 	return pid, nil
 }
+
+const (
+	GUILD_ACTOR_TYPE = "guild"
+)
+
+func GetGuildActor(guildID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
+	pid, err := gxyactor.ActivateActor(GUILD_ACTOR_TYPE, strconv.Itoa(int(guildID)), spawnIfNotExist...)
+	if err != nil {
+		return nil, err
+	}
+	return pid, nil
+}

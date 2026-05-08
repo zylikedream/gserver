@@ -15,14 +15,28 @@ import (
 )
 
 var (
-	localRoles  sync.Map // roleID → *roleEntry
-	sidecarCancel context.CancelFunc
-	sidecarMutex  sync.Mutex
+	localRoles       sync.Map // roleID → *roleEntry
+	localGuildRoles  sync.Map // roleID → *guildRoleEntry
+	sidecarCancel    context.CancelFunc
+	sidecarMutex     sync.Mutex
 )
 
 type roleEntry struct {
 	lobbyID int64
 	pid     gxyactor.PID
+}
+
+type guildRoleEntry struct {
+	guildID int64
+	pid     gxyactor.PID
+}
+
+func RegisterRoleGuildChat(roleID int64, guildID int64, pid gxyactor.PID) {
+	localGuildRoles.Store(roleID, &guildRoleEntry{guildID: guildID, pid: pid})
+}
+
+func UnregisterRoleGuildChat(roleID int64) {
+	localGuildRoles.Delete(roleID)
 }
 
 func StartSidecar(ctx context.Context) {
@@ -126,11 +140,34 @@ func handleSidecarMsg(ctx context.Context, msg *redis.Message) {
 			glog.Warningf(ctx, "[chat] sidecar parse private msg error: %v", err)
 			return
 		}
-			if entry, ok := localRoles.Load(targetID); ok {
-				e := entry.(*roleEntry)
-				gxyactor.LocalSend(e.pid, &pb.NotifyPrivateChat{
-					Message: chatMsg,
-				})
+		if entry, ok := localRoles.Load(targetID); ok {
+			e := entry.(*roleEntry)
+			gxyactor.LocalSend(e.pid, &pb.NotifyPrivateChat{
+				Message: chatMsg,
+			})
+		}
+
+	} else if strings.HasPrefix(channel, "chat:pub:guild:") {
+		parts := strings.SplitN(channel, ":", 4)
+		if len(parts) < 4 {
+			return
+		}
+		guildID, err := strconv.ParseInt(parts[3], 10, 64)
+		if err != nil {
+			return
+		}
+		chatMsg, err := jsonToMsg(msg.Payload)
+		if err != nil {
+			glog.Warningf(ctx, "[chat] sidecar parse guild msg error: %v", err)
+			return
+		}
+		notify := &pb.NotifyGuildChat{Message: chatMsg}
+		localGuildRoles.Range(func(key, value any) bool {
+			entry := value.(*guildRoleEntry)
+			if entry.guildID == guildID {
+				gxyactor.LocalSend(entry.pid, notify)
 			}
+			return true
+		})
 	}
 }
