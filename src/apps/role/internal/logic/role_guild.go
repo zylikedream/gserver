@@ -96,13 +96,12 @@ func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) 
 		return nil, fmt.Errorf("创建公会消耗不足")
 	}
 
-	if err := r.Role.GetBag().SaveGoods(ctx, nil, guildCfg.CreateCost, "create_guild"); err != nil {
-		return nil, err
-	}
-
 	guildID, err := callGuildCreate(ctx, r.RoleID, req.Name, req.Declaration, req.Icon, req.NeedApproval)
 	if err != nil {
-		r.Role.GetBag().SaveGoods(ctx, guildCfg.CreateCost, nil, "create_guild_refund")
+		return nil, err
+	}
+	// 扣除公会创建消耗
+	if err := r.Role.GetBag().SaveGoods(ctx, nil, guildCfg.CreateCost, "create_guild"); err != nil {
 		return nil, err
 	}
 
@@ -141,7 +140,17 @@ func (r *RoleGuild) ReqApplyGuild(ctx context.Context, req *pb.ReqApplyGuild) (*
 	return rsp.(*pb.RspApplyGuild), nil
 }
 
+func (r *RoleGuild) requireGuild() error {
+	if r.GuildID == 0 {
+		return fmt.Errorf("你没有加入公会")
+	}
+	return nil
+}
+
 func (r *RoleGuild) ReqGuildInfo(ctx context.Context, req *pb.ReqGuildInfo) (*pb.RspGuildInfo, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
 		return nil, err
@@ -150,6 +159,9 @@ func (r *RoleGuild) ReqGuildInfo(ctx context.Context, req *pb.ReqGuildInfo) (*pb
 }
 
 func (r *RoleGuild) ReqGuildApplyList(ctx context.Context, req *pb.ReqGuildApplyList) (*pb.RspGuildApplyList, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
 		return nil, err
@@ -158,6 +170,9 @@ func (r *RoleGuild) ReqGuildApplyList(ctx context.Context, req *pb.ReqGuildApply
 }
 
 func (r *RoleGuild) ReqApproveApply(ctx context.Context, req *pb.ReqApproveApply) (*pb.RspApproveApply, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	req.RoleId = r.RoleID
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
@@ -167,6 +182,9 @@ func (r *RoleGuild) ReqApproveApply(ctx context.Context, req *pb.ReqApproveApply
 }
 
 func (r *RoleGuild) ReqKickMember(ctx context.Context, req *pb.ReqKickMember) (*pb.RspKickMember, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	req.RoleId = r.RoleID
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
@@ -176,6 +194,9 @@ func (r *RoleGuild) ReqKickMember(ctx context.Context, req *pb.ReqKickMember) (*
 }
 
 func (r *RoleGuild) ReqSetViceLeader(ctx context.Context, req *pb.ReqSetViceLeader) (*pb.RspSetViceLeader, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	req.RoleId = r.RoleID
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
@@ -185,6 +206,9 @@ func (r *RoleGuild) ReqSetViceLeader(ctx context.Context, req *pb.ReqSetViceLead
 }
 
 func (r *RoleGuild) ReqTransferLeader(ctx context.Context, req *pb.ReqTransferLeader) (*pb.RspTransferLeader, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	req.RoleId = r.RoleID
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
@@ -194,6 +218,9 @@ func (r *RoleGuild) ReqTransferLeader(ctx context.Context, req *pb.ReqTransferLe
 }
 
 func (r *RoleGuild) ReqUpdateGuildInfo(ctx context.Context, req *pb.ReqUpdateGuildInfo) (*pb.RspUpdateGuildInfo, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	req.RoleId = r.RoleID
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
@@ -203,6 +230,9 @@ func (r *RoleGuild) ReqUpdateGuildInfo(ctx context.Context, req *pb.ReqUpdateGui
 }
 
 func (r *RoleGuild) ReqLeaveGuild(ctx context.Context, req *pb.ReqLeaveGuild) (*pb.RspLeaveGuild, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	req.RoleId = r.RoleID
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
@@ -214,6 +244,9 @@ func (r *RoleGuild) ReqLeaveGuild(ctx context.Context, req *pb.ReqLeaveGuild) (*
 }
 
 func (r *RoleGuild) ReqDisbandGuild(ctx context.Context, req *pb.ReqDisbandGuild) (*pb.RspDisbandGuild, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
 	req.RoleId = r.RoleID
 	rsp, err := r.withGuildActor(ctx, req)
 	if err != nil {
