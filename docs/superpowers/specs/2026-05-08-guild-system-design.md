@@ -45,8 +45,11 @@
 
 | 操作类型 | 实现方式 | 说明 |
 |---------|---------|------|
-| 只读操作（搜索、查看申请列表、日志） | HTTP | 不需要激活 actor，直接查 DB |
-| 写操作（创建、审批、踢人、转让等） | Actor 消息 | 需要操作公会状态，mailbox 串行化保护 |
+| 只读操作（搜索、查看基本信息、申请列表、日志） | HTTP | 不需要激活 actor，直接查 DB |
+| 创建公会 | HTTP | 先扣消耗 → HTTP 创建（写入 DB + 激活 actor） |
+| 申请加入（需审核） | HTTP | 只写 guild_apply 表，原子门在审批时做 |
+| 加入公会（无需审核） | Actor 消息 | 直接改成员列表 + role_guild，atomic gate |
+| 写操作（审批、踢人、任命、转让、修改信息、退出、解散） | Actor 消息 | 需要操作公会状态，mailbox 串行化保护 |
 | 定时任务（自动转让、过期清理） | Actor 内部 Timer | 在 guild actor 的 DayRefresh 中执行 |
 | 聊天推送 | Redis pub/sub + sidecar | 由 chat 模块统一处理 |
 
@@ -212,50 +215,151 @@ func (g *GuildActor) onDayRefresh(ctx context.Context, _ gxytimer.TimerActiveInf
 
 所有写操作通过 actor 消息发给 guild actor，由 mailbox 串行化。
 
-### 4.1 创建公会
+### 4.1 创建公会（走 HTTP）
 
-角色侧启动流程：
-1. 检查玩家等级（等级不足直接返回错误）
-2. 检查玩家是否已有公会（`role_guild.guild_id == 0`）
-3. 检查公会名称是否已存在
-4. 扣除创建消耗（调用背包）
-5. 分配公会 ID → 激活 guild actor → 发送 `CreateGuild` 消息
+创建公会属于初态操作（公会 ID 来自 DB 自增），走 HTTP handler，激活 guild actor 也在 handler 里完成。
 
-Guild actor 处理：
+**角色侧流程：**
+
 ```go
-func (g *GuildActor) CreateGuild(ctx context.Context, req *pb.CreateGuildReq) error {
-    g.Data.Guild.Name = req.Name
-    g.Data.Guild.LeaderID = req.LeaderID
-    g.Data.Guild.Declaration = req.Declaration
-    g.Data.Guild.Icon = req.Icon
-    g.Data.Guild.NeedApproval = req.NeedApproval
-    // ... 初始化字段
+func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) (*pb.RspCreateGuild, error) {
+    // 1. 条件检查（角色侧）
+    basic := r.Role.GetBasic()
+    cfg := gamecfg.GetGuildConfig()
+    if basic.Level < cfg.UnlockLevel {
+        return nil, ErrLevelNotEnough
+    }
+    if r.GuildID > 0 {
+        return nil, ErrAlreadyInGuild
+    }
+    if !r.Role.GetBag().CheckGoods(cfg.CreateCost) {
+        return nil, ErrCostNotEnough
+    }
 
-    // 写入 DB
-    gxypgx.DB().Create(g.Data.Guild)
+    // 2. 先扣除消耗
+    if err := r.Role.GetBag().SaveGoods(ctx, nil, cfg.CreateCost, "create_guild"); err != nil {
+        return nil, err
+    }
 
-    // 把自己加入成员
-    g.Data.Members = append(g.Data.Members, &GuildMember{
-        GuildID: g.GuildID, RoleID: req.LeaderID,
-        Position: PositionLeader,
+    // 3. HTTP 创建公会（handler 负责写入 DB + 激活 actor）
+    rsp, err := callGuildCreate(ctx, req.Name, req.Declaration, req.Icon, req.NeedApproval)
+    if err != nil {
+        // 创建失败需要退款
+        r.Role.GetBag().SaveGoods(ctx, cfg.CreateCost, nil, "create_guild_refund")
+        return nil, err
+    }
+
+    // 4. 本地注册
+    r.GuildID = rsp.GuildID
+    chat.RegisterRoleGuildChat(r.RoleID, r.GuildID, r.Role.Self())
+
+    return &pb.RspCreateGuild{GuildId: rsp.GuildID}, nil
+}
+```
+
+**HTTP handler 处理：**
+
+```go
+func (h *GuildHandler) Create(ctx context.Context, req *CreateGuildReq) (any, error) {
+    // 1. 检查名称唯一性
+    var count int64
+    gxypgx.DB().Model(&Guild{}).Where("name = ?", req.Name).Count(&count)
+    if count > 0 {
+        return nil, gxyhttp.NewErrCode(1, "公会名称已存在")
+    }
+
+    // 2. 写入公会记录
+    guild := &Guild{
+        Name: req.Name, Level: 1, LeaderID: req.LeaderID,
+        Declaration: req.Declaration, Icon: req.Icon,
+        NeedApproval: req.NeedApproval, MemberCount: 1,
+    }
+    gxypgx.DB().Create(guild)
+
+    // 3. 写入成员
+    gxypgx.DB().Create(&GuildMember{
+        GuildID: guild.ID, RoleID: req.LeaderID,
+        Position: PositionLeader, JoinedAt: time.Now().Unix(),
     })
-    gxypgx.DB().Create(&GuildMember{GuildID: g.GuildID, RoleID: req.LeaderID, Position: PositionLeader})
 
-    // 更新 role_guild
-    updateRoleGuild(ctx, req.LeaderID, g.GuildID)
+    // 4. 更新 role_guild
+    gxypgx.DB().Model(&RoleGuildState{}).
+        Where("role_id = ?", req.LeaderID).Update("guild_id", guild.ID)
 
-    g.addLog(ctx, fmt.Sprintf("公会创建成功，会长：%d", req.LeaderID))
+    // 5. 激活 guild actor（从 DB 加载数据到内存）
+    lib.ActivateGuild(guild.ID)
+
+    // 6. 写日志
+    gxypgx.DB().Create(&GuildLog{GuildID: guild.ID, Content: "公会创建成功"})
+
+    return map[string]int64{"guild_id": guild.ID}, nil
+}
+```
+
+### 4.2 申请加入（需审核 → HTTP）
+
+需审核时，申请只是写入 `guild_apply` 表，不涉及公会状态变更，走 HTTP：
+
+```go
+func (h *GuildHandler) ApplyGuild(ctx context.Context, req *ApplyGuildReq) (any, error) {
+    // 检查玩家无公会
+    var state RoleGuildState
+    gxypgx.DB().First(&state, req.RoleID)
+    if state.GuildID > 0 {
+        return nil, gxyhttp.NewErrCode(1, "你已加入公会")
+    }
+
+    // 写入申请
+    cfg := gamecfg.GetGuildConfig()
+    gxypgx.DB().Create(&GuildApply{
+        GuildID: req.GuildID, RoleID: req.RoleID,
+        Status: 0, ExpireAt: time.Now().Add(time.Duration(cfg.ApplyExpireHours) * time.Hour),
+    })
+    return nil, nil
+}
+```
+
+原子门在审批时做（见下方 4.3），同一个玩家申请多个公会最终只有第一个批准的生效。
+
+### 4.3 直接加入（无需审核 → Actor 消息）
+
+无需审核时，"加入"是修改公会成员列表的写操作，走 actor 消息：
+
+```go
+func (g *GuildActor) JoinGuild(ctx context.Context, req *pb.JoinGuildReq) error {
+    // 1. 检查成员上限
+    cfg := getLevelConfig(g.Data.Guild.Level)
+    if len(g.Data.Members) >= int(cfg.MemberLimit) {
+        return ErrGuildFull
+    }
+
+    // 2. 原子门：只有当前没公会的玩家才能加入
+    result := gxypgx.DB().Model(&RoleGuildState{}).
+        Where("role_id = ? AND guild_id = 0", req.RoleID).
+        Update("guild_id", g.GuildID)
+    if result.RowsAffected == 0 {
+        return ErrPlayerAlreadyInGuild
+    }
+
+    // 3. 写入成员
+    g.Data.Members = append(g.Data.Members, &GuildMember{
+        GuildID: g.GuildID, RoleID: req.RoleID,
+        Position: PositionMember, JoinedAt: time.Now().Unix(),
+    })
+    gxypgx.DB().Create(&GuildMember{GuildID: g.GuildID, RoleID: req.RoleID, Position: PositionMember})
+    g.Data.Guild.MemberCount = int32(len(g.Data.Members))
+    gxypgx.DB().Save(g.Data.Guild)
+
+    // 4. 通知
+    g.notifyPlayer(ctx, req.RoleID, &pb.NotifyGuildInfo{})
+    g.notifyMembers(ctx, &pb.NotifyGuildInfo{}, req.RoleID)
+
+    g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", req.RoleID))
     return nil
 }
 ```
 
-### 4.2 申请加入
-
-1. 检查玩家无公会（`role_guild.guild_id == 0`）
-2. 检查公会需要审核 → 写入 `guild_apply`
-3. 检查公会无需审核 → 直接加入（走审批逻辑但自动通过）
-
-### 4.3 审批加入
+### 4.4 审批加入
 
 ```go
 func (g *GuildActor) ApproveApply(ctx context.Context, req *pb.ApproveApplyReq) error {
@@ -299,7 +403,7 @@ func (g *GuildActor) ApproveApply(ctx context.Context, req *pb.ApproveApplyReq) 
 }
 ```
 
-### 4.4 踢出成员
+### 4.5 踢出成员
 
 ```go
 func (g *GuildActor) KickMember(ctx context.Context, req *pb.KickMemberReq) error {
@@ -328,7 +432,7 @@ func (g *GuildActor) KickMember(ctx context.Context, req *pb.KickMemberReq) erro
 }
 ```
 
-### 4.5 其他写操作
+### 4.6 其他写操作
 
 | 操作 | Actor 消息 | 说明 |
 |------|-----------|------|
@@ -402,6 +506,8 @@ func (g *GuildActor) notifyMembers(ctx context.Context, msg proto.Message, exclu
 
 | 接口 | Path | 说明 |
 |------|------|------|
+| 创建公会 | `POST /create` | 创建公会记录并激活 actor |
+| 申请加入（需审核） | `POST /apply` | 写入申请记录 |
 | 搜索公会 | `POST /search` | 按名称模糊搜索或按 ID 精确搜索 |
 | 公会大厅信息 | `POST /info` | 返回公会基本信息+成员列表（限成员） |
 | 公会基本信息 | `POST /basic` | 返回公会基本信息（公开） |
@@ -608,63 +714,51 @@ type roleModules struct {
 }
 ```
 
-### 8.3 Proto Handler 示例
+### 8.3 Proto Handler 示例（写操作 → Actor 消息 + 读操作 → HTTP）
 
 ```go
 // role_guild.go
+
+// 创建公会 → HTTP（先扣消耗 → HTTP 创建 → 激活 actor）
 func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) (*pb.RspCreateGuild, error) {
-    // 1. 检查玩家等级
     basic := r.Role.GetBasic()
     cfg := gamecfg.GetGuildConfig()
     if basic.Level < cfg.UnlockLevel {
         return nil, ErrLevelNotEnough
     }
-
-    // 2. 检查无公会
     if r.GuildID > 0 {
         return nil, ErrAlreadyInGuild
     }
-
-    // 3. 检查名称唯一性
-    var count int64
-    gxypgx.DB().Model(&Guild{}).Where("name = ?", req.Name).Count(&count)
-    if count > 0 {
-        return nil, ErrNameExists
-    }
-
-    // 4. 扣除消耗
+    // 先扣消耗
     if err := r.Role.GetBag().SaveGoods(ctx, nil, cfg.CreateCost, "create_guild"); err != nil {
         return nil, err
     }
-
-    // 5. 分配 ID 并激活 guild actor
-    guildID := nextGuildID()
-    pid, err := lib.ActivateGuild(guildID)
+    // HTTP 创建
+    rsp, err := callGuildCreate(ctx, req.Name, req.Declaration, req.Icon, req.NeedApproval)
     if err != nil {
+        r.Role.GetBag().SaveGoods(ctx, cfg.CreateCost, nil, "create_guild_refund")
         return nil, err
     }
-
-    // 6. 发送创建消息
-    rsp, err := gxyactor.Request(pid, &pb.CreateGuildReq{
-        LeaderID:    r.RoleID,
-        Name:        req.Name,
-        Declaration: req.Declaration,
-        Icon:        req.Icon,
-        NeedApproval: req.NeedApproval,
-    })
-    if err != nil {
-        return nil, err
-    }
-
-    // 7. 更新本地状态
-    r.GuildID = guildID
-    chat.RegisterRoleGuildChat(r.RoleID, guildID, r.Role.Self())
-
-    return rsp.(*pb.RspCreateGuild), nil
+    r.GuildID = rsp.GuildID
+    chat.RegisterRoleGuildChat(r.RoleID, r.GuildID, r.Role.Self())
+    return &pb.RspCreateGuild{GuildId: rsp.GuildID}, nil
 }
 
+// 审批加入 → Actor 消息（需要 mailbox 串行化）
+func (r *RoleGuild) ReqApproveApply(ctx context.Context, req *pb.ReqApproveApply) (*pb.RspApproveApply, error) {
+    pid, err := lib.ActivateGuild(req.GuildId)
+    if err != nil {
+        return nil, err
+    }
+    rsp, err := gxyactor.Request(pid, req)
+    if err != nil {
+        return nil, err
+    }
+    return rsp.(*pb.RspApproveApply), nil
+}
+
+// 搜索公会 → HTTP 只读
 func (r *RoleGuild) ReqSearchGuild(ctx context.Context, req *pb.ReqSearchGuild) (*pb.RspSearchGuild, error) {
-    // 读操作，走 HTTP
     rsp, err := gxyhttp.HttpSystem().PostService(ctx, "guild",
         fmt.Sprintf("search?keyword=%s", url.QueryEscape(req.Keyword)))
     if err != nil {
