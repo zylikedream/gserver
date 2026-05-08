@@ -13,7 +13,6 @@ package gamecfg;
 import "errors"
 
 type GardenGuildConfig struct {
-    Id int32
     UnlockLevel int32
     CreateCost []*GardenGoodStack
     NameLimit int32
@@ -32,7 +31,6 @@ func (*GardenGuildConfig) GetTypeId() int32 {
 
 func NewGardenGuildConfig(_buf map[string]interface{}) (_v *GardenGuildConfig, err error) {
     _v = &GardenGuildConfig{}
-    { var _ok_ bool; var __json_id__ interface{}; if __json_id__, _ok_ = _buf["id"]; !_ok_ || __json_id__ == nil { err = errors.New("id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Id = __x__ }}
     { var _ok_ bool; var __json_unlock_level__ interface{}; if __json_unlock_level__, _ok_ = _buf["unlock_level"]; !_ok_ || __json_unlock_level__ == nil { err = errors.New("unlock_level error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_unlock_level__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.UnlockLevel = __x__ }}
     { var _ok_ bool; var __json_create_cost__ interface{}; if __json_create_cost__, _ok_ = _buf["create_cost"]; !_ok_ || __json_create_cost__ == nil { err = errors.New("create_cost error"); return } else { var __x__ []*GardenGoodStack;  {
                     var _arr0_ []interface{}

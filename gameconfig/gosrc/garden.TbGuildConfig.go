@@ -10,36 +10,27 @@
 package gamecfg;
 
 
+
+import "errors"
+
 type GardenTbGuildConfig struct {
-    _dataMap map[int32]*GardenGuildConfig
-    _dataList []*GardenGuildConfig
+    _data *GardenGuildConfig
 }
 
 func NewGardenTbGuildConfig(_buf []map[string]interface{}) (*GardenTbGuildConfig, error) {
-    _dataList := make([]*GardenGuildConfig, 0, len(_buf))
-    dataMap := make(map[int32]*GardenGuildConfig)
-
-    for _, _ele_ := range _buf {
-        if _v, err2 := NewGardenGuildConfig(_ele_); err2 != nil {
-            return nil, err2
-        } else {
-            _dataList = append(_dataList, _v)
-            dataMap[_v.Id] = _v
-        }
-    }
-    return &GardenTbGuildConfig{_dataList:_dataList, _dataMap:dataMap}, nil
+	if len(_buf) != 1 {
+        return nil, errors.New(" size != 1 ")
+	} else {
+		if _v, err2 := NewGardenGuildConfig(_buf[0]); err2 != nil {
+			return nil, err2
+		} else {
+		    return &GardenTbGuildConfig{_data:_v}, nil
+		}
+	}
 }
 
-func (table *GardenTbGuildConfig) GetDataMap() map[int32]*GardenGuildConfig {
-    return table._dataMap
-}
-
-func (table *GardenTbGuildConfig) GetDataList() []*GardenGuildConfig {
-    return table._dataList
-}
-
-func (table *GardenTbGuildConfig) Get(key int32) *GardenGuildConfig {
-    return table._dataMap[key]
+func (table *GardenTbGuildConfig) Get() *GardenGuildConfig {
+    return table._data
 }
 
 

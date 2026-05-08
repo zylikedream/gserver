@@ -13,7 +13,7 @@ package gamecfg;
 import "errors"
 
 type GardenGuildPosition struct {
-    Id int32
+    Id GardenEGuildPosition
     Name string
     CanApprove bool
     CanEditNotice bool
@@ -31,7 +31,7 @@ func (*GardenGuildPosition) GetTypeId() int32 {
 
 func NewGardenGuildPosition(_buf map[string]interface{}) (_v *GardenGuildPosition, err error) {
     _v = &GardenGuildPosition{}
-    { var _ok_ bool; var __json_id__ interface{}; if __json_id__, _ok_ = _buf["id"]; !_ok_ || __json_id__ == nil { err = errors.New("id error"); return } else { var __x__ int32;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = int32(_x_) }; _v.Id = __x__ }}
+    { var _ok_ bool; var __json_id__ interface{}; if __json_id__, _ok_ = _buf["id"]; !_ok_ || __json_id__ == nil { err = errors.New("id error"); return } else { var __x__ GardenEGuildPosition;  { var _ok_ bool; var _x_ float64; if _x_, _ok_ = __json_id__.(float64); !_ok_ { err = errors.New("__x__ error"); return }; __x__ = GardenEGuildPosition(_x_) }; _v.Id = __x__ }}
     { var _ok_ bool; var __json_name__ interface{}; if __json_name__, _ok_ = _buf["name"]; !_ok_ || __json_name__ == nil { err = errors.New("name error"); return } else { var __x__ string;  {  if __x__, _ok_ = __json_name__.(string); !_ok_ { err = errors.New("__x__ error"); return } }; _v.Name = __x__ }}
     { var _ok_ bool; var __json_can_approve__ interface{}; if __json_can_approve__, _ok_ = _buf["can_approve"]; !_ok_ || __json_can_approve__ == nil { err = errors.New("can_approve error"); return } else { var __x__ bool;  { var _ok_ bool; if __x__, _ok_ = __json_can_approve__.(bool); !_ok_ { err = errors.New("__x__ error"); return } }; _v.CanApprove = __x__ }}
     { var _ok_ bool; var __json_can_edit_notice__ interface{}; if __json_can_edit_notice__, _ok_ = _buf["can_edit_notice"]; !_ok_ || __json_can_edit_notice__ == nil { err = errors.New("can_edit_notice error"); return } else { var __x__ bool;  { var _ok_ bool; if __x__, _ok_ = __json_can_edit_notice__.(bool); !_ok_ { err = errors.New("__x__ error"); return } }; _v.CanEditNotice = __x__ }}
