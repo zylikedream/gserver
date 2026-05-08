@@ -11,13 +11,13 @@ package gamecfg;
 
 
 type GardenTbGuildPosition struct {
-    _dataMap map[int32]*GardenGuildPosition
+    _dataMap map[GardenEGuildPosition]*GardenGuildPosition
     _dataList []*GardenGuildPosition
 }
 
 func NewGardenTbGuildPosition(_buf []map[string]interface{}) (*GardenTbGuildPosition, error) {
     _dataList := make([]*GardenGuildPosition, 0, len(_buf))
-    dataMap := make(map[int32]*GardenGuildPosition)
+    dataMap := make(map[GardenEGuildPosition]*GardenGuildPosition)
 
     for _, _ele_ := range _buf {
         if _v, err2 := NewGardenGuildPosition(_ele_); err2 != nil {
@@ -30,7 +30,7 @@ func NewGardenTbGuildPosition(_buf []map[string]interface{}) (*GardenTbGuildPosi
     return &GardenTbGuildPosition{_dataList:_dataList, _dataMap:dataMap}, nil
 }
 
-func (table *GardenTbGuildPosition) GetDataMap() map[int32]*GardenGuildPosition {
+func (table *GardenTbGuildPosition) GetDataMap() map[GardenEGuildPosition]*GardenGuildPosition {
     return table._dataMap
 }
 
@@ -38,7 +38,7 @@ func (table *GardenTbGuildPosition) GetDataList() []*GardenGuildPosition {
     return table._dataList
 }
 
-func (table *GardenTbGuildPosition) Get(key int32) *GardenGuildPosition {
+func (table *GardenTbGuildPosition) Get(key GardenEGuildPosition) *GardenGuildPosition {
     return table._dataMap[key]
 }
 
