@@ -12,6 +12,7 @@ import (
 	"gserver/core/gxyhttp"
 	"gserver/protocol/pb"
 	"gserver/src/apps/chat"
+	"gserver/src/lib"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -54,7 +55,33 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 	r.lastLobbyID = lobbyID
 
 	cfg := chat.GetConfig()
-	worldMsgs, _ := callChatWorldHistory(ctx, lobbyID, cfg.WorldMsgKeep)
+	var worldMsgs []*pb.PChatMsg
+
+	// 注册到世界频道 actor，并从 ChannelActor 拉取聊天历史
+	pid, perr := lib.GetChannelActor(1, lobbyID)
+	if perr == nil {
+		self := r.Role.Self()
+		r.Role.Send(pid, &pb.ChannelRegisterMsg{
+			RoleId: r.RoleID,
+			Pid: &pb.ActorPid{
+				Address: self.Address,
+				Id:      self.Id,
+			},
+			ChannelType: 1,
+			ChannelId:   lobbyID,
+		})
+		// 拉取世界聊天历史
+		if rsp, e := r.Role.Call(pid, &pb.ReqChannelHistory{
+			ChannelType: 1,
+			ChannelId:   lobbyID,
+			Count:       int32(cfg.WorldMsgKeep),
+		}, 10*time.Second); e == nil {
+			if h, ok := rsp.(*pb.RspChannelHistory); ok {
+				worldMsgs = h.Messages
+			}
+		}
+	}
+
 	systemMsgs, _ := callChatSystemHistory(ctx, cfg.SystemMsgKeep)
 
 	chat.RegisterLocalRole(r.RoleID, lobbyID, r.Role.Self())
@@ -66,42 +93,81 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 	}, nil
 }
 
-func (r *RoleChat) ReqSendWorldChat(ctx context.Context, req *pb.ReqSendWorldChat) (*pb.RspSendWorldChat, error) {
-	if r.lastLobbyID == 0 {
-		return nil, errors.New("聊天未初始化")
+func (r *RoleChat) ReqSendChannelChat(ctx context.Context, req *pb.ReqSendChannelChat) (*pb.RspSendChannelChat, error) {
+	var channelType int32
+	var channelID int64
+	switch req.ChannelType {
+	case 1: // 世界
+		if r.lastLobbyID == 0 {
+			return nil, errors.New("聊天未初始化")
+		}
+		channelType = 1
+		channelID = r.lastLobbyID
+		cfg := chat.GetConfig()
+		if time.Since(r.lastWorldChatTime) < time.Duration(cfg.WorldCooldown)*time.Second {
+			return nil, ErrChatCooldown
+		}
+		r.lastWorldChatTime = time.Now()
+	case 2: // 公会
+		if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
+			return nil, errors.New("你没有加入公会")
+		}
+		channelType = 2
+		channelID = r.Role.Guild.GuildID
+	default:
+		return nil, errors.New("不支持的频道类型")
 	}
-	cfg := chat.GetConfig()
-
-	if err := validateChatMsg(req.Content, cfg.MsgMaxLength); err != nil {
+	if err := validateChatMsg(req.Content, chat.GetConfig().MsgMaxLength); err != nil {
 		return nil, err
 	}
-
-	if time.Since(r.lastWorldChatTime) < time.Duration(cfg.WorldCooldown)*time.Second {
-		return nil, ErrChatCooldown
+	pid, err := lib.GetChannelActor(channelType, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
 	}
-	r.lastWorldChatTime = time.Now()
-
-	if err := callChatSendWorld(ctx, r.Role.Public.GetRolePublic(ctx),
-		strings.TrimSpace(req.Content), r.lastLobbyID); err != nil {
-		return nil, err
-	}
-
-	return &pb.RspSendWorldChat{}, nil
-}
-
-func (r *RoleChat) ReqWorldChatHistory(ctx context.Context, req *pb.ReqWorldChatHistory) (*pb.RspWorldChatHistory, error) {
-	if r.lastLobbyID == 0 {
-		return nil, errors.New("聊天未初始化")
-	}
-	count := int(req.Count)
-	if count <= 0 {
-		count = chat.GetConfig().WorldMsgKeep
-	}
-	msgs, err := callChatWorldHistory(ctx, r.lastLobbyID, count)
+	_, err = r.Role.Call(pid, &pb.ReqChannelSend{
+		ChannelType: channelType,
+		ChannelId:   channelID,
+		SenderId:    r.RoleID,
+		Content:     strings.TrimSpace(req.Content),
+	}, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.RspWorldChatHistory{Messages: msgs}, nil
+	return &pb.RspSendChannelChat{}, nil
+}
+
+func (r *RoleChat) ReqChannelHistory(ctx context.Context, req *pb.ReqChannelHistory) (*pb.RspChannelHistory, error) {
+	var channelType int32
+	var channelID int64
+	switch req.ChannelType {
+	case 1: // 世界
+		if r.lastLobbyID == 0 {
+			return nil, errors.New("聊天未初始化")
+		}
+		channelType = 1
+		channelID = r.lastLobbyID
+	case 2: // 公会
+		if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
+			return nil, errors.New("你没有加入公会")
+		}
+		channelType = 2
+		channelID = r.Role.Guild.GuildID
+	default:
+		return nil, errors.New("不支持的频道类型")
+	}
+	pid, err := lib.GetChannelActor(channelType, channelID)
+	if err != nil {
+		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
+	}
+	rsp, err := r.Role.Call(pid, &pb.ReqChannelHistory{
+		ChannelType: channelType,
+		ChannelId:   channelID,
+		Count:       req.Count,
+	}, 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.(*pb.RspChannelHistory), nil
 }
 
 func (r *RoleChat) ReqSendPrivateChat(ctx context.Context, req *pb.ReqSendPrivateChat) (*pb.RspSendPrivateChat, error) {
@@ -148,47 +214,18 @@ func (r *RoleChat) ReqSystemChatHistory(ctx context.Context, req *pb.ReqSystemCh
 	return &pb.RspSystemChatHistory{Messages: msgs}, nil
 }
 
-// ===== 公会频道 =====
-
-func (r *RoleChat) ReqSendGuildChat(ctx context.Context, req *pb.ReqSendGuildChat) (*pb.RspSendGuildChat, error) {
-	if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
-		return nil, errors.New("你没有加入公会")
-	}
-	if req.GuildId != r.Role.Guild.GuildID {
-		return nil, errors.New("公会ID不匹配")
-	}
-	cfg := chat.GetConfig()
-	if err := validateChatMsg(req.Content, cfg.MsgMaxLength); err != nil {
-		return nil, err
-	}
-	if err := callChatSendGuild(ctx, r.Role.Public.GetRolePublic(ctx), req.GuildId, req.Content); err != nil {
-		return nil, err
-	}
-	return &pb.RspSendGuildChat{}, nil
-}
-
-func (r *RoleChat) ReqGuildChatHistory(ctx context.Context, req *pb.ReqGuildChatHistory) (*pb.RspGuildChatHistory, error) {
-	if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
-		return nil, errors.New("你没有加入公会")
-	}
-	if req.GuildId != r.Role.Guild.GuildID {
-		return nil, errors.New("公会ID不匹配")
-	}
-	count := int(req.Count)
-	if count <= 0 || count > 50 {
-		count = 20
-	}
-	msgs, err := callChatGuildHistory(ctx, req.GuildId, count)
-	if err != nil {
-		return nil, err
-	}
-	return &pb.RspGuildChatHistory{Messages: msgs}, nil
-}
-
 // ===== Internal =====
 
 func (r *RoleChat) chatLeave(ctx context.Context) {
 	if r.lastLobbyID > 0 {
+		// 从世界频道 actor 注销
+		if pid, err := lib.GetChannelActor(1, r.lastLobbyID, false); err == nil {
+			r.Role.Send(pid, &pb.ChannelUnregisterMsg{
+				RoleId:      r.RoleID,
+				ChannelType: 1,
+				ChannelId:   r.lastLobbyID,
+			})
+		}
 		_ = callChatLeaveLobby(ctx, r.RoleID, r.lastLobbyID)
 		chat.UnregisterLocalRole(r.RoleID)
 		r.lastLobbyID = 0
@@ -206,7 +243,7 @@ func validateChatMsg(content string, maxLen int) error {
 	return nil
 }
 
-// ===== HTTP helpers =====
+// ===== HTTP helpers (私聊/系统消息保留) =====
 
 func callChatJoinLobby(ctx context.Context, roleID int64) (int64, error) {
 	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
@@ -229,22 +266,6 @@ func callChatLeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
 	return err
 }
 
-func callChatSendWorld(ctx context.Context, sender *pb.PRolePublic, content string, lobbyID int64) error {
-	sj, _ := json.Marshal(sender)
-	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
-		fmt.Sprintf("send_world?sender=%s&content=%s&lobby_id=%d",
-			url.QueryEscape(string(sj)), url.QueryEscape(content), lobbyID))
-	return err
-}
-
-func callChatSendGuild(ctx context.Context, sender *pb.PRolePublic, guildID int64, content string) error {
-	sj, _ := json.Marshal(sender)
-	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
-		fmt.Sprintf("send_guild?sender=%s&guild_id=%d&content=%s",
-			url.QueryEscape(string(sj)), guildID, url.QueryEscape(content)))
-	return err
-}
-
 func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID int64, content string) (int64, error) {
 	sj, _ := json.Marshal(sender)
 	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
@@ -260,19 +281,6 @@ func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID 
 		return 0, fmt.Errorf("parse timestamp: %w", err)
 	}
 	return data.Timestamp, nil
-}
-
-func callChatWorldHistory(ctx context.Context, lobbyID int64, count int) ([]*pb.PChatMsg, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
-		fmt.Sprintf("world_history?lobby_id=%d&count=%d", lobbyID, count))
-	if err != nil {
-		return nil, err
-	}
-	var msgs []*pb.PChatMsg
-	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
-		return nil, fmt.Errorf("parse world history: %w", err)
-	}
-	return msgs, nil
 }
 
 func callChatPrivateHistory(ctx context.Context, roleID, friendID int64, count int) ([]*pb.PChatMsg, error) {
@@ -297,19 +305,6 @@ func callChatSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, erro
 	var msgs []*pb.PChatMsg
 	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
 		return nil, fmt.Errorf("parse system history: %w", err)
-	}
-	return msgs, nil
-}
-
-func callChatGuildHistory(ctx context.Context, guildID int64, count int) ([]*pb.PChatMsg, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
-		fmt.Sprintf("guild_history?guild_id=%d&count=%d", guildID, count))
-	if err != nil {
-		return nil, err
-	}
-	var msgs []*pb.PChatMsg
-	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
-		return nil, fmt.Errorf("parse guild history: %w", err)
 	}
 	return msgs, nil
 }
