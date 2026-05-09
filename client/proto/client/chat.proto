@@ -27,33 +27,6 @@ message RspChatInit {
     repeated PChatMsg system_messages = 3;
 }
 
-// === 世界频道 ===
-
-// 发送世界消息 (28003)
-message ReqSendWorldChat {
-    option (msg_id) = 28003;
-    string content = 1;
-}
-message RspSendWorldChat {
-    option (msg_id) = 28004;
-}
-
-// 拉取世界频道历史 (28005)
-message ReqWorldChatHistory {
-    option (msg_id) = 28005;
-    int32 count = 1;
-}
-message RspWorldChatHistory {
-    option (msg_id) = 28006;
-    repeated PChatMsg messages = 1;
-}
-
-// 世界频道消息通知 (28007) - 服务端推送
-message NotifyWorldChat {
-    option (msg_id) = 28007;
-    PChatMsg message = 1;
-}
-
 // === 私聊 ===
 
 // 发送私聊 (28008)
@@ -100,31 +73,6 @@ message NotifySystemChat {
     option (msg_id) = 28015;
     PChatMsg message = 1;
 }
-
-// === 公会频道 ===
-
-// 发送公会消息 (28016)
-message ReqSendGuildChat {
-    option (msg_id) = 28016;
-    int64  guild_id = 1;
-    string content  = 2;
-}
-message RspSendGuildChat {
-    option (msg_id) = 28017;
-}
-
-// 拉取公会频道历史 (28018)
-message ReqGuildChatHistory {
-    option (msg_id) = 28018;
-    int64  guild_id = 1;
-    int32  count    = 2;
-}
-message RspGuildChatHistory {
-    option (msg_id) = 28019;
-    repeated PChatMsg messages = 1;
-}
-
-
 
 // === 统一频道消息 ===
 
