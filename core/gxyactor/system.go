@@ -6,23 +6,25 @@ import (
 	"time"
 
 	"gserver/core/gxyapp"
+	"gserver/protocol/pb"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/glog"
 )
 
 // actorApp 基础Actor模块
 type actorApp struct {
 	gxyapp.App
-	system          *actor.ActorSystem
-	remote          *remote.Remote
-	nodeName        string
+	system           *actor.ActorSystem
+	remote           *remote.Remote
+	nodeName         string
 	nodeInstanceName string
-	host            string
-	activatorMgr    *activatorManager
+	host             string
+	activatorMgr     *activatorManager
 }
 
 const (
@@ -126,7 +128,14 @@ func (a *actorApp) call(pid PID, message proto.Message, timeout time.Duration) (
 		return nil, fmt.Errorf("node not initialized")
 	}
 
-	return a.system.Root.RequestFuture(pid, message, timeout).Result()
+	result, err := a.system.Root.RequestFuture(pid, message, timeout).Result()
+	if err != nil {
+		return nil, err
+	}
+	if aerr, ok := result.(*pb.ActorError); ok {
+		return nil, gerror.New(aerr.Reason)
+	}
+	return result, nil
 }
 
 func (a *actorApp) GetNodeName() string {

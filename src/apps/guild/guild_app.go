@@ -25,5 +25,6 @@ func (g *guildApp) OnModInit(ctx context.Context) error {
 	g.AddModule(ctx, gameconfig.NewGameConfig())
 	guildlogic.InitGuildSchema(ctx)
 	gxyservice.ServiceApp().LoadService(ctx, NewGuildService())
+	gxyservice.ServiceApp().LoadService(ctx, NewGuildHttpService())
 	return nil
 }

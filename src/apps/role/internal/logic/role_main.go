@@ -13,6 +13,7 @@ import (
 	"gserver/core/gxyutil"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
+	"gserver/src/apps/chat"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"reflect"
@@ -92,8 +93,7 @@ type RoleMain struct {
 
 func NewRoleMain() *RoleMain {
 	r := &RoleMain{
-		modsHash: map[string]uint64{},
-		state:    RoleStateInit,
+		state: RoleStateInit,
 	}
 	ctx := gxylog.NewContext(context.Background(), "role")
 	r.ActorBase = gxyactor.NewActorBase(ctx, r)
@@ -233,7 +233,14 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 	case *pb.NotifyWorldChat, *pb.NotifySystemChat, *pb.NotifyPrivateChat:
 		r.SendClient(ctx, m.(proto.Message))
 		return nil
-	case *pb.NotifyGuildInfo, *pb.NotifyGuildBasic, *pb.NotifyGuildKicked, *pb.NotifyGuildApply, *pb.NotifyGuildChat:
+	case *pb.NotifyGuildInfo:
+		if r.Guild.GuildID == 0 && m.Guild != nil {
+			r.Guild.GuildID = m.Guild.Id
+			chat.RegisterRoleGuildChat(r.RoleID, r.Guild.GuildID, r.Self())
+		}
+		r.SendClient(ctx, m)
+		return nil
+	case *pb.NotifyGuildBasic, *pb.NotifyGuildKicked, *pb.NotifyGuildApply, *pb.NotifyGuildChat:
 		r.SendClient(ctx, m.(proto.Message))
 		return nil
 	}
@@ -539,8 +546,6 @@ func (r *RoleMain) OnModStop(ctx context.Context) error {
 	}
 	return nil
 }
-
-
 
 // GetBag 实现 roleSender 接口，供兄弟模块跨模块访问背包
 func (r *RoleMain) GetBag() *RoleBag { return r.Bag }

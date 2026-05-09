@@ -50,7 +50,7 @@ func (r *RoleGuild) OnModStart(ctx context.Context) error {
 // ===== HTTP helpers =====
 
 func callGuildCreate(ctx context.Context, leaderID int64, name, declaration, icon string, needApproval bool) (int64, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "guild",
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "guild-http",
 		fmt.Sprintf("create?leader_id=%d&name=%s&declaration=%s&icon=%s&need_approval=%t",
 			leaderID, url.QueryEscape(name), url.QueryEscape(declaration), url.QueryEscape(icon), needApproval))
 	if err != nil {
@@ -66,7 +66,7 @@ func callGuildCreate(ctx context.Context, leaderID int64, name, declaration, ico
 }
 
 func callGuildSearch(ctx context.Context, keyword string) ([]*pb.PGuildBasic, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "guild",
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "guild-http",
 		fmt.Sprintf("search?keyword=%s", url.QueryEscape(keyword)))
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) 
 		return nil, err
 	}
 	// 扣除公会创建消耗
-	if err := r.Role.GetBag().SaveGoods(ctx, nil, guildCfg.CreateCost, "create_guild"); err != nil {
+	if err := r.Role.GetBag().SaveGoods(ctx, guildCfg.CreateCost, nil, "create_guild"); err != nil {
 		return nil, err
 	}
 
@@ -135,8 +135,7 @@ func (r *RoleGuild) ReqApplyGuild(ctx context.Context, req *pb.ReqApplyGuild) (*
 	if err != nil {
 		return nil, err
 	}
-	r.GuildID = req.GuildId
-	chat.RegisterRoleGuildChat(r.RoleID, r.GuildID, r.Role.Self())
+	// GuildID 由 NotifyGuildInfo handler 更新（addMember 成功后推送）
 	return rsp.(*pb.RspApplyGuild), nil
 }
 
@@ -156,6 +155,17 @@ func (r *RoleGuild) ReqGuildInfo(ctx context.Context, req *pb.ReqGuildInfo) (*pb
 		return nil, err
 	}
 	return rsp.(*pb.RspGuildInfo), nil
+}
+
+func (r *RoleGuild) ReqGuildLogs(ctx context.Context, req *pb.ReqGuildLogs) (*pb.RspGuildLogs, error) {
+	if err := r.requireGuild(); err != nil {
+		return nil, err
+	}
+	rsp, err := r.withGuildActor(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return rsp.(*pb.RspGuildLogs), nil
 }
 
 func (r *RoleGuild) ReqGuildApplyList(ctx context.Context, req *pb.ReqGuildApplyList) (*pb.RspGuildApplyList, error) {
@@ -193,7 +203,7 @@ func (r *RoleGuild) ReqKickMember(ctx context.Context, req *pb.ReqKickMember) (*
 	return rsp.(*pb.RspKickMember), nil
 }
 
-func (r *RoleGuild) ReqSetViceLeader(ctx context.Context, req *pb.ReqSetViceLeader) (*pb.RspSetViceLeader, error) {
+func (r *RoleGuild) ReqSetPosition(ctx context.Context, req *pb.ReqSetPosition) (*pb.RspSetPosition, error) {
 	if err := r.requireGuild(); err != nil {
 		return nil, err
 	}
@@ -202,7 +212,7 @@ func (r *RoleGuild) ReqSetViceLeader(ctx context.Context, req *pb.ReqSetViceLead
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspSetViceLeader), nil
+	return rsp.(*pb.RspSetPosition), nil
 }
 
 func (r *RoleGuild) ReqTransferLeader(ctx context.Context, req *pb.ReqTransferLeader) (*pb.RspTransferLeader, error) {

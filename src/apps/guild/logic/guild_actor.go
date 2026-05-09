@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"gserver/core/gxymodule"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
+	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
 	"gserver/gameconfig"
@@ -16,8 +16,10 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role"
 	"gserver/src/lib"
+	"gserver/src/util"
 
 	"github.com/gogf/gf/v2/os/glog"
+	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -30,9 +32,9 @@ type GuildActor struct {
 	Data    *Guild
 }
 
-func NewGuildActor(guildID int64) *GuildActor {
-	g := &GuildActor{GuildID: guildID}
+func NewGuildActor() *GuildActor {
 	ctx := gxylog.NewContext(context.Background(), "guild")
+	g := &GuildActor{}
 	g.ActorBase = gxyactor.NewActorBase(ctx, g)
 	return g
 }
@@ -40,24 +42,17 @@ func NewGuildActor(guildID int64) *GuildActor {
 // ===== IActor 接口 =====
 
 func (g *GuildActor) Init(ctx context.Context, args []any) error {
+	if len(args) != 1 {
+		return errors.New("guild actor init args error")
+	}
+	g.GuildID = gconv.Int64(args[0])
+	if g.GuildID <= 0 {
+		return errors.New("guild actor init args error")
+	}
 	return nil
 }
 
 func (g *GuildActor) DelayInit(ctx context.Context) error {
-	return nil
-}
-
-func (g *GuildActor) Terminate(ctx context.Context, err error) {
-}
-
-func (g *GuildActor) HandleMessage(ctx context.Context, msg any) error {
-	_, err := g.AutoHandleMsg(ctx, msg)
-	return err
-}
-
-// ===== Module 生命周期 =====
-
-func (g *GuildActor) OnModStart(ctx context.Context) error {
 	g.Data = &Guild{}
 	if err := gxypgx.DB().First(g.Data, g.GuildID).Error; err != nil {
 		return err
@@ -70,6 +65,17 @@ func (g *GuildActor) OnModStart(ctx context.Context) error {
 		g.GuildID, len(g.Data.Members), len(g.Data.ApplyList))
 	return nil
 }
+
+func (g *GuildActor) Terminate(ctx context.Context, err error) {
+	g.StopModule(ctx)
+}
+
+func (g *GuildActor) HandleMessage(ctx context.Context, msg any) error {
+	_, err := g.AutoHandleMsg(ctx, msg)
+	return err
+}
+
+// ===== Module 生命周期 =====
 
 func (g *GuildActor) OnModStop(ctx context.Context) error {
 	g.save(ctx)
@@ -142,6 +148,17 @@ func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
 	}
 }
 
+func (g *GuildActor) notifyGuildBasic(ctx context.Context) {
+	msg := g.buildNotifyGuildBasic(ctx)
+	for _, m := range g.Data.Members {
+		pid, err := lib.GetRoleActor(m.RoleID, false)
+		if err != nil || pid == nil {
+			continue
+		}
+		g.Send(pid, msg)
+	}
+}
+
 func (g *GuildActor) notifyApplyUpdate(ctx context.Context) {
 	msg := g.buildNotifyGuildApply(ctx)
 	for _, m := range g.Data.Members {
@@ -173,6 +190,25 @@ func (g *GuildActor) buildNotifyGuildInfo(ctx context.Context) *pb.NotifyGuildIn
 			LeaderId: guild.LeaderID, CreatedAt: guild.CreatedAt.Unix(),
 		},
 		Members: g.buildMemberList(ctx),
+	}
+}
+
+func (g *GuildActor) buildNotifyGuildBasic(_ context.Context) *pb.NotifyGuildBasic {
+	guild := g.Data
+	levelCfg := getLevelConfig(guild.Level)
+	memberLimit := int32(30)
+	if levelCfg != nil {
+		memberLimit = levelCfg.MemberLimit
+	}
+	return &pb.NotifyGuildBasic{
+		Guild: &pb.PGuildBasic{
+			Id: guild.ID, Name: guild.Name, Level: guild.Level,
+			Icon: guild.Icon, Declaration: guild.Declaration,
+			Announcement: guild.Announcement,
+			NeedApproval: guild.NeedApproval,
+			MemberCount:  guild.MemberCount, MemberLimit: memberLimit,
+			LeaderId: guild.LeaderID, CreatedAt: guild.CreatedAt.Unix(),
+		},
 	}
 }
 
@@ -284,12 +320,12 @@ func (g *GuildActor) ActorCreateGuild(ctx context.Context, msg *pb.ActorCreateGu
 
 // ApplyGuild — 申请加入公会
 func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ReqApplyGuild) (*pb.RspApplyGuild, error) {
-	var state GuildRoleState
-	err := gxypgx.DB().Where("role_id = ?", req.RoleId).First(&state).Error
-	if err == nil && state.GuildID > 0 {
-		return nil, ErrPlayerAlreadyInGuild
+	// 检查是否已有待审核申请
+	for _, a := range g.Data.ApplyList {
+		if a.RoleID == req.RoleId && a.Status == 0 {
+			return nil, errors.New("你已申请过该公会")
+		}
 	}
-
 	if g.Data.NeedApproval {
 		return g.createApply(ctx, req)
 	}
@@ -325,9 +361,14 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 		return ErrGuildFull
 	}
 
-	result := gxypgx.DB().Model(&GuildRoleState{}).
-		Where("role_id = ? AND guild_id = 0", roleID).
-		Update("guild_id", g.GuildID)
+	// 原子门：INSERT OR UPDATE，WHERE guild_id=0 确保只对无公会玩家生效
+	result := gxypgx.DB().Exec(
+		"INSERT INTO role_guild (role_id, guild_id) VALUES (?, ?) ON CONFLICT (role_id) DO UPDATE SET guild_id = ? WHERE role_guild.guild_id = 0",
+		roleID, g.GuildID, g.GuildID,
+	)
+	if result.Error != nil {
+		return result.Error
+	}
 	if result.RowsAffected == 0 {
 		return ErrPlayerAlreadyInGuild
 	}
@@ -336,7 +377,7 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 	g.Data.Members = append(g.Data.Members, member)
 	g.Data.MemberCount = int32(len(g.Data.Members))
 
-	g.notifyGuildInfo(ctx, roleID)
+	g.notifyGuildInfo(ctx) // 通知全部成员（含新成员）
 	g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", roleID))
 	return nil
 }
@@ -472,6 +513,13 @@ func (g *GuildActor) GuildInfo(ctx context.Context, req *pb.ReqGuildInfo) (*pb.R
 	}, nil
 }
 
+// GuildLogs — 获取公会日志
+func (g *GuildActor) GuildLogs(ctx context.Context, _ *pb.ReqGuildLogs) (*pb.RspGuildLogs, error) {
+	return &pb.RspGuildLogs{
+		Logs: g.buildLogList(),
+	}, nil
+}
+
 // HandleApproveApply — 审批加入（actor 消息路由）
 func (g *GuildActor) HandleApproveApply(ctx context.Context, req *pb.ReqApproveApply) (*pb.RspApproveApply, error) {
 	if err := g.ApproveApply(ctx, req.RoleId, req); err != nil {
@@ -488,23 +536,24 @@ func (g *GuildActor) HandleKickMember(ctx context.Context, req *pb.ReqKickMember
 	return &pb.RspKickMember{}, nil
 }
 
-// SetViceLeader — 任命/取消副会长
-func (g *GuildActor) SetViceLeader(ctx context.Context, req *pb.ReqSetViceLeader) (*pb.RspSetViceLeader, error) {
+// SetPosition — 设置成员职位（会长操作）
+func (g *GuildActor) SetPosition(ctx context.Context, req *pb.ReqSetPosition) (*pb.RspSetPosition, error) {
 	op := g.getMember(req.RoleId)
-	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
+	if op == nil || op.Position >= req.Position {
 		return nil, ErrPermissionDenied
 	}
 	target := g.getMember(req.TargetId)
 	if target == nil {
 		return nil, errors.New("目标成员不存在")
 	}
-	if req.Set {
-		target.Position = int32(gamecfg.GardenEGuildPosition_VICE_LEADER)
-	} else {
-		target.Position = int32(gamecfg.GardenEGuildPosition_MEMBER)
+	validPostions := []int32{int32(gamecfg.GardenEGuildPosition_LEADER)}
+	if !util.ListMember(validPostions, req.Position) {
+		return nil, errors.New("无效的职位")
 	}
+
+	target.Position = req.Position
 	g.notifyGuildInfo(ctx)
-	return &pb.RspSetViceLeader{}, nil
+	return &pb.RspSetPosition{}, nil
 }
 
 // TransferLeader — 转让会长
@@ -541,7 +590,7 @@ func (g *GuildActor) UpdateGuildInfo(ctx context.Context, req *pb.ReqUpdateGuild
 		g.Data.Announcement = req.Announcement
 	}
 	g.Data.NeedApproval = req.NeedApproval
-	g.notifyGuildInfo(ctx)
+	g.notifyGuildBasic(ctx)
 	return &pb.RspUpdateGuildInfo{}, nil
 }
 

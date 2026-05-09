@@ -18,6 +18,7 @@ import (
 	"gserver/src/apps/chat"
 	"gserver/src/apps/friend"
 	"gserver/src/apps/gateway"
+	"gserver/src/apps/guild"
 	"gserver/src/apps/role"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -124,4 +125,5 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("friend", friend.NewFriendApp())
 	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())
+	gxyapp.RegisterApp("guild", guild.NewGuildApp())
 }

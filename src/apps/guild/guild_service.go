@@ -3,15 +3,12 @@ package guild
 import (
 	"context"
 
-	"gserver/core/gxyhttp"
-	"gserver/core/gxyservice"
+	"gserver/core/gxyactor"
 	guildlogic "gserver/src/apps/guild/logic"
-
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 type guildService struct {
-	gxyhttp.HttpService
+	gxyactor.ActorService
 }
 
 func NewGuildService() *guildService {
@@ -23,18 +20,13 @@ func (s *guildService) ServiceName() string {
 }
 
 func (s *guildService) OnModStart(ctx context.Context) error {
-	host := gxyservice.ServiceApp().Host
-	svr := gxyhttp.HttpSystem().NewHttpServer(host)
-	gxyhttp.SetHandler(svr, ctx, "guild", &guildlogic.GuildHandler{})
-	glog.Infof(ctx, "guild server starting")
-	if err := svr.Start(); err != nil {
-		return err
-	}
-	s.Svr = svr
+	gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
+		return guildlogic.NewGuildActor()
+	})
 	return nil
 }
 
 func (s *guildService) OnModStop(ctx context.Context) error {
-	glog.Infof(ctx, "guild service stopping")
-	return s.Svr.Shutdown()
+	gxyactor.DeregisterActorKind(s.ServiceName())
+	return nil
 }

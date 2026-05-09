@@ -13,13 +13,13 @@
         },
         
         {
-            "name": "Run game",
+            "name": "Run all",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/node/main.go",
             "args": [
-                "-config game.toml"
+                "-config all.toml"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"

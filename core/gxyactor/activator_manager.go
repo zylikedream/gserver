@@ -9,6 +9,7 @@ import (
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
+	"gserver/src/util"
 	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -32,23 +33,35 @@ type hashableActorActive struct {
 
 func (m *hashableActorActive) Hash() string { return m.hash }
 
+type localMsgRegisterPool struct {
+	Kind   string
+	PoolID PID
+}
+
+type localMsgUnRegisterPool struct {
+	Kind string
+}
+
 type activatorMeta struct {
-	Kind      string
-	Props     *actor.Props
-	Activator PID // router PID (external entry point)
-	Pool      PID // consistent-hash pool PID (internal)
-	mgr       *ActorMgr
+	Kind  string
+	Props *actor.Props
+	Pool  PID // consistent-hash pool PID (internal)
+	mgr   *ActorMgr
 }
 
 // activatorRouter is a thin proxy that receives pb.ActorActive from remote nodes
 // and forwards them as hashableActorActive to the local consistent-hash pool.
+type routerMeta struct {
+	Kind string
+	PID  PID
+}
 type activatorRouter struct {
 	*ActorBase
-	poolPID PID
+	poolPIDs []routerMeta
 }
 
-func NewActivatorRouter(poolPID PID) *activatorRouter {
-	r := &activatorRouter{poolPID: poolPID}
+func NewActivatorRouter() *activatorRouter {
+	r := &activatorRouter{}
 	ctx := gxylog.NewContext(context.Background(), "activator_router")
 	r.ActorBase = NewActorBase(ctx, r)
 	return r
@@ -62,7 +75,37 @@ func (r *activatorRouter) HandleMessage(ctx context.Context, msg any) error {
 			ActorActive: msg,
 			hash:        msg.Id,
 		}
-		r.Actx.RequestWithCustomSender(r.poolPID, wrapped, sender)
+		poolPID := r.GetPool(msg.Kind)
+		if poolPID == nil {
+			return fmt.Errorf("pool %s not registered", msg.Kind)
+		}
+		r.Actx.RequestWithCustomSender(poolPID, wrapped, sender)
+	case *localMsgRegisterPool:
+		r.RegisterPool(msg.Kind, msg.PoolID)
+	case *localMsgUnRegisterPool:
+		r.UnRegisterPool(msg.Kind)
+	}
+	return nil
+}
+
+func (r *activatorRouter) RegisterPool(kind string, poolPID PID) {
+	r.poolPIDs = append(r.poolPIDs, struct {
+		Kind string
+		PID  PID
+	}{kind, poolPID})
+}
+
+func (r *activatorRouter) UnRegisterPool(kind string) {
+	r.poolPIDs = util.ListDeleteFunc(r.poolPIDs, func(item routerMeta) bool {
+		return item.Kind == kind
+	})
+}
+
+func (r *activatorRouter) GetPool(kind string) PID {
+	for _, p := range r.poolPIDs {
+		if p.Kind == kind {
+			return p.PID
+		}
 	}
 	return nil
 }
@@ -172,6 +215,7 @@ type activatorManager struct {
 	nodeName         string
 	nodeInstanceName string
 	activatorMetas   map[string]*activatorMeta
+	routerPID        PID
 	ctx              context.Context
 }
 
@@ -188,9 +232,21 @@ func (g *activatorManager) OnModInit(ctx context.Context) error {
 	return nil
 }
 
+func (g *activatorManager) OnModStart(ctx context.Context) error {
+	// Create router (external entry point for remote nodes)
+	routerPID, err := SpawnNamed(
+		actor.PropsFromProducer(func() actor.Actor {
+			return NewActivatorRouter()
+		}), g.getRouterName())
+	if err != nil {
+		return err
+	}
+	g.routerPID = routerPID
+	return nil
+}
+
 func (g *activatorManager) OnModStop(ctx context.Context) error {
 	for _, info := range g.activatorMetas {
-		StopActor(info.Activator)
 		StopActor(info.Pool)
 	}
 	return nil
@@ -200,8 +256,8 @@ func (g *activatorManager) getPoolName(kind string) string {
 	return fmt.Sprintf("%s_%s", "ActivatorPool", kind)
 }
 
-func (g *activatorManager) getRouterName(kind string) string {
-	return fmt.Sprintf("%s_%s", "ActivatorRouter", kind)
+func (g *activatorManager) getRouterName() string {
+	return fmt.Sprintf("%s", "ActivatorRouter")
 }
 
 func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) error {
@@ -212,6 +268,8 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 		Kind:  kind,
 		Props: actorProps,
 	}
+
+	meta.mgr = NewActorMgr(fmt.Sprintf("%s_%s", "actorMgr", kind))
 	g.activatorMetas[kind] = meta
 
 	// Create consistent-hash pool (internal)
@@ -220,23 +278,14 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 			return NewActorActivator(kind, g)
 		})), g.getPoolName(kind))
 	if err != nil {
-		g.activatorMetas[kind] = nil
+		delete(g.activatorMetas, kind)
 		return err
 	}
+	LocalSend(g.routerPID, &localMsgRegisterPool{
+		Kind:   kind,
+		PoolID: poolPID,
+	})
 	meta.Pool = poolPID
-
-	// Create router (external entry point for remote nodes)
-	routerPID, err := SpawnNamed(
-		actor.PropsFromProducer(func() actor.Actor {
-			return NewActivatorRouter(poolPID)
-		}), g.getRouterName(kind))
-	if err != nil {
-		StopActor(poolPID)
-		g.activatorMetas[kind] = nil
-		return err
-	}
-	meta.Activator = routerPID
-	meta.mgr = NewActorMgr(fmt.Sprintf("%s_%s", "actorMgr", kind))
 	return nil
 }
 
@@ -245,14 +294,16 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 	if !ok {
 		return
 	}
-	StopActor(info.Activator)
 	StopActor(info.Pool)
+	LocalSend(g.routerPID, &localMsgUnRegisterPool{
+		Kind: kind,
+	})
 	delete(g.activatorMetas, kind)
 }
 
 func (g *activatorManager) spawnActor(node string, kind string, id string) (PID, error) {
 	glog.Debugf(g.ctx, "spawn actor %s:%s at %s", kind, id, node)
-	activator := actor.NewPID(node, g.getRouterName(kind))
+	activator := actor.NewPID(node, g.getRouterName())
 	rsp, err := Call(activator, &pb.ActorActive{
 		Kind: kind,
 		Id:   id,

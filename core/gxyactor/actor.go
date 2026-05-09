@@ -139,7 +139,7 @@ func (a *ActorBase) callMsgHandler(ctx context.Context, msg any) (any, error) {
 	result, err := a.DoCallMsgHandler(ctx, msg)
 	glog.Debugf(ctx, "handle msg end, msg: %s, result: %s, err %+v, cost: %vms",
 		gxyutil.FormatObject(msg), gxyutil.FormatObject(result), err, time.Since(tm).Milliseconds())
-	return result, nil
+	return result, err
 }
 
 func (a *ActorBase) DoCallMsgHandler(ctx context.Context, msg any) (any, error) {
@@ -189,7 +189,14 @@ func (a *ActorBase) CallSync(pid PID, msg proto.Message) {
 }
 
 func (a *ActorBase) Call(pid PID, msg proto.Message, timeout time.Duration) (any, error) {
-	return a.Actx.RequestFuture(pid, msg, timeout).Result()
+	result, err := a.Actx.RequestFuture(pid, msg, timeout).Result()
+	if err != nil {
+		return nil, err
+	}
+	if aerr, ok := result.(*pb.ActorError); ok {
+		return nil, gerror.New(aerr.Reason)
+	}
+	return result, nil
 }
 
 // Send是发送消息给可能在远程的actor, 所以必须走序列化，所以只能发送proto.Message

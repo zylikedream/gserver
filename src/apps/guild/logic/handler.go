@@ -55,13 +55,21 @@ func (h *GuildHandler) Create(ctx context.Context, req *CreateGuildReq) (any, er
 	}
 
 	// 更新 role_guild
-	gxypgx.DB().Exec(
+	if err := gxypgx.DB().Exec(
 		"INSERT INTO role_guild (role_id, guild_id) VALUES (?, ?) ON CONFLICT (role_id) DO UPDATE SET guild_id = ?",
 		req.LeaderID, guild.ID, guild.ID,
-	)
+	).Error; err != nil {
+		gxypgx.DB().Delete(guild)
+		return nil, gxyhttp.NewErrCode(1, "创建公会失败: "+err.Error())
+	}
 
-	// 激活 guild actor（OnModStart 从 DB 加载）
-	lib.GetGuildActor(guild.ID)
+	// 激活 guild actor（DelayInit 从 DB 加载）
+	_, err := lib.GetGuildActor(guild.ID)
+	if err != nil {
+		gxypgx.DB().Delete(guild)
+		gxypgx.DB().Delete(GuildRoleState{GuildID: guild.ID})
+		return nil, err
+	}
 
 	return map[string]int64{"guild_id": guild.ID}, nil
 }

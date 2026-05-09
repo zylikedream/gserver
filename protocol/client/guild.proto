@@ -112,13 +112,13 @@ message RspDisbandGuild {
 }
 
 // 任命/取消副会长 (29019)
-message ReqSetViceLeader {
+message ReqSetPosition {
     option (msg_id) = 29019;
     int64 target_id = 1;
-    bool  set       = 2;  // true=任命 false=取消
+    int32 position  = 2;  // 目标职位，参考 EGuildPosition
     int64 role_id   = 3;  // 服务端填充
 }
-message RspSetViceLeader {
+message RspSetPosition {
     option (msg_id) = 29020;
 }
 
