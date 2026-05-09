@@ -254,7 +254,7 @@ func validateChatMsg(content string, maxLen int) error {
 // ===== HTTP helpers (私聊/系统消息保留) =====
 
 func callChatJoinLobby(ctx context.Context, roleID int64) (int64, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat-http",
 		fmt.Sprintf("join_lobby?role_id=%d", roleID))
 	if err != nil {
 		return 0, err
@@ -269,14 +269,14 @@ func callChatJoinLobby(ctx context.Context, roleID int64) (int64, error) {
 }
 
 func callChatLeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
-	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat-http",
 		fmt.Sprintf("leave_lobby?role_id=%d&lobby_id=%d", roleID, lobbyID))
 	return err
 }
 
 func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID int64, content string) (int64, error) {
 	sj, _ := json.Marshal(sender)
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat-http",
 		fmt.Sprintf("store_private?sender=%s&target_id=%d&content=%s",
 			url.QueryEscape(string(sj)), targetID, url.QueryEscape(content)))
 	if err != nil {
@@ -292,7 +292,7 @@ func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID 
 }
 
 func callChatPrivateHistory(ctx context.Context, roleID, friendID int64, count int) ([]*pb.PChatMsg, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat-http",
 		fmt.Sprintf("private_history?role_id=%d&friend_id=%d&count=%d", roleID, friendID, count))
 	if err != nil {
 		return nil, err
@@ -305,7 +305,7 @@ func callChatPrivateHistory(ctx context.Context, roleID, friendID int64, count i
 }
 
 func callChatSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, error) {
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat-http",
 		fmt.Sprintf("system_history?count=%d", count))
 	if err != nil {
 		return nil, err
