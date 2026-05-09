@@ -287,16 +287,19 @@ func getLevelConfig(level int32) *gamecfg.GardenGuildLevel {
 // ===== 错误变量 =====
 
 var (
-	ErrPlayerAlreadyInGuild = errors.New("该玩家已加入公会")
-	ErrGuildFull            = errors.New("公会人数已满")
-	ErrPermissionDenied     = errors.New("权限不足")
-	ErrGuildNotFound        = errors.New("公会不存在")
-	ErrCannotKickLeader     = errors.New("不能踢出会长")
-	ErrCannotKickViceLeader = errors.New("不能操作同级副会长")
-	ErrCannotTransferToSelf = errors.New("不能转让给自己")
-	ErrGuildHasMembers      = errors.New("公会还有其他成员，请先转让会长")
-	ErrApplyExpired         = errors.New("申请已过期或不存在")
-	ErrPositionLimitReached = errors.New("副会长数量已达上限")
+	ErrPlayerAlreadyInGuild    = errors.New("该玩家已加入公会")
+	ErrGuildFull               = errors.New("公会人数已满")
+	ErrPermissionDenied        = errors.New("权限不足")
+	ErrGuildNotFound           = errors.New("公会不存在")
+	ErrCannotKickLeader        = errors.New("不能踢出会长")
+	ErrCannotKickViceLeader    = errors.New("不能操作同级副会长")
+	ErrCannotTransferToSelf    = errors.New("不能转让给自己")
+	ErrGuildHasMembers         = errors.New("公会还有其他成员，请先转让会长")
+	ErrApplyExpired            = errors.New("申请已过期或不存在")
+	ErrPositionLimitReached    = errors.New("副会长数量已达上限")
+	ErrMemberNotFound          = errors.New("成员不存在")
+	ErrCannotSetPositionToSelf = errors.New("不能设置自己的职位")
+	ErrInvalidPosition         = errors.New("无效的职位")
 )
 
 // nextApplyID 生成自增 apply_id（基于现有最大 ID + 1）
@@ -538,17 +541,20 @@ func (g *GuildActor) HandleKickMember(ctx context.Context, req *pb.ReqKickMember
 
 // SetPosition — 设置成员职位（会长操作）
 func (g *GuildActor) SetPosition(ctx context.Context, req *pb.ReqSetPosition) (*pb.RspSetPosition, error) {
+	if req.RoleId == req.TargetId {
+		return nil, ErrCannotSetPositionToSelf
+	}
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position >= req.Position {
 		return nil, ErrPermissionDenied
 	}
 	target := g.getMember(req.TargetId)
 	if target == nil {
-		return nil, errors.New("目标成员不存在")
+		return nil, ErrMemberNotFound
 	}
-	validPostions := []int32{int32(gamecfg.GardenEGuildPosition_LEADER)}
+	validPostions := []int32{int32(gamecfg.GardenEGuildPosition_VICE_LEADER), int32(gamecfg.GardenEGuildPosition_MEMBER)}
 	if !util.ListMember(validPostions, req.Position) {
-		return nil, errors.New("无效的职位")
+		return nil, ErrInvalidPosition
 	}
 
 	target.Position = req.Position
