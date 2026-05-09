@@ -161,7 +161,13 @@ func handleSidecarMsg(ctx context.Context, msg *redis.Message) {
 			glog.Warningf(ctx, "[chat] sidecar parse guild msg error: %v", err)
 			return
 		}
-		notify := &pb.NotifyGuildChat{Message: chatMsg}
+		notify := &pb.NotifyChannelChat{
+				ChannelType: 2, // GuildChannel
+				ChannelId:   guildID,
+				SenderId:    chatMsg.Sender.GetRoleId(),
+				Content:     chatMsg.Content,
+				Timestamp:   chatMsg.Timestamp,
+			}
 		localGuildRoles.Range(func(key, value any) bool {
 			entry := value.(*guildRoleEntry)
 			if entry.guildID == guildID {
