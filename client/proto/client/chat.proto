@@ -14,6 +14,13 @@ message PChatMsg {
     int64 timestamp = 3;
 }
 
+// 频道类型
+enum ChannelType {
+    CHANNEL_TYPE_UNKNOWN = 0;
+    CHANNEL_TYPE_WORLD = 1;
+    CHANNEL_TYPE_GUILD = 2;
+}
+
 // === 登录初始化 ===
 
 // 聊天初始化 (28001) - 登录时自动调用
@@ -79,8 +86,8 @@ message NotifySystemChat {
 // 发送频道消息 (28020) - 客户端发送 channel_type + content，channel_id 由服务端推断
 message ReqSendChannelChat {
     option (msg_id) = 28020;
-    int32 channel_type = 1;
-    string content     = 2;
+    ChannelType channel_type = 1;
+    string content           = 2;
 }
 message RspSendChannelChat {
     option (msg_id) = 28021;
@@ -89,7 +96,7 @@ message RspSendChannelChat {
 // 频道消息通知 (28022) - 服务端推送
 message NotifyChannelChat {
     option (msg_id) = 28022;
-    int32 channel_type = 1;
+    ChannelType channel_type = 1;
     int64 channel_id   = 2;
     int64 sender_id    = 3;
     string content     = 4;
@@ -99,7 +106,7 @@ message NotifyChannelChat {
 // 拉取频道历史 (28023)
 message ReqChannelHistory {
     option (msg_id) = 28023;
-    int32 channel_type = 1;
+    ChannelType channel_type = 1;
     int64 channel_id   = 2;
     int32 count        = 3;
 }
