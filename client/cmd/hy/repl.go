@@ -68,12 +68,17 @@ func (r *REPL) Run() {
 
 		r.line.AppendHistory(line)
 
-		switch line {
+		parts := strings.Fields(line)
+		switch parts[0] {
 		case "quit", "exit":
 			fmt.Println("bye.")
 			return
 		case "help":
-			r.printHelp()
+			filter := ""
+			if len(parts) > 1 {
+				filter = parts[1]
+			}
+			r.printHelp(filter)
 		case "reconnect":
 			r.reconnect()
 		default:
@@ -143,13 +148,36 @@ func parseArgs(line string) []string {
 	return args
 }
 
-func (r *REPL) printHelp() {
+func (r *REPL) printHelp(filter string) {
+	if filter != "" {
+		matches := 0
+		for _, name := range commandOrder {
+			if groupOf(name) != filter && !strings.HasPrefix(name, filter) {
+				continue
+			}
+			if matches == 0 {
+				fmt.Printf("Commands [%s]:\n", filter)
+			}
+			cmd := commands[name]
+			paramsStr := strings.Join(cmd.Params, " ")
+			if paramsStr != "" {
+				fmt.Printf("  %-25s %s (%s)\n", name, cmd.Help, paramsStr)
+			} else {
+				fmt.Printf("  %-25s %s\n", name, cmd.Help)
+			}
+			matches++
+		}
+		if matches == 0 {
+			fmt.Printf("unknown group: %s (try: guild, friend, chat, ...)\n", filter)
+		}
+		return
+	}
+
 	fmt.Println("Commands:")
-	fmt.Println("  help          Show this help")
+	fmt.Println("  help [group]  Show this help, optionally filter by group")
 	fmt.Println("  quit          Exit")
 	fmt.Println("  reconnect     Reconnect to server")
 
-	// Group commands by category
 	grouped := make(map[string][]string)
 	var groupOrder []string
 	seen := make(map[string]bool)

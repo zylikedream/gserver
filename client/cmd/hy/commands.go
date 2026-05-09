@@ -40,6 +40,7 @@ var groupDefs = []struct {
 	{"order", "任务"},
 	{"friend", "好友"},
 	{"chat", "聊天"},
+	{"guild", "公会"},
 	{"gm", "GM"},
 }
 
@@ -520,6 +521,176 @@ func init() {
 				count = int32(n)
 			}
 			return c.Request(&pb.ReqSystemChatHistory{Count: count})
+		},
+	})
+
+	// --- guild ---
+	register(&Command{
+		Name:   "guild.create",
+		Help:   "Create a guild",
+		Params: []string{"name", "declaration"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: guild.create <name> <declaration>")
+			}
+			return c.Request(&pb.ReqCreateGuild{
+				Name:        args[0],
+				Declaration: args[1],
+			})
+		},
+	})
+	register(&Command{
+		Name:   "guild.search",
+		Help:   "Search guilds by keyword",
+		Params: []string{"keyword"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: guild.search <keyword>")
+			}
+			return c.Request(&pb.ReqSearchGuild{Keyword: args[0]})
+		},
+	})
+	register(&Command{
+		Name:   "guild.apply",
+		Help:   "Apply to join a guild",
+		Params: []string{"guild_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: guild.apply <guild_id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid guild_id: %v", err)
+			}
+			return c.Request(&pb.ReqApplyGuild{GuildId: id})
+		},
+	})
+	register(&Command{
+		Name: "guild.info",
+		Help: "Get guild hall info",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqGuildInfo{})
+		},
+	})
+	register(&Command{
+		Name: "guild.logs",
+		Help: "Get guild logs",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqGuildLogs{})
+		},
+	})
+	register(&Command{
+		Name: "guild.apply_list",
+		Help: "Get guild apply list",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqGuildApplyList{})
+		},
+	})
+	register(&Command{
+		Name:   "guild.approve",
+		Help:   "Approve/reject guild applications",
+		Params: []string{"apply_ids...", "approve"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: guild.approve <apply_id...> 1|0")
+			}
+			approve := args[len(args)-1] == "1"
+			ids := make([]int64, 0, len(args)-1)
+			for _, a := range args[:len(args)-1] {
+				id, err := strconv.ParseInt(a, 10, 64)
+				if err != nil {
+					return fmt.Errorf("invalid apply_id %q: %v", a, err)
+				}
+				ids = append(ids, id)
+			}
+			return c.Request(&pb.ReqApproveApply{ApplyIds: ids, Approve: approve})
+		},
+	})
+	register(&Command{
+		Name:   "guild.kick",
+		Help:   "Kick a member from guild",
+		Params: []string{"target_id", "reason"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: guild.kick <target_id> [reason]")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid target_id: %v", err)
+			}
+			reason := ""
+			if len(args) >= 2 {
+				reason = args[1]
+			}
+			return c.Request(&pb.ReqKickMember{TargetId: id, Reason: reason})
+		},
+	})
+	register(&Command{
+		Name: "guild.leave",
+		Help: "Leave the guild",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqLeaveGuild{})
+		},
+	})
+	register(&Command{
+		Name: "guild.disband",
+		Help: "Disband the guild",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqDisbandGuild{})
+		},
+	})
+	register(&Command{
+		Name:   "guild.set_vice_leader",
+		Help:   "Set or unset vice leader",
+		Params: []string{"target_id", "1|0"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 2 {
+				return fmt.Errorf("usage: guild.set_vice_leader <target_id> 1|0")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid target_id: %v", err)
+			}
+			return c.Request(&pb.ReqSetViceLeader{TargetId: id, Set: args[1] == "1"})
+		},
+	})
+	register(&Command{
+		Name:   "guild.transfer_leader",
+		Help:   "Transfer guild leader",
+		Params: []string{"target_id"},
+		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: guild.transfer_leader <target_id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return fmt.Errorf("invalid target_id: %v", err)
+			}
+			return c.Request(&pb.ReqTransferLeader{TargetId: id})
+		},
+	})
+	register(&Command{
+		Name:   "guild.update_info",
+		Help:   "Update guild info",
+		Params: []string{"declaration", "announcement", "need_approval"},
+		Exec: func(c *client.Client, args []string) error {
+			declaration := ""
+			announcement := ""
+			needApproval := false
+			if len(args) >= 1 {
+				declaration = args[0]
+			}
+			if len(args) >= 2 {
+				announcement = args[1]
+			}
+			if len(args) >= 3 {
+				needApproval = args[2] == "1"
+			}
+			return c.Request(&pb.ReqUpdateGuildInfo{
+				Declaration:  declaration,
+				Announcement: announcement,
+				NeedApproval: needApproval,
+			})
 		},
 	})
 
