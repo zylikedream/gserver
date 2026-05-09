@@ -84,8 +84,6 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 
 	systemMsgs, _ := callChatSystemHistory(ctx, cfg.SystemMsgKeep)
 
-	chat.RegisterLocalRole(r.RoleID, lobbyID, r.Role.Self())
-
 	return &pb.RspChatInit{
 		LobbyId:        int32(lobbyID),
 		WorldMessages:  worldMsgs,
@@ -227,7 +225,6 @@ func (r *RoleChat) chatLeave(ctx context.Context) {
 			})
 		}
 		_ = callChatLeaveLobby(ctx, r.RoleID, r.lastLobbyID)
-		chat.UnregisterLocalRole(r.RoleID)
 		r.lastLobbyID = 0
 	}
 }

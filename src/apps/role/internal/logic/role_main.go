@@ -13,7 +13,6 @@ import (
 	"gserver/core/gxyutil"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
-	"gserver/src/apps/chat"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"reflect"
@@ -236,7 +235,6 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 	case *pb.NotifyGuildInfo:
 		if r.Guild.GuildID == 0 && m.Guild != nil {
 			r.Guild.GuildID = m.Guild.Id
-			chat.RegisterRoleGuildChat(r.RoleID, r.Guild.GuildID, r.Self())
 		}
 		r.SendClient(ctx, m)
 		return nil

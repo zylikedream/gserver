@@ -9,7 +9,6 @@ import (
 	"gserver/core/gxyhttp"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
-	"gserver/src/apps/chat"
 	"gserver/src/lib"
 
 	"github.com/gogf/gf/v2/util/gconv"
@@ -42,7 +41,6 @@ func (r *RoleGuild) OnCreate(ctx context.Context) {}
 
 func (r *RoleGuild) OnModStart(ctx context.Context) error {
 	if r.GuildID > 0 {
-		chat.RegisterRoleGuildChat(r.RoleID, r.GuildID, r.Role.Self())
 	}
 	return nil
 }
@@ -106,7 +104,6 @@ func (r *RoleGuild) ReqCreateGuild(ctx context.Context, req *pb.ReqCreateGuild) 
 	}
 
 	r.GuildID = guildID
-	chat.RegisterRoleGuildChat(r.RoleID, guildID, r.Role.Self())
 	return &pb.RspCreateGuild{GuildId: guildID}, nil
 }
 
@@ -249,7 +246,6 @@ func (r *RoleGuild) ReqLeaveGuild(ctx context.Context, req *pb.ReqLeaveGuild) (*
 		return nil, err
 	}
 	r.GuildID = 0
-	chat.UnregisterRoleGuildChat(r.RoleID)
 	return rsp.(*pb.RspLeaveGuild), nil
 }
 
@@ -263,6 +259,5 @@ func (r *RoleGuild) ReqDisbandGuild(ctx context.Context, req *pb.ReqDisbandGuild
 		return nil, err
 	}
 	r.GuildID = 0
-	chat.UnregisterRoleGuildChat(r.RoleID)
 	return rsp.(*pb.RspDisbandGuild), nil
 }

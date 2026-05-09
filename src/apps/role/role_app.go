@@ -7,7 +7,6 @@ import (
 	"gserver/core/gxyservice"
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
-	"gserver/src/apps/chat"
 	"gserver/src/apps/role/internal/logic"
 )
 
@@ -31,12 +30,10 @@ func (r *roleApp) OnModInit(ctx context.Context) error {
 	r.AddModule(ctx, gameconfig.NewGameConfig())
 	logic.InitRoleSchema(ctx)
 	gxyservice.ServiceApp().LoadService(ctx, NewRoleActorService())
-	chat.StartSidecar(ctx)
 	return nil
 }
 
 func (r *roleApp) OnModStop(ctx context.Context) error {
-	chat.StopSidecar()
 	return nil
 }
 
