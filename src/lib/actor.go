@@ -28,3 +28,25 @@ func ActivateRole(roleID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
 	}
 	return pid, nil
 }
+
+const (
+	GUILD_ACTOR_TYPE = "guild"
+)
+
+func GetGuildActor(guildID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
+	pid, err := gxyactor.ActivateActor(GUILD_ACTOR_TYPE, strconv.Itoa(int(guildID)), spawnIfNotExist...)
+	if err != nil {
+		return nil, err
+	}
+	return pid, nil
+}
+
+const (
+	CHANNEL_ACTOR_TYPE = "channel"
+)
+
+// GetChannelActor 获取频道 actor，id 格式为 "channelType_int64(channelID)"
+func GetChannelActor(channelType int32, channelID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
+	id := strconv.Itoa(int(channelType)) + "_" + strconv.FormatInt(channelID, 10)
+	return gxyactor.ActivateActor(CHANNEL_ACTOR_TYPE, id, spawnIfNotExist...)
+}
