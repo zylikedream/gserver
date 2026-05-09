@@ -14,6 +14,7 @@ import (
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"gserver/src/lib"
 	"gserver/src/apps/role/internal/logic/bag"
 	"reflect"
 	"time"
@@ -324,9 +325,7 @@ func (r *RoleMain) saveRoleModule(ctx context.Context, rmod IRoleModule) error {
 		return nil
 	}
 
-	if modState != nil {
-		glog.Debugf(ctx, "save mod %s, dirty: %v", modState.(tabler).TableName(), modState.IsDirty())
-	}
+	glog.Debugf(ctx, "save mod %s, dirty: %v", modState.(tabler).TableName(), modState.IsDirty())
 	if !modState.IsDirty() {
 		return nil
 	}
@@ -450,6 +449,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	r.Timer().Cancel(ctx, SignleAliveOnce.Name)
 	r.state = RoleStateLogined
 	r.Public.IsOnline = true
+	lib.RegisterPlayer(r.RoleID, r.Self())
 	if err := r.afterRoleLogin(ctx); err != nil {
 		return nil, err
 	}
@@ -521,6 +521,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.Stop(errors.New("single alive timeout"))
 	})
+	lib.UnregisterPlayer(r.RoleID)
 	r.Chat.chatLeave(ctx)
 	r.state = RoleStateLogout
 	glog.Infof(ctx, "role logout, roleID: %d, reason %s", r.RoleID, reason)

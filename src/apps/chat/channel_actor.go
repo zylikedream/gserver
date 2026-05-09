@@ -3,7 +3,6 @@ package chat
 import (
 	"context"
 	"errors"
-	"strconv"
 	"sync"
 	"time"
 
@@ -135,11 +134,8 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 			Timestamp:   chatMsg.Timestamp,
 		}
 		// 通知所有成员
-		for roleID := range a.members {
-			pid, err := gxyactor.ActivateActor("role", strconv.FormatInt(roleID, 10), false)
-			if err == nil {
-				a.Send(pid, notify)
-			}
+		for _, pid := range a.members {
+			a.Send(pid, notify)
 		}
 		a.Respond(nil)
 

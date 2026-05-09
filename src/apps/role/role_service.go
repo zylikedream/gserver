@@ -2,12 +2,9 @@ package role
 
 import (
 	"context"
-	"gserver/src/apps/role/internal/logic"
 	"gserver/core/gxyactor"
-)
-
-const (
-	ROLE_SERVICE = "role"
+	"gserver/src/apps/role/internal/logic"
+	"gserver/src/lib"
 )
 
 type roleService struct {
@@ -19,7 +16,7 @@ func NewRoleActorService() *roleService {
 }
 
 func (r *roleService) ServiceName() string {
-	return ROLE_SERVICE
+	return lib.ROLE_ACTOR_TYPE
 }
 
 func (r *roleService) Weight() int {

@@ -179,10 +179,21 @@ func (r *RoleChat) ReqSendPrivateChat(ctx context.Context, req *pb.ReqSendPrivat
 		return nil, ErrChatNotFriend
 	}
 
-	_, err := callChatStorePrivate(ctx, r.Role.Public.GetRolePublic(ctx),
+	ts, err := callChatStorePrivate(ctx, r.Role.Public.GetRolePublic(ctx),
 		req.TargetId, strings.TrimSpace(req.Content))
 	if err != nil {
 		return nil, err
+	}
+
+	// 通知目标角色
+	if targetPid, err := lib.GetRoleActor(req.TargetId, false); err == nil {
+		r.Role.Send(targetPid, &pb.NotifyPrivateChat{
+			Message: &pb.PChatMsg{
+				Sender:    r.Role.Public.GetRolePublic(ctx),
+				Content:   strings.TrimSpace(req.Content),
+				Timestamp: ts,
+			},
+		})
 	}
 
 	return &pb.RspSendPrivateChat{}, nil

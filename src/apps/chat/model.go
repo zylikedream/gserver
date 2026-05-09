@@ -12,3 +12,11 @@ type ChatPrivateMessage struct {
 }
 
 func (ChatPrivateMessage) TableName() string { return "chat_private_message" }
+
+type ChatSystemMessage struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement"`
+	Content   string    `gorm:"column:content;not null;type:text"`
+	CreatedAt time.Time `gorm:"column:created_at;not null;index"`
+}
+
+func (ChatSystemMessage) TableName() string { return "chat_system_message" }

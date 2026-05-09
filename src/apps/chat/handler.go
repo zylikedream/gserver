@@ -8,6 +8,7 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/protocol/pb"
+	"gserver/src/lib"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
@@ -32,7 +33,7 @@ func (h *ChatHandler) JoinLobby(ctx context.Context, req *JoinLobbyReq) (any, er
 }
 
 type LeaveLobbyReq struct {
-	g.Meta `path:"/leave_lobby"`
+	g.Meta  `path:"/leave_lobby"`
 	RoleID  int64 `p:"role_id" v:"required"`
 	LobbyID int64 `p:"lobby_id" v:"required"`
 }
@@ -62,8 +63,6 @@ func (h *ChatHandler) StorePrivateMsg(ctx context.Context, req *StorePrivateMsgR
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
-	notify := &chatMsgJSON{Sender: sender, Content: strings.TrimSpace(req.Content), Timestamp: ts}
-	_ = PublishPrivateChat(ctx, req.TargetID, msgToJSON(notify))
 	return map[string]int64{"timestamp": ts}, nil
 }
 
@@ -80,6 +79,44 @@ func (h *ChatHandler) PrivateHistory(ctx context.Context, req *PrivateHistoryReq
 		count = 50
 	}
 	msgs, err := GetPrivateHistory(ctx, req.RoleID, req.FriendID, count)
+	if err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
+	}
+	return msgs, nil
+}
+
+// ===== 系统消息 =====
+
+type StoreSystemMsgReq struct {
+	g.Meta  `path:"/store_system"`
+	Content string `p:"content" v:"required"`
+}
+
+func (h *ChatHandler) StoreSystemMsg(ctx context.Context, req *StoreSystemMsgReq) (any, error) {
+	content := strings.TrimSpace(req.Content)
+	ts, err := StoreSystemMsg(ctx, content)
+	if err != nil {
+		return nil, gxyhttp.NewErrCode(1, err.Error())
+	}
+	// 发布全服广播
+	_ = lib.Publish(ctx, "role", &lib.BroadcastMsg{
+		MsgType: lib.BroadCastTypeSystemMsg,
+		Data:    content,
+	})
+	return map[string]int64{"timestamp": ts}, nil
+}
+
+type SystemHistoryReq struct {
+	g.Meta `path:"/system_history"`
+	Count  int `p:"count"`
+}
+
+func (h *ChatHandler) SystemHistory(ctx context.Context, req *SystemHistoryReq) (any, error) {
+	count := req.Count
+	if count <= 0 {
+		count = 50
+	}
+	msgs, err := GetSystemHistory(ctx, count)
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}

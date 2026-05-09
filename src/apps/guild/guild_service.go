@@ -5,6 +5,7 @@ import (
 
 	"gserver/core/gxyactor"
 	guildlogic "gserver/src/apps/guild/logic"
+	"gserver/src/lib"
 )
 
 type guildService struct {
@@ -16,7 +17,7 @@ func NewGuildService() *guildService {
 }
 
 func (s *guildService) ServiceName() string {
-	return "guild"
+	return lib.GUILD_ACTOR_TYPE
 }
 
 func (s *guildService) OnModStart(ctx context.Context) error {

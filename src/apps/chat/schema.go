@@ -9,7 +9,7 @@ import (
 )
 
 func InitChatSchema(ctx context.Context) {
-	if err := gxypgx.DB().AutoMigrate(&ChatPrivateMessage{}); err != nil {
+	if err := gxypgx.DB().AutoMigrate(&ChatPrivateMessage{}, &ChatSystemMessage{}); err != nil {
 		glog.Fatal(ctx, err)
 	}
 	glog.Info(ctx, "[schema] chat tables migrated successfully")

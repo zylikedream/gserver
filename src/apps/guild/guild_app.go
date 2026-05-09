@@ -17,10 +17,6 @@ func NewGuildApp() *guildApp {
 	return &guildApp{}
 }
 
-func (g *guildApp) ServiceName() string {
-	return "guild"
-}
-
 func (g *guildApp) OnModInit(ctx context.Context) error {
 	g.AddModule(ctx, gameconfig.NewGameConfig())
 	guildlogic.InitGuildSchema(ctx)

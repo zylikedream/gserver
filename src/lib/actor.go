@@ -6,20 +6,16 @@ import (
 )
 
 const (
-	ROLE_GRAIN_TYPE = "role"
+	ROLE_ACTOR_TYPE = "role"
 )
 
 func GetRoleActor(roleID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
-	pid, err := gxyactor.ActivateActor(ROLE_GRAIN_TYPE, strconv.Itoa(int(roleID)), spawnIfNotExist...)
+	pid, err := gxyactor.ActivateActor(ROLE_ACTOR_TYPE, strconv.Itoa(int(roleID)), spawnIfNotExist...)
 	if err != nil {
 		return nil, err
 	}
 	return pid, nil
 }
-
-const (
-	ROLE_ACTOR_TYPE = "role"
-)
 
 func ActivateRole(roleID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
 	pid, err := gxyactor.ActivateActor(ROLE_ACTOR_TYPE, strconv.Itoa(int(roleID)), spawnIfNotExist...)
@@ -42,7 +38,7 @@ func GetGuildActor(guildID int64, spawnIfNotExist ...bool) (gxyactor.PID, error)
 }
 
 const (
-	CHANNEL_ACTOR_TYPE = "channel"
+	CHANNEL_ACTOR_TYPE = "chat_channel"
 )
 
 // GetChannelActor 获取频道 actor，id 格式为 "channelType_int64(channelID)"

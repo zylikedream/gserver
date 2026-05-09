@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
 
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -45,31 +43,6 @@ if size == 0 then
     redis.call('EXPIRE', 'chat:msg:lobby:' .. lobbyID, 259200)
 end
 return 1`)
-
-// ===== 聊天消息 JSON =====
-
-type chatMsgJSON struct {
-	Sender    *pb.PRolePublic `json:"sender"`
-	Content   string          `json:"content"`
-	Timestamp int64           `json:"timestamp"`
-}
-
-func msgToJSON(msg *chatMsgJSON) string {
-	b, _ := json.Marshal(msg)
-	return string(b)
-}
-
-func jsonToMsg(data string) (*pb.PChatMsg, error) {
-	var j chatMsgJSON
-	if err := json.Unmarshal([]byte(data), &j); err != nil {
-		return nil, err
-	}
-	return &pb.PChatMsg{
-		Sender:    j.Sender,
-		Content:   j.Content,
-		Timestamp: j.Timestamp,
-	}, nil
-}
 
 // ===== 大厅操作 =====
 
@@ -111,11 +84,6 @@ func StorePrivateMsg(ctx context.Context, senderID, targetID int64, content stri
 	return msg.CreatedAt.Unix(), nil
 }
 
-func PublishPrivateChat(ctx context.Context, targetRoleID int64, data string) error {
-	channel := fmt.Sprintf("chat:pub:private:%d", targetRoleID)
-	return gxyredis.Redis().Publish(ctx, channel, data).Err()
-}
-
 func GetPrivateHistory(ctx context.Context, roleID, friendID int64, count int) ([]*pb.PChatMsg, error) {
 	minID, maxID := sortIDs(roleID, friendID)
 	var msgs []ChatPrivateMessage
@@ -140,6 +108,37 @@ func GetPrivateHistory(ctx context.Context, roleID, friendID int64, count int) (
 	return result, nil
 }
 
+// ===== 系统消息 (PostgreSQL) =====
+
+func StoreSystemMsg(ctx context.Context, content string) (int64, error) {
+	msg := &ChatSystemMessage{
+		Content: content, CreatedAt: time.Now(),
+	}
+	if err := gxypgx.DB().WithContext(ctx).Create(msg).Error; err != nil {
+		return 0, fmt.Errorf("chat store system msg: %w", err)
+	}
+	return msg.CreatedAt.Unix(), nil
+}
+
+func GetSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, error) {
+	var msgs []ChatSystemMessage
+	err := gxypgx.DB().WithContext(ctx).
+		Order("created_at DESC").Limit(count).
+		Find(&msgs).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*pb.PChatMsg, 0, len(msgs))
+	for i := len(msgs) - 1; i >= 0; i-- {
+		m := msgs[i]
+		result = append(result, &pb.PChatMsg{
+			Content:   m.Content,
+			Timestamp: m.CreatedAt.Unix(),
+		})
+	}
+	return result, nil
+}
+
 // ===== 工具函数 =====
 
 func sortIDs(a, b int64) (int64, int64) {
@@ -149,15 +148,3 @@ func sortIDs(a, b int64) (int64, int64) {
 	return b, a
 }
 
-func parseMsgList(results []string) ([]*pb.PChatMsg, error) {
-	msgs := make([]*pb.PChatMsg, 0, len(results))
-	for _, data := range results {
-		msg, err := jsonToMsg(data)
-		if err != nil {
-			glog.Warningf(context.Background(), "chat parse msg error: %v", err)
-			continue
-		}
-		msgs = append(msgs, msg)
-	}
-	return msgs, nil
-}
