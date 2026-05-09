@@ -5,6 +5,7 @@ package galaxy.protocol;
 
 import "msg_options.proto";
 import "role.proto";
+import "gactor.proto";
 
 // === 通用 ===
 
@@ -99,4 +100,84 @@ message RspSystemChatHistory {
 message NotifySystemChat {
     option (msg_id) = 28015;
     PChatMsg message = 1;
+}
+
+// === 公会频道 ===
+
+// 发送公会消息 (28016)
+message ReqSendGuildChat {
+    option (msg_id) = 28016;
+    int64  guild_id = 1;
+    string content  = 2;
+}
+message RspSendGuildChat {
+    option (msg_id) = 28017;
+}
+
+// 拉取公会频道历史 (28018)
+message ReqGuildChatHistory {
+    option (msg_id) = 28018;
+    int64  guild_id = 1;
+    int32  count    = 2;
+}
+message RspGuildChatHistory {
+    option (msg_id) = 28019;
+    repeated PChatMsg messages = 1;
+}
+
+// === 频道 Actor 内部消息（服务器内部使用，无 msg_id） ===
+
+message ChannelRegisterMsg {
+    int64 role_id = 1;
+    ActorPid pid = 2;
+    int32 channel_type = 3;
+    int64 channel_id = 4;
+}
+
+message ChannelUnregisterMsg {
+    int64 role_id = 1;
+    int32 channel_type = 2;
+    int64 channel_id = 3;
+}
+
+// 发送频道消息（Actor 内部请求）
+message ReqChannelSend {
+    int32 channel_type = 1;
+    int64 channel_id = 2;
+    int64 sender_id = 3;
+    string content = 4;
+}
+
+// === 统一频道消息 ===
+
+// 发送频道消息 (28020) - 客户端发送 channel_type + content，channel_id 由服务端推断
+message ReqSendChannelChat {
+    option (msg_id) = 28020;
+    int32 channel_type = 1;
+    string content     = 2;
+}
+message RspSendChannelChat {
+    option (msg_id) = 28021;
+}
+
+// 频道消息通知 (28022) - 服务端推送
+message NotifyChannelChat {
+    option (msg_id) = 28022;
+    int32 channel_type = 1;
+    int64 channel_id   = 2;
+    int64 sender_id    = 3;
+    string content     = 4;
+    int64 timestamp    = 5;
+}
+
+// 拉取频道历史 (28023)
+message ReqChannelHistory {
+    option (msg_id) = 28023;
+    int32 channel_type = 1;
+    int64 channel_id   = 2;
+    int32 count        = 3;
+}
+message RspChannelHistory {
+    option (msg_id) = 28024;
+    repeated PChatMsg messages = 1;
 }
