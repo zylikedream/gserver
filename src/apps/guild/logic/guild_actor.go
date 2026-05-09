@@ -380,6 +380,21 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 	g.Data.Members = append(g.Data.Members, member)
 	g.Data.MemberCount = int32(len(g.Data.Members))
 
+	// 注册公会频道
+	if chanPID, err := lib.GetChannelActor(2, g.GuildID); err == nil {
+		if rolePID, err := lib.GetRoleActor(roleID, false); err == nil {
+			g.Send(chanPID, &pb.ChannelRegisterMsg{
+				RoleId: roleID,
+				Pid: &pb.ActorPid{
+					Address: rolePID.Address,
+					Id:      rolePID.Id,
+				},
+				ChannelType: 2,
+				ChannelId:   g.GuildID,
+			})
+		}
+	}
+
 	g.notifyGuildInfo(ctx) // 通知全部成员（含新成员）
 	g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", roleID))
 	return nil
