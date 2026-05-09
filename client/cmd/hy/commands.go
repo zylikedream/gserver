@@ -640,18 +640,22 @@ func init() {
 		},
 	})
 	register(&Command{
-		Name:   "guild.set_vice_leader",
-		Help:   "Set or unset vice leader",
-		Params: []string{"target_id", "1|0"},
+		Name:   "guild.set_position",
+		Help:   "Set member position (1=leader 2=vice 3=member)",
+		Params: []string{"target_id", "position"},
 		Exec: func(c *client.Client, args []string) error {
 			if len(args) < 2 {
-				return fmt.Errorf("usage: guild.set_vice_leader <target_id> 1|0")
+				return fmt.Errorf("usage: guild.set_position <target_id> <position>")
 			}
 			id, err := strconv.ParseInt(args[0], 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid target_id: %v", err)
 			}
-			return c.Request(&pb.ReqSetViceLeader{TargetId: id, Set: args[1] == "1"})
+			pos, err := strconv.ParseInt(args[1], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid position: %v", err)
+			}
+			return c.Request(&pb.ReqSetPosition{TargetId: id, Position: int32(pos)})
 		},
 	})
 	register(&Command{
