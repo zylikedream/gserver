@@ -100,3 +100,26 @@ message NotifySystemChat {
     option (msg_id) = 28015;
     PChatMsg message = 1;
 }
+
+// === 公会频道 ===
+
+// 发送公会消息 (28016)
+message ReqSendGuildChat {
+    option (msg_id) = 28016;
+    int64  guild_id = 1;
+    string content  = 2;
+}
+message RspSendGuildChat {
+    option (msg_id) = 28017;
+}
+
+// 拉取公会频道历史 (28018)
+message ReqGuildChatHistory {
+    option (msg_id) = 28018;
+    int64  guild_id = 1;
+    int32  count    = 2;
+}
+message RspGuildChatHistory {
+    option (msg_id) = 28019;
+    repeated PChatMsg messages = 1;
+}

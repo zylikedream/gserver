@@ -148,6 +148,43 @@ func (r *RoleChat) ReqSystemChatHistory(ctx context.Context, req *pb.ReqSystemCh
 	return &pb.RspSystemChatHistory{Messages: msgs}, nil
 }
 
+// ===== 公会频道 =====
+
+func (r *RoleChat) ReqSendGuildChat(ctx context.Context, req *pb.ReqSendGuildChat) (*pb.RspSendGuildChat, error) {
+	if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
+		return nil, errors.New("你没有加入公会")
+	}
+	if req.GuildId != r.Role.Guild.GuildID {
+		return nil, errors.New("公会ID不匹配")
+	}
+	cfg := chat.GetConfig()
+	if err := validateChatMsg(req.Content, cfg.MsgMaxLength); err != nil {
+		return nil, err
+	}
+	if err := callChatSendGuild(ctx, r.Role.Public.GetRolePublic(ctx), req.GuildId, req.Content); err != nil {
+		return nil, err
+	}
+	return &pb.RspSendGuildChat{}, nil
+}
+
+func (r *RoleChat) ReqGuildChatHistory(ctx context.Context, req *pb.ReqGuildChatHistory) (*pb.RspGuildChatHistory, error) {
+	if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
+		return nil, errors.New("你没有加入公会")
+	}
+	if req.GuildId != r.Role.Guild.GuildID {
+		return nil, errors.New("公会ID不匹配")
+	}
+	count := int(req.Count)
+	if count <= 0 || count > 50 {
+		count = 20
+	}
+	msgs, err := callChatGuildHistory(ctx, req.GuildId, count)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.RspGuildChatHistory{Messages: msgs}, nil
+}
+
 // ===== Internal =====
 
 func (r *RoleChat) chatLeave(ctx context.Context) {
@@ -197,6 +234,14 @@ func callChatSendWorld(ctx context.Context, sender *pb.PRolePublic, content stri
 	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
 		fmt.Sprintf("send_world?sender=%s&content=%s&lobby_id=%d",
 			url.QueryEscape(string(sj)), url.QueryEscape(content), lobbyID))
+	return err
+}
+
+func callChatSendGuild(ctx context.Context, sender *pb.PRolePublic, guildID int64, content string) error {
+	sj, _ := json.Marshal(sender)
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("send_guild?sender=%s&guild_id=%d&content=%s",
+			url.QueryEscape(string(sj)), guildID, url.QueryEscape(content)))
 	return err
 }
 
@@ -252,6 +297,19 @@ func callChatSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, erro
 	var msgs []*pb.PChatMsg
 	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
 		return nil, fmt.Errorf("parse system history: %w", err)
+	}
+	return msgs, nil
+}
+
+func callChatGuildHistory(ctx context.Context, guildID int64, count int) ([]*pb.PChatMsg, error) {
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "chat",
+		fmt.Sprintf("guild_history?guild_id=%d&count=%d", guildID, count))
+	if err != nil {
+		return nil, err
+	}
+	var msgs []*pb.PChatMsg
+	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
+		return nil, fmt.Errorf("parse guild history: %w", err)
 	}
 	return msgs, nil
 }

@@ -804,6 +804,203 @@ func (x *NotifySystemChat) GetMessage() *PChatMsg {
 	return nil
 }
 
+// 发送公会消息 (28016)
+type ReqSendGuildChat struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GuildId int64  `protobuf:"varint,1,opt,name=guild_id,json=guildId,proto3" json:"guild_id"`
+	Content string `protobuf:"bytes,2,opt,name=content,proto3" json:"content"`
+}
+
+func (x *ReqSendGuildChat) Reset() {
+	*x = ReqSendGuildChat{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chat_proto_msgTypes[16]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqSendGuildChat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqSendGuildChat) ProtoMessage() {}
+
+func (x *ReqSendGuildChat) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[16]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqSendGuildChat.ProtoReflect.Descriptor instead.
+func (*ReqSendGuildChat) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ReqSendGuildChat) GetGuildId() int64 {
+	if x != nil {
+		return x.GuildId
+	}
+	return 0
+}
+
+func (x *ReqSendGuildChat) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type RspSendGuildChat struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *RspSendGuildChat) Reset() {
+	*x = RspSendGuildChat{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chat_proto_msgTypes[17]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspSendGuildChat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspSendGuildChat) ProtoMessage() {}
+
+func (x *RspSendGuildChat) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[17]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspSendGuildChat.ProtoReflect.Descriptor instead.
+func (*RspSendGuildChat) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{17}
+}
+
+// 拉取公会频道历史 (28018)
+type ReqGuildChatHistory struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GuildId int64 `protobuf:"varint,1,opt,name=guild_id,json=guildId,proto3" json:"guild_id"`
+	Count   int32 `protobuf:"varint,2,opt,name=count,proto3" json:"count"`
+}
+
+func (x *ReqGuildChatHistory) Reset() {
+	*x = ReqGuildChatHistory{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chat_proto_msgTypes[18]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ReqGuildChatHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReqGuildChatHistory) ProtoMessage() {}
+
+func (x *ReqGuildChatHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[18]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReqGuildChatHistory.ProtoReflect.Descriptor instead.
+func (*ReqGuildChatHistory) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ReqGuildChatHistory) GetGuildId() int64 {
+	if x != nil {
+		return x.GuildId
+	}
+	return 0
+}
+
+func (x *ReqGuildChatHistory) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+type RspGuildChatHistory struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Messages []*PChatMsg `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages"`
+}
+
+func (x *RspGuildChatHistory) Reset() {
+	*x = RspGuildChatHistory{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chat_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RspGuildChatHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RspGuildChatHistory) ProtoMessage() {}
+
+func (x *RspGuildChatHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_chat_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RspGuildChatHistory.ProtoReflect.Descriptor instead.
+func (*RspGuildChatHistory) Descriptor() ([]byte, []int) {
+	return file_chat_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *RspGuildChatHistory) GetMessages() []*PChatMsg {
+	if x != nil {
+		return x.Messages
+	}
+	return nil
+}
+
 var File_chat_proto protoreflect.FileDescriptor
 
 var file_chat_proto_rawDesc = []byte{
@@ -887,8 +1084,25 @@ var file_chat_proto_rawDesc = []byte{
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e,
 	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68, 0x61, 0x74, 0x4d, 0x73,
 	0x67, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xef,
-	0xda, 0x01, 0x42, 0x09, 0x5a, 0x07, 0x2e, 0x2f, 0x70, 0x62, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0xda, 0x01, 0x22, 0x4f, 0x0a, 0x10, 0x52, 0x65, 0x71, 0x53, 0x65, 0x6e, 0x64, 0x47, 0x75, 0x69,
+	0x6c, 0x64, 0x43, 0x68, 0x61, 0x74, 0x12, 0x19, 0x0a, 0x08, 0x67, 0x75, 0x69, 0x6c, 0x64, 0x5f,
+	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07, 0x67, 0x75, 0x69, 0x6c, 0x64, 0x49,
+	0x64, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d,
+	0xf0, 0xda, 0x01, 0x22, 0x1a, 0x0a, 0x10, 0x52, 0x73, 0x70, 0x53, 0x65, 0x6e, 0x64, 0x47, 0x75,
+	0x69, 0x6c, 0x64, 0x43, 0x68, 0x61, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xf1, 0xda, 0x01, 0x22,
+	0x4e, 0x0a, 0x13, 0x52, 0x65, 0x71, 0x47, 0x75, 0x69, 0x6c, 0x64, 0x43, 0x68, 0x61, 0x74, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x19, 0x0a, 0x08, 0x67, 0x75, 0x69, 0x6c, 0x64, 0x5f,
+	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x07, 0x67, 0x75, 0x69, 0x6c, 0x64, 0x49,
+	0x64, 0x12, 0x14, 0x0a, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05,
+	0x52, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xf2, 0xda, 0x01, 0x22,
+	0x54, 0x0a, 0x13, 0x52, 0x73, 0x70, 0x47, 0x75, 0x69, 0x6c, 0x64, 0x43, 0x68, 0x61, 0x74, 0x48,
+	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x35, 0x0a, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67,
+	0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78,
+	0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68, 0x61, 0x74,
+	0x4d, 0x73, 0x67, 0x52, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x3a, 0x06, 0xa8,
+	0xac, 0x1d, 0xf3, 0xda, 0x01, 0x42, 0x09, 0x5a, 0x07, 0x2e, 0x2f, 0x70, 0x62, 0x3b, 0x70, 0x62,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -903,7 +1117,7 @@ func file_chat_proto_rawDescGZIP() []byte {
 	return file_chat_proto_rawDescData
 }
 
-var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_chat_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_chat_proto_goTypes = []interface{}{
 	(*PChatMsg)(nil),              // 0: galaxy.protocol.PChatMsg
 	(*ReqChatInit)(nil),           // 1: galaxy.protocol.ReqChatInit
@@ -921,10 +1135,14 @@ var file_chat_proto_goTypes = []interface{}{
 	(*ReqSystemChatHistory)(nil),  // 13: galaxy.protocol.ReqSystemChatHistory
 	(*RspSystemChatHistory)(nil),  // 14: galaxy.protocol.RspSystemChatHistory
 	(*NotifySystemChat)(nil),      // 15: galaxy.protocol.NotifySystemChat
-	(*PRolePublic)(nil),           // 16: galaxy.protocol.PRolePublic
+	(*ReqSendGuildChat)(nil),      // 16: galaxy.protocol.ReqSendGuildChat
+	(*RspSendGuildChat)(nil),      // 17: galaxy.protocol.RspSendGuildChat
+	(*ReqGuildChatHistory)(nil),   // 18: galaxy.protocol.ReqGuildChatHistory
+	(*RspGuildChatHistory)(nil),   // 19: galaxy.protocol.RspGuildChatHistory
+	(*PRolePublic)(nil),           // 20: galaxy.protocol.PRolePublic
 }
 var file_chat_proto_depIdxs = []int32{
-	16, // 0: galaxy.protocol.PChatMsg.sender:type_name -> galaxy.protocol.PRolePublic
+	20, // 0: galaxy.protocol.PChatMsg.sender:type_name -> galaxy.protocol.PRolePublic
 	0,  // 1: galaxy.protocol.RspChatInit.world_messages:type_name -> galaxy.protocol.PChatMsg
 	0,  // 2: galaxy.protocol.RspChatInit.system_messages:type_name -> galaxy.protocol.PChatMsg
 	0,  // 3: galaxy.protocol.RspWorldChatHistory.messages:type_name -> galaxy.protocol.PChatMsg
@@ -933,11 +1151,12 @@ var file_chat_proto_depIdxs = []int32{
 	0,  // 6: galaxy.protocol.NotifyPrivateChat.message:type_name -> galaxy.protocol.PChatMsg
 	0,  // 7: galaxy.protocol.RspSystemChatHistory.messages:type_name -> galaxy.protocol.PChatMsg
 	0,  // 8: galaxy.protocol.NotifySystemChat.message:type_name -> galaxy.protocol.PChatMsg
-	9,  // [9:9] is the sub-list for method output_type
-	9,  // [9:9] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	0,  // 9: galaxy.protocol.RspGuildChatHistory.messages:type_name -> galaxy.protocol.PChatMsg
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_chat_proto_init() }
@@ -1140,6 +1359,54 @@ func file_chat_proto_init() {
 				return nil
 			}
 		}
+		file_chat_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqSendGuildChat); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chat_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspSendGuildChat); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chat_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ReqGuildChatHistory); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chat_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RspGuildChatHistory); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1147,7 +1414,7 @@ func file_chat_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chat_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
