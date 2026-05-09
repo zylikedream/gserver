@@ -443,30 +443,48 @@ func init() {
 		},
 	})
 	register(&Command{
-		Name:   "chat.world",
-		Help:   "Send message to world channel",
-		Params: []string{"content"},
+		Name:   "chat.send",
+		Help:   "Send message to a channel",
+		Params: []string{"channel_type", "content"},
 		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: chat.world <content>")
+			if len(args) < 2 {
+				return fmt.Errorf("usage: chat.send <channel_type> <content>")
 			}
-			return c.Request(&pb.ReqSendWorldChat{Content: args[0]})
+			ct, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid channel_type: %v", err)
+			}
+			return c.Request(&pb.ReqSendChannelChat{ChannelType: int32(ct), Content: args[1]})
 		},
 	})
 	register(&Command{
-		Name:   "chat.world_history",
-		Help:   "Fetch world chat history",
-		Params: []string{"count"},
+		Name:   "chat.history",
+		Help:   "Fetch channel chat history",
+		Params: []string{"channel_type", "channel_id", "count"},
 		Exec: func(c *client.Client, args []string) error {
+			if len(args) < 1 {
+				return fmt.Errorf("usage: chat.history <channel_type> <channel_id> [count]")
+			}
+			ct, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid channel_type: %v", err)
+			}
+			chID := int64(0)
+			if len(args) >= 2 {
+				chID, err = strconv.ParseInt(args[1], 10, 64)
+				if err != nil {
+					return fmt.Errorf("invalid channel_id: %v", err)
+				}
+			}
 			count := int32(20)
-			if len(args) >= 1 {
-				n, err := strconv.ParseInt(args[0], 10, 32)
+			if len(args) >= 3 {
+				n, err := strconv.ParseInt(args[2], 10, 32)
 				if err != nil {
 					return fmt.Errorf("invalid count: %v", err)
 				}
 				count = int32(n)
 			}
-			return c.Request(&pb.ReqWorldChatHistory{Count: count})
+			return c.Request(&pb.ReqChannelHistory{ChannelType: int32(ct), ChannelId: chID, Count: count})
 		},
 	})
 	register(&Command{
