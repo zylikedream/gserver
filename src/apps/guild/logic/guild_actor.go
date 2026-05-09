@@ -381,7 +381,7 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 	g.Data.MemberCount = int32(len(g.Data.Members))
 
 	// 注册公会频道
-	if chanPID, err := lib.GetChannelActor(2, g.GuildID); err == nil {
+	if chanPID, err := lib.GetChannelActor(int32(pb.ChannelType_CHANNEL_TYPE_GUILD), g.GuildID); err == nil {
 		if rolePID, err := lib.GetRoleActor(roleID, false); err == nil {
 			g.Send(chanPID, &pb.ChannelRegisterMsg{
 				RoleId: roleID,

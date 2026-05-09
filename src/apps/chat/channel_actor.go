@@ -127,7 +127,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		a.buffer.Push(chatMsg)
 
 		notify := &pb.NotifyChannelChat{
-			ChannelType: m.ChannelType,
+			ChannelType: pb.ChannelType(m.ChannelType),
 			ChannelId:   m.ChannelId,
 			SenderId:    m.SenderId,
 			Content:     m.Content,

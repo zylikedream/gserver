@@ -58,7 +58,7 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 	var worldMsgs []*pb.PChatMsg
 
 	// 注册到世界频道 actor，并从 ChannelActor 拉取聊天历史
-	pid, perr := lib.GetChannelActor(1, lobbyID)
+	pid, perr := lib.GetChannelActor(int32(pb.ChannelType_CHANNEL_TYPE_WORLD), lobbyID)
 	if perr == nil {
 		self := r.Role.Self()
 		r.Role.Send(pid, &pb.ChannelRegisterMsg{
@@ -67,12 +67,12 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 				Address: self.Address,
 				Id:      self.Id,
 			},
-			ChannelType: 1,
+			ChannelType: int32(pb.ChannelType_CHANNEL_TYPE_WORLD),
 			ChannelId:   lobbyID,
 		})
 		// 拉取世界聊天历史
 		if rsp, e := r.Role.Call(pid, &pb.ReqChannelHistory{
-			ChannelType: 1,
+			ChannelType: pb.ChannelType_CHANNEL_TYPE_WORLD,
 			ChannelId:   lobbyID,
 			Count:       int32(cfg.WorldMsgKeep),
 		}, 10*time.Second); e == nil {
@@ -95,7 +95,7 @@ func (r *RoleChat) ReqSendChannelChat(ctx context.Context, req *pb.ReqSendChanne
 	var channelType int32
 	var channelID int64
 	switch req.ChannelType {
-	case 1: // 世界
+	case pb.ChannelType_CHANNEL_TYPE_WORLD:
 		if r.lastLobbyID == 0 {
 			return nil, errors.New("聊天未初始化")
 		}
@@ -106,7 +106,7 @@ func (r *RoleChat) ReqSendChannelChat(ctx context.Context, req *pb.ReqSendChanne
 			return nil, ErrChatCooldown
 		}
 		r.lastWorldChatTime = time.Now()
-	case 2: // 公会
+	case pb.ChannelType_CHANNEL_TYPE_GUILD:
 		if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
 			return nil, errors.New("你没有加入公会")
 		}
@@ -138,13 +138,13 @@ func (r *RoleChat) ReqChannelHistory(ctx context.Context, req *pb.ReqChannelHist
 	var channelType int32
 	var channelID int64
 	switch req.ChannelType {
-	case 1: // 世界
+	case pb.ChannelType_CHANNEL_TYPE_WORLD:
 		if r.lastLobbyID == 0 {
 			return nil, errors.New("聊天未初始化")
 		}
 		channelType = 1
 		channelID = r.lastLobbyID
-	case 2: // 公会
+	case pb.ChannelType_CHANNEL_TYPE_GUILD:
 		if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
 			return nil, errors.New("你没有加入公会")
 		}
@@ -158,7 +158,7 @@ func (r *RoleChat) ReqChannelHistory(ctx context.Context, req *pb.ReqChannelHist
 		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
 	}
 	rsp, err := r.Role.Call(pid, &pb.ReqChannelHistory{
-		ChannelType: channelType,
+		ChannelType: pb.ChannelType(channelType),
 		ChannelId:   channelID,
 		Count:       req.Count,
 	}, 10*time.Second)
@@ -228,10 +228,10 @@ func (r *RoleChat) ReqSystemChatHistory(ctx context.Context, req *pb.ReqSystemCh
 func (r *RoleChat) chatLeave(ctx context.Context) {
 	if r.lastLobbyID > 0 {
 		// 从世界频道 actor 注销
-		if pid, err := lib.GetChannelActor(1, r.lastLobbyID, false); err == nil {
+		if pid, _ := lib.GetChannelActor(int32(pb.ChannelType_CHANNEL_TYPE_WORLD), r.lastLobbyID, false); pid != nil {
 			r.Role.Send(pid, &pb.ChannelUnregisterMsg{
 				RoleId:      r.RoleID,
-				ChannelType: 1,
+				ChannelType: int32(pb.ChannelType_CHANNEL_TYPE_WORLD),
 				ChannelId:   r.lastLobbyID,
 			})
 		}
