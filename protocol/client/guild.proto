@@ -5,7 +5,6 @@ package galaxy.protocol;
 
 import "msg_options.proto";
 import "role.proto";
-import "chat.proto";
 
 // ==================== 枚举 ====================
 
@@ -213,12 +212,6 @@ message NotifyGuildKicked {
 message NotifyGuildApply {
     option (msg_id) = 29054;
     repeated PGuildApply applies = 1;
-}
-
-// 公会聊天通知 (29055)
-message NotifyGuildChat {
-    option (msg_id) = 29055;
-    PChatMsg message = 1;
 }
 
 // ==================== Actor 内部消息 ====================
