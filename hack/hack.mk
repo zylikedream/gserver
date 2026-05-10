@@ -66,21 +66,6 @@ deploy: cli.install
 	fi;
 
 
-# Update subtree: protocol
-.PHONY: upproto
-upproto:
-	git subtree pull --prefix=protocol/client git@gitee.com:zylikedream/mahong-protocol.git master; \
-
-# Push protocol changes to remote
-.PHONY: pushproto
-pushproto:
-	@git subtree push --prefix=protocol/client git@gitee.com:zylikedream/mahong-protocol.git master
-
-# Update subtree: gameconfig
-.PHONY: upcfg
-upcfg:
-	git subtree pull --prefix=gameconfig https://gitee.com/zylikedream/garden_config_go.git master; \
-
 # Parsing protobuf files and generating go files.
 .PHONY: pbraw
 pbraw: cli.install

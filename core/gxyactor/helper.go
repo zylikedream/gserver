@@ -64,8 +64,8 @@ func Address() string {
 	return app.Address()
 }
 
-func ActivateActor(kind string, id string, spawn ...bool) (PID, error) {
-	return app.ActivateActor(kind, id, spawn...)
+func ActivateActor(kind string, id string, spawn bool) (PID, error) {
+	return app.ActivateActor(kind, id, spawn)
 }
 
 func GetActorCount(kind string) int {

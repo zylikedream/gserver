@@ -162,12 +162,8 @@ func (a *actorApp) Address() string {
 	return a.system.Address()
 }
 
-func (a *actorApp) ActivateActor(kind string, id string, spawn ...bool) (PID, error) {
-	spawnFlag := true
-	if len(spawn) > 0 {
-		spawnFlag = spawn[0]
-	}
-	return a.activatorMgr.getActor(kind, id, spawnFlag)
+func (a *actorApp) ActivateActor(kind string, id string, spawn bool) (PID, error) {
+	return a.activatorMgr.getActor(kind, id, spawn)
 }
 
 func (a *actorApp) GetActorCount(kind string) int {

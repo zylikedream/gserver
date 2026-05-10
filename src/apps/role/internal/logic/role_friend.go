@@ -7,10 +7,10 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
-	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/api"
 	"gserver/src/lib"
+	"gserver/src/pkg/gameconfig"
 
 	"google.golang.org/protobuf/proto"
 
@@ -242,7 +242,7 @@ func callFriendList(ctx context.Context, playerID int64) ([]friendEntryJSON, err
 // ---- cross-actor notification ----
 
 func (r *RoleMain) notifyPlayer(ctx context.Context, targetID int64, msg proto.Message) {
-	pid, err := lib.GetRoleActor(targetID, false)
+	pid, err := lib.GetRoleActor(targetID)
 	if err != nil {
 		glog.Warningf(ctx, "notifyPlayer: get actor failed, target=%d, err=%v", targetID, err)
 		return

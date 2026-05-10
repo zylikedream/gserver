@@ -43,7 +43,7 @@ func (r *RoleGuild) OnCreate(ctx context.Context) {}
 
 func (r *RoleGuild) OnModStart(ctx context.Context) error {
 	if r.GuildID > 0 {
-		if _, err := r.Role.Chat.JoinChannel(pb.ChannelType_CHANNEL_TYPE_GUILD, r.GuildID); err != nil {
+		if _, err := r.Role.Chat.JoinChannel(4, r.GuildID); err != nil {
 			glog.Errorf(ctx, "加入公会聊天失败: %v", err)
 		}
 	}
@@ -52,14 +52,14 @@ func (r *RoleGuild) OnModStart(ctx context.Context) error {
 
 func (r *RoleGuild) OnModStop(ctx context.Context) error {
 	if r.GuildID > 0 {
-		r.Role.Chat.LeaveChannel(ctx, pb.ChannelType_CHANNEL_TYPE_GUILD, r.GuildID)
+		r.Role.Chat.LeaveChannel(ctx, 4, r.GuildID)
 	}
 	return nil
 }
 
 func (r *RoleGuild) SetGuildID(ctx context.Context, guildID int64) {
 	r.GuildID = guildID
-	if _, err := r.Role.Chat.JoinChannel(pb.ChannelType_CHANNEL_TYPE_GUILD, r.GuildID); err != nil {
+	if _, err := r.Role.Chat.JoinChannel(4, r.GuildID); err != nil {
 		glog.Errorf(ctx, "加入公会聊天失败: %v", err)
 	}
 }

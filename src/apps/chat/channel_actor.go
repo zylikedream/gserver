@@ -84,7 +84,7 @@ func (a *ChannelActor) Init(ctx context.Context, args []any) error {
 	if err != nil {
 		return fmt.Errorf("channel actor init: invalid id %q: %w", id, err)
 	}
-	ch, ok := GetChannel(pb.ChannelType(a.ChannelType))
+		ch, ok := GetChannel(a.ChannelType)
 	if !ok {
 		return errors.New("unknown channel type")
 	}
@@ -138,7 +138,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		a.buffer.Push(chatMsg)
 
 		notify := &pb.NotifyChatChannel{
-			ChannelType: pb.ChannelType(m.ChannelType),
+			ChannelType: m.ChannelType,
 			ChannelId:   m.ChannelId,
 			SenderId:    m.SenderId,
 			Content:     m.Content,

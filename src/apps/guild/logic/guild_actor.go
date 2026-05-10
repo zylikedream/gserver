@@ -11,11 +11,11 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role"
 	"gserver/src/lib"
+	"gserver/src/pkg/gameconfig"
 	"gserver/src/util"
 
 	"github.com/gogf/gf/v2/os/glog"
@@ -124,7 +124,7 @@ func (g *GuildActor) addLog(ctx context.Context, content string) {
 // ===== 通知（携带数据） =====
 
 func (g *GuildActor) notifyPlayer(ctx context.Context, roleID int64, msg proto.Message) {
-	pid, err := lib.GetRoleActor(roleID, false)
+	pid, err := lib.GetRoleActor(roleID)
 	if err != nil || pid == nil {
 		return
 	}
@@ -140,7 +140,7 @@ func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
 		}
 		// 填充 self 字段
 		msg.Self = g.buildPGuildMember(ctx, m)
-		pid, err := lib.GetRoleActor(m.RoleID, false)
+		pid, err := lib.GetRoleActor(m.RoleID)
 		if err != nil || pid == nil {
 			continue
 		}
@@ -151,7 +151,7 @@ func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
 func (g *GuildActor) notifyGuildBasic(ctx context.Context) {
 	msg := g.buildNotifyGuildBasic(ctx)
 	for _, m := range g.Data.Members {
-		pid, err := lib.GetRoleActor(m.RoleID, false)
+		pid, err := lib.GetRoleActor(m.RoleID)
 		if err != nil || pid == nil {
 			continue
 		}
@@ -165,7 +165,7 @@ func (g *GuildActor) notifyApplyUpdate(ctx context.Context) {
 		if m.Position > 2 {
 			continue // 只有会长(1)/副会长(2)
 		}
-		pid, err := lib.GetRoleActor(m.RoleID, false)
+		pid, err := lib.GetRoleActor(m.RoleID)
 		if err != nil || pid == nil {
 			continue
 		}
@@ -379,21 +379,6 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 	member := &GuildMember{RoleID: roleID, Position: int32(gamecfg.GardenEGuildPosition_MEMBER), JoinedAt: time.Now().Unix()}
 	g.Data.Members = append(g.Data.Members, member)
 	g.Data.MemberCount = int32(len(g.Data.Members))
-
-	// 注册公会频道
-	if chanPID, err := lib.GetChannelActor(int32(pb.ChannelType_CHANNEL_TYPE_GUILD), g.GuildID); err == nil {
-		if rolePID, err := lib.GetRoleActor(roleID, false); err == nil {
-			g.Send(chanPID, &pb.ChannelRegisterMsg{
-				RoleId: roleID,
-				Pid: &pb.ActorPid{
-					Address: rolePID.Address,
-					Id:      rolePID.Id,
-				},
-				ChannelType: 2,
-				ChannelId:   g.GuildID,
-			})
-		}
-	}
 
 	g.notifyGuildInfo(ctx) // 通知全部成员（含新成员）
 	g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", roleID))

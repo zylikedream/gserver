@@ -2,7 +2,6 @@ package chat
 
 import (
 	"errors"
-	"gserver/protocol/pb"
 	"time"
 )
 
@@ -47,12 +46,14 @@ func (GuildChannel) CanWrite(_ int64, content string) error {
 func (GuildChannel) CanJoin(_ int64) bool { return true }
 
 // channelRegistry channelType → IChannel
-var channelRegistry = map[pb.ChannelType]IChannel{
-	pb.ChannelType_CHANNEL_TYPE_WORLD: WorldChannel{},
-	pb.ChannelType_CHANNEL_TYPE_GUILD: GuildChannel{},
+// channelType 枚举值定义见策划配置表 chatchannel.xlsx channel_type 列：
+//   1=世界 2=私聊 3=系统 4=公会
+var channelRegistry = map[int32]IChannel{
+	1: WorldChannel{},
+	4: GuildChannel{},
 }
 
-func GetChannel(channelType pb.ChannelType) (IChannel, bool) {
+func GetChannel(channelType int32) (IChannel, bool) {
 	c, ok := channelRegistry[channelType]
 	return c, ok
 }

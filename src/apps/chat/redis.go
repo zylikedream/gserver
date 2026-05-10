@@ -9,6 +9,7 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -47,9 +48,9 @@ return 1`)
 // ===== 大厅操作 =====
 
 func JoinLobby(ctx context.Context, roleID int64) (int64, error) {
-	cfg := GetConfig()
+	maxCap := int(gameconfig.GameConfig().TbGlobalConfig.Get().WorldChatLobbyMaxPlayers)
 	cmd := luaJoinLobby.Run(ctx, gxyredis.Redis(), []string{"chat:lobby:sizes"},
-		cfg.LobbyMaxCapacity, strconv.FormatInt(roleID, 10))
+		maxCap, strconv.FormatInt(roleID, 10))
 	lobbyStr, err := cmd.Text()
 	if err != nil {
 		return 0, fmt.Errorf("chat join lobby: %w", err)
