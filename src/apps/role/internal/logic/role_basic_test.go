@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/apps/role/internal/logic/bag"
 

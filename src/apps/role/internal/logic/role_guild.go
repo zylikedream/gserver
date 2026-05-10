@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"gserver/core/gxyhttp"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/lib"
 

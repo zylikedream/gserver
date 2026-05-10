@@ -1,7 +1,7 @@
 package logic
 
 import (
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	fl "gserver/src/apps/friend/logic"
 )
 

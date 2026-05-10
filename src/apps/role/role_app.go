@@ -6,7 +6,7 @@ import (
 
 	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic"
 	"gserver/src/lib"

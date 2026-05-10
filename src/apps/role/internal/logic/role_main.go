@@ -11,7 +11,7 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"

@@ -5,7 +5,7 @@ import (
 
 	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 )
 
 type chatApp struct {

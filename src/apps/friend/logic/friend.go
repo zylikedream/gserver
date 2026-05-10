@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 
 	"gorm.io/gorm"
 )

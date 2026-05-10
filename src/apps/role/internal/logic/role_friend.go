@@ -7,7 +7,7 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/api"
 	"gserver/src/lib"

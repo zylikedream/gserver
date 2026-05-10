@@ -3,7 +3,7 @@ package logic
 import (
 	"context"
 	"fmt"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"time"

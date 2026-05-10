@@ -11,7 +11,7 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role"

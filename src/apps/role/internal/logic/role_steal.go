@@ -9,7 +9,7 @@ import (
 
 	"gserver/core/gxypgx"
 	"gorm.io/gorm/clause"
-	"gserver/gameconfig"
+	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"

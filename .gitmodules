@@ -1,3 +1,6 @@
 [submodule "protocol/client"]
 	path = protocol/client
 	url = git@gitee.com:zylikedream/mahong-protocol.git
+[submodule "gameconfig"]
+	path = gameconfig
+	url = https://gitee.com/zylikedream/garden_config_go.git

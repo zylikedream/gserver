@@ -136,3 +136,26 @@ newproto:
 .PHONY: pbentity
 pbentity: cli.install
 	@gf gen pbentity
+
+# Convert subtree to submodule
+.PHONY: submodule-proto
+submodule-proto:
+	@echo "Pushing current subtree state to remote..."
+	git subtree push --prefix=protocol/client git@gitee.com:zylikedream/mahong-protocol.git master
+	@echo "Removing subtree..."
+	git rm -r --cached protocol/client
+	rm -rf protocol/client
+	@echo "Adding as submodule..."
+	git submodule add git@gitee.com:zylikedream/mahong-protocol.git protocol/client
+	git commit -m "chore: convert protocol/client from subtree to submodule"
+
+.PHONY: submodule-cfg
+submodule-cfg:
+	@echo "Pushing current subtree state to remote..."
+	git subtree push --prefix=gameconfig https://gitee.com/zylikedream/garden_config_go.git master
+	@echo "Removing subtree..."
+	git rm -r --cached gameconfig
+	rm -rf gameconfig
+	@echo "Adding as submodule..."
+	git submodule add https://gitee.com/zylikedream/garden_config_go.git gameconfig
+	git commit -m "chore: convert gameconfig from subtree to submodule"

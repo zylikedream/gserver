@@ -3,10 +3,11 @@ package gameconfig
 import (
 	"context"
 	"encoding/json"
-	"gserver/core/gxymodule"
-	gamecfg "gserver/gameconfig/gosrc"
 	"os"
 	"sort"
+
+	"gserver/core/gxymodule"
+	gamecfg "gserver/gameconfig/gosrc"
 )
 
 type gameConfig struct {
@@ -38,7 +39,6 @@ func (gc *gameConfig) initTables() error {
 	return nil
 }
 
-// GetFlowerLevelByGroup 按成长组和等级查找升级配置
 func (gc *gameConfig) GetFlowerLevelByGroup(levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
 	for _, v := range gc.TbFlowerLevel.GetDataList() {
 		if v.LevelGroup == levelGroup && v.Level == level {
@@ -48,7 +48,6 @@ func (gc *gameConfig) GetFlowerLevelByGroup(levelGroup int32, level int32) *game
 	return nil
 }
 
-// GetFlowerBreakByGroup 按成长组和突破阶段查找突破配置
 func (gc *gameConfig) GetFlowerBreakByGroup(levelGroup int32, breakStage int32) *gamecfg.GardenFlowerBreak {
 	for _, v := range gc.TbFlowerBreak.GetDataList() {
 		if v.LevelGroup == levelGroup && v.BreakStage == breakStage {
