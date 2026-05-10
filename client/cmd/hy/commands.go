@@ -37,7 +37,7 @@ var groupDefs = []struct {
 	{"breed", "花园"},
 	{"plot", "花园"},
 	{"maintask", "任务"},
-	{"order", "任务"},
+	{"residentorder", "任务"},
 	{"friend", "好友"},
 	{"chat", "聊天"},
 	{"guild", "公会"},
@@ -115,7 +115,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid flower_id: %v", err)
 			}
-			return c.Request(&pb.ReqStartBreed{FlowerId: int32(flowerID)})
+			return c.Request(&pb.ReqFlowerStartBreed{FlowerId: int32(flowerID)})
 		},
 	})
 	register(&Command{
@@ -130,7 +130,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid flower_id: %v", err)
 			}
-			return c.Request(&pb.ReqFinishBreed{FlowerId: int32(flowerID)})
+			return c.Request(&pb.ReqFlowerFinishBreed{FlowerId: int32(flowerID)})
 		},
 	})
 
@@ -147,7 +147,7 @@ func init() {
 				if err != nil {
 					return fmt.Errorf("invalid flower_id: %v", err)
 				}
-				return c.Request(&pb.ReqUpgradeFlower{FlowerId: int32(flowerID)})
+				return c.Request(&pb.ReqFlowerUpgrade{FlowerId: int32(flowerID)})
 			},
 		})
 		register(&Command{
@@ -162,7 +162,7 @@ func init() {
 				if err != nil {
 					return fmt.Errorf("invalid flower_id: %v", err)
 				}
-				return c.Request(&pb.ReqBreakFlower{FlowerId: int32(flowerID)})
+				return c.Request(&pb.ReqFlowerBreak{FlowerId: int32(flowerID)})
 			},
 		})
 
@@ -186,7 +186,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid plot_id: %v", err)
 			}
-			return c.Request(&pb.ReqUnlockPlot{PlotId: int32(plotID)})
+			return c.Request(&pb.ReqPlotUnlock{PlotId: int32(plotID)})
 		},
 	})
 	register(&Command{
@@ -202,7 +202,7 @@ func init() {
 				return fmt.Errorf("invalid flower_id: %v", err)
 			}
 			plotIDs := parsePlotIDs(args[1:])
-			return c.Request(&pb.ReqPlantFlower{
+			return c.Request(&pb.ReqPlotPlant{
 				FlowerId: int32(flowerID),
 				PlotIds:  plotIDs,
 			})
@@ -217,7 +217,7 @@ func init() {
 				return fmt.Errorf("usage: flower.water <plot_id...>")
 			}
 			plotIDs := parsePlotIDs(args)
-			return c.Request(&pb.ReqWaterFlower{PlotIds: plotIDs})
+			return c.Request(&pb.ReqPlotWater{PlotIds: plotIDs})
 		},
 	})
 	register(&Command{
@@ -229,7 +229,7 @@ func init() {
 				return fmt.Errorf("usage: flower.harvest <plot_id...>")
 			}
 			plotIDs := parsePlotIDs(args)
-			return c.Request(&pb.ReqHarvestFlower{PlotIds: plotIDs})
+			return c.Request(&pb.ReqPlotHarvest{PlotIds: plotIDs})
 		},
 	})
 	register(&Command{
@@ -241,7 +241,7 @@ func init() {
 				return fmt.Errorf("usage: flower.remove <plot_id...>")
 			}
 			plotIDs := parsePlotIDs(args)
-			return c.Request(&pb.ReqRemovePlant{PlotIds: plotIDs})
+			return c.Request(&pb.ReqPlotRemove{PlotIds: plotIDs})
 		},
 	})
 
@@ -257,7 +257,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid friend_id: %v", err)
 			}
-			return c.Request(&pb.ReqFriendPlotInfo{FriendId: id})
+			return c.Request(&pb.ReqPlotFriendInfo{FriendId: id})
 		},
 	})
 	register(&Command{
@@ -276,7 +276,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid plot_id: %v", err)
 			}
-			return c.Request(&pb.ReqStealFlower{FriendId: friendID, PlotId: int32(plotID)})
+			return c.Request(&pb.ReqPlotSteal{FriendId: friendID, PlotId: int32(plotID)})
 		},
 	})
 
@@ -292,7 +292,7 @@ func init() {
 		Name: "maintask.claim",
 		Help: "Claim main task reward",
 		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqClaimMainTask{})
+			return c.Request(&pb.ReqMainTaskClaim{})
 		},
 	})
 
@@ -301,7 +301,7 @@ func init() {
 		Name: "order.info",
 		Help: "Get order info",
 		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqOrderInfo{})
+			return c.Request(&pb.ReqResidentOrderInfo{})
 		},
 	})
 	register(&Command{
@@ -316,7 +316,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid slot_id: %v", err)
 			}
-			return c.Request(&pb.ReqSubmitOrder{SlotId: int32(slotID)})
+			return c.Request(&pb.ReqResidentOrderSubmit{SlotId: int32(slotID)})
 		},
 	})
 	register(&Command{
@@ -331,7 +331,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid id: %v", err)
 			}
-			return c.Request(&pb.ReqClaimOrderMilestone{Id: int32(id)})
+			return c.Request(&pb.ReqResidentOrderClaimMilestone{Id: int32(id)})
 		},
 	})
 
@@ -344,7 +344,7 @@ func init() {
 			if len(args) < 1 {
 				return fmt.Errorf("usage: friend.search <name>")
 			}
-			return c.Request(&pb.ReqSearchPlayer{Name: args[0]})
+			return c.Request(&pb.ReqFriendSearchPlayer{Name: args[0]})
 		},
 	})
 	register(&Command{
@@ -363,7 +363,7 @@ func init() {
 				}
 				ids = append(ids, id)
 			}
-			return c.Request(&pb.ReqSendRequest{TargetIds: ids})
+			return c.Request(&pb.ReqFriendSendRequest{TargetIds: ids})
 		},
 	})
 	register(&Command{
@@ -382,7 +382,7 @@ func init() {
 				}
 				ids = append(ids, id)
 			}
-			return c.Request(&pb.ReqAcceptRequest{FromIds: ids})
+			return c.Request(&pb.ReqFriendAcceptRequest{FromIds: ids})
 		},
 	})
 	register(&Command{
@@ -401,7 +401,7 @@ func init() {
 				}
 				ids = append(ids, id)
 			}
-			return c.Request(&pb.ReqRejectRequest{FromIds: ids})
+			return c.Request(&pb.ReqFriendRejectRequest{FromIds: ids})
 		},
 	})
 	register(&Command{
@@ -415,7 +415,7 @@ func init() {
 		Name: "friend.apply_list",
 		Help: "Get friend apply list",
 		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqApplyList{})
+			return c.Request(&pb.ReqFriendApplyList{})
 		},
 	})
 	register(&Command{
@@ -430,7 +430,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid target_id: %v", err)
 			}
-			return c.Request(&pb.ReqRemoveFriend{TargetId: id})
+			return c.Request(&pb.ReqFriendRemove{TargetId: id})
 		},
 	})
 
@@ -454,7 +454,7 @@ func init() {
 			if err != nil {
 				return err
 			}
-			return c.Request(&pb.ReqSendChannelChat{ChannelType: ct, Content: args[1]})
+			return c.Request(&pb.ReqChatSendChannel{ChannelType: ct, Content: args[1]})
 		},
 	})
 	register(&Command{
@@ -484,7 +484,7 @@ func init() {
 				}
 				count = int32(n)
 			}
-			return c.Request(&pb.ReqChannelHistory{ChannelType: ct, ChannelId: chID, Count: count})
+			return c.Request(&pb.ReqChatChannelHistory{ChannelType: ct, ChannelId: chID, Count: count})
 		},
 	})
 	register(&Command{
@@ -499,7 +499,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid target_id: %v", err)
 			}
-			return c.Request(&pb.ReqSendPrivateChat{TargetId: id, Content: args[1]})
+			return c.Request(&pb.ReqChatSendPrivate{TargetId: id, Content: args[1]})
 		},
 	})
 	register(&Command{
@@ -522,7 +522,7 @@ func init() {
 				}
 				count = int32(n)
 			}
-			return c.Request(&pb.ReqPrivateChatHistory{FriendId: id, Count: count})
+			return c.Request(&pb.ReqChatPrivateHistory{FriendId: id, Count: count})
 		},
 	})
 	register(&Command{
@@ -538,7 +538,7 @@ func init() {
 				}
 				count = int32(n)
 			}
-			return c.Request(&pb.ReqSystemChatHistory{Count: count})
+			return c.Request(&pb.ReqChatSystemHistory{Count: count})
 		},
 	})
 
@@ -551,7 +551,7 @@ func init() {
 			if len(args) < 2 {
 				return fmt.Errorf("usage: guild.create <name> <declaration>")
 			}
-			return c.Request(&pb.ReqCreateGuild{
+			return c.Request(&pb.ReqGuildCreate{
 				Name:        args[0],
 				Declaration: args[1],
 			})
@@ -565,7 +565,7 @@ func init() {
 			if len(args) < 1 {
 				return fmt.Errorf("usage: guild.search <keyword>")
 			}
-			return c.Request(&pb.ReqSearchGuild{Keyword: args[0]})
+			return c.Request(&pb.ReqGuildSearch{Keyword: args[0]})
 		},
 	})
 	register(&Command{
@@ -580,7 +580,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid guild_id: %v", err)
 			}
-			return c.Request(&pb.ReqApplyGuild{GuildId: id})
+			return c.Request(&pb.ReqGuildApply{GuildId: id})
 		},
 	})
 	register(&Command{
@@ -621,7 +621,7 @@ func init() {
 				}
 				ids = append(ids, id)
 			}
-			return c.Request(&pb.ReqApproveApply{ApplyIds: ids, Approve: approve})
+			return c.Request(&pb.ReqGuildApproveApply{ApplyIds: ids, Approve: approve})
 		},
 	})
 	register(&Command{
@@ -640,21 +640,21 @@ func init() {
 			if len(args) >= 2 {
 				reason = args[1]
 			}
-			return c.Request(&pb.ReqKickMember{TargetId: id, Reason: reason})
+			return c.Request(&pb.ReqGuildKickMember{TargetId: id, Reason: reason})
 		},
 	})
 	register(&Command{
 		Name: "guild.leave",
 		Help: "Leave the guild",
 		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqLeaveGuild{})
+			return c.Request(&pb.ReqGuildLeave{})
 		},
 	})
 	register(&Command{
 		Name: "guild.disband",
 		Help: "Disband the guild",
 		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqDisbandGuild{})
+			return c.Request(&pb.ReqGuildDisband{})
 		},
 	})
 	register(&Command{
@@ -673,7 +673,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid position: %v", err)
 			}
-			return c.Request(&pb.ReqSetPosition{TargetId: id, Position: int32(pos)})
+			return c.Request(&pb.ReqGuildSetPosition{TargetId: id, Position: int32(pos)})
 		},
 	})
 	register(&Command{
@@ -688,7 +688,7 @@ func init() {
 			if err != nil {
 				return fmt.Errorf("invalid target_id: %v", err)
 			}
-			return c.Request(&pb.ReqTransferLeader{TargetId: id})
+			return c.Request(&pb.ReqGuildTransferLeader{TargetId: id})
 		},
 	})
 	register(&Command{
@@ -708,7 +708,7 @@ func init() {
 			if len(args) >= 3 {
 				needApproval = args[2] == "1"
 			}
-			return c.Request(&pb.ReqUpdateGuildInfo{
+			return c.Request(&pb.ReqGuildUpdateInfo{
 				Declaration:  declaration,
 				Announcement: announcement,
 				NeedApproval: needApproval,
