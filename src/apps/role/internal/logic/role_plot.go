@@ -146,7 +146,7 @@ func (r *RolePlot) ReqPlotInfo(ctx context.Context, req *pb.ReqPlotInfo) (*pb.Rs
 	return rsp, nil
 }
 
-func (r *RolePlot) ReqUnlockPlot(ctx context.Context, req *pb.ReqUnlockPlot) (*pb.RspUnlockPlot, error) {
+func (r *RolePlot) ReqPlotUnlock(ctx context.Context, req *pb.ReqPlotUnlock) (*pb.RspPlotUnlock, error) {
 	plotID := req.PlotId
 
 	cfg := gameconfig.GameConfig().TbGardenPlot.Get(plotID)
@@ -175,10 +175,10 @@ func (r *RolePlot) ReqUnlockPlot(ctx context.Context, req *pb.ReqUnlockPlot) (*p
 	}
 	r.Role.PublishRoleEvent(event.EVENT_UNLOCK_PLOT, event.UnlockPlotEventData{PlotID: plotID})
 
-	return &pb.RspUnlockPlot{Plot: pPlotInfo(r.Plots[plotID])}, nil
+	return &pb.RspPlotUnlock{Plot: pPlotInfo(r.Plots[plotID])}, nil
 }
 
-func (r *RolePlot) ReqPlantFlower(ctx context.Context, req *pb.ReqPlantFlower) (*pb.RspPlantFlower, error) {
+func (r *RolePlot) ReqPlotPlant(ctx context.Context, req *pb.ReqPlotPlant) (*pb.RspPlotPlant, error) {
 	flowerID := req.FlowerId
 
 	// 检查花朵是否已解锁
@@ -217,14 +217,14 @@ func (r *RolePlot) ReqPlantFlower(ctx context.Context, req *pb.ReqPlantFlower) (
 		PlotIDs:  append([]int32(nil), req.PlotIds...),
 	})
 
-	rsp := &pb.RspPlantFlower{Plots: []*pb.PPlotInfo{}}
+	rsp := &pb.RspPlotPlant{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {
 		rsp.Plots = append(rsp.Plots, pPlotInfo(r.Plots[plotID]))
 	}
 	return rsp, nil
 }
 
-func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (*pb.RspWaterFlower, error) {
+func (r *RolePlot) ReqPlotWater(ctx context.Context, req *pb.ReqPlotWater) (*pb.RspPlotWater, error) {
 	// 先校验所有地块状态，并计算总水滴消耗
 	var totalWaterCost int32
 	for _, plotID := range req.PlotIds {
@@ -268,14 +268,14 @@ func (r *RolePlot) ReqWaterFlower(ctx context.Context, req *pb.ReqWaterFlower) (
 		PlotIDs: append([]int32(nil), req.PlotIds...),
 	})
 
-	rsp := &pb.RspWaterFlower{Plots: []*pb.PPlotInfo{}}
+	rsp := &pb.RspPlotWater{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {
 		rsp.Plots = append(rsp.Plots, pPlotInfo(r.Plots[plotID]))
 	}
 	return rsp, nil
 }
 
-func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlower) (*pb.RspHarvestFlower, error) {
+func (r *RolePlot) ReqPlotHarvest(ctx context.Context, req *pb.ReqPlotHarvest) (*pb.RspPlotHarvest, error) {
 	var harvestItems []*gamecfg.GardenGoodStack
 	var essenceItems []*gamecfg.GardenGoodStack
 	var harvestFlowers []event.HarvestFlowerItem
@@ -399,14 +399,14 @@ func (r *RolePlot) ReqHarvestFlower(ctx context.Context, req *pb.ReqHarvestFlowe
 		Flowers: harvestFlowers,
 	})
 
-	rsp := &pb.RspHarvestFlower{Plots: []*pb.PPlotInfo{}}
+	rsp := &pb.RspPlotHarvest{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {
 		rsp.Plots = append(rsp.Plots, pPlotInfo(r.Plots[plotID]))
 	}
 	return rsp, nil
 }
 
-func (r *RolePlot) ReqRemovePlant(ctx context.Context, req *pb.ReqRemovePlant) (*pb.RspRemovePlant, error) {
+func (r *RolePlot) ReqPlotRemove(ctx context.Context, req *pb.ReqPlotRemove) (*pb.RspPlotRemove, error) {
 	for _, plotID := range req.PlotIds {
 		plot, ok := r.Plots[plotID]
 		if !ok {
@@ -433,7 +433,7 @@ func (r *RolePlot) ReqRemovePlant(ctx context.Context, req *pb.ReqRemovePlant) (
 		return nil, err
 	}
 
-	rsp := &pb.RspRemovePlant{Plots: []*pb.PPlotInfo{}}
+	rsp := &pb.RspPlotRemove{Plots: []*pb.PPlotInfo{}}
 	for _, plotID := range req.PlotIds {
 		rsp.Plots = append(rsp.Plots, pPlotInfo(r.Plots[plotID]))
 	}

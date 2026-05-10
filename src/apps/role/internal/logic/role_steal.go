@@ -127,7 +127,7 @@ func todayStr() string {
 
 // ========== Proto Handler ==========
 
-func (r *RoleSteal) ReqFriendPlotInfo(ctx context.Context, req *pb.ReqFriendPlotInfo) (*pb.RspFriendPlotInfo, error) {
+func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriendInfo) (*pb.RspPlotFriendInfo, error) {
 	friendID := req.FriendId
 
 	if !isFriend(ctx, r.RoleID, friendID) {
@@ -140,13 +140,13 @@ func (r *RoleSteal) ReqFriendPlotInfo(ctx context.Context, req *pb.ReqFriendPlot
 	err := gxypgx.DB().WithContext(ctx).Table("role_plot").
 		Where("role_id = ?", friendID).First(&row).Error
 	if err != nil {
-		return &pb.RspFriendPlotInfo{}, nil
+		return &pb.RspPlotFriendInfo{}, nil
 	}
 
 	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
 	dailyCount := r.getDailyCount(friendID)
 
-	rsp := &pb.RspFriendPlotInfo{
+	rsp := &pb.RspPlotFriendInfo{
 		StealLimit: cfg.StealPerFriendDailyLimit,
 		StealUsed:  dailyCount,
 	}
@@ -174,7 +174,7 @@ func (r *RoleSteal) ReqFriendPlotInfo(ctx context.Context, req *pb.ReqFriendPlot
 	return rsp, nil
 }
 
-func (r *RoleSteal) ReqStealFlower(ctx context.Context, req *pb.ReqStealFlower) (*pb.RspStealFlower, error) {
+func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb.RspPlotSteal, error) {
 	friendID := req.FriendId
 	plotID := req.PlotId
 	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
@@ -255,7 +255,7 @@ func (r *RoleSteal) ReqStealFlower(ctx context.Context, req *pb.ReqStealFlower) 
 		return nil, err
 	}
 
-	return &pb.RspStealFlower{
+	return &pb.RspPlotSteal{
 		Success: true,
 		Rewards: []*pb.PGoodInfo{
 			{PropId: flowerCfg.HarvestItemId, Num: int64(rewardNum)},

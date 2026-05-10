@@ -228,7 +228,7 @@ func TestStartBreed_Success(t *testing.T) {
 		before[int(cost.Id)] = goodNum(f, int(cost.Id))
 	}
 
-	rsp, err := f.ReqStartBreed(context.Background(), &pb.ReqStartBreed{FlowerId: flowerTestID})
+	rsp, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +256,7 @@ func TestStartBreed_Success(t *testing.T) {
 func TestStartBreed_NotUnlocked(t *testing.T) {
 	f := setupTestFlowerWithMaterials(t)
 
-	_, err := f.ReqStartBreed(context.Background(), &pb.ReqStartBreed{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerLocked) {
 		t.Fatalf("expected ErrFlowerLocked, got %v", err)
 	}
@@ -268,7 +268,7 @@ func TestStartBreed_AlreadyBreeding(t *testing.T) {
 	f.AddFlower(flowerTestOtherID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 
-	_, err := f.ReqStartBreed(context.Background(), &pb.ReqStartBreed{FlowerId: flowerTestOtherID})
+	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestOtherID})
 	if !errors.Is(err, ErrFlowerBreedBusy) {
 		t.Fatalf("expected ErrFlowerBreedBusy, got %v", err)
 	}
@@ -278,7 +278,7 @@ func TestStartBreed_MaterialNotEnough(t *testing.T) {
 	f := setupTestFlower(t)
 	f.AddFlower(flowerTestID)
 
-	_, err := f.ReqStartBreed(context.Background(), &pb.ReqStartBreed{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -292,7 +292,7 @@ func TestFinishBreed_Success(t *testing.T) {
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 	f.Flowers[flowerTestID].StateTime = time.Now().Add(-1 * time.Hour) // past
 
-	rsp, err := f.ReqFinishBreed(context.Background(), &pb.ReqFinishBreed{FlowerId: flowerTestID})
+	rsp, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +311,7 @@ func TestFinishBreed_NotBreeding(t *testing.T) {
 	f.AddFlower(flowerTestID)
 	// status stays UNLOCKED
 
-	_, err := f.ReqFinishBreed(context.Background(), &pb.ReqFinishBreed{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerNotBreedDone) {
 		t.Fatalf("expected ErrFlowerNotBreedDone, got %v", err)
 	}
@@ -323,7 +323,7 @@ func TestFinishBreed_NotDone(t *testing.T) {
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 	f.Flowers[flowerTestID].StateTime = time.Now().Add(1 * time.Hour) // future
 
-	_, err := f.ReqFinishBreed(context.Background(), &pb.ReqFinishBreed{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerNotBreedDone) {
 		t.Fatalf("expected ErrFlowerNotDone, got %v", err)
 	}
@@ -332,7 +332,7 @@ func TestFinishBreed_NotDone(t *testing.T) {
 func TestFinishBreed_NotUnlocked(t *testing.T) {
 	f := setupTestFlowerWithMaterials(t)
 
-	_, err := f.ReqFinishBreed(context.Background(), &pb.ReqFinishBreed{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerLocked) {
 		t.Fatalf("expected ErrFlowerLocked, got %v", err)
 	}
@@ -445,7 +445,7 @@ func TestUpgradeFlower_Success(t *testing.T) {
 	essenceBefore := goodNum(f, essenceID)
 	goldBefore := goodNum(f, GOLD_ITEM_ID)
 
-	rsp, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: flowerTestID})
+	rsp, err := f.ReqFlowerUpgrade(context.Background(), &pb.ReqFlowerUpgrade{FlowerId: flowerTestID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +475,7 @@ func TestUpgradeFlower_MaxLevel(t *testing.T) {
 	cfg := flowerConfig(t, flowerTestID)
 	f.Flowers[flowerTestID].Level = maxFlowerLevel(t, cfg.LevelGroup)
 
-	_, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerUpgrade(context.Background(), &pb.ReqFlowerUpgrade{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerMaxLevel) {
 		t.Fatalf("expected ErrFlowerMaxLevel, got %v", err)
 	}
@@ -493,7 +493,7 @@ func TestUpgradeFlower_NeedBreak(t *testing.T) {
 	flowerLevelConfig(t, cfg.LevelGroup, breakCfg.NeedLevel+1)
 	f.Flowers[flowerTestID].Level = breakCfg.NeedLevel
 
-	_, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerUpgrade(context.Background(), &pb.ReqFlowerUpgrade{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerNeedBreak) {
 		t.Fatalf("expected ErrFlowerNeedBreak, got %v", err)
 	}
@@ -502,7 +502,7 @@ func TestUpgradeFlower_NeedBreak(t *testing.T) {
 func TestUpgradeFlower_NotUnlocked(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
 
-	_, err := f.ReqUpgradeFlower(context.Background(), &pb.ReqUpgradeFlower{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerUpgrade(context.Background(), &pb.ReqFlowerUpgrade{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerLocked) {
 		t.Fatalf("expected ErrFlowerLocked, got %v", err)
 	}
@@ -517,7 +517,7 @@ func TestBreakFlower_Success(t *testing.T) {
 	breakCfg := flowerBreakConfig(t, cfg.LevelGroup, 1)
 	f.Flowers[flowerTestID].Level = breakCfg.NeedLevel
 
-	rsp, err := f.ReqBreakFlower(context.Background(), &pb.ReqBreakFlower{FlowerId: flowerTestID})
+	rsp, err := f.ReqFlowerBreak(context.Background(), &pb.ReqFlowerBreak{FlowerId: flowerTestID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -539,7 +539,7 @@ func TestBreakFlower_PlayerLevelNotEnough(t *testing.T) {
 	f.Role.Basic.Level = breakCfg.PlayerLevelLimit - 1
 	f.Flowers[flowerTestID].Level = breakCfg.NeedLevel
 
-	_, err := f.ReqBreakFlower(context.Background(), &pb.ReqBreakFlower{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerBreak(context.Background(), &pb.ReqFlowerBreak{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerBreakPlayerLevel) {
 		t.Fatalf("expected ErrFlowerBreakPlayerLevel, got %v", err)
 	}
@@ -552,7 +552,7 @@ func TestBreakFlower_LevelNotEnough(t *testing.T) {
 	breakCfg := flowerBreakConfig(t, cfg.LevelGroup, 1)
 	f.Flowers[flowerTestID].Level = breakCfg.NeedLevel - 1
 
-	_, err := f.ReqBreakFlower(context.Background(), &pb.ReqBreakFlower{FlowerId: flowerTestID})
+	_, err := f.ReqFlowerBreak(context.Background(), &pb.ReqFlowerBreak{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerBreakLevel) {
 		t.Fatalf("expected ErrFlowerBreakLevel, got %v", err)
 	}

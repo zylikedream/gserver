@@ -149,7 +149,7 @@ func getFlowerDisplayState(flower *FlowerData, now time.Time) int32 {
 	return state
 }
 
-func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (*pb.RspStartBreed, error) {
+func (r *RoleFlower) ReqFlowerStartBreed(ctx context.Context, req *pb.ReqFlowerStartBreed) (*pb.RspFlowerStartBreed, error) {
 	flowerID := req.FlowerId
 
 	flower, ok := r.Flowers[flowerID]
@@ -182,10 +182,10 @@ func (r *RoleFlower) ReqStartBreed(ctx context.Context, req *pb.ReqStartBreed) (
 	r.MarkDirty()
 	r.Role.PublishRoleEvent(event.EVENT_BREED_START, event.BreedStartEventData{FlowerID: flowerID})
 
-	return &pb.RspStartBreed{Flower: PFlowerInfo(flower)}, nil
+	return &pb.RspFlowerStartBreed{Flower: PFlowerInfo(flower)}, nil
 }
 
-func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed) (*pb.RspFinishBreed, error) {
+func (r *RoleFlower) ReqFlowerFinishBreed(ctx context.Context, req *pb.ReqFlowerFinishBreed) (*pb.RspFlowerFinishBreed, error) {
 	flowerID := req.FlowerId
 
 	flower, ok := r.Flowers[flowerID]
@@ -201,10 +201,10 @@ func (r *RoleFlower) ReqFinishBreed(ctx context.Context, req *pb.ReqFinishBreed)
 	r.MarkDirty()
 	r.Role.PublishRoleEvent(event.EVENT_BREED_FINISH, event.BreedFinishEventData{FlowerID: flowerID})
 
-	return &pb.RspFinishBreed{Flower: PFlowerInfo(flower)}, nil
+	return &pb.RspFlowerFinishBreed{Flower: PFlowerInfo(flower)}, nil
 }
 
-func (r *RoleFlower) ReqUpgradeFlower(ctx context.Context, req *pb.ReqUpgradeFlower) (*pb.RspUpgradeFlower, error) {
+func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgrade) (*pb.RspFlowerUpgrade, error) {
 	flowerID := req.FlowerId
 
 	flower, ok := r.Flowers[flowerID]
@@ -263,10 +263,10 @@ func (r *RoleFlower) ReqUpgradeFlower(ctx context.Context, req *pb.ReqUpgradeFlo
 		NewLevel: nextLevel,
 	})
 
-	return &pb.RspUpgradeFlower{Flower: PFlowerInfo(flower)}, nil
+	return &pb.RspFlowerUpgrade{Flower: PFlowerInfo(flower)}, nil
 }
 
-func (r *RoleFlower) ReqBreakFlower(ctx context.Context, req *pb.ReqBreakFlower) (*pb.RspBreakFlower, error) {
+func (r *RoleFlower) ReqFlowerBreak(ctx context.Context, req *pb.ReqFlowerBreak) (*pb.RspFlowerBreak, error) {
 	flowerID := req.FlowerId
 
 	flower, ok := r.Flowers[flowerID]
@@ -315,5 +315,5 @@ func (r *RoleFlower) ReqBreakFlower(ctx context.Context, req *pb.ReqBreakFlower)
 	flower.BreakStage = nextBreakStage
 	r.MarkDirty()
 
-	return &pb.RspBreakFlower{Flower: PFlowerInfo(flower)}, nil
+	return &pb.RspFlowerBreak{Flower: PFlowerInfo(flower)}, nil
 }

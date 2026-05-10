@@ -4,7 +4,8 @@ option go_package="./pb;pb";
 package galaxy.protocol;
 
 import "msg_options.proto";
-import "bag.proto";
+
+// ==================== 枚举 ====================
 
 enum FlowerState {
     FLOWER_UNLOCKED   = 0;
@@ -12,6 +13,8 @@ enum FlowerState {
     FLOWER_BREED_DONE = 2;
     FLOWER_HARVESTED  = 3;
 }
+
+// ==================== 数据结构 ====================
 
 message PFlowerInfo {
     int32 flower_id = 1;
@@ -21,151 +24,53 @@ message PFlowerInfo {
     int32 break_stage = 5;  // 突破阶段
 }
 
+// ==================== Req / Rsp ====================
+
+// 鲜花信息 (23001)
 message ReqFlowerInfo {
     option (msg_id) = 23001;
 }
-
 message RspFlowerInfo {
     option (msg_id) = 23002;
     repeated PFlowerInfo flowers = 1;
 }
 
-message ReqStartBreed {
+// 开始育种 (23003)
+message ReqFlowerStartBreed {
     option (msg_id) = 23003;
     int32 flower_id = 1;
 }
-
-message RspStartBreed {
+message RspFlowerStartBreed {
     option (msg_id) = 23004;
     PFlowerInfo flower = 1;
 }
 
-message ReqFinishBreed {
+// 完成育种 (23005)
+message ReqFlowerFinishBreed {
     option (msg_id) = 23005;
     int32 flower_id = 1;
 }
-
-message RspFinishBreed {
+message RspFlowerFinishBreed {
     option (msg_id) = 23006;
     PFlowerInfo flower = 1;
 }
 
-message ReqUpgradeFlower {
+// 升级鲜花 (23007)
+message ReqFlowerUpgrade {
     option (msg_id) = 23007;
     int32 flower_id = 1;
 }
-
-message RspUpgradeFlower {
+message RspFlowerUpgrade {
     option (msg_id) = 23008;
     PFlowerInfo flower = 1;
 }
 
-message ReqBreakFlower {
+// 突破鲜花 (23009)
+message ReqFlowerBreak {
     option (msg_id) = 23009;
     int32 flower_id = 1;
 }
-
-message RspBreakFlower {
+message RspFlowerBreak {
     option (msg_id) = 23010;
     PFlowerInfo flower = 1;
-}
-
-enum PlotState {
-    PLOT_EMPTY       = 0;
-    PLOT_PLANTED     = 1;
-    PLOT_GROWING     = 2;
-    PLOT_HARVESTABLE = 3;
-}
-
-message PPlotInfo {
-    int32 plot_id       = 1;
-    int32 flower_id     = 2;
-    PlotState state     = 3;
-    int32 harvest_count = 4;
-    int64 state_time    = 5;
-    bool can_steal      = 6;
-}
-
-message ReqPlotInfo {
-    option (msg_id) = 24001;
-}
-
-message RspPlotInfo {
-    option (msg_id) = 24002;
-    repeated PPlotInfo plots = 1;
-}
-
-message ReqUnlockPlot {
-    option (msg_id) = 24003;
-    int32 plot_id = 1;
-}
-
-message RspUnlockPlot {
-    option (msg_id) = 24004;
-    PPlotInfo plot = 1;
-}
-
-message ReqPlantFlower {
-    option (msg_id) = 24005;
-    repeated int32 plot_ids = 1;
-    int32 flower_id = 2;
-}
-
-message RspPlantFlower {
-    option (msg_id) = 24006;
-    repeated PPlotInfo plots = 1;
-}
-
-message ReqWaterFlower {
-    option (msg_id) = 24007;
-    repeated int32 plot_ids = 1;
-}
-
-message RspWaterFlower {
-    option (msg_id) = 24008;
-    repeated PPlotInfo plots = 1;
-}
-
-message ReqHarvestFlower {
-    option (msg_id) = 24009;
-    repeated int32 plot_ids = 1;
-}
-
-message RspHarvestFlower {
-    option (msg_id) = 24010;
-    repeated PPlotInfo plots = 1;
-}
-
-message ReqRemovePlant {
-    option (msg_id) = 24011;
-    repeated int32 plot_ids = 1;
-}
-
-message RspRemovePlant {
-    option (msg_id) = 24012;
-    repeated PPlotInfo plots = 1;
-}
-
-// 查看好友花园 (24013)
-message ReqFriendPlotInfo {
-    option (msg_id) = 24013;
-    int64 friend_id = 1;
-}
-message RspFriendPlotInfo {
-    option (msg_id) = 24014;
-    repeated PPlotInfo plots = 1;
-    int32 steal_used  = 2;
-    int32 steal_limit = 3;
-}
-
-// 偷花 (24015)
-message ReqStealFlower {
-    option (msg_id) = 24015;
-    int64 friend_id = 1;
-    int32 plot_id   = 2;
-}
-message RspStealFlower {
-    option (msg_id) = 24016;
-    bool              success = 1;
-    repeated PGoodInfo rewards = 2;
 }
