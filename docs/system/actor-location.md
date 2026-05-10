@@ -7,7 +7,7 @@ Actor 定位系统管理 grain（虚拟 actor）在集群中的位置：gate 收
 核心设计原则：
 - **Redis 只存 `nodeInstanceName`，不存 address:port**，因此端口变化不影响缓存有效性
 - **TTL 设为 12h，不做续约**，避免周期性续约开销
-- **始终 spawnActor**：Redis 命中后仍然走远程 spawn，天然处理节点重启后 actor 丢失的场景
+- **Redis 命中 → 直接构造 PID**：`actor.NewPID(nodeHost, id)`，跳过 spawnActor。因为 nodeInstanceName 匹配即 actor 存活
 - **NodeInstanceName**（`nodeName@uid`）每次节点启动时唯一生成，重启后不同，用于检测节点是否重启
 
 ## 数据结构
@@ -50,9 +50,7 @@ GetRoleActor(roleID)
       │   GET key → "game-2@18f3a4b2c1d0"                    │
       │   ↓                                                   │
       │   命中 → 提取 "game-2" → Consul 查 game-2 地址         │
-      │         ├── 节点存活 → spawnActor(node, kind, id)      │
-      │         │     ├── actor 已在 → SpawnNamed 返回已有 PID │
-      │         │     └── actor 不在 → spawn → SET key → 返回  │
+      │         ├── 节点存活 → NewPID(nodeHost, id) 直接返回   │
       │         └── 节点已死 → 进入 ②                          │
       │   未命中 → 进入 ②                                     │
       │                                                       │
@@ -63,8 +61,7 @@ GetRoleActor(roleID)
 ```
 
 关键点：
-- **Redis 命中后不直接返回**，仍然走 spawnActor（节点重启后 actor 已经不在了）
-- **spawnActor 无超时**（`call` 的 `-1` 表示无超时），因为远程 spawn 可能慢但不该丢
+- **Redis 命中后直接返回 NewPID**，跳过 spawnActor。nodeInstanceName 匹配即说明 actor 存活在目标节点上
 - **Consul 匹配使用完整 `nodeInstanceName`**：Redis 存的和 Consul 注册的都是 `game-2@uid`，直匹配
 
 ### spawnActor（远程创建 actor）
@@ -77,8 +74,10 @@ spawnActor(nodeHost, kind, id)
       → actorActivator.SpawnNamed(props, id)
         ├── ErrNameExists → 返回已有 PID
         └── 成功 → registerActor: SET key EX 12h
-                → Touch 确认（异步，不影响返回）
-                → 返回新 PID
+                → Touch 确认（异步，验证 Init 是否成功）
+                ├── 成功 → 返回 ActorPidResponse
+                └── 失败 → 清理 Redis 注册 + 一致性哈希
+                          → 返回 ActorError 给调用方
 ```
 
 ### Actor 生命周期
@@ -155,10 +154,11 @@ getActor(role, 100008):
 |------|------|------|
 | Redis 存什么 | `nodeInstanceName`（`nodeName@uid`） | 不依赖端口，重启后 uid 变化自动失效 |
 | TTL | 12h，不续约 | 避免续约开销，TTL 仅兜底；注册/注销用 SET/DEL 精确控制 |
-| Redis 命中后行为 | spawnActor（不直接返回 PID） | 节点重启后 actor 丢失，必须重新创建 |
+| Redis 命中后行为 | NewPID 直接构造 PID，跳过 spawnActor | nodeInstanceName 匹配即 actor 存活；如果 actor 已死，ErrDeadRespond 由 protoactor 返回 |
 | 节点标识生命周期 | 每次启动生成新 uid | 用 uid 变化自然检测节点重启 |
 | Consul 注册名 | `nodeInstanceName` | 与 Redis 值直接匹配，无需额外映射 |
 | 注销方式 | DEL（不带 CAS） | 12h TTL 兜底，极端情况最多 12h 残留 |
+| Touch 确认 | 异步 Call(Touch, 2s)，失败返回 ActorError | Init 异步执行，Touch 验证 Init 是否成功；失败时清理脏数据 |
 | 节点选择 | 一致性哈希 | 同一 ID 稳定路由到同一节点 |
 | 随机端口 | `remote.Configure(host, 0)` | 避免端口冲突 |
 

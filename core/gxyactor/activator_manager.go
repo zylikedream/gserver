@@ -344,7 +344,7 @@ func (g *activatorManager) getActor(kind string, id string, spawn bool) (PID, er
 		// Redis 中存的是 nodeInstanceName（game-2@uid），直接传给 Consul 查地址
 		nodeHost := gxyservice.ServiceApp().GetAddressByNodeName(ctx, kind, nodeName)
 		if nodeHost != "" {
-			return g.spawnActor(nodeHost, kind, id)
+			return actor.NewPID(nodeHost, id), nil
 		}
 		// 节点已死 → fallback spawn（下面继续走）
 		glog.Warningf(ctx, "node %s for actor %s not alive, re-spawning", nodeName, key)
