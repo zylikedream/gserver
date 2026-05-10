@@ -14,13 +14,6 @@ message PChatMsg {
     int64 timestamp = 3;
 }
 
-// 频道类型
-enum ChannelType {
-    CHANNEL_TYPE_UNKNOWN = 0;
-    CHANNEL_TYPE_WORLD = 1;
-    CHANNEL_TYPE_GUILD = 2;
-}
-
 // === 登录初始化 ===
 
 // 聊天初始化 (28001) - 登录时自动调用
@@ -84,9 +77,11 @@ message NotifyChatSystem {
 // === 统一频道消息 ===
 
 // 发送频道消息 (28020) - 客户端发送 channel_type + content，channel_id 由服务端推断
+// channel_type 枚举值定义见策划配置表 chatchannel.xlsx channel_type 列：
+//   1=世界 2=私聊 3=系统 4=公会
 message ReqChatSendChannel {
     option (msg_id) = 28020;
-    ChannelType channel_type = 1;
+    int32 channel_type = 1;
     string content           = 2;
 }
 message RspChatSendChannel {
@@ -94,9 +89,10 @@ message RspChatSendChannel {
 }
 
 // 频道消息通知 (28022) - 服务端推送
+// channel_type 枚举值定义见策划配置表 chatchannel.xlsx channel_type 列
 message NotifyChatChannel {
     option (msg_id) = 28022;
-    ChannelType channel_type = 1;
+    int32 channel_type = 1;
     int64 channel_id   = 2;
     int64 sender_id    = 3;
     string content     = 4;
@@ -104,9 +100,10 @@ message NotifyChatChannel {
 }
 
 // 拉取频道历史 (28023)
+// channel_type 枚举值定义见策划配置表 chatchannel.xlsx channel_type 列
 message ReqChatChannelHistory {
     option (msg_id) = 28023;
-    ChannelType channel_type = 1;
+    int32 channel_type = 1;
     int64 channel_id   = 2;
     int32 count        = 3;
 }
