@@ -137,7 +137,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		}
 		a.buffer.Push(chatMsg)
 
-		notify := &pb.NotifyChannelChat{
+		notify := &pb.NotifyChatChannel{
 			ChannelType: pb.ChannelType(m.ChannelType),
 			ChannelId:   m.ChannelId,
 			SenderId:    m.SenderId,
@@ -150,13 +150,13 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		}
 		a.Respond(nil)
 
-	case *pb.ReqChannelHistory:
+	case *pb.ReqChatChannelHistory:
 		count := int(m.Count)
 		if count <= 0 || count > a.channel.RingBufferSize() {
 			count = a.channel.RingBufferSize()
 		}
 		msgs := a.buffer.Recent(count)
-		a.Respond(&pb.RspChannelHistory{Messages: msgs})
+		a.Respond(&pb.RspChatChannelHistory{Messages: msgs})
 	}
 	return nil
 }

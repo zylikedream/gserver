@@ -238,7 +238,7 @@ func (x *RspChatInit) GetSystemMessages() []*PChatMsg {
 }
 
 // 发送私聊 (28008)
-type ReqSendPrivateChat struct {
+type ReqChatSendPrivate struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -247,8 +247,8 @@ type ReqSendPrivateChat struct {
 	Content  string `protobuf:"bytes,2,opt,name=content,proto3" json:"content"`
 }
 
-func (x *ReqSendPrivateChat) Reset() {
-	*x = ReqSendPrivateChat{}
+func (x *ReqChatSendPrivate) Reset() {
+	*x = ReqChatSendPrivate{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -256,13 +256,13 @@ func (x *ReqSendPrivateChat) Reset() {
 	}
 }
 
-func (x *ReqSendPrivateChat) String() string {
+func (x *ReqChatSendPrivate) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReqSendPrivateChat) ProtoMessage() {}
+func (*ReqChatSendPrivate) ProtoMessage() {}
 
-func (x *ReqSendPrivateChat) ProtoReflect() protoreflect.Message {
+func (x *ReqChatSendPrivate) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -274,33 +274,33 @@ func (x *ReqSendPrivateChat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReqSendPrivateChat.ProtoReflect.Descriptor instead.
-func (*ReqSendPrivateChat) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReqChatSendPrivate.ProtoReflect.Descriptor instead.
+func (*ReqChatSendPrivate) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ReqSendPrivateChat) GetTargetId() int64 {
+func (x *ReqChatSendPrivate) GetTargetId() int64 {
 	if x != nil {
 		return x.TargetId
 	}
 	return 0
 }
 
-func (x *ReqSendPrivateChat) GetContent() string {
+func (x *ReqChatSendPrivate) GetContent() string {
 	if x != nil {
 		return x.Content
 	}
 	return ""
 }
 
-type RspSendPrivateChat struct {
+type RspChatSendPrivate struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 }
 
-func (x *RspSendPrivateChat) Reset() {
-	*x = RspSendPrivateChat{}
+func (x *RspChatSendPrivate) Reset() {
+	*x = RspChatSendPrivate{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -308,13 +308,13 @@ func (x *RspSendPrivateChat) Reset() {
 	}
 }
 
-func (x *RspSendPrivateChat) String() string {
+func (x *RspChatSendPrivate) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RspSendPrivateChat) ProtoMessage() {}
+func (*RspChatSendPrivate) ProtoMessage() {}
 
-func (x *RspSendPrivateChat) ProtoReflect() protoreflect.Message {
+func (x *RspChatSendPrivate) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -326,13 +326,13 @@ func (x *RspSendPrivateChat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RspSendPrivateChat.ProtoReflect.Descriptor instead.
-func (*RspSendPrivateChat) Descriptor() ([]byte, []int) {
+// Deprecated: Use RspChatSendPrivate.ProtoReflect.Descriptor instead.
+func (*RspChatSendPrivate) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{4}
 }
 
 // 拉取私聊历史 (28010)
-type ReqPrivateChatHistory struct {
+type ReqChatPrivateHistory struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -341,8 +341,8 @@ type ReqPrivateChatHistory struct {
 	Count    int32 `protobuf:"varint,2,opt,name=count,proto3" json:"count"`
 }
 
-func (x *ReqPrivateChatHistory) Reset() {
-	*x = ReqPrivateChatHistory{}
+func (x *ReqChatPrivateHistory) Reset() {
+	*x = ReqChatPrivateHistory{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[5]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -350,13 +350,13 @@ func (x *ReqPrivateChatHistory) Reset() {
 	}
 }
 
-func (x *ReqPrivateChatHistory) String() string {
+func (x *ReqChatPrivateHistory) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReqPrivateChatHistory) ProtoMessage() {}
+func (*ReqChatPrivateHistory) ProtoMessage() {}
 
-func (x *ReqPrivateChatHistory) ProtoReflect() protoreflect.Message {
+func (x *ReqChatPrivateHistory) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[5]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -368,26 +368,26 @@ func (x *ReqPrivateChatHistory) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReqPrivateChatHistory.ProtoReflect.Descriptor instead.
-func (*ReqPrivateChatHistory) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReqChatPrivateHistory.ProtoReflect.Descriptor instead.
+func (*ReqChatPrivateHistory) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *ReqPrivateChatHistory) GetFriendId() int64 {
+func (x *ReqChatPrivateHistory) GetFriendId() int64 {
 	if x != nil {
 		return x.FriendId
 	}
 	return 0
 }
 
-func (x *ReqPrivateChatHistory) GetCount() int32 {
+func (x *ReqChatPrivateHistory) GetCount() int32 {
 	if x != nil {
 		return x.Count
 	}
 	return 0
 }
 
-type RspPrivateChatHistory struct {
+type RspChatPrivateHistory struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -395,8 +395,8 @@ type RspPrivateChatHistory struct {
 	Messages []*PChatMsg `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages"`
 }
 
-func (x *RspPrivateChatHistory) Reset() {
-	*x = RspPrivateChatHistory{}
+func (x *RspChatPrivateHistory) Reset() {
+	*x = RspChatPrivateHistory{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -404,13 +404,13 @@ func (x *RspPrivateChatHistory) Reset() {
 	}
 }
 
-func (x *RspPrivateChatHistory) String() string {
+func (x *RspChatPrivateHistory) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RspPrivateChatHistory) ProtoMessage() {}
+func (*RspChatPrivateHistory) ProtoMessage() {}
 
-func (x *RspPrivateChatHistory) ProtoReflect() protoreflect.Message {
+func (x *RspChatPrivateHistory) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -422,12 +422,12 @@ func (x *RspPrivateChatHistory) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RspPrivateChatHistory.ProtoReflect.Descriptor instead.
-func (*RspPrivateChatHistory) Descriptor() ([]byte, []int) {
+// Deprecated: Use RspChatPrivateHistory.ProtoReflect.Descriptor instead.
+func (*RspChatPrivateHistory) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *RspPrivateChatHistory) GetMessages() []*PChatMsg {
+func (x *RspChatPrivateHistory) GetMessages() []*PChatMsg {
 	if x != nil {
 		return x.Messages
 	}
@@ -435,7 +435,7 @@ func (x *RspPrivateChatHistory) GetMessages() []*PChatMsg {
 }
 
 // 私聊消息通知 (28012) - 服务端推送
-type NotifyPrivateChat struct {
+type NotifyChatPrivate struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -443,8 +443,8 @@ type NotifyPrivateChat struct {
 	Message *PChatMsg `protobuf:"bytes,1,opt,name=message,proto3" json:"message"`
 }
 
-func (x *NotifyPrivateChat) Reset() {
-	*x = NotifyPrivateChat{}
+func (x *NotifyChatPrivate) Reset() {
+	*x = NotifyChatPrivate{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -452,13 +452,13 @@ func (x *NotifyPrivateChat) Reset() {
 	}
 }
 
-func (x *NotifyPrivateChat) String() string {
+func (x *NotifyChatPrivate) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*NotifyPrivateChat) ProtoMessage() {}
+func (*NotifyChatPrivate) ProtoMessage() {}
 
-func (x *NotifyPrivateChat) ProtoReflect() protoreflect.Message {
+func (x *NotifyChatPrivate) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -470,12 +470,12 @@ func (x *NotifyPrivateChat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NotifyPrivateChat.ProtoReflect.Descriptor instead.
-func (*NotifyPrivateChat) Descriptor() ([]byte, []int) {
+// Deprecated: Use NotifyChatPrivate.ProtoReflect.Descriptor instead.
+func (*NotifyChatPrivate) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *NotifyPrivateChat) GetMessage() *PChatMsg {
+func (x *NotifyChatPrivate) GetMessage() *PChatMsg {
 	if x != nil {
 		return x.Message
 	}
@@ -483,7 +483,7 @@ func (x *NotifyPrivateChat) GetMessage() *PChatMsg {
 }
 
 // 拉取系统消息 (28013)
-type ReqSystemChatHistory struct {
+type ReqChatSystemHistory struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -491,8 +491,8 @@ type ReqSystemChatHistory struct {
 	Count int32 `protobuf:"varint,1,opt,name=count,proto3" json:"count"`
 }
 
-func (x *ReqSystemChatHistory) Reset() {
-	*x = ReqSystemChatHistory{}
+func (x *ReqChatSystemHistory) Reset() {
+	*x = ReqChatSystemHistory{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -500,13 +500,13 @@ func (x *ReqSystemChatHistory) Reset() {
 	}
 }
 
-func (x *ReqSystemChatHistory) String() string {
+func (x *ReqChatSystemHistory) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReqSystemChatHistory) ProtoMessage() {}
+func (*ReqChatSystemHistory) ProtoMessage() {}
 
-func (x *ReqSystemChatHistory) ProtoReflect() protoreflect.Message {
+func (x *ReqChatSystemHistory) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -518,19 +518,19 @@ func (x *ReqSystemChatHistory) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReqSystemChatHistory.ProtoReflect.Descriptor instead.
-func (*ReqSystemChatHistory) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReqChatSystemHistory.ProtoReflect.Descriptor instead.
+func (*ReqChatSystemHistory) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ReqSystemChatHistory) GetCount() int32 {
+func (x *ReqChatSystemHistory) GetCount() int32 {
 	if x != nil {
 		return x.Count
 	}
 	return 0
 }
 
-type RspSystemChatHistory struct {
+type RspChatSystemHistory struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -538,8 +538,8 @@ type RspSystemChatHistory struct {
 	Messages []*PChatMsg `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages"`
 }
 
-func (x *RspSystemChatHistory) Reset() {
-	*x = RspSystemChatHistory{}
+func (x *RspChatSystemHistory) Reset() {
+	*x = RspChatSystemHistory{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -547,13 +547,13 @@ func (x *RspSystemChatHistory) Reset() {
 	}
 }
 
-func (x *RspSystemChatHistory) String() string {
+func (x *RspChatSystemHistory) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RspSystemChatHistory) ProtoMessage() {}
+func (*RspChatSystemHistory) ProtoMessage() {}
 
-func (x *RspSystemChatHistory) ProtoReflect() protoreflect.Message {
+func (x *RspChatSystemHistory) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -565,12 +565,12 @@ func (x *RspSystemChatHistory) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RspSystemChatHistory.ProtoReflect.Descriptor instead.
-func (*RspSystemChatHistory) Descriptor() ([]byte, []int) {
+// Deprecated: Use RspChatSystemHistory.ProtoReflect.Descriptor instead.
+func (*RspChatSystemHistory) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{9}
 }
 
-func (x *RspSystemChatHistory) GetMessages() []*PChatMsg {
+func (x *RspChatSystemHistory) GetMessages() []*PChatMsg {
 	if x != nil {
 		return x.Messages
 	}
@@ -578,7 +578,7 @@ func (x *RspSystemChatHistory) GetMessages() []*PChatMsg {
 }
 
 // 系统消息通知 (28015) - 服务端推送
-type NotifySystemChat struct {
+type NotifyChatSystem struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -586,8 +586,8 @@ type NotifySystemChat struct {
 	Message *PChatMsg `protobuf:"bytes,1,opt,name=message,proto3" json:"message"`
 }
 
-func (x *NotifySystemChat) Reset() {
-	*x = NotifySystemChat{}
+func (x *NotifyChatSystem) Reset() {
+	*x = NotifyChatSystem{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -595,13 +595,13 @@ func (x *NotifySystemChat) Reset() {
 	}
 }
 
-func (x *NotifySystemChat) String() string {
+func (x *NotifyChatSystem) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*NotifySystemChat) ProtoMessage() {}
+func (*NotifyChatSystem) ProtoMessage() {}
 
-func (x *NotifySystemChat) ProtoReflect() protoreflect.Message {
+func (x *NotifyChatSystem) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -613,12 +613,12 @@ func (x *NotifySystemChat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NotifySystemChat.ProtoReflect.Descriptor instead.
-func (*NotifySystemChat) Descriptor() ([]byte, []int) {
+// Deprecated: Use NotifyChatSystem.ProtoReflect.Descriptor instead.
+func (*NotifyChatSystem) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *NotifySystemChat) GetMessage() *PChatMsg {
+func (x *NotifyChatSystem) GetMessage() *PChatMsg {
 	if x != nil {
 		return x.Message
 	}
@@ -626,7 +626,7 @@ func (x *NotifySystemChat) GetMessage() *PChatMsg {
 }
 
 // 发送频道消息 (28020) - 客户端发送 channel_type + content，channel_id 由服务端推断
-type ReqSendChannelChat struct {
+type ReqChatSendChannel struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -635,8 +635,8 @@ type ReqSendChannelChat struct {
 	Content     string      `protobuf:"bytes,2,opt,name=content,proto3" json:"content"`
 }
 
-func (x *ReqSendChannelChat) Reset() {
-	*x = ReqSendChannelChat{}
+func (x *ReqChatSendChannel) Reset() {
+	*x = ReqChatSendChannel{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -644,13 +644,13 @@ func (x *ReqSendChannelChat) Reset() {
 	}
 }
 
-func (x *ReqSendChannelChat) String() string {
+func (x *ReqChatSendChannel) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReqSendChannelChat) ProtoMessage() {}
+func (*ReqChatSendChannel) ProtoMessage() {}
 
-func (x *ReqSendChannelChat) ProtoReflect() protoreflect.Message {
+func (x *ReqChatSendChannel) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -662,33 +662,33 @@ func (x *ReqSendChannelChat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReqSendChannelChat.ProtoReflect.Descriptor instead.
-func (*ReqSendChannelChat) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReqChatSendChannel.ProtoReflect.Descriptor instead.
+func (*ReqChatSendChannel) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *ReqSendChannelChat) GetChannelType() ChannelType {
+func (x *ReqChatSendChannel) GetChannelType() ChannelType {
 	if x != nil {
 		return x.ChannelType
 	}
 	return ChannelType_CHANNEL_TYPE_UNKNOWN
 }
 
-func (x *ReqSendChannelChat) GetContent() string {
+func (x *ReqChatSendChannel) GetContent() string {
 	if x != nil {
 		return x.Content
 	}
 	return ""
 }
 
-type RspSendChannelChat struct {
+type RspChatSendChannel struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 }
 
-func (x *RspSendChannelChat) Reset() {
-	*x = RspSendChannelChat{}
+func (x *RspChatSendChannel) Reset() {
+	*x = RspChatSendChannel{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -696,13 +696,13 @@ func (x *RspSendChannelChat) Reset() {
 	}
 }
 
-func (x *RspSendChannelChat) String() string {
+func (x *RspChatSendChannel) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RspSendChannelChat) ProtoMessage() {}
+func (*RspChatSendChannel) ProtoMessage() {}
 
-func (x *RspSendChannelChat) ProtoReflect() protoreflect.Message {
+func (x *RspChatSendChannel) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -714,13 +714,13 @@ func (x *RspSendChannelChat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RspSendChannelChat.ProtoReflect.Descriptor instead.
-func (*RspSendChannelChat) Descriptor() ([]byte, []int) {
+// Deprecated: Use RspChatSendChannel.ProtoReflect.Descriptor instead.
+func (*RspChatSendChannel) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{12}
 }
 
 // 频道消息通知 (28022) - 服务端推送
-type NotifyChannelChat struct {
+type NotifyChatChannel struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -732,8 +732,8 @@ type NotifyChannelChat struct {
 	Timestamp   int64       `protobuf:"varint,5,opt,name=timestamp,proto3" json:"timestamp"`
 }
 
-func (x *NotifyChannelChat) Reset() {
-	*x = NotifyChannelChat{}
+func (x *NotifyChatChannel) Reset() {
+	*x = NotifyChatChannel{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -741,13 +741,13 @@ func (x *NotifyChannelChat) Reset() {
 	}
 }
 
-func (x *NotifyChannelChat) String() string {
+func (x *NotifyChatChannel) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*NotifyChannelChat) ProtoMessage() {}
+func (*NotifyChatChannel) ProtoMessage() {}
 
-func (x *NotifyChannelChat) ProtoReflect() protoreflect.Message {
+func (x *NotifyChatChannel) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -759,40 +759,40 @@ func (x *NotifyChannelChat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NotifyChannelChat.ProtoReflect.Descriptor instead.
-func (*NotifyChannelChat) Descriptor() ([]byte, []int) {
+// Deprecated: Use NotifyChatChannel.ProtoReflect.Descriptor instead.
+func (*NotifyChatChannel) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *NotifyChannelChat) GetChannelType() ChannelType {
+func (x *NotifyChatChannel) GetChannelType() ChannelType {
 	if x != nil {
 		return x.ChannelType
 	}
 	return ChannelType_CHANNEL_TYPE_UNKNOWN
 }
 
-func (x *NotifyChannelChat) GetChannelId() int64 {
+func (x *NotifyChatChannel) GetChannelId() int64 {
 	if x != nil {
 		return x.ChannelId
 	}
 	return 0
 }
 
-func (x *NotifyChannelChat) GetSenderId() int64 {
+func (x *NotifyChatChannel) GetSenderId() int64 {
 	if x != nil {
 		return x.SenderId
 	}
 	return 0
 }
 
-func (x *NotifyChannelChat) GetContent() string {
+func (x *NotifyChatChannel) GetContent() string {
 	if x != nil {
 		return x.Content
 	}
 	return ""
 }
 
-func (x *NotifyChannelChat) GetTimestamp() int64 {
+func (x *NotifyChatChannel) GetTimestamp() int64 {
 	if x != nil {
 		return x.Timestamp
 	}
@@ -800,7 +800,7 @@ func (x *NotifyChannelChat) GetTimestamp() int64 {
 }
 
 // 拉取频道历史 (28023)
-type ReqChannelHistory struct {
+type ReqChatChannelHistory struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -810,8 +810,8 @@ type ReqChannelHistory struct {
 	Count       int32       `protobuf:"varint,3,opt,name=count,proto3" json:"count"`
 }
 
-func (x *ReqChannelHistory) Reset() {
-	*x = ReqChannelHistory{}
+func (x *ReqChatChannelHistory) Reset() {
+	*x = ReqChatChannelHistory{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -819,13 +819,13 @@ func (x *ReqChannelHistory) Reset() {
 	}
 }
 
-func (x *ReqChannelHistory) String() string {
+func (x *ReqChatChannelHistory) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReqChannelHistory) ProtoMessage() {}
+func (*ReqChatChannelHistory) ProtoMessage() {}
 
-func (x *ReqChannelHistory) ProtoReflect() protoreflect.Message {
+func (x *ReqChatChannelHistory) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -837,33 +837,33 @@ func (x *ReqChannelHistory) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReqChannelHistory.ProtoReflect.Descriptor instead.
-func (*ReqChannelHistory) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReqChatChannelHistory.ProtoReflect.Descriptor instead.
+func (*ReqChatChannelHistory) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ReqChannelHistory) GetChannelType() ChannelType {
+func (x *ReqChatChannelHistory) GetChannelType() ChannelType {
 	if x != nil {
 		return x.ChannelType
 	}
 	return ChannelType_CHANNEL_TYPE_UNKNOWN
 }
 
-func (x *ReqChannelHistory) GetChannelId() int64 {
+func (x *ReqChatChannelHistory) GetChannelId() int64 {
 	if x != nil {
 		return x.ChannelId
 	}
 	return 0
 }
 
-func (x *ReqChannelHistory) GetCount() int32 {
+func (x *ReqChatChannelHistory) GetCount() int32 {
 	if x != nil {
 		return x.Count
 	}
 	return 0
 }
 
-type RspChannelHistory struct {
+type RspChatChannelHistory struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -871,8 +871,8 @@ type RspChannelHistory struct {
 	Messages []*PChatMsg `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages"`
 }
 
-func (x *RspChannelHistory) Reset() {
-	*x = RspChannelHistory{}
+func (x *RspChatChannelHistory) Reset() {
+	*x = RspChatChannelHistory{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chat_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -880,13 +880,13 @@ func (x *RspChannelHistory) Reset() {
 	}
 }
 
-func (x *RspChannelHistory) String() string {
+func (x *RspChatChannelHistory) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RspChannelHistory) ProtoMessage() {}
+func (*RspChatChannelHistory) ProtoMessage() {}
 
-func (x *RspChannelHistory) ProtoReflect() protoreflect.Message {
+func (x *RspChatChannelHistory) ProtoReflect() protoreflect.Message {
 	mi := &file_chat_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -898,12 +898,12 @@ func (x *RspChannelHistory) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RspChannelHistory.ProtoReflect.Descriptor instead.
-func (*RspChannelHistory) Descriptor() ([]byte, []int) {
+// Deprecated: Use RspChatChannelHistory.ProtoReflect.Descriptor instead.
+func (*RspChatChannelHistory) Descriptor() ([]byte, []int) {
 	return file_chat_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *RspChannelHistory) GetMessages() []*PChatMsg {
+func (x *RspChatChannelHistory) GetMessages() []*PChatMsg {
 	if x != nil {
 		return x.Messages
 	}
@@ -937,55 +937,55 @@ var file_chat_proto_rawDesc = []byte{
 	0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f,
 	0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68, 0x61, 0x74, 0x4d, 0x73, 0x67, 0x52, 0x0e,
 	0x73, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x3a, 0x06,
-	0xa8, 0xac, 0x1d, 0xe2, 0xda, 0x01, 0x22, 0x53, 0x0a, 0x12, 0x52, 0x65, 0x71, 0x53, 0x65, 0x6e,
-	0x64, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x74, 0x12, 0x1b, 0x0a, 0x09,
+	0xa8, 0xac, 0x1d, 0xe2, 0xda, 0x01, 0x22, 0x53, 0x0a, 0x12, 0x52, 0x65, 0x71, 0x43, 0x68, 0x61,
+	0x74, 0x53, 0x65, 0x6e, 0x64, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x12, 0x1b, 0x0a, 0x09,
 	0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52,
 	0x08, 0x74, 0x61, 0x72, 0x67, 0x65, 0x74, 0x49, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6e,
 	0x74, 0x65, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74,
 	0x65, 0x6e, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xe8, 0xda, 0x01, 0x22, 0x1c, 0x0a, 0x12, 0x52,
-	0x73, 0x70, 0x53, 0x65, 0x6e, 0x64, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61,
-	0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xe9, 0xda, 0x01, 0x22, 0x52, 0x0a, 0x15, 0x52, 0x65, 0x71,
-	0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x74, 0x48, 0x69, 0x73, 0x74, 0x6f,
+	0x73, 0x70, 0x43, 0x68, 0x61, 0x74, 0x53, 0x65, 0x6e, 0x64, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74,
+	0x65, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xe9, 0xda, 0x01, 0x22, 0x52, 0x0a, 0x15, 0x52, 0x65, 0x71,
+	0x43, 0x68, 0x61, 0x74, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x48, 0x69, 0x73, 0x74, 0x6f,
 	0x72, 0x79, 0x12, 0x1b, 0x0a, 0x09, 0x66, 0x72, 0x69, 0x65, 0x6e, 0x64, 0x5f, 0x69, 0x64, 0x18,
 	0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x08, 0x66, 0x72, 0x69, 0x65, 0x6e, 0x64, 0x49, 0x64, 0x12,
 	0x14, 0x0a, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05,
 	0x63, 0x6f, 0x75, 0x6e, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xea, 0xda, 0x01, 0x22, 0x56, 0x0a,
-	0x15, 0x52, 0x73, 0x70, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x74, 0x48,
+	0x15, 0x52, 0x73, 0x70, 0x43, 0x68, 0x61, 0x74, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x48,
 	0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x35, 0x0a, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67,
 	0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78,
 	0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68, 0x61, 0x74,
 	0x4d, 0x73, 0x67, 0x52, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x3a, 0x06, 0xa8,
-	0xac, 0x1d, 0xeb, 0xda, 0x01, 0x22, 0x50, 0x0a, 0x11, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x50,
-	0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x43, 0x68, 0x61, 0x74, 0x12, 0x33, 0x0a, 0x07, 0x6d, 0x65,
+	0xac, 0x1d, 0xeb, 0xda, 0x01, 0x22, 0x50, 0x0a, 0x11, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x43,
+	0x68, 0x61, 0x74, 0x50, 0x72, 0x69, 0x76, 0x61, 0x74, 0x65, 0x12, 0x33, 0x0a, 0x07, 0x6d, 0x65,
 	0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61,
 	0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43,
 	0x68, 0x61, 0x74, 0x4d, 0x73, 0x67, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a,
-	0x06, 0xa8, 0xac, 0x1d, 0xec, 0xda, 0x01, 0x22, 0x34, 0x0a, 0x14, 0x52, 0x65, 0x71, 0x53, 0x79,
-	0x73, 0x74, 0x65, 0x6d, 0x43, 0x68, 0x61, 0x74, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12,
+	0x06, 0xa8, 0xac, 0x1d, 0xec, 0xda, 0x01, 0x22, 0x34, 0x0a, 0x14, 0x52, 0x65, 0x71, 0x43, 0x68,
+	0x61, 0x74, 0x53, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12,
 	0x14, 0x0a, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05,
 	0x63, 0x6f, 0x75, 0x6e, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xed, 0xda, 0x01, 0x22, 0x55, 0x0a,
-	0x14, 0x52, 0x73, 0x70, 0x53, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x43, 0x68, 0x61, 0x74, 0x48, 0x69,
+	0x14, 0x52, 0x73, 0x70, 0x43, 0x68, 0x61, 0x74, 0x53, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x48, 0x69,
 	0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x35, 0x0a, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65,
 	0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79,
 	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68, 0x61, 0x74, 0x4d,
 	0x73, 0x67, 0x52, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x3a, 0x06, 0xa8, 0xac,
-	0x1d, 0xee, 0xda, 0x01, 0x22, 0x4f, 0x0a, 0x10, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x53, 0x79,
-	0x73, 0x74, 0x65, 0x6d, 0x43, 0x68, 0x61, 0x74, 0x12, 0x33, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73,
+	0x1d, 0xee, 0xda, 0x01, 0x22, 0x4f, 0x0a, 0x10, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x43, 0x68,
+	0x61, 0x74, 0x53, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x12, 0x33, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73,
 	0x61, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c, 0x61,
 	0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68, 0x61,
 	0x74, 0x4d, 0x73, 0x67, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x3a, 0x06, 0xa8,
-	0xac, 0x1d, 0xef, 0xda, 0x01, 0x22, 0x77, 0x0a, 0x12, 0x52, 0x65, 0x71, 0x53, 0x65, 0x6e, 0x64,
-	0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x43, 0x68, 0x61, 0x74, 0x12, 0x3f, 0x0a, 0x0c, 0x63,
+	0xac, 0x1d, 0xef, 0xda, 0x01, 0x22, 0x77, 0x0a, 0x12, 0x52, 0x65, 0x71, 0x43, 0x68, 0x61, 0x74,
+	0x53, 0x65, 0x6e, 0x64, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x12, 0x3f, 0x0a, 0x0c, 0x63,
 	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x0e, 0x32, 0x1c, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
 	0x63, 0x6f, 0x6c, 0x2e, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x52,
 	0x0b, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x12, 0x18, 0x0a, 0x07,
 	0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x63,
 	0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xf4, 0xda, 0x01, 0x22, 0x1c,
-	0x0a, 0x12, 0x52, 0x73, 0x70, 0x53, 0x65, 0x6e, 0x64, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
-	0x43, 0x68, 0x61, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xf5, 0xda, 0x01, 0x22, 0xd0, 0x01, 0x0a,
-	0x11, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x43, 0x68,
-	0x61, 0x74, 0x12, 0x3f, 0x0a, 0x0c, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x5f, 0x74, 0x79,
+	0x0a, 0x12, 0x52, 0x73, 0x70, 0x43, 0x68, 0x61, 0x74, 0x53, 0x65, 0x6e, 0x64, 0x43, 0x68, 0x61,
+	0x6e, 0x6e, 0x65, 0x6c, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xf5, 0xda, 0x01, 0x22, 0xd0, 0x01, 0x0a,
+	0x11, 0x4e, 0x6f, 0x74, 0x69, 0x66, 0x79, 0x43, 0x68, 0x61, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e,
+	0x65, 0x6c, 0x12, 0x3f, 0x0a, 0x0c, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x5f, 0x74, 0x79,
 	0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1c, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78,
 	0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x43, 0x68, 0x61, 0x6e, 0x6e,
 	0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x52, 0x0b, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54,
@@ -997,28 +997,28 @@ var file_chat_proto_rawDesc = []byte{
 	0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x74, 0x69, 0x6d,
 	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x05, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x74, 0x69,
 	0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xf6, 0xda, 0x01, 0x22,
-	0x91, 0x01, 0x0a, 0x11, 0x52, 0x65, 0x71, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x48, 0x69,
-	0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x3f, 0x0a, 0x0c, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c,
-	0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1c, 0x2e, 0x67, 0x61,
-	0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x43, 0x68,
-	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x52, 0x0b, 0x63, 0x68, 0x61, 0x6e, 0x6e,
-	0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65,
-	0x6c, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x63, 0x68, 0x61, 0x6e,
-	0x6e, 0x65, 0x6c, 0x49, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x03,
-	0x20, 0x01, 0x28, 0x05, 0x52, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x3a, 0x06, 0xa8, 0xac, 0x1d,
-	0xf7, 0xda, 0x01, 0x22, 0x52, 0x0a, 0x11, 0x52, 0x73, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65,
-	0x6c, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x35, 0x0a, 0x08, 0x6d, 0x65, 0x73, 0x73,
-	0x61, 0x67, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c,
-	0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68,
-	0x61, 0x74, 0x4d, 0x73, 0x67, 0x52, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x3a,
-	0x06, 0xa8, 0xac, 0x1d, 0xf8, 0xda, 0x01, 0x2a, 0x57, 0x0a, 0x0b, 0x43, 0x68, 0x61, 0x6e, 0x6e,
-	0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x12, 0x18, 0x0a, 0x14, 0x43, 0x48, 0x41, 0x4e, 0x4e, 0x45,
-	0x4c, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x55, 0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x00,
+	0x95, 0x01, 0x0a, 0x15, 0x52, 0x65, 0x71, 0x43, 0x68, 0x61, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e,
+	0x65, 0x6c, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x3f, 0x0a, 0x0c, 0x63, 0x68, 0x61,
+	0x6e, 0x6e, 0x65, 0x6c, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32,
+	0x1c, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f,
+	0x6c, 0x2e, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x52, 0x0b, 0x63,
+	0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x12, 0x1d, 0x0a, 0x0a, 0x63, 0x68,
+	0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09,
+	0x63, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x49, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x63, 0x6f, 0x75,
+	0x6e, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x3a,
+	0x06, 0xa8, 0xac, 0x1d, 0xf7, 0xda, 0x01, 0x22, 0x56, 0x0a, 0x15, 0x52, 0x73, 0x70, 0x43, 0x68,
+	0x61, 0x74, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79,
+	0x12, 0x35, 0x0a, 0x08, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03,
+	0x28, 0x0b, 0x32, 0x19, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x43, 0x68, 0x61, 0x74, 0x4d, 0x73, 0x67, 0x52, 0x08, 0x6d,
+	0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xf8, 0xda, 0x01, 0x2a,
+	0x57, 0x0a, 0x0b, 0x43, 0x68, 0x61, 0x6e, 0x6e, 0x65, 0x6c, 0x54, 0x79, 0x70, 0x65, 0x12, 0x18,
+	0x0a, 0x14, 0x43, 0x48, 0x41, 0x4e, 0x4e, 0x45, 0x4c, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x55,
+	0x4e, 0x4b, 0x4e, 0x4f, 0x57, 0x4e, 0x10, 0x00, 0x12, 0x16, 0x0a, 0x12, 0x43, 0x48, 0x41, 0x4e,
+	0x4e, 0x45, 0x4c, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x57, 0x4f, 0x52, 0x4c, 0x44, 0x10, 0x01,
 	0x12, 0x16, 0x0a, 0x12, 0x43, 0x48, 0x41, 0x4e, 0x4e, 0x45, 0x4c, 0x5f, 0x54, 0x59, 0x50, 0x45,
-	0x5f, 0x57, 0x4f, 0x52, 0x4c, 0x44, 0x10, 0x01, 0x12, 0x16, 0x0a, 0x12, 0x43, 0x48, 0x41, 0x4e,
-	0x4e, 0x45, 0x4c, 0x5f, 0x54, 0x59, 0x50, 0x45, 0x5f, 0x47, 0x55, 0x49, 0x4c, 0x44, 0x10, 0x02,
-	0x42, 0x09, 0x5a, 0x07, 0x2e, 0x2f, 0x70, 0x62, 0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x5f, 0x47, 0x55, 0x49, 0x4c, 0x44, 0x10, 0x02, 0x42, 0x09, 0x5a, 0x07, 0x2e, 0x2f, 0x70, 0x62,
+	0x3b, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1040,33 +1040,33 @@ var file_chat_proto_goTypes = []interface{}{
 	(*PChatMsg)(nil),              // 1: galaxy.protocol.PChatMsg
 	(*ReqChatInit)(nil),           // 2: galaxy.protocol.ReqChatInit
 	(*RspChatInit)(nil),           // 3: galaxy.protocol.RspChatInit
-	(*ReqSendPrivateChat)(nil),    // 4: galaxy.protocol.ReqSendPrivateChat
-	(*RspSendPrivateChat)(nil),    // 5: galaxy.protocol.RspSendPrivateChat
-	(*ReqPrivateChatHistory)(nil), // 6: galaxy.protocol.ReqPrivateChatHistory
-	(*RspPrivateChatHistory)(nil), // 7: galaxy.protocol.RspPrivateChatHistory
-	(*NotifyPrivateChat)(nil),     // 8: galaxy.protocol.NotifyPrivateChat
-	(*ReqSystemChatHistory)(nil),  // 9: galaxy.protocol.ReqSystemChatHistory
-	(*RspSystemChatHistory)(nil),  // 10: galaxy.protocol.RspSystemChatHistory
-	(*NotifySystemChat)(nil),      // 11: galaxy.protocol.NotifySystemChat
-	(*ReqSendChannelChat)(nil),    // 12: galaxy.protocol.ReqSendChannelChat
-	(*RspSendChannelChat)(nil),    // 13: galaxy.protocol.RspSendChannelChat
-	(*NotifyChannelChat)(nil),     // 14: galaxy.protocol.NotifyChannelChat
-	(*ReqChannelHistory)(nil),     // 15: galaxy.protocol.ReqChannelHistory
-	(*RspChannelHistory)(nil),     // 16: galaxy.protocol.RspChannelHistory
+	(*ReqChatSendPrivate)(nil),    // 4: galaxy.protocol.ReqChatSendPrivate
+	(*RspChatSendPrivate)(nil),    // 5: galaxy.protocol.RspChatSendPrivate
+	(*ReqChatPrivateHistory)(nil), // 6: galaxy.protocol.ReqChatPrivateHistory
+	(*RspChatPrivateHistory)(nil), // 7: galaxy.protocol.RspChatPrivateHistory
+	(*NotifyChatPrivate)(nil),     // 8: galaxy.protocol.NotifyChatPrivate
+	(*ReqChatSystemHistory)(nil),  // 9: galaxy.protocol.ReqChatSystemHistory
+	(*RspChatSystemHistory)(nil),  // 10: galaxy.protocol.RspChatSystemHistory
+	(*NotifyChatSystem)(nil),      // 11: galaxy.protocol.NotifyChatSystem
+	(*ReqChatSendChannel)(nil),    // 12: galaxy.protocol.ReqChatSendChannel
+	(*RspChatSendChannel)(nil),    // 13: galaxy.protocol.RspChatSendChannel
+	(*NotifyChatChannel)(nil),     // 14: galaxy.protocol.NotifyChatChannel
+	(*ReqChatChannelHistory)(nil), // 15: galaxy.protocol.ReqChatChannelHistory
+	(*RspChatChannelHistory)(nil), // 16: galaxy.protocol.RspChatChannelHistory
 	(*PRolePublic)(nil),           // 17: galaxy.protocol.PRolePublic
 }
 var file_chat_proto_depIdxs = []int32{
 	17, // 0: galaxy.protocol.PChatMsg.sender:type_name -> galaxy.protocol.PRolePublic
 	1,  // 1: galaxy.protocol.RspChatInit.world_messages:type_name -> galaxy.protocol.PChatMsg
 	1,  // 2: galaxy.protocol.RspChatInit.system_messages:type_name -> galaxy.protocol.PChatMsg
-	1,  // 3: galaxy.protocol.RspPrivateChatHistory.messages:type_name -> galaxy.protocol.PChatMsg
-	1,  // 4: galaxy.protocol.NotifyPrivateChat.message:type_name -> galaxy.protocol.PChatMsg
-	1,  // 5: galaxy.protocol.RspSystemChatHistory.messages:type_name -> galaxy.protocol.PChatMsg
-	1,  // 6: galaxy.protocol.NotifySystemChat.message:type_name -> galaxy.protocol.PChatMsg
-	0,  // 7: galaxy.protocol.ReqSendChannelChat.channel_type:type_name -> galaxy.protocol.ChannelType
-	0,  // 8: galaxy.protocol.NotifyChannelChat.channel_type:type_name -> galaxy.protocol.ChannelType
-	0,  // 9: galaxy.protocol.ReqChannelHistory.channel_type:type_name -> galaxy.protocol.ChannelType
-	1,  // 10: galaxy.protocol.RspChannelHistory.messages:type_name -> galaxy.protocol.PChatMsg
+	1,  // 3: galaxy.protocol.RspChatPrivateHistory.messages:type_name -> galaxy.protocol.PChatMsg
+	1,  // 4: galaxy.protocol.NotifyChatPrivate.message:type_name -> galaxy.protocol.PChatMsg
+	1,  // 5: galaxy.protocol.RspChatSystemHistory.messages:type_name -> galaxy.protocol.PChatMsg
+	1,  // 6: galaxy.protocol.NotifyChatSystem.message:type_name -> galaxy.protocol.PChatMsg
+	0,  // 7: galaxy.protocol.ReqChatSendChannel.channel_type:type_name -> galaxy.protocol.ChannelType
+	0,  // 8: galaxy.protocol.NotifyChatChannel.channel_type:type_name -> galaxy.protocol.ChannelType
+	0,  // 9: galaxy.protocol.ReqChatChannelHistory.channel_type:type_name -> galaxy.protocol.ChannelType
+	1,  // 10: galaxy.protocol.RspChatChannelHistory.messages:type_name -> galaxy.protocol.PChatMsg
 	11, // [11:11] is the sub-list for method output_type
 	11, // [11:11] is the sub-list for method input_type
 	11, // [11:11] is the sub-list for extension type_name
@@ -1119,7 +1119,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReqSendPrivateChat); i {
+			switch v := v.(*ReqChatSendPrivate); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1131,7 +1131,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RspSendPrivateChat); i {
+			switch v := v.(*RspChatSendPrivate); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1143,7 +1143,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReqPrivateChatHistory); i {
+			switch v := v.(*ReqChatPrivateHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1155,7 +1155,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RspPrivateChatHistory); i {
+			switch v := v.(*RspChatPrivateHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1167,7 +1167,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NotifyPrivateChat); i {
+			switch v := v.(*NotifyChatPrivate); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1179,7 +1179,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReqSystemChatHistory); i {
+			switch v := v.(*ReqChatSystemHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1191,7 +1191,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RspSystemChatHistory); i {
+			switch v := v.(*RspChatSystemHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1203,7 +1203,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NotifySystemChat); i {
+			switch v := v.(*NotifyChatSystem); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1215,7 +1215,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReqSendChannelChat); i {
+			switch v := v.(*ReqChatSendChannel); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1227,7 +1227,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RspSendChannelChat); i {
+			switch v := v.(*RspChatSendChannel); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1239,7 +1239,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NotifyChannelChat); i {
+			switch v := v.(*NotifyChatChannel); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1251,7 +1251,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReqChannelHistory); i {
+			switch v := v.(*ReqChatChannelHistory); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -1263,7 +1263,7 @@ func file_chat_proto_init() {
 			}
 		}
 		file_chat_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RspChannelHistory); i {
+			switch v := v.(*RspChatChannelHistory); i {
 			case 0:
 				return &v.state
 			case 1:

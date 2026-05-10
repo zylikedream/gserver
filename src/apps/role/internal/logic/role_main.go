@@ -230,7 +230,7 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 
 func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 	switch m := msg.(type) {
-	case *pb.NotifyChannelChat, *pb.NotifySystemChat, *pb.NotifyPrivateChat:
+	case *pb.NotifyChatChannel, *pb.NotifyChatSystem, *pb.NotifyChatPrivate:
 		r.SendClient(ctx, m.(proto.Message))
 		return nil
 	case *pb.NotifyGuildInfo:

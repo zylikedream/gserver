@@ -104,7 +104,7 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 	if err != nil {
 		return nil, err
 	}
-	history, err := r.Role.Call(channel, &pb.ReqChannelHistory{
+	history, err := r.Role.Call(channel, &pb.ReqChatChannelHistory{
 		ChannelType: pb.ChannelType_CHANNEL_TYPE_WORLD,
 		ChannelId:   r.lastLobbyID,
 		Count:       50,
@@ -113,12 +113,12 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 		return nil, err
 	}
 	rsp := &pb.RspChatInit{
-		WorldMessages: history.(*pb.RspChannelHistory).Messages,
+		WorldMessages: history.(*pb.RspChatChannelHistory).Messages,
 	}
 	return rsp, nil
 }
 
-func (r *RoleChat) ReqSendChannelChat(ctx context.Context, req *pb.ReqSendChannelChat) (*pb.RspSendChannelChat, error) {
+func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendChannel) (*pb.RspChatSendChannel, error) {
 	var channelID int64
 	switch req.ChannelType {
 	case pb.ChannelType_CHANNEL_TYPE_WORLD:
@@ -156,10 +156,10 @@ func (r *RoleChat) ReqSendChannelChat(ctx context.Context, req *pb.ReqSendChanne
 	if err != nil {
 		return nil, err
 	}
-	return &pb.RspSendChannelChat{}, nil
+	return &pb.RspChatSendChannel{}, nil
 }
 
-func (r *RoleChat) ReqChannelHistory(ctx context.Context, req *pb.ReqChannelHistory) (*pb.RspChannelHistory, error) {
+func (r *RoleChat) ReqChatChannelHistory(ctx context.Context, req *pb.ReqChatChannelHistory) (*pb.RspChatChannelHistory, error) {
 	var channelID int64
 	switch req.ChannelType {
 	case pb.ChannelType_CHANNEL_TYPE_WORLD:
@@ -180,7 +180,7 @@ func (r *RoleChat) ReqChannelHistory(ctx context.Context, req *pb.ReqChannelHist
 	if err != nil {
 		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
 	}
-	rsp, err := r.Role.Call(pid, &pb.ReqChannelHistory{
+	rsp, err := r.Role.Call(pid, &pb.ReqChatChannelHistory{
 		ChannelType: pb.ChannelType(channelType),
 		ChannelId:   channelID,
 		Count:       req.Count,
@@ -188,10 +188,10 @@ func (r *RoleChat) ReqChannelHistory(ctx context.Context, req *pb.ReqChannelHist
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspChannelHistory), nil
+	return rsp.(*pb.RspChatChannelHistory), nil
 }
 
-func (r *RoleChat) ReqSendPrivateChat(ctx context.Context, req *pb.ReqSendPrivateChat) (*pb.RspSendPrivateChat, error) {
+func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPrivate) (*pb.RspChatSendPrivate, error) {
 	cfg := chat.GetConfig()
 
 	if err := validateChatMsg(req.Content, cfg.MsgMaxLength); err != nil {
@@ -210,7 +210,7 @@ func (r *RoleChat) ReqSendPrivateChat(ctx context.Context, req *pb.ReqSendPrivat
 
 	// 通知目标角色
 	if targetPid, err := lib.GetRoleActor(req.TargetId, false); err == nil {
-		r.Role.Send(targetPid, &pb.NotifyPrivateChat{
+		r.Role.Send(targetPid, &pb.NotifyChatPrivate{
 			Message: &pb.PChatMsg{
 				Sender:    r.Role.Public.GetRolePublic(ctx),
 				Content:   strings.TrimSpace(req.Content),
@@ -219,10 +219,10 @@ func (r *RoleChat) ReqSendPrivateChat(ctx context.Context, req *pb.ReqSendPrivat
 		})
 	}
 
-	return &pb.RspSendPrivateChat{}, nil
+	return &pb.RspChatSendPrivate{}, nil
 }
 
-func (r *RoleChat) ReqPrivateChatHistory(ctx context.Context, req *pb.ReqPrivateChatHistory) (*pb.RspPrivateChatHistory, error) {
+func (r *RoleChat) ReqChatPrivateHistory(ctx context.Context, req *pb.ReqChatPrivateHistory) (*pb.RspChatPrivateHistory, error) {
 	count := int(req.Count)
 	if count <= 0 {
 		count = 50
@@ -231,10 +231,10 @@ func (r *RoleChat) ReqPrivateChatHistory(ctx context.Context, req *pb.ReqPrivate
 	if err != nil {
 		return nil, err
 	}
-	return &pb.RspPrivateChatHistory{Messages: msgs}, nil
+	return &pb.RspChatPrivateHistory{Messages: msgs}, nil
 }
 
-func (r *RoleChat) ReqSystemChatHistory(ctx context.Context, req *pb.ReqSystemChatHistory) (*pb.RspSystemChatHistory, error) {
+func (r *RoleChat) ReqChatSystemHistory(ctx context.Context, req *pb.ReqChatSystemHistory) (*pb.RspChatSystemHistory, error) {
 	count := int(req.Count)
 	if count <= 0 {
 		count = chat.GetConfig().SystemMsgKeep
@@ -243,7 +243,7 @@ func (r *RoleChat) ReqSystemChatHistory(ctx context.Context, req *pb.ReqSystemCh
 	if err != nil {
 		return nil, err
 	}
-	return &pb.RspSystemChatHistory{Messages: msgs}, nil
+	return &pb.RspChatSystemHistory{Messages: msgs}, nil
 }
 
 // ===== Internal =====

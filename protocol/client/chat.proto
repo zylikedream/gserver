@@ -37,28 +37,28 @@ message RspChatInit {
 // === 私聊 ===
 
 // 发送私聊 (28008)
-message ReqSendPrivateChat {
+message ReqChatSendPrivate {
     option (msg_id) = 28008;
     int64 target_id = 1;
     string content = 2;
 }
-message RspSendPrivateChat {
+message RspChatSendPrivate {
     option (msg_id) = 28009;
 }
 
 // 拉取私聊历史 (28010)
-message ReqPrivateChatHistory {
+message ReqChatPrivateHistory {
     option (msg_id) = 28010;
     int64 friend_id = 1;
     int32 count =  2;
 }
-message RspPrivateChatHistory {
+message RspChatPrivateHistory {
     option (msg_id) = 28011;
     repeated PChatMsg messages = 1;
 }
 
 // 私聊消息通知 (28012) - 服务端推送
-message NotifyPrivateChat {
+message NotifyChatPrivate {
     option (msg_id) = 28012;
     PChatMsg message = 1;
 }
@@ -66,17 +66,17 @@ message NotifyPrivateChat {
 // === 系统频道 ===
 
 // 拉取系统消息 (28013)
-message ReqSystemChatHistory {
+message ReqChatSystemHistory {
     option (msg_id) = 28013;
     int32 count = 1;
 }
-message RspSystemChatHistory {
+message RspChatSystemHistory {
     option (msg_id) = 28014;
     repeated PChatMsg messages = 1;
 }
 
 // 系统消息通知 (28015) - 服务端推送
-message NotifySystemChat {
+message NotifyChatSystem {
     option (msg_id) = 28015;
     PChatMsg message = 1;
 }
@@ -84,17 +84,17 @@ message NotifySystemChat {
 // === 统一频道消息 ===
 
 // 发送频道消息 (28020) - 客户端发送 channel_type + content，channel_id 由服务端推断
-message ReqSendChannelChat {
+message ReqChatSendChannel {
     option (msg_id) = 28020;
     ChannelType channel_type = 1;
     string content           = 2;
 }
-message RspSendChannelChat {
+message RspChatSendChannel {
     option (msg_id) = 28021;
 }
 
 // 频道消息通知 (28022) - 服务端推送
-message NotifyChannelChat {
+message NotifyChatChannel {
     option (msg_id) = 28022;
     ChannelType channel_type = 1;
     int64 channel_id   = 2;
@@ -104,13 +104,13 @@ message NotifyChannelChat {
 }
 
 // 拉取频道历史 (28023)
-message ReqChannelHistory {
+message ReqChatChannelHistory {
     option (msg_id) = 28023;
     ChannelType channel_type = 1;
     int64 channel_id   = 2;
     int32 count        = 3;
 }
-message RspChannelHistory {
+message RspChatChannelHistory {
     option (msg_id) = 28024;
     repeated PChatMsg messages = 1;
 }

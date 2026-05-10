@@ -29,7 +29,7 @@ func (r *roleApp) OnModInit(ctx context.Context) error {
 	r.AddModule(ctx, lib.NewBroadcast("role", func(ctx context.Context, topic string, msg *lib.BroadcastMsg) *lib.BroadcastMsg {
 		switch msg.MsgType {
 		case lib.BroadCastTypeSystemMsg:
-			lib.SendToAll(&pb.NotifySystemChat{
+			lib.SendToAll(&pb.NotifyChatSystem{
 				Message: &pb.PChatMsg{
 					Content:   msg.Data,
 					Timestamp: time.Now().Unix(),
