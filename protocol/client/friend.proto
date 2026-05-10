@@ -7,11 +7,11 @@ import "msg_options.proto";
 import "role.proto";
 
 // 搜索玩家 (27001)
-message ReqSearchPlayer {
+message ReqFriendSearchPlayer {
     option (msg_id) = 27001;
     string name = 1;
 }
-message RspSearchPlayer {
+message RspFriendSearchPlayer {
     option (msg_id) = 27002;
     repeated PPlayerInfo players = 1;
 }
@@ -21,31 +21,31 @@ message PPlayerInfo {
 }
 
 // 发送申请 (27003)
-message ReqSendRequest {
+message ReqFriendSendRequest {
     option (msg_id) = 27003;
     repeated int64 target_ids = 1;
 }
-message RspSendRequest {
+message RspFriendSendRequest {
     option (msg_id) = 27004;
     repeated PFriendInfo friends = 1;
 }
 
 // 同意申请 (27005)
-message ReqAcceptRequest {
+message ReqFriendAcceptRequest {
     option (msg_id) = 27005;
     repeated int64 from_ids = 1;
 }
-message RspAcceptRequest {
+message RspFriendAcceptRequest {
     option (msg_id) = 27006;
     repeated PFriendInfo friends = 1;
 }
 
 // 拒绝申请 (27007)
-message ReqRejectRequest {
+message ReqFriendRejectRequest {
     option (msg_id) = 27007;
     repeated int64 from_ids = 1;
 }
-message RspRejectRequest {
+message RspFriendRejectRequest {
     option (msg_id) = 27008;
 }
 
@@ -65,10 +65,10 @@ message PFriendInfo {
 }
 
 // 申请列表 (27011)
-message ReqApplyList {
+message ReqFriendApplyList {
     option (msg_id) = 27011;
 }
-message RspApplyList {
+message RspFriendApplyList {
     option (msg_id) = 27012;
     repeated PApplyInfo incoming = 1;
     repeated PApplyInfo outgoing = 2;
@@ -80,16 +80,16 @@ message PApplyInfo {
 }
 
 // 删除好友 (27013)
-message ReqRemoveFriend {
+message ReqFriendRemove {
     option (msg_id) = 27013;
     int64 target_id = 1;
 }
-message RspRemoveFriend {
+message RspFriendRemove {
     option (msg_id) = 27014;
 }
 
 // 通知：收到新的好友申请 (27015)
-message NotifyNewRequest {
+message NotifyFriendNewRequest {
     option (msg_id) = 27015;
     PApplyInfo apply_info = 1;
 }
