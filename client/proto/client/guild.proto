@@ -52,12 +52,12 @@ message PGuildLog {
 // ==================== Req / Rsp ====================
 
 // 申请加入公会 (29007)
-message ReqApplyGuild {
+message ReqGuildApply {
     option (msg_id) = 29007;
     int64 guild_id = 1;
     int64 role_id  = 2;  // 服务端填充
 }
-message RspApplyGuild {
+message RspGuildApply {
     option (msg_id) = 29008;
 }
 
@@ -71,75 +71,75 @@ message RspGuildApplyList {
 }
 
 // 审批加入 (29013)
-message ReqApproveApply {
+message ReqGuildApproveApply {
     option (msg_id) = 29013;
     repeated int64 apply_ids = 1;  // 支持批量审批
     bool           approve   = 2;  // true=同意 false=拒绝
     int64          role_id   = 3;  // 服务端填充
 }
-message RspApproveApply {
+message RspGuildApproveApply {
     option (msg_id) = 29014;
 }
 
 // 踢出成员 (29015)
-message ReqKickMember {
+message ReqGuildKickMember {
     option (msg_id) = 29015;
     int64  target_id = 1;
     string reason    = 2;
     int64  role_id   = 3;  // 服务端填充
 }
-message RspKickMember {
+message RspGuildKickMember {
     option (msg_id) = 29016;
 }
 
 // 退出公会 (29017)
-message ReqLeaveGuild {
+message ReqGuildLeave {
     option (msg_id) = 29017;
     int64 role_id = 1;  // 服务端填充
 }
-message RspLeaveGuild {
+message RspGuildLeave {
     option (msg_id) = 29018;
 }
 
 // 解散公会 (29029)
-message ReqDisbandGuild {
+message ReqGuildDisband {
     option (msg_id) = 29029;
     int64 role_id = 1;  // 服务端填充
 }
-message RspDisbandGuild {
+message RspGuildDisband {
     option (msg_id) = 29030;
 }
 
 // 任命/取消副会长 (29019)
-message ReqSetPosition {
+message ReqGuildSetPosition {
     option (msg_id) = 29019;
     int64 target_id = 1;
     int32 position  = 2;  // 目标职位，参考 EGuildPosition
     int64 role_id   = 3;  // 服务端填充
 }
-message RspSetPosition {
+message RspGuildSetPosition {
     option (msg_id) = 29020;
 }
 
 // 转让会长 (29021)
-message ReqTransferLeader {
+message ReqGuildTransferLeader {
     option (msg_id) = 29021;
     int64 target_id = 1;
     int64 role_id   = 2;  // 服务端填充
 }
-message RspTransferLeader {
+message RspGuildTransferLeader {
     option (msg_id) = 29022;
 }
 
 // 修改公会信息 (29023)
-message ReqUpdateGuildInfo {
+message ReqGuildUpdateInfo {
     option (msg_id) = 29023;
     string declaration  = 1;
     string announcement = 2;
     bool   need_approval = 3;
     int64  role_id       = 4;  // 服务端填充
 }
-message RspUpdateGuildInfo {
+message RspGuildUpdateInfo {
     option (msg_id) = 29024;
 }
 
@@ -164,24 +164,24 @@ message RspGuildLogs {
 }
 
 // 创建公会 (29031, HTTP)
-message ReqCreateGuild {
+message ReqGuildCreate {
     option (msg_id) = 29031;
     string name          = 1;
     string declaration   = 2;
     string icon          = 3;
     bool   need_approval = 4;
 }
-message RspCreateGuild {
+message RspGuildCreate {
     option (msg_id) = 29032;
     int64 guild_id = 1;
 }
 
 // 搜索公会 (29033, HTTP)
-message ReqSearchGuild {
+message ReqGuildSearch {
     option (msg_id) = 29033;
     string keyword = 1;
 }
-message RspSearchGuild {
+message RspGuildSearch {
     option (msg_id) = 29034;
     repeated PGuildBasic guilds = 1;
 }
