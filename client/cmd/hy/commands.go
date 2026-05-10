@@ -444,17 +444,17 @@ func init() {
 	})
 	register(&Command{
 		Name:   "chat.send",
-		Help:   "Send message to a channel",
+		Help:   "Send message to a channel (world/guild)",
 		Params: []string{"channel_type", "content"},
 		Exec: func(c *client.Client, args []string) error {
 			if len(args) < 2 {
-				return fmt.Errorf("usage: chat.send <channel_type> <content>")
+				return fmt.Errorf("usage: chat.send <world|guild> <content>")
 			}
-			ct, err := strconv.ParseInt(args[0], 10, 32)
+			ct, err := parseChannelType(args[0])
 			if err != nil {
-				return fmt.Errorf("invalid channel_type: %v", err)
+				return err
 			}
-			return c.Request(&pb.ReqSendChannelChat{ChannelType: int32(ct), Content: args[1]})
+			return c.Request(&pb.ReqSendChannelChat{ChannelType: ct, Content: args[1]})
 		},
 	})
 	register(&Command{
@@ -463,11 +463,11 @@ func init() {
 		Params: []string{"channel_type", "channel_id", "count"},
 		Exec: func(c *client.Client, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("usage: chat.history <channel_type> <channel_id> [count]")
+				return fmt.Errorf("usage: chat.history <world|guild> [channel_id] [count]")
 			}
-			ct, err := strconv.ParseInt(args[0], 10, 32)
+			ct, err := parseChannelType(args[0])
 			if err != nil {
-				return fmt.Errorf("invalid channel_type: %v", err)
+				return err
 			}
 			chID := int64(0)
 			if len(args) >= 2 {
@@ -484,7 +484,7 @@ func init() {
 				}
 				count = int32(n)
 			}
-			return c.Request(&pb.ReqChannelHistory{ChannelType: int32(ct), ChannelId: chID, Count: count})
+			return c.Request(&pb.ReqChannelHistory{ChannelType: ct, ChannelId: chID, Count: count})
 		},
 	})
 	register(&Command{
@@ -802,4 +802,15 @@ func parsePlotIDs(args []string) []int32 {
 		}
 	}
 	return ids
+}
+
+func parseChannelType(s string) (pb.ChannelType, error) {
+	switch strings.ToLower(s) {
+	case "world", "1":
+		return pb.ChannelType_CHANNEL_TYPE_WORLD, nil
+	case "guild", "2":
+		return pb.ChannelType_CHANNEL_TYPE_GUILD, nil
+	default:
+		return pb.ChannelType_CHANNEL_TYPE_UNKNOWN, fmt.Errorf("unknown channel: %s (use world or guild)", s)
+	}
 }
