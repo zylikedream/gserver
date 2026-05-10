@@ -322,7 +322,7 @@ func (g *GuildActor) ActorCreateGuild(ctx context.Context, msg *pb.ActorCreateGu
 // ---- 加入公会（内部根据 NeedApproval 分流） ----
 
 // ApplyGuild — 申请加入公会
-func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ReqApplyGuild) (*pb.RspApplyGuild, error) {
+func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
 	// 检查是否已有待审核申请
 	for _, a := range g.Data.ApplyList {
 		if a.RoleID == req.RoleId && a.Status == 0 {
@@ -336,7 +336,7 @@ func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ReqApplyGuild) (*pb
 }
 
 // createApply — 创建申请
-func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqApplyGuild) (*pb.RspApplyGuild, error) {
+func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
 	cfg := gameconfig.GameConfig().TbGuildConfig.Get()
 	if cfg == nil {
 		return nil, errors.New("公会配置未找到")
@@ -351,7 +351,7 @@ func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqApplyGuild) (*p
 	}
 	g.Data.ApplyList = append(g.Data.ApplyList, apply)
 	g.notifyApplyUpdate(ctx)
-	return &pb.RspApplyGuild{}, nil
+	return &pb.RspGuildApply{}, nil
 }
 
 // addMember — 原子操作：核验成员上限 → 原子门 → 追加成员 → 通知
@@ -401,11 +401,11 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 }
 
 // joinDirect — 直接加入（免审批）
-func (g *GuildActor) joinDirect(ctx context.Context, req *pb.ReqApplyGuild) (*pb.RspApplyGuild, error) {
+func (g *GuildActor) joinDirect(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
 	if err := g.addMember(ctx, req.RoleId); err != nil {
 		return nil, err
 	}
-	return &pb.RspApplyGuild{}, nil
+	return &pb.RspGuildApply{}, nil
 }
 
 // ---- 申请列表 ----
@@ -426,7 +426,7 @@ func (g *GuildActor) GetGuildApplyList(ctx context.Context, req *pb.ReqGuildAppl
 
 // ---- 审批 ----
 
-func (g *GuildActor) ApproveApply(ctx context.Context, operatorID int64, req *pb.ReqApproveApply) error {
+func (g *GuildActor) ApproveApply(ctx context.Context, operatorID int64, req *pb.ReqGuildApproveApply) error {
 	if !g.canApprove(operatorID) {
 		return ErrPermissionDenied
 	}
@@ -471,7 +471,7 @@ func (g *GuildActor) processSingleApply(ctx context.Context, applyID int64, appr
 
 // ---- 踢出 ----
 
-func (g *GuildActor) KickMember(ctx context.Context, operatorID int64, req *pb.ReqKickMember) error {
+func (g *GuildActor) KickMember(ctx context.Context, operatorID int64, req *pb.ReqGuildKickMember) error {
 	if !g.canKick(operatorID, req.TargetId) {
 		return ErrPermissionDenied
 	}
@@ -539,23 +539,23 @@ func (g *GuildActor) GuildLogs(ctx context.Context, _ *pb.ReqGuildLogs) (*pb.Rsp
 }
 
 // HandleApproveApply — 审批加入（actor 消息路由）
-func (g *GuildActor) HandleApproveApply(ctx context.Context, req *pb.ReqApproveApply) (*pb.RspApproveApply, error) {
+func (g *GuildActor) HandleApproveApply(ctx context.Context, req *pb.ReqGuildApproveApply) (*pb.RspGuildApproveApply, error) {
 	if err := g.ApproveApply(ctx, req.RoleId, req); err != nil {
 		return nil, err
 	}
-	return &pb.RspApproveApply{}, nil
+	return &pb.RspGuildApproveApply{}, nil
 }
 
 // HandleKickMember — 踢出成员（actor 消息路由）
-func (g *GuildActor) HandleKickMember(ctx context.Context, req *pb.ReqKickMember) (*pb.RspKickMember, error) {
+func (g *GuildActor) HandleKickMember(ctx context.Context, req *pb.ReqGuildKickMember) (*pb.RspGuildKickMember, error) {
 	if err := g.KickMember(ctx, req.RoleId, req); err != nil {
 		return nil, err
 	}
-	return &pb.RspKickMember{}, nil
+	return &pb.RspGuildKickMember{}, nil
 }
 
 // SetPosition — 设置成员职位（会长操作）
-func (g *GuildActor) SetPosition(ctx context.Context, req *pb.ReqSetPosition) (*pb.RspSetPosition, error) {
+func (g *GuildActor) SetPosition(ctx context.Context, req *pb.ReqGuildSetPosition) (*pb.RspGuildSetPosition, error) {
 	if req.RoleId == req.TargetId {
 		return nil, ErrCannotSetPositionToSelf
 	}
@@ -574,11 +574,11 @@ func (g *GuildActor) SetPosition(ctx context.Context, req *pb.ReqSetPosition) (*
 
 	target.Position = req.Position
 	g.notifyGuildInfo(ctx)
-	return &pb.RspSetPosition{}, nil
+	return &pb.RspGuildSetPosition{}, nil
 }
 
 // TransferLeader — 转让会长
-func (g *GuildActor) TransferLeader(ctx context.Context, req *pb.ReqTransferLeader) (*pb.RspTransferLeader, error) {
+func (g *GuildActor) TransferLeader(ctx context.Context, req *pb.ReqGuildTransferLeader) (*pb.RspGuildTransferLeader, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
 		return nil, ErrPermissionDenied
@@ -595,11 +595,11 @@ func (g *GuildActor) TransferLeader(ctx context.Context, req *pb.ReqTransferLead
 	g.Data.LeaderID = req.TargetId
 	g.notifyGuildInfo(ctx)
 	g.addLog(ctx, fmt.Sprintf("会长转让给 %d", req.TargetId))
-	return &pb.RspTransferLeader{}, nil
+	return &pb.RspGuildTransferLeader{}, nil
 }
 
 // UpdateGuildInfo — 修改公会信息
-func (g *GuildActor) UpdateGuildInfo(ctx context.Context, req *pb.ReqUpdateGuildInfo) (*pb.RspUpdateGuildInfo, error) {
+func (g *GuildActor) UpdateGuildInfo(ctx context.Context, req *pb.ReqGuildUpdateInfo) (*pb.RspGuildUpdateInfo, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position > int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
 		return nil, ErrPermissionDenied
@@ -612,11 +612,11 @@ func (g *GuildActor) UpdateGuildInfo(ctx context.Context, req *pb.ReqUpdateGuild
 	}
 	g.Data.NeedApproval = req.NeedApproval
 	g.notifyGuildBasic(ctx)
-	return &pb.RspUpdateGuildInfo{}, nil
+	return &pb.RspGuildUpdateInfo{}, nil
 }
 
 // LeaveGuild — 退出公会
-func (g *GuildActor) LeaveGuild(ctx context.Context, req *pb.ReqLeaveGuild) (*pb.RspLeaveGuild, error) {
+func (g *GuildActor) LeaveGuild(ctx context.Context, req *pb.ReqGuildLeave) (*pb.RspGuildLeave, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil {
 		return nil, errors.New("你不在该公会中")
@@ -630,11 +630,11 @@ func (g *GuildActor) LeaveGuild(ctx context.Context, req *pb.ReqLeaveGuild) (*pb
 		Where("role_id = ?", req.RoleId).Update("guild_id", 0)
 	g.notifyGuildInfo(ctx)
 	g.addLog(ctx, fmt.Sprintf("玩家 %d 退出公会", req.RoleId))
-	return &pb.RspLeaveGuild{}, nil
+	return &pb.RspGuildLeave{}, nil
 }
 
 // DisbandGuild — 解散公会
-func (g *GuildActor) DisbandGuild(ctx context.Context, req *pb.ReqDisbandGuild) (*pb.RspDisbandGuild, error) {
+func (g *GuildActor) DisbandGuild(ctx context.Context, req *pb.ReqGuildDisband) (*pb.RspGuildDisband, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
 		return nil, ErrPermissionDenied
@@ -653,7 +653,7 @@ func (g *GuildActor) DisbandGuild(ctx context.Context, req *pb.ReqDisbandGuild) 
 		Where("guild_id = ?", g.GuildID).Update("guild_id", 0)
 	// 停止 actor
 	g.Stop(nil)
-	return &pb.RspDisbandGuild{}, nil
+	return &pb.RspGuildDisband{}, nil
 }
 
 // buildLogList — 构建公会日志列表
