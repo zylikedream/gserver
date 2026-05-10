@@ -3,7 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
-	"sync"
+	"fmt"
 	"time"
 
 	"gserver/core/gxyactor"
@@ -16,9 +16,10 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 )
 
+const stopTimerName = "channel_stop"
+
 // ringBuffer 线程安全的环形缓冲区
 type ringBuffer struct {
-	mu   sync.RWMutex
 	msgs []*pb.PChatMsg
 	cap  int
 	seq  int
@@ -32,8 +33,6 @@ func newRingBuffer(cap int) *ringBuffer {
 }
 
 func (rb *ringBuffer) Push(msg *pb.PChatMsg) int {
-	rb.mu.Lock()
-	defer rb.mu.Unlock()
 	if len(rb.msgs) >= rb.cap {
 		rb.msgs = rb.msgs[1:]
 	}
@@ -43,8 +42,6 @@ func (rb *ringBuffer) Push(msg *pb.PChatMsg) int {
 }
 
 func (rb *ringBuffer) Recent(count int) []*pb.PChatMsg {
-	rb.mu.RLock()
-	defer rb.mu.RUnlock()
 	if count <= 0 || count > len(rb.msgs) {
 		count = len(rb.msgs)
 	}
@@ -54,8 +51,6 @@ func (rb *ringBuffer) Recent(count int) []*pb.PChatMsg {
 }
 
 func (rb *ringBuffer) Len() int {
-	rb.mu.RLock()
-	defer rb.mu.RUnlock()
 	return len(rb.msgs)
 }
 
@@ -80,12 +75,16 @@ func NewChannelActor() *ChannelActor {
 }
 
 func (a *ChannelActor) Init(ctx context.Context, args []any) error {
-	if len(args) < 2 {
-		return errors.New("channel actor init: need [channelType(int32), channelID(int64)]")
+	// 从 actor name（"channelType_channelID"）解析频道类型和 ID
+	if len(args) < 1 {
+		return errors.New("channel actor init: need channelType_channelID]")
 	}
-	a.ChannelType = args[0].(int32)
-	a.ChannelID = args[1].(int64)
-	ch, ok := GetChannel(a.ChannelType)
+	id := args[0].(string)
+	_, err := fmt.Sscanf(id, "%d_%d", &a.ChannelType, &a.ChannelID)
+	if err != nil {
+		return fmt.Errorf("channel actor init: invalid id %q: %w", id, err)
+	}
+	ch, ok := GetChannel(pb.ChannelType(a.ChannelType))
 	if !ok {
 		return errors.New("unknown channel type")
 	}
@@ -111,9 +110,21 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 			Address: m.Pid.Address,
 			Id:      m.Pid.Id,
 		}
+		a.Timer().Cancel(ctx, stopTimerName)
 
 	case *pb.ChannelUnregisterMsg:
 		delete(a.members, m.RoleId)
+		if len(a.members) == 0 {
+			a.save(ctx)
+			a.Timer().AddOnce(ctx, &gxytimer.Once{
+				Name:  stopTimerName,
+				After: 30 * time.Minute,
+			}, func(_ context.Context, _ gxytimer.TimerActiveInfo) {
+				if len(a.members) == 0 {
+					a.Stop(nil)
+				}
+			})
+		}
 
 	case *pb.ReqChannelSend:
 		if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
@@ -160,7 +171,7 @@ func (a *ChannelActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo)
 }
 
 func (a *ChannelActor) save(ctx context.Context) {
-	if a.channel.SaveInterval() <= 0 {
+	if a.channel == nil || a.channel.SaveInterval() <= 0 {
 		return
 	}
 	currentLen := a.buffer.Len()

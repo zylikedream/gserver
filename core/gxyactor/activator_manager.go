@@ -138,6 +138,24 @@ func (a *actorActivator) DelayInit(ctx context.Context) error {
 	return nil
 }
 
+func (a *actorActivator) registerActor(id string, pid PID) error {
+	// 注册 Redis
+	if err := a.registerActorLocate(a.ctx, getActorLocateKey(a.kind, id)); err != nil {
+		return err
+	}
+
+	// 注册成功，加入 childs
+	a.childs[pid] = id
+	a.meta.mgr.Add(id, pid)
+	return nil
+}
+
+func (a *actorActivator) unregisterActor(id string, pid PID) {
+	a.deRegisterActorLocate(a.ctx, getActorLocateKey(a.kind, id))
+	a.meta.mgr.Remove(id)
+	delete(a.childs, pid)
+}
+
 func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *hashableActorActive:
@@ -153,23 +171,22 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		}
 
 		// 注册 Redis
-		key := getActorLocateKey(a.kind, msg.Id)
-		if err := a.registerActor(a.ctx, key); err != nil {
+		if err := a.registerActor(msg.Id, pid); err != nil {
 			StopActor(pid)
-			a.Respond(&pb.ActorError{Reason: "registration failed, key taken by another node"})
+			a.Respond(&pb.ActorError{Reason: fmt.Sprintf("registration failed, key taken by another node, err: %s", err.Error())})
 			return nil
 		}
 
-		// 注册成功，加入 childs
-		a.childs[pid] = msg.Id
-		a.meta.mgr.Add(msg.Id, pid)
-
-		// Touch 确认（异步，不影响注册流程）
+		// Touch 确认（异步，验证 Init 是否成功）
 		sender := a.Actx.Sender()
-		go func() {
-			_, _ = a.Call(pid, &actor.Touch{}, 2*time.Second)
+		go func(id string) {
+			if _, err := a.Call(pid, &actor.Touch{}, 2*time.Second); err != nil {
+				a.unregisterActor(id, pid)
+				a.Send(sender, ActorError("actor init failed or actor died"))
+				return
+			}
 			a.Send(sender, &remote.ActorPidResponse{Pid: pid})
-		}()
+		}(msg.Id)
 
 		return nil
 
@@ -184,9 +201,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		if id == "" {
 			return nil
 		}
-		a.deRegisterActor(a.ctx, getActorLocateKey(a.kind, id))
-		a.meta.mgr.Remove(id)
-		delete(a.childs, child)
+		a.unregisterActor(id, child)
 		return nil
 	}
 	return nil
@@ -196,11 +211,11 @@ func (a *actorActivator) Terminate(ctx context.Context, err error) {
 	glog.Info(ctx, "actor activator stopped")
 }
 
-func (a *actorActivator) registerActor(ctx context.Context, key string) error {
+func (a *actorActivator) registerActorLocate(ctx context.Context, key string) error {
 	return gxyredis.Redis().Set(ctx, key, a.manager.nodeInstanceName, ActorLocateTTL).Err()
 }
 
-func (a *actorActivator) deRegisterActor(ctx context.Context, key string) {
+func (a *actorActivator) deRegisterActorLocate(ctx context.Context, key string) {
 	gxyredis.Redis().Del(ctx, key)
 }
 

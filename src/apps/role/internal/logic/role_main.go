@@ -14,8 +14,8 @@ import (
 	"gserver/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
-	"gserver/src/lib"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/lib"
 	"reflect"
 	"time"
 
@@ -235,7 +235,7 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 		return nil
 	case *pb.NotifyGuildInfo:
 		if r.Guild.GuildID == 0 && m.Guild != nil {
-			r.Guild.GuildID = m.Guild.Id
+			r.Guild.SetGuildID(ctx, m.Guild.Id)
 		}
 		r.SendClient(ctx, m)
 		return nil
@@ -488,6 +488,10 @@ func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
 	r.Timer().AddTick(ctx, PublicUpdateTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.Public.UpdateRolePublic(ctx)
 	})
+	for _, mod := range r.Modules() {
+		rmod := mod.(IRoleModule)
+		rmod.AfterLogin(ctx)
+	}
 	return nil
 }
 
@@ -522,15 +526,17 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 		r.Stop(errors.New("single alive timeout"))
 	})
 	lib.UnregisterPlayer(r.RoleID)
-	r.Chat.chatLeave(ctx)
 	r.state = RoleStateLogout
+	for _, mod := range r.Modules() {
+		rmod := mod.(IRoleModule)
+		rmod.BeforeLogout(ctx)
+	}
 	glog.Infof(ctx, "role logout, roleID: %d, reason %s", r.RoleID, reason)
 	return nil
 }
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	glog.Debugf(ctx, "role stopped, roleID: %d, err: %v", r.RoleID, err)
-	r.Chat.chatLeave(ctx)
 	if serr := r.StopModule(ctx); serr != nil {
 		glog.Errorf(ctx, "stop module error, roleID: %d, err: %v", r.RoleID, err)
 	}

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"errors"
+	"gserver/protocol/pb"
 	"time"
 )
 
@@ -18,10 +19,10 @@ type IChannel interface {
 // WorldChannel 世界频道
 type WorldChannel struct{}
 
-func (WorldChannel) ChannelType() string           { return "world" }
-func (WorldChannel) RingBufferSize() int            { return 200 }
-func (WorldChannel) SaveInterval() time.Duration    { return 0 }
-func (WorldChannel) TableName() string              { return "" }
+func (WorldChannel) ChannelType() string         { return "world" }
+func (WorldChannel) RingBufferSize() int         { return 200 }
+func (WorldChannel) SaveInterval() time.Duration { return 0 }
+func (WorldChannel) TableName() string           { return "" }
 func (WorldChannel) CanWrite(_ int64, content string) error {
 	if content == "" {
 		return errors.New("消息不能为空")
@@ -33,10 +34,10 @@ func (WorldChannel) CanJoin(_ int64) bool { return true }
 // GuildChannel 公会频道
 type GuildChannel struct{}
 
-func (GuildChannel) ChannelType() string           { return "guild" }
-func (GuildChannel) RingBufferSize() int            { return 500 }
-func (GuildChannel) SaveInterval() time.Duration    { return 600 * time.Second }
-func (GuildChannel) TableName() string              { return "guild_chat_log" }
+func (GuildChannel) ChannelType() string         { return "guild" }
+func (GuildChannel) RingBufferSize() int         { return 500 }
+func (GuildChannel) SaveInterval() time.Duration { return 600 * time.Second }
+func (GuildChannel) TableName() string           { return "guild_chat_log" }
 func (GuildChannel) CanWrite(_ int64, content string) error {
 	if content == "" {
 		return errors.New("消息不能为空")
@@ -46,12 +47,12 @@ func (GuildChannel) CanWrite(_ int64, content string) error {
 func (GuildChannel) CanJoin(_ int64) bool { return true }
 
 // channelRegistry channelType → IChannel
-var channelRegistry = map[int32]IChannel{
-	1: WorldChannel{},
-	2: GuildChannel{},
+var channelRegistry = map[pb.ChannelType]IChannel{
+	pb.ChannelType_CHANNEL_TYPE_WORLD: WorldChannel{},
+	pb.ChannelType_CHANNEL_TYPE_GUILD: GuildChannel{},
 }
 
-func GetChannel(channelType int32) (IChannel, bool) {
+func GetChannel(channelType pb.ChannelType) (IChannel, bool) {
 	c, ok := channelRegistry[channelType]
 	return c, ok
 }

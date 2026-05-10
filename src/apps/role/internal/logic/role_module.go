@@ -10,6 +10,8 @@ type IRoleModule interface {
 	gxymodule.IModule
 	SetRole(role *RoleMain)
 	OnCreate(ctx context.Context)
+	AfterLogin(ctx context.Context)
+	BeforeLogout(ctx context.Context)
 	PersistState() IPersistState // must return pointer
 }
 
@@ -48,9 +50,9 @@ func (r *RolePersistState) GetIndexes() []string {
 	return []string{"update_at"}
 }
 
-func (r *RolePersistState) MarkDirty()  { r.dirty = true }
-func (r *RolePersistState) IsDirty() bool { return r.dirty }
-func (r *RolePersistState) ClearDirty() { r.dirty = false }
+func (r *RolePersistState) MarkDirty()         { r.dirty = true }
+func (r *RolePersistState) IsDirty() bool      { return r.dirty }
+func (r *RolePersistState) ClearDirty()        { r.dirty = false }
 func (r *RolePersistState) GetVersion() int64  { return r.Version }
 func (r *RolePersistState) SetVersion(v int64) { r.Version = v }
 
@@ -70,4 +72,10 @@ func (r *RoleModule) OnCreate(ctx context.Context) {
 
 func (r *RoleModule) PersistState() IPersistState {
 	return nil
+}
+
+func (r *RoleModule) AfterLogin(ctx context.Context) {
+}
+
+func (r *RoleModule) BeforeLogout(ctx context.Context) {
 }

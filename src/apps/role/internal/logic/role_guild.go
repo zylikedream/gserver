@@ -11,6 +11,7 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/lib"
 
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 )
@@ -29,6 +30,7 @@ func (RoleGuildState) TableName() string { return "role_guild" }
 type RoleGuild struct {
 	RoleModule
 	RoleGuildState
+	lastChannelID int64
 }
 
 var _ IRoleModule = (*RoleGuild)(nil)
@@ -41,8 +43,25 @@ func (r *RoleGuild) OnCreate(ctx context.Context) {}
 
 func (r *RoleGuild) OnModStart(ctx context.Context) error {
 	if r.GuildID > 0 {
+		if _, err := r.Role.Chat.JoinChannel(pb.ChannelType_CHANNEL_TYPE_GUILD, r.GuildID); err != nil {
+			glog.Errorf(ctx, "加入公会聊天失败: %v", err)
+		}
 	}
 	return nil
+}
+
+func (r *RoleGuild) OnModStop(ctx context.Context) error {
+	if r.GuildID > 0 {
+		r.Role.Chat.LeaveChannel(ctx, pb.ChannelType_CHANNEL_TYPE_GUILD, r.GuildID)
+	}
+	return nil
+}
+
+func (r *RoleGuild) SetGuildID(ctx context.Context, guildID int64) {
+	r.GuildID = guildID
+	if _, err := r.Role.Chat.JoinChannel(pb.ChannelType_CHANNEL_TYPE_GUILD, r.GuildID); err != nil {
+		glog.Errorf(ctx, "加入公会聊天失败: %v", err)
+	}
 }
 
 // ===== HTTP helpers =====
