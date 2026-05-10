@@ -22,9 +22,9 @@ import (
 
 // ---- write operations (call friend service via HTTP) ----
 
-func (r *RoleMain) ReqSendRequest(ctx context.Context, req *pb.ReqSendRequest) (*pb.RspSendRequest, error) {
+func (r *RoleMain) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriendSendRequest) (*pb.RspFriendSendRequest, error) {
 	successIDs, err := callFriendBatch(ctx, "send_request", r.RoleID, req.TargetIds)
-	rsp := &pb.RspSendRequest{}
+	rsp := &pb.RspFriendSendRequest{}
 	if len(successIDs) == 0 {
 		return rsp, err
 	}
@@ -34,7 +34,7 @@ func (r *RoleMain) ReqSendRequest(ctx context.Context, req *pb.ReqSendRequest) (
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
-		r.notifyPlayer(ctx, id, &pb.NotifyNewRequest{
+		r.notifyPlayer(ctx, id, &pb.NotifyFriendNewRequest{
 			ApplyInfo: &pb.PApplyInfo{
 				PlayerInfo: GetRolePublic(ctx, r.RoleID),
 			},
@@ -43,9 +43,9 @@ func (r *RoleMain) ReqSendRequest(ctx context.Context, req *pb.ReqSendRequest) (
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqAcceptRequest(ctx context.Context, req *pb.ReqAcceptRequest) (*pb.RspAcceptRequest, error) {
+func (r *RoleMain) ReqFriendAcceptRequest(ctx context.Context, req *pb.ReqFriendAcceptRequest) (*pb.RspFriendAcceptRequest, error) {
 	successIDs, err := callFriendBatch(ctx, "accept_request", r.RoleID, req.FromIds)
-	rsp := &pb.RspAcceptRequest{}
+	rsp := &pb.RspFriendAcceptRequest{}
 	if len(successIDs) == 0 {
 		return rsp, err
 	}
@@ -62,14 +62,14 @@ func (r *RoleMain) ReqAcceptRequest(ctx context.Context, req *pb.ReqAcceptReques
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqRejectRequest(ctx context.Context, req *pb.ReqRejectRequest) (*pb.RspRejectRequest, error) {
+func (r *RoleMain) ReqFriendRejectRequest(ctx context.Context, req *pb.ReqFriendRejectRequest) (*pb.RspFriendRejectRequest, error) {
 	_, err := callFriendBatch(ctx, "reject_request", r.RoleID, req.FromIds)
-	return &pb.RspRejectRequest{}, err
+	return &pb.RspFriendRejectRequest{}, err
 }
 
-func (r *RoleMain) ReqRemoveFriend(ctx context.Context, req *pb.ReqRemoveFriend) (*pb.RspRemoveFriend, error) {
+func (r *RoleMain) ReqFriendRemove(ctx context.Context, req *pb.ReqFriendRemove) (*pb.RspFriendRemove, error) {
 	err := callFriendWrite(ctx, "remove_friend", r.RoleID, req.TargetId)
-	return &pb.RspRemoveFriend{}, err
+	return &pb.RspFriendRemove{}, err
 }
 
 // ---- read operations ----
@@ -99,13 +99,13 @@ func (r *RoleMain) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (*p
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqApplyList(ctx context.Context, req *pb.ReqApplyList) (*pb.RspApplyList, error) {
+func (r *RoleMain) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendApplyList) (*pb.RspFriendApplyList, error) {
 	data, err := callFriendData(ctx, r.RoleID)
 	if err != nil {
-		return &pb.RspApplyList{}, nil
+		return &pb.RspFriendApplyList{}, nil
 	}
 
-	rsp := &pb.RspApplyList{}
+	rsp := &pb.RspFriendApplyList{}
 	for _, a := range data.Incoming {
 		public := GetRolePublic(ctx, a.PlayerID)
 		if public == nil {
@@ -131,7 +131,7 @@ func (r *RoleMain) ReqApplyList(ctx context.Context, req *pb.ReqApplyList) (*pb.
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqSearchPlayer(ctx context.Context, req *pb.ReqSearchPlayer) (*pb.RspSearchPlayer, error) {
+func (r *RoleMain) ReqFriendSearchPlayer(ctx context.Context, req *pb.ReqFriendSearchPlayer) (*pb.RspFriendSearchPlayer, error) {
 	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
 
 	publics := []RolePublicState{}
@@ -144,7 +144,7 @@ func (r *RoleMain) ReqSearchPlayer(ctx context.Context, req *pb.ReqSearchPlayer)
 		return nil, err
 	}
 
-	rsp := &pb.RspSearchPlayer{}
+	rsp := &pb.RspFriendSearchPlayer{}
 	for _, p := range publics {
 		info := &pb.PPlayerInfo{
 			PlayerInfo: PRolePublic(&p),
@@ -253,7 +253,7 @@ func (r *RoleMain) notifyPlayer(ctx context.Context, targetID int64, msg proto.M
 	r.Send(pid, msg)
 }
 
-func (r *RoleMain) NotifyNewRequest(ctx context.Context, msg *pb.NotifyNewRequest) error {
+func (r *RoleMain) NotifyFriendNewRequest(ctx context.Context, msg *pb.NotifyFriendNewRequest) error {
 	r.SendClient(ctx, msg)
 	return nil
 }
