@@ -71,7 +71,7 @@ func (n *node) OnModStart(ctx context.Context) error {
 	glog.Infof(context.Background(), "node %s starting....", n.Name)
 
 	loaded := map[string]bool{}
-	deps := []string{"redis", "pgx", "actor", "service", "http"}
+	deps := []string{"redis", "pgx", "actor", "service", "http", "mq"}
 	for _, dep := range deps {
 		if err := n.loadApp(ctx, dep, loaded); err != nil {
 			return err

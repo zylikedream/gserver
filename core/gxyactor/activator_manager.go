@@ -160,7 +160,9 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *hashableActorActive:
 		props := a.meta.Props.Clone()
-		pid, err := a.SpawnNamed(props, msg.Id, msg.Id)
+		// notice 这儿不要使用a.SpawnNamed, 因为actor_context的spawn_named会把id偷偷的加上前缀，
+		// 导致actor.NewPid(msg.Id)返回的pid和a.SpawnNamed(msg.Id, msg.Id)返回的pid不同
+		pid, err := SpawnNamed(props, msg.Id, msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
 				a.Respond(&remote.ActorPidResponse{Pid: pid})
@@ -185,6 +187,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 				a.Send(sender, ActorError("actor init failed or actor died"))
 				return
 			}
+			a.Actx.Watch(pid)
 			a.Send(sender, &remote.ActorPidResponse{Pid: pid})
 		}(msg.Id)
 
@@ -351,7 +354,7 @@ func (g *activatorManager) getActor(kind string, id string, spawn bool) (PID, er
 	}
 
 	if !spawn {
-		return nil, nil
+		return nil, gerror.Newf("actor kind:%s, id:%s not found", kind, id)
 	}
 
 	serviceInfo := gxyservice.ServiceApp().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())

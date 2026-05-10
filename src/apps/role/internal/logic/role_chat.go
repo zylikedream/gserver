@@ -11,9 +11,11 @@ import (
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxyhttp"
-	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/lib"
+	"gserver/src/pkg/gameconfig"
+
+	gamecfg "gserver/gameconfig/gosrc"
 
 	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -71,7 +73,7 @@ func (r *RoleChat) joinWorldChannel(ctx context.Context) (gxyactor.PID, error) {
 		return nil, err
 	}
 	r.lastLobbyID = lobbyID
-	channel, err := r.JoinChannel(1, lobbyID)
+	channel, err := r.JoinChannel(int32(gamecfg.GardenEChatChannelType_WORLD), lobbyID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,20 +102,26 @@ func (r *RoleChat) JoinChannel(channelType int32, channelID int64) (gxyactor.PID
 }
 
 func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.RspChatInit, error) {
-	channel, err := r.joinWorldChannel(ctx)
-	if err != nil {
-		return nil, err
+	if r.lastLobbyID == 0 {
+		_, err := r.joinWorldChannel(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
-	history, err := r.Role.Call(channel, &pb.ReqChatChannelHistory{
-		ChannelType: 1,
+	var worldMessages []*pb.PChatMsg
+	worldHistory, err := r.ReqChatChannelHistory(ctx, &pb.ReqChatChannelHistory{
+		ChannelType: int32(gamecfg.GardenEChatChannelType_WORLD),
 		ChannelId:   r.lastLobbyID,
 		Count:       50,
-	}, 10*time.Second)
-	if err != nil {
-		return nil, err
+	})
+	if err == nil {
+		worldMessages = worldHistory.Messages
 	}
+	systemMessages, err := callChatSystemHistory(ctx, 50)
 	rsp := &pb.RspChatInit{
-		WorldMessages: history.(*pb.RspChatChannelHistory).Messages,
+		WorldMessages:  worldMessages,
+		SystemMessages: systemMessages,
+		LobbyId:        int32(r.lastLobbyID),
 	}
 	return rsp, nil
 }
@@ -121,7 +129,7 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendChannel) (*pb.RspChatSendChannel, error) {
 	var channelID int64
 	switch req.ChannelType {
-	case 1:
+	case int32(gamecfg.GardenEChatChannelType_WORLD):
 		if r.lastLobbyID == 0 {
 			return nil, errors.New("聊天未初始化")
 		}
@@ -130,7 +138,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 			return nil, ErrChatCooldown
 		}
 		r.lastWorldChatTime = time.Now()
-	case 4:
+	case int32(gamecfg.GardenEChatChannelType_GUILD):
 		if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
 			return nil, errors.New("你没有加入公会")
 		}
@@ -161,12 +169,12 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 func (r *RoleChat) ReqChatChannelHistory(ctx context.Context, req *pb.ReqChatChannelHistory) (*pb.RspChatChannelHistory, error) {
 	var channelID int64
 	switch req.ChannelType {
-	case 1:
+	case int32(gamecfg.GardenEChatChannelType_WORLD):
 		if r.lastLobbyID == 0 {
 			return nil, errors.New("聊天未初始化")
 		}
 		channelID = r.lastLobbyID
-	case 4:
+	case int32(gamecfg.GardenEChatChannelType_GUILD):
 		if r.Role.Guild == nil || r.Role.Guild.GuildID == 0 {
 			return nil, errors.New("你没有加入公会")
 		}
@@ -251,7 +259,7 @@ func (r *RoleChat) leaveWorldChannel(ctx context.Context) {
 	if err != nil {
 		glog.Warningf(ctx, "leaveChannel: leave lobby failederr=%v", err)
 	}
-	r.LeaveChannel(ctx, 1, r.lastLobbyID)
+	r.LeaveChannel(ctx, int32(gamecfg.GardenEChatChannelType_WORLD), r.lastLobbyID)
 	r.lastLobbyID = 0
 }
 

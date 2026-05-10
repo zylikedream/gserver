@@ -14,10 +14,11 @@ import (
 	"time"
 	"unicode"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/lib"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -151,6 +152,13 @@ func (r *RoleGM) execCommand(name string, args []string) error {
 	method, ok := gmCmdMap[name]
 	if !ok {
 		return fmt.Errorf("unknown command: %s", name)
+	}
+	numParams := method.Type.NumIn() - 1 // minus receiver
+	if len(args) > numParams && numParams > 0 {
+		// join extra args into the last parameter (e.g. system message content with spaces)
+		last := numParams - 1
+		args[last] = strings.Join(args[last:], " ")
+		args = args[:numParams]
 	}
 	in := make([]reflect.Value, 1+len(args))
 	in[0] = reflect.ValueOf(r)
@@ -307,4 +315,11 @@ func (r *RoleGM) FinishBreed() error {
 func (r *RoleGM) UnlockPlot(plotID int) error {
 	r.Role.Plot.UnlockPlot(int32(plotID))
 	return nil
+}
+
+// SendSystemMsg 发送全服系统消息
+// 用法: send_system_msg [消息内容]
+// 示例: send_system_msg 服务器即将维护，请及时下线
+func (r *RoleGM) SendSystemMsg(content string) error {
+	return lib.SendSystemMsg(r.ctx, content)
 }

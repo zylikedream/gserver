@@ -62,7 +62,10 @@ func NewMessageQueueApp() *messageQueueApp {
 }
 
 func (mq *messageQueueApp) OnModInit(ctx context.Context) error {
-	conf := &messageQueueConfig{}
+	conf := &messageQueueConfig{
+		Type:        MQTypeRedis,
+		WorkerCount: 3,
+	}
 	if err := gxyutil.CfgUnmarshalKey(ctx, g.Cfg(), "mq", conf); err != nil {
 		return err
 	}
@@ -86,7 +89,7 @@ func (mq *messageQueueApp) OnModInit(ctx context.Context) error {
 	return nil
 }
 
-func (mq *messageQueueApp) OnModStart(ctx context.Context) error {
+func (mq *messageQueueApp) OnModStartAfter(ctx context.Context) error {
 	if err := mq.queue.Start(ctx); err != nil {
 		return err
 	}

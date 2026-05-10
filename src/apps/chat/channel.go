@@ -3,6 +3,8 @@ package chat
 import (
 	"errors"
 	"time"
+
+	gamecfg "gserver/gameconfig/gosrc"
 )
 
 // IChannel 定义频道的差异化行为
@@ -49,8 +51,8 @@ func (GuildChannel) CanJoin(_ int64) bool { return true }
 // channelType 枚举值定义见策划配置表 chatchannel.xlsx channel_type 列：
 //   1=世界 2=私聊 3=系统 4=公会
 var channelRegistry = map[int32]IChannel{
-	1: WorldChannel{},
-	4: GuildChannel{},
+	int32(gamecfg.GardenEChatChannelType_WORLD):  WorldChannel{},
+	int32(gamecfg.GardenEChatChannelType_GUILD):  GuildChannel{},
 }
 
 func GetChannel(channelType int32) (IChannel, bool) {

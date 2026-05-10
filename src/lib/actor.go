@@ -30,7 +30,7 @@ const (
 )
 
 func GetGuildActor(guildID int64) (gxyactor.PID, error) {
-	pid, err := gxyactor.ActivateActor(GUILD_ACTOR_TYPE, strconv.Itoa(int(guildID)), false)
+	pid, err := gxyactor.ActivateActor(GUILD_ACTOR_TYPE, strconv.Itoa(int(guildID)), true)
 	if err != nil {
 		return nil, err
 	}
@@ -44,5 +44,5 @@ const (
 // GetChannelActor 获取频道 actor，id 格式为 "channelType_int64(channelID)"
 func GetChannelActor(channelType int32, channelID int64) (gxyactor.PID, error) {
 	id := strconv.Itoa(int(channelType)) + "_" + strconv.FormatInt(channelID, 10)
-	return gxyactor.ActivateActor(CHANNEL_ACTOR_TYPE, id, false)
+	return gxyactor.ActivateActor(CHANNEL_ACTOR_TYPE, id, true)
 }
