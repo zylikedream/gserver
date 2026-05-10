@@ -26,11 +26,11 @@ message RspMainTaskInfo {
     PMainTaskInfo task = 1;
 }
 
-message ReqClaimMainTask {
+message ReqMainTaskClaim {
     option (msg_id) = 25003;
 }
 
-message RspClaimMainTask {
+message RspMainTaskClaim {
     option (msg_id) = 25004;
     PMainTaskInfo task = 1;
 }

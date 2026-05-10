@@ -64,7 +64,7 @@ func (r *RoleMainTask) ReqMainTaskInfo(ctx context.Context, req *pb.ReqMainTaskI
 	return &pb.RspMainTaskInfo{Task: r.PMainTaskInfo()}, nil
 }
 
-func (r *RoleMainTask) ReqClaimMainTask(ctx context.Context, req *pb.ReqClaimMainTask) (*pb.RspClaimMainTask, error) {
+func (r *RoleMainTask) ReqMainTaskClaim(ctx context.Context, req *pb.ReqMainTaskClaim) (*pb.RspMainTaskClaim, error) {
 	if r.Status == int32(pb.MainTaskStatus_MAIN_TASK_FINISHED) {
 		return nil, ErrMainTaskFinished
 	}
@@ -87,7 +87,7 @@ func (r *RoleMainTask) ReqClaimMainTask(ctx context.Context, req *pb.ReqClaimMai
 	}
 	r.acceptTask(gameconfig.GameConfig().GetNextMainTask(cfg.Id))
 	r.notifyMainTaskUpdate(ctx)
-	return &pb.RspClaimMainTask{Task: claimedTask}, nil
+	return &pb.RspMainTaskClaim{Task: claimedTask}, nil
 }
 
 func (r *RoleMainTask) PMainTaskInfo() *pb.PMainTaskInfo {

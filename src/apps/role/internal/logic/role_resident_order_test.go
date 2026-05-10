@@ -185,7 +185,7 @@ func TestOrderInfo_NewRole(t *testing.T) {
 	// 没有已培育完成的花，所有点位无订单
 	_, orderMod := setupTestOrder(t)
 
-	rsp, err := orderMod.ReqOrderInfo(context.Background(), &pb.ReqOrderInfo{})
+	rsp, err := orderMod.ReqResidentOrderInfo(context.Background(), &pb.ReqResidentOrderInfo{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +205,7 @@ func TestOrderInfo_NewRole(t *testing.T) {
 func TestOrderInfo_WithFlowers(t *testing.T) {
 	_, orderMod := setupTestOrder(t, 101)
 
-	rsp, err := orderMod.ReqOrderInfo(context.Background(), &pb.ReqOrderInfo{})
+	rsp, err := orderMod.ReqResidentOrderInfo(context.Background(), &pb.ReqResidentOrderInfo{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestSubmitOrder_Success(t *testing.T) {
 	}
 
 	// 提交订单
-	rsp, err := orderMod.ReqSubmitOrder(context.Background(), &pb.ReqSubmitOrder{SlotId: slotID})
+	rsp, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -285,13 +285,13 @@ func TestSubmitOrder_Cooldown(t *testing.T) {
 	}
 
 	// 第一次提交成功
-	_, err := orderMod.ReqSubmitOrder(context.Background(), &pb.ReqSubmitOrder{SlotId: slotID})
+	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// 第二次提交应被拒绝（冷却中）
-	_, err = orderMod.ReqSubmitOrder(context.Background(), &pb.ReqSubmitOrder{SlotId: slotID})
+	_, err = orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
 	if err != ErrOrderSlotCooldown {
 		t.Fatalf("expected ErrOrderSlotCooldown, got %v", err)
 	}
@@ -303,7 +303,7 @@ func TestSubmitOrder_NotEnough(t *testing.T) {
 	slotID, _, _ := firstSlotDemand(t, orderMod)
 
 	// 背包为空，提交应失败
-	_, err := orderMod.ReqSubmitOrder(context.Background(), &pb.ReqSubmitOrder{SlotId: slotID})
+	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
 	if err != ErrOrderNotEnough {
 		t.Fatalf("expected ErrOrderNotEnough, got %v", err)
 	}
@@ -313,7 +313,7 @@ func TestSubmitOrder_InvalidSlot(t *testing.T) {
 	_, orderMod := setupTestOrder(t)
 
 	// 不存在的 slot ID（且没有花产品，slot 已被删除）
-	_, err := orderMod.ReqSubmitOrder(context.Background(), &pb.ReqSubmitOrder{SlotId: 999})
+	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: 999})
 	if err != ErrOrderSlotCooldown {
 		t.Fatalf("expected ErrOrderSlotCooldown for invalid slot, got %v", err)
 	}
@@ -324,7 +324,7 @@ func TestClaimMilestone_Success(t *testing.T) {
 
 	orderMod.CompletedCount = 15
 
-	rsp, err := orderMod.ReqClaimOrderMilestone(context.Background(), &pb.ReqClaimOrderMilestone{Id: 1})
+	rsp, err := orderMod.ReqResidentOrderClaimMilestone(context.Background(), &pb.ReqResidentOrderClaimMilestone{Id: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func TestClaimMilestone_NotReached(t *testing.T) {
 
 	orderMod.CompletedCount = 5
 
-	_, err := orderMod.ReqClaimOrderMilestone(context.Background(), &pb.ReqClaimOrderMilestone{Id: 1})
+	_, err := orderMod.ReqResidentOrderClaimMilestone(context.Background(), &pb.ReqResidentOrderClaimMilestone{Id: 1})
 	if err != ErrOrderMilestoneNotReached {
 		t.Fatalf("expected ErrOrderMilestoneNotReached, got %v", err)
 	}
@@ -363,13 +363,13 @@ func TestClaimMilestone_AlreadyClaimed(t *testing.T) {
 	orderMod.ClaimedMilestones = []int32{1}
 
 	// 首次领取 milestone 2 应成功
-	_, err := orderMod.ReqClaimOrderMilestone(context.Background(), &pb.ReqClaimOrderMilestone{Id: 2})
+	_, err := orderMod.ReqResidentOrderClaimMilestone(context.Background(), &pb.ReqResidentOrderClaimMilestone{Id: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// 再次领取 milestone 1 应被拒绝
-	_, err = orderMod.ReqClaimOrderMilestone(context.Background(), &pb.ReqClaimOrderMilestone{Id: 1})
+	_, err = orderMod.ReqResidentOrderClaimMilestone(context.Background(), &pb.ReqResidentOrderClaimMilestone{Id: 1})
 	if err != ErrOrderMilestoneClaimed {
 		t.Fatalf("expected ErrOrderMilestoneClaimed, got %v", err)
 	}
@@ -447,7 +447,7 @@ func TestOrderCompleteEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := orderMod.ReqSubmitOrder(context.Background(), &pb.ReqSubmitOrder{SlotId: slotID}); err != nil {
+	if _, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID}); err != nil {
 		t.Fatal(err)
 	}
 

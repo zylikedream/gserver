@@ -219,14 +219,14 @@ func (x *RspMainTaskInfo) GetTask() *PMainTaskInfo {
 	return nil
 }
 
-type ReqClaimMainTask struct {
+type ReqMainTaskClaim struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 }
 
-func (x *ReqClaimMainTask) Reset() {
-	*x = ReqClaimMainTask{}
+func (x *ReqMainTaskClaim) Reset() {
+	*x = ReqMainTaskClaim{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_maintask_proto_msgTypes[3]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -234,13 +234,13 @@ func (x *ReqClaimMainTask) Reset() {
 	}
 }
 
-func (x *ReqClaimMainTask) String() string {
+func (x *ReqMainTaskClaim) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ReqClaimMainTask) ProtoMessage() {}
+func (*ReqMainTaskClaim) ProtoMessage() {}
 
-func (x *ReqClaimMainTask) ProtoReflect() protoreflect.Message {
+func (x *ReqMainTaskClaim) ProtoReflect() protoreflect.Message {
 	mi := &file_maintask_proto_msgTypes[3]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -252,12 +252,12 @@ func (x *ReqClaimMainTask) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReqClaimMainTask.ProtoReflect.Descriptor instead.
-func (*ReqClaimMainTask) Descriptor() ([]byte, []int) {
+// Deprecated: Use ReqMainTaskClaim.ProtoReflect.Descriptor instead.
+func (*ReqMainTaskClaim) Descriptor() ([]byte, []int) {
 	return file_maintask_proto_rawDescGZIP(), []int{3}
 }
 
-type RspClaimMainTask struct {
+type RspMainTaskClaim struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -265,8 +265,8 @@ type RspClaimMainTask struct {
 	Task *PMainTaskInfo `protobuf:"bytes,1,opt,name=task,proto3" json:"task"`
 }
 
-func (x *RspClaimMainTask) Reset() {
-	*x = RspClaimMainTask{}
+func (x *RspMainTaskClaim) Reset() {
+	*x = RspMainTaskClaim{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_maintask_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -274,13 +274,13 @@ func (x *RspClaimMainTask) Reset() {
 	}
 }
 
-func (x *RspClaimMainTask) String() string {
+func (x *RspMainTaskClaim) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RspClaimMainTask) ProtoMessage() {}
+func (*RspMainTaskClaim) ProtoMessage() {}
 
-func (x *RspClaimMainTask) ProtoReflect() protoreflect.Message {
+func (x *RspMainTaskClaim) ProtoReflect() protoreflect.Message {
 	mi := &file_maintask_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -292,12 +292,12 @@ func (x *RspClaimMainTask) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RspClaimMainTask.ProtoReflect.Descriptor instead.
-func (*RspClaimMainTask) Descriptor() ([]byte, []int) {
+// Deprecated: Use RspMainTaskClaim.ProtoReflect.Descriptor instead.
+func (*RspMainTaskClaim) Descriptor() ([]byte, []int) {
 	return file_maintask_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *RspClaimMainTask) GetTask() *PMainTaskInfo {
+func (x *RspMainTaskClaim) GetTask() *PMainTaskInfo {
 	if x != nil {
 		return x.Task
 	}
@@ -372,9 +372,9 @@ var file_maintask_proto_rawDesc = []byte{
 	0x1e, 0x2e, 0x67, 0x61, 0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f,
 	0x6c, 0x2e, 0x50, 0x4d, 0x61, 0x69, 0x6e, 0x54, 0x61, 0x73, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x52,
 	0x04, 0x74, 0x61, 0x73, 0x6b, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xaa, 0xc3, 0x01, 0x22, 0x1a, 0x0a,
-	0x10, 0x52, 0x65, 0x71, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x4d, 0x61, 0x69, 0x6e, 0x54, 0x61, 0x73,
-	0x6b, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xab, 0xc3, 0x01, 0x22, 0x4e, 0x0a, 0x10, 0x52, 0x73, 0x70,
-	0x43, 0x6c, 0x61, 0x69, 0x6d, 0x4d, 0x61, 0x69, 0x6e, 0x54, 0x61, 0x73, 0x6b, 0x12, 0x32, 0x0a,
+	0x10, 0x52, 0x65, 0x71, 0x4d, 0x61, 0x69, 0x6e, 0x54, 0x61, 0x73, 0x6b, 0x43, 0x6c, 0x61, 0x69,
+	0x6d, 0x3a, 0x06, 0xa8, 0xac, 0x1d, 0xab, 0xc3, 0x01, 0x22, 0x4e, 0x0a, 0x10, 0x52, 0x73, 0x70,
+	0x4d, 0x61, 0x69, 0x6e, 0x54, 0x61, 0x73, 0x6b, 0x43, 0x6c, 0x61, 0x69, 0x6d, 0x12, 0x32, 0x0a,
 	0x04, 0x74, 0x61, 0x73, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x67, 0x61,
 	0x6c, 0x61, 0x78, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x2e, 0x50, 0x4d,
 	0x61, 0x69, 0x6e, 0x54, 0x61, 0x73, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x74, 0x61, 0x73,
@@ -412,14 +412,14 @@ var file_maintask_proto_goTypes = []interface{}{
 	(*PMainTaskInfo)(nil),        // 1: galaxy.protocol.PMainTaskInfo
 	(*ReqMainTaskInfo)(nil),      // 2: galaxy.protocol.ReqMainTaskInfo
 	(*RspMainTaskInfo)(nil),      // 3: galaxy.protocol.RspMainTaskInfo
-	(*ReqClaimMainTask)(nil),     // 4: galaxy.protocol.ReqClaimMainTask
-	(*RspClaimMainTask)(nil),     // 5: galaxy.protocol.RspClaimMainTask
+	(*ReqMainTaskClaim)(nil),     // 4: galaxy.protocol.ReqMainTaskClaim
+	(*RspMainTaskClaim)(nil),     // 5: galaxy.protocol.RspMainTaskClaim
 	(*NotifyMainTaskUpdate)(nil), // 6: galaxy.protocol.NotifyMainTaskUpdate
 }
 var file_maintask_proto_depIdxs = []int32{
 	0, // 0: galaxy.protocol.PMainTaskInfo.status:type_name -> galaxy.protocol.MainTaskStatus
 	1, // 1: galaxy.protocol.RspMainTaskInfo.task:type_name -> galaxy.protocol.PMainTaskInfo
-	1, // 2: galaxy.protocol.RspClaimMainTask.task:type_name -> galaxy.protocol.PMainTaskInfo
+	1, // 2: galaxy.protocol.RspMainTaskClaim.task:type_name -> galaxy.protocol.PMainTaskInfo
 	1, // 3: galaxy.protocol.NotifyMainTaskUpdate.task:type_name -> galaxy.protocol.PMainTaskInfo
 	4, // [4:4] is the sub-list for method output_type
 	4, // [4:4] is the sub-list for method input_type
@@ -472,7 +472,7 @@ func file_maintask_proto_init() {
 			}
 		}
 		file_maintask_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ReqClaimMainTask); i {
+			switch v := v.(*ReqMainTaskClaim); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -484,7 +484,7 @@ func file_maintask_proto_init() {
 			}
 		}
 		file_maintask_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*RspClaimMainTask); i {
+			switch v := v.(*RspMainTaskClaim); i {
 			case 0:
 				return &v.state
 			case 1:

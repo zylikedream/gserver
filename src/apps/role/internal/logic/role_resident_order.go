@@ -244,24 +244,24 @@ func (r *RoleResidentOrder) ensureUnlockedSlots() {
 
 // ========== Proto handler ==========
 
-func (r *RoleResidentOrder) ReqOrderInfo(ctx context.Context, req *pb.ReqOrderInfo) (*pb.RspOrderInfo, error) {
+func (r *RoleResidentOrder) ReqResidentOrderInfo(ctx context.Context, req *pb.ReqResidentOrderInfo) (*pb.RspResidentOrderInfo, error) {
 	r.ensureUnlockedSlots()
-	var slots []*pb.POrderSlot
+	var slots []*pb.PResidentOrderSlot
 	for _, slotCfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
 		slot := r.Slots[slotCfg.Id]
 		if slot == nil {
 			continue
 		}
-		slots = append(slots, r.toPOrderSlot(slot, slotCfg))
+		slots = append(slots, r.toPResidentOrderSlot(slot, slotCfg))
 	}
-	return &pb.RspOrderInfo{
+	return &pb.RspResidentOrderInfo{
 		Slots:          slots,
 		CompletedCount: r.CompletedCount,
 		Milestones:     r.buildMilestones(),
 	}, nil
 }
 
-func (r *RoleResidentOrder) ReqSubmitOrder(ctx context.Context, req *pb.ReqSubmitOrder) (*pb.RspSubmitOrder, error) {
+func (r *RoleResidentOrder) ReqResidentOrderSubmit(ctx context.Context, req *pb.ReqResidentOrderSubmit) (*pb.RspResidentOrderSubmit, error) {
 	r.ensureUnlockedSlots()
 	slot := r.Slots[req.SlotId]
 	if slot == nil {
@@ -303,13 +303,13 @@ func (r *RoleResidentOrder) ReqSubmitOrder(ctx context.Context, req *pb.ReqSubmi
 
 	r.MarkDirty()
 
-	return &pb.RspSubmitOrder{
-		Slot:           r.toPOrderSlot(r.Slots[req.SlotId], slotCfg),
+	return &pb.RspResidentOrderSubmit{
+		Slot:           r.toPResidentOrderSlot(r.Slots[req.SlotId], slotCfg),
 		CompletedCount: r.CompletedCount,
 	}, nil
 }
 
-func (r *RoleResidentOrder) ReqClaimOrderMilestone(ctx context.Context, req *pb.ReqClaimOrderMilestone) (*pb.RspClaimOrderMilestone, error) {
+func (r *RoleResidentOrder) ReqResidentOrderClaimMilestone(ctx context.Context, req *pb.ReqResidentOrderClaimMilestone) (*pb.RspResidentOrderClaimMilestone, error) {
 	cfg := gameconfig.GameConfig().TbResidentOrderProgressReward.Get(req.Id)
 	if cfg == nil {
 		return nil, ErrOrderMilestoneNotReached
@@ -329,12 +329,12 @@ func (r *RoleResidentOrder) ReqClaimOrderMilestone(ctx context.Context, req *pb.
 
 	r.ClaimedMilestones = append(r.ClaimedMilestones, req.Id)
 	r.MarkDirty()
-	return &pb.RspClaimOrderMilestone{}, nil
+	return &pb.RspResidentOrderClaimMilestone{}, nil
 }
 
 // ========== 辅助方法 ==========
 
-func (r *RoleResidentOrder) toPOrderSlot(slot *OrderSlotData, slotCfg *gamecfg.GardenResidentOrderSlot) *pb.POrderSlot {
+func (r *RoleResidentOrder) toPResidentOrderSlot(slot *OrderSlotData, slotCfg *gamecfg.GardenResidentOrderSlot) *pb.PResidentOrderSlot {
 	if slot == nil {
 		return nil
 	}
@@ -357,7 +357,7 @@ func (r *RoleResidentOrder) toPOrderSlot(slot *OrderSlotData, slotCfg *gamecfg.G
 	if slotCfg != nil {
 		pos = slotCfg.Position
 	}
-	return &pb.POrderSlot{
+	return &pb.PResidentOrderSlot{
 		SlotId:       slot.SlotID,
 		Position:     pos,
 		ResidentId:   slot.ResidentID,
@@ -369,8 +369,8 @@ func (r *RoleResidentOrder) toPOrderSlot(slot *OrderSlotData, slotCfg *gamecfg.G
 	}
 }
 
-func (r *RoleResidentOrder) buildMilestones() []*pb.PMilestoneInfo {
-	milestones := make([]*pb.PMilestoneInfo, 0)
+func (r *RoleResidentOrder) buildMilestones() []*pb.PResidentOrderMilestone {
+	milestones := make([]*pb.PResidentOrderMilestone, 0)
 	for _, cfg := range gameconfig.GameConfig().TbResidentOrderProgressReward.GetDataList() {
 		claimed := false
 		for _, c := range r.ClaimedMilestones {
@@ -379,7 +379,7 @@ func (r *RoleResidentOrder) buildMilestones() []*pb.PMilestoneInfo {
 				break
 			}
 		}
-		milestones = append(milestones, &pb.PMilestoneInfo{
+		milestones = append(milestones, &pb.PResidentOrderMilestone{
 			Id:        cfg.Id,
 			NeedCount: cfg.NeedCount,
 			Claimed:   claimed,

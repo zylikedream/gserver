@@ -139,7 +139,7 @@ func TestMainTaskClaimAdvancesAndNotifiesNextTask(t *testing.T) {
 	mt.Progress = 1
 	mt.Status = int32(pb.MainTaskStatus_MAIN_TASK_CLAIMABLE)
 
-	rsp, err := mt.ReqClaimMainTask(context.Background(), &pb.ReqClaimMainTask{})
+	rsp, err := mt.ReqMainTaskClaim(context.Background(), &pb.ReqMainTaskClaim{})
 	if err != nil {
 		t.Fatal(err)
 	}
