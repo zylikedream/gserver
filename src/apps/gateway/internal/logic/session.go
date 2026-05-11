@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -116,13 +117,13 @@ func (s *Session) DelayInit(ctx context.Context) error {
 func (s *Session) sessionCheck(ctx context.Context, _ gxytimer.TimerActiveInfo) {
 	clientIdleTime := time.Since(s.sessionInfo.ClientLastActive)
 	if clientIdleTime > SESSION_CLIENT_IDLE_TIMEOUT {
-		s.Stop(gerror.New("client idle timeout"))
+		s.Stop(errors.New("client idle timeout"))
 		return
 	}
 	serverIdleTime := time.Since(s.sessionInfo.ServerLastActive)
 	// 客户端发了包，但是服务器超过时间没有响应
 	if serverIdleTime > SESSION_SERVER_IDLE_TIMEOUT {
-		s.Stop(gerror.New("server idle timeout"))
+		s.Stop(errors.New("server idle timeout"))
 		return
 	}
 }

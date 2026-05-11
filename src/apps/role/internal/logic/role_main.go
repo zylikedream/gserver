@@ -324,10 +324,10 @@ func (r *RoleMain) saveRoleModule(ctx context.Context, rmod IRoleModule) error {
 		return nil
 	}
 
-	gxylog.Debug(ctx, "save mod", gxylog.Str("table", modState.(tabler).TableName()), gxylog.Bool("dirty", modState.IsDirty()))
 	if !modState.IsDirty() {
 		return nil
 	}
+	gxylog.Debug(ctx, "save mod", gxylog.Str("table", modState.(tabler).TableName()))
 
 	// 第一层：Redis 归属检查
 	key := getRoleLocateKey(r.RoleID)

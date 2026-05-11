@@ -91,11 +91,23 @@ func formatFields(msg string, fields []Field) string {
 	}
 	var b strings.Builder
 	b.WriteString(msg)
+	var errField Field
 	for _, f := range fields {
+		if f.Key == "error" {
+			errField = f
+			continue
+		}
 		b.WriteString(", ")
 		b.WriteString(f.Key)
 		b.WriteByte('=')
 		b.WriteString(f.Value)
+	}
+	// errField 最后一个
+	if errField.Key != "" {
+		b.WriteString(", ")
+		b.WriteString(errField.Key)
+		b.WriteByte('=')
+		b.WriteString(errField.Value)
 	}
 	return b.String()
 }
