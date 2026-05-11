@@ -58,6 +58,9 @@ func (mq *RedisMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 			case <-mq.stopCh:
 				return
 			case msg := <-subscriber.Channel():
+				if msg == nil {
+					continue
+				}
 				// 发送消息到通道
 				handler(ctx, msg.Payload)
 			}

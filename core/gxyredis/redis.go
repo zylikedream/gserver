@@ -59,6 +59,7 @@ func (r *redisApp) OnModInit(ctx context.Context) error {
 		DB:          conf.DB,
 		DialTimeout: conf.Timeout,
 	})
+	r.client.AddHook(metricsHook{})
 	return nil
 }
 

@@ -113,6 +113,9 @@ func (m *ModuleBase) StopModule(ctx context.Context) error {
 		}
 	}
 	if m.self != nil {
+		if err := m.self.OnModStopBefore(ctx); err != nil {
+			return err
+		}
 		if err := m.self.OnModStop(ctx); err != nil {
 			return err
 		}

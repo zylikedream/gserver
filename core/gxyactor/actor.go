@@ -3,6 +3,7 @@ package gxyactor
 import (
 	"context"
 	"gserver/core/gxylog"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
@@ -79,6 +80,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
 		a.self = ctx.Self()
+		gxymetrics.ActorActiveCount.WithLabelValues("actor").Inc()
 		a.timer = NewActorTimer(a.self)
 		var initArgs []any
 		if actorCtx, ok := ctx.(*ActorContext); ok {
@@ -105,14 +107,18 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	case *actor.Stopping:
 		return nil
 	case *actor.Stopped:
+		gxymetrics.ActorActiveCount.WithLabelValues("actor").Dec()
 		a.timer.Stop(a.ctx)
 		a.actor.Terminate(a.ctx, a.stopErr)
 	case actor.AutoRespond:
 		// Touch etc. — protoactor handles the response automatically
 	default:
+		start := time.Now()
 		if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
 			gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
 		}
+		gxymetrics.ActorMessages.WithLabelValues("actor").Inc()
+		gxymetrics.ActorMessageDuration.WithLabelValues("actor").Observe(time.Since(start).Seconds())
 	}
 	return nil
 }

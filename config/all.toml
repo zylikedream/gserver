@@ -25,3 +25,5 @@
 	address = "localhost:8500"
 	ttl = "10s"
 	refresh_ttl = "10s"
+[metrics]
+	addr = ":9091"

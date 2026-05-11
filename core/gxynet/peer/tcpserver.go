@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"gserver/core/gxylog"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/logger"
 	"gserver/core/gxyutil"
@@ -73,6 +74,7 @@ func (t *TcpServer) OnBoot(eng gnet.Engine) gnet.Action {
 }
 
 func (t *TcpServer) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
+	gxymetrics.TcpConnections.WithLabelValues("server").Inc()
 	endPoint := endpoint.NewTcpEndPoint(c, t.Processor)
 	c.SetContext(endPoint)
 	t.Handler.OnOpen(endPoint)
@@ -108,6 +110,7 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 }
 
 func (t *TcpServer) OnClose(c gnet.Conn, err error) gnet.Action {
+	gxymetrics.TcpConnections.WithLabelValues("server").Dec()
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
 	t.Handler.OnClose(endPoint, err)
 	if err != nil {

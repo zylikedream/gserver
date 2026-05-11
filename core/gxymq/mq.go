@@ -39,7 +39,6 @@ type messageQueueApp struct {
 	subs       map[string]*SubInfo
 	config     *messageQueueConfig
 	// 是否已关闭
-	closed bool
 	stopCh chan struct{}
 }
 
@@ -176,16 +175,8 @@ func (mq *messageQueueApp) processMessages(ctx context.Context) error {
 }
 
 // Close 关闭消息队列，释放所有资源
-func (mq *messageQueueApp) Close(ctx context.Context) error {
-	if mq.closed {
-		return nil // 已经关闭，直接返回
-	}
-	for _, sub := range mq.subs {
-		if err := sub.subscriber.Close(); err != nil {
-			gxylog.Error(ctx, "Close subscriber failed", gxylog.Err(err), gxylog.Str("topic", sub.Topic))
-		}
-	}
-	mq.closed = true
+func (mq *messageQueueApp) OnModStopBefore(ctx context.Context) error {
+	mq.queue.Close(ctx)
 	gxylog.Info(ctx, "Redis message queue closed")
 	return nil
 }

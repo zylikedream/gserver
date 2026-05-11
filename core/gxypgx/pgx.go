@@ -57,6 +57,9 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if err := db.Use(&metricsPlugin{}); err != nil {
+		return err
+	}
 	p.db = db
 	return nil
 }

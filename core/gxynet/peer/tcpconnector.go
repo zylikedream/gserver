@@ -3,11 +3,12 @@ package peer
 import (
 	"context"
 
+	"gserver/core/gxylog"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/os/gcfg"
-	"gserver/core/gxylog"
 	"github.com/panjf2000/gnet/v2"
 )
 
@@ -74,6 +75,7 @@ func (t *TcpConnector) OnBoot(eng gnet.Engine) gnet.Action {
 }
 
 func (t *TcpConnector) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
+	gxymetrics.TcpConnections.WithLabelValues("connector").Inc()
 	endPoint := endpoint.NewTcpEndPoint(c, t.Processor)
 	c.SetContext(endPoint)
 	t.Handler.OnOpen(endPoint)
@@ -107,6 +109,7 @@ func (t *TcpConnector) OnTraffic(c gnet.Conn) gnet.Action {
 }
 
 func (t *TcpConnector) OnClose(c gnet.Conn, err error) gnet.Action {
+	gxymetrics.TcpConnections.WithLabelValues("connector").Dec()
 	gxylog.Error(context.Background(), "conn close", gxylog.Str("addr", c.RemoteAddr().String()), gxylog.Err(err))
 	return gnet.None
 }

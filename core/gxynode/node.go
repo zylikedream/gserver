@@ -9,6 +9,7 @@ import (
 	"gserver/core/gxyapp"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
 	"gserver/core/gxypgx"
@@ -70,7 +71,7 @@ func (n *node) OnModStart(ctx context.Context) error {
 	gxylog.Info(context.Background(), "node starting....", gxylog.Str("name", n.Name))
 
 	loaded := map[string]bool{}
-	deps := []string{"redis", "pgx", "actor", "service", "http", "mq"}
+	deps := []string{"metrics", "redis", "pgx", "actor", "service", "http", "mq"}
 	for _, dep := range deps {
 		if err := n.loadApp(ctx, dep, loaded); err != nil {
 			return err
@@ -114,6 +115,7 @@ func (n *node) OnModStop(ctx context.Context) error {
 }
 
 func (n *node) registerApps() {
+	gxyapp.RegisterApp("metrics", gxymetrics.NewMetricsApp())
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
