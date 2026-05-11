@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"gserver/core/gxyhttp"
+	"gserver/core/gxylog"
 	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/lib"
 
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 )
@@ -46,7 +46,7 @@ func (r *RoleGuild) OnCreate(ctx context.Context) {}
 func (r *RoleGuild) OnModStart(ctx context.Context) error {
 	if r.GuildID > 0 {
 		if _, err := r.Role.Chat.JoinChannel(int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
-			glog.Errorf(ctx, "加入公会聊天失败: %v", err)
+			gxylog.Error(ctx, "加入公会聊天失败", gxylog.Err(err))
 		}
 	}
 	return nil
@@ -62,7 +62,7 @@ func (r *RoleGuild) OnModStop(ctx context.Context) error {
 func (r *RoleGuild) SetGuildID(ctx context.Context, guildID int64) {
 	r.GuildID = guildID
 	if _, err := r.Role.Chat.JoinChannel(int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
-		glog.Errorf(ctx, "加入公会聊天失败: %v", err)
+		gxylog.Error(ctx, "加入公会聊天失败", gxylog.Err(err))
 	}
 }
 

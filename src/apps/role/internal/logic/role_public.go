@@ -3,13 +3,13 @@ package logic
 import (
 	"context"
 	"fmt"
+	"gserver/core/gxylog"
 	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
 	"gserver/src/apps/api"
 	"time"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -96,12 +96,12 @@ func GetRolePublicFromCache(ctx context.Context, roleID int64) *RolePublicState 
 	strPublic, err := gxyredis.Redis().Get(ctx, key).Result()
 	if err != nil {
 		if err != redis.Nil {
-			glog.Errorf(ctx, "get role public from cache failed, roleID: %d, err: %v", roleID, err)
+			gxylog.Error(ctx, "get role public from cache failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 		}
 		return nil
 	}
 	if err := gjson.Unmarshal([]byte(strPublic), rolePublic); err != nil {
-		glog.Errorf(ctx, "unmarshal role public from cache failed, roleID: %d, err: %v", roleID, err)
+		gxylog.Error(ctx, "unmarshal role public from cache failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 		return nil
 	}
 	return rolePublic
@@ -111,18 +111,18 @@ func setRolePublicToCache(ctx context.Context, rolePublic *RolePublicState) {
 	key := getRolePublicKey(rolePublic.RoleID)
 	strPublic, err := gjson.EncodeString(rolePublic)
 	if err != nil {
-		glog.Errorf(ctx, "marshal role public to cache failed, roleID: %d, err: %v", rolePublic.RoleID, err)
+		gxylog.Error(ctx, "marshal role public to cache failed", gxylog.Num("roleID", rolePublic.RoleID), gxylog.Err(err))
 		return
 	}
 	if err := gxyredis.Redis().Set(ctx, key, strPublic, RolePublicCacheExpire).Err(); err != nil {
-		glog.Errorf(ctx, "set role public to cache failed, roleID: %d, err: %v", rolePublic.RoleID, err)
+		gxylog.Error(ctx, "set role public to cache failed", gxylog.Num("roleID", rolePublic.RoleID), gxylog.Err(err))
 	}
 }
 
 func GetRolePublicFromDB(ctx context.Context, roleID int64) *RolePublicState {
 	rolePublic := &RolePublicState{}
 	if err := loadModuleState(ctx, roleID, rolePublic); err != nil {
-		glog.Errorf(ctx, "load role public from db failed, roleID: %d, err: %v", roleID, err)
+		gxylog.Error(ctx, "load role public from db failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 		return nil
 	}
 	return rolePublic

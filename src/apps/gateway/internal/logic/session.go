@@ -18,7 +18,6 @@ import (
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -72,7 +71,7 @@ func NewSession(ep endpoint.Endpoint) *Session {
 func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *message.Message:
-		glog.Debugf(ctx, "handle client msg, msg: %s", gxyutil.FormatObject(msg))
+		gxylog.Debug(ctx, "handle client msg", gxylog.Str("msg", gxyutil.FormatObject(msg)))
 		if err := s.OnHandleClientMessage(ctx, msg); err != nil {
 			return gerror.Wrap(err, "handle client message error")
 		}
@@ -98,7 +97,7 @@ func (s *Session) Init(ctx context.Context, args []any) error {
 		ConnectTime:      time.Now(),
 		ClientLastActive: time.Now(),
 	}
-	glog.Infof(ctx, "Session initialized: remote: %s", s.endpoint.Conn().RemoteAddr())
+	gxylog.Info(ctx, "Session initialized", gxylog.Str("remote", s.endpoint.Conn().RemoteAddr().String()))
 	s.state = StateConnected
 
 	return nil
@@ -144,7 +143,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	if err != nil {
 		return gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
 	}
-	glog.Infof(ctx, "get role pid: %v", rolePid)
+	gxylog.Info(ctx, "get role pid", gxylog.Any("rolePid", rolePid))
 	s.sessionInfo.RolePid = rolePid
 	s.sessionInfo.RoleID = roleID
 
@@ -179,7 +178,7 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		case *pb.ReqAccountLogout:
 			s.Stop(gerror.New("client account logout"))
 		default:
-			glog.Debugf(ctx, "recv client msg, path: %s, msg: %s", msg.Path, gxyutil.FormatObject(pbmsg))
+			gxylog.Debug(ctx, "recv client msg", gxylog.Str("path", msg.Path), gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
 			if err := s.SendRoleMsg(pbmsg, msg.Path); err != nil {
 				return gerror.Wrap(err, "send data msg error")
 			}
@@ -213,7 +212,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	case *pb.RspAccountLogin:
 		s.state = StateLogin
 	}
-	glog.Debugf(ctx, "send client msg, msg: %s", gxyutil.FormatObject(pbmsg))
+	gxylog.Debug(ctx, "send client msg", gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
 	if err := s.endpoint.SendMsg(pbmsg); err != nil {
 		return gerror.Wrap(err, "send rsp error, err: %v")
 	}
@@ -222,7 +221,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 
 // Terminate 终止会话
 func (s *Session) Terminate(ctx context.Context, err error) {
-	glog.Infof(ctx, "Session terminating: role_id: %d, reason: %s", s.sessionInfo.RoleID, err)
+	gxylog.Info(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
 	SessionMgr().Remove(s.sessionInfo.RoleID)
 	// 关闭网络连接
 	if s.endpoint != nil {

@@ -3,14 +3,13 @@ package chat
 import (
 	"context"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
-
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 func InitChatSchema(ctx context.Context) {
 	if err := gxypgx.DB().AutoMigrate(&ChatPrivateMessage{}, &ChatSystemMessage{}); err != nil {
-		glog.Fatal(ctx, err)
+		gxylog.Fatal(ctx, "chat schema migration failed", gxylog.Err(err))
 	}
-	glog.Info(ctx, "[schema] chat tables migrated successfully")
+	gxylog.Info(ctx, "[schema] chat tables migrated successfully")
 }

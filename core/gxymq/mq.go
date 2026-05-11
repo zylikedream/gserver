@@ -3,10 +3,11 @@ package gxymq
 import (
 	"context"
 	"gserver/core/gxyapp"
+	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
+	"reflect"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 // MessageQueueType 消息队列类型
@@ -146,31 +147,29 @@ func (mq *messageQueueApp) doSubscribe(ctx context.Context, subInfo *SubInfo) er
 	})
 
 	// 初始化消息通道
-	glog.Infof(ctx, "Subscribing to topic: %s with priority: %d", subInfo.Topic, subInfo.Priority)
+	gxylog.Info(ctx, "Subscribing to topic", gxylog.Str("topic", subInfo.Topic), gxylog.Num("priority", subInfo.Priority))
 
 	return nil
 }
 
 // processMessages 处理消息
 func (mq *messageQueueApp) processMessages(ctx context.Context) error {
-	// 获取topic优先级，用于日志记录
+	// 构建动态select case，阻塞等待所有优先级通道
+	cases := make([]reflect.SelectCase, len(mq.priorityCh)+1)
+	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(mq.stopCh)}
+	for i, ch := range mq.priorityCh {
+		cases[i+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
+	}
+
 	for {
-	pri:
-		select {
-		case <-mq.stopCh:
-			return nil
-		default:
-			// 检查消息通道
-			for _, priChan := range mq.priorityCh {
-				select {
-				case msg := <-priChan:
-					// 处理消息
-					if err := msg.Handler(ctx, msg.Data); err != nil {
-						glog.Errorf(ctx, "Failed to process message: %v, topic: %s, err: %+v", msg.Data, msg.Topic, err)
-					}
-					break pri
-				default:
-				}
+		idx, val, ok := reflect.Select(cases)
+		if idx == 0 {
+			return nil // stopCh closed
+		}
+		if ok {
+			msg := val.Interface().(PriorityData)
+			if err := msg.Handler(ctx, msg.Data); err != nil {
+				gxylog.Error(ctx, "Failed to process message", gxylog.Str("data", msg.Data), gxylog.Str("topic", msg.Topic), gxylog.Err(err))
 			}
 		}
 	}
@@ -183,10 +182,10 @@ func (mq *messageQueueApp) Close(ctx context.Context) error {
 	}
 	for _, sub := range mq.subs {
 		if err := sub.subscriber.Close(); err != nil {
-			glog.Errorf(ctx, "Close subscriber failed: %v, topic: %s", err, sub.Topic)
+			gxylog.Error(ctx, "Close subscriber failed", gxylog.Err(err), gxylog.Str("topic", sub.Topic))
 		}
 	}
 	mq.closed = true
-	glog.Infof(ctx, "Redis message queue closed")
+	gxylog.Info(ctx, "Redis message queue closed")
 	return nil
 }

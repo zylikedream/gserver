@@ -5,14 +5,14 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/pkg/errors"
+	"gserver/core/gxylog"
 )
 
 var (
@@ -299,9 +299,9 @@ func (r *RoleBag) onGoodUpdateEvent(ctx context.Context, updates map[int]bag.Goo
 func (r *RoleBag) saveGoodOps(ctx context.Context, ops []bag.GoodOp) {
 	for _, op := range ops {
 		if op.Num > op.PreNum {
-			glog.Debugf(ctx, "add good, id: %d, num: %d, reason: %s", op.GoodID, op.Num, op.Reson)
+			gxylog.Debug(ctx, "add good", gxylog.Num("id", op.GoodID), gxylog.Num("num", op.Num), gxylog.Str("reason", op.Reson))
 		} else if op.Num < op.PreNum {
-			glog.Debugf(ctx, "dec good, id: %d, num: %d, reason: %s", op.GoodID, op.Num, op.Reson)
+			gxylog.Debug(ctx, "dec good", gxylog.Num("id", op.GoodID), gxylog.Num("num", op.Num), gxylog.Str("reason", op.Reson))
 		}
 	}
 }

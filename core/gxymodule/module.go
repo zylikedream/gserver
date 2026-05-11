@@ -4,7 +4,7 @@ import (
 	"context"
 	"gserver/core/gxyutil"
 
-	"github.com/gogf/gf/v2/os/glog"
+	"gserver/core/gxylog"
 )
 
 type IModule interface {
@@ -109,7 +109,7 @@ func (m *ModuleBase) StopModule(ctx context.Context) error {
 	for i := len(m.childs) - 1; i >= 0; i-- {
 		mod := m.childs[i].BaseModule()
 		if err := mod.StopModule(ctx); err != nil {
-			glog.Errorf(ctx, "stop child mod %s err: %v", mod.GetModName(), err)
+			gxylog.Error(ctx, "stop child mod failed", gxylog.Str("mod", mod.GetModName()), gxylog.Err(err))
 		}
 	}
 	if m.self != nil {

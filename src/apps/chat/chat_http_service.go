@@ -4,9 +4,8 @@ import (
 	"context"
 
 	"gserver/core/gxyhttp"
+	"gserver/core/gxylog"
 	"gserver/core/gxyservice"
-
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 type chatHttpService struct {
@@ -25,7 +24,7 @@ func (s *chatHttpService) OnModStart(ctx context.Context) error {
 	host := gxyservice.ServiceApp().Host
 	svr := gxyhttp.HttpSystem().NewHttpServer(host)
 	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), &ChatHandler{})
-	glog.Infof(ctx, "chat http server starting")
+	gxylog.Info(ctx, "chat http server starting")
 	if err := svr.Start(); err != nil {
 		return err
 	}
@@ -34,6 +33,6 @@ func (s *chatHttpService) OnModStart(ctx context.Context) error {
 }
 
 func (s *chatHttpService) OnModStop(ctx context.Context) error {
-	glog.Infof(ctx, "chat http service stopping")
+	gxylog.Info(ctx, "chat http service stopping")
 	return s.Svr.Shutdown()
 }

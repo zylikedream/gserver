@@ -11,13 +11,13 @@ import (
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxyhttp"
+	"gserver/core/gxylog"
 	"gserver/protocol/pb"
 	"gserver/src/lib"
 	"gserver/src/pkg/gameconfig"
 
 	gamecfg "gserver/gameconfig/gosrc"
 
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
@@ -53,7 +53,7 @@ func (r *RoleChat) OnModStart(ctx context.Context) error {
 	}
 	_, err := r.joinWorldChannel(ctx)
 	if err != nil {
-		glog.Warningf(ctx, "join world channel failed: %v", err)
+		gxylog.Warn(ctx, "join world channel failed", gxylog.Err(err))
 	}
 	return nil
 }
@@ -257,7 +257,7 @@ func (r *RoleChat) leaveWorldChannel(ctx context.Context) {
 	// 从频道 actor 注销
 	err := callChatLeaveLobby(ctx, r.RoleID, r.lastLobbyID)
 	if err != nil {
-		glog.Warningf(ctx, "leaveChannel: leave lobby failederr=%v", err)
+		gxylog.Warn(ctx, "leaveChannel: leave lobby failed", gxylog.Err(err))
 	}
 	r.LeaveChannel(ctx, int32(gamecfg.GardenEChatChannelType_WORLD), r.lastLobbyID)
 	r.lastLobbyID = 0
@@ -269,7 +269,7 @@ func (r *RoleChat) LeaveChannel(ctx context.Context, channelType int32, channelI
 	}
 	pid, err := lib.GetChannelActor(channelType, channelID)
 	if err != nil {
-		glog.Warningf(ctx, "leaveChannel: get actor failed, channelType=%d, channelID=%d, err=%v", channelType, channelID, err)
+		gxylog.Warn(ctx, "leaveChannel: get actor failed", gxylog.Num("channelType", channelType), gxylog.Num("channelID", channelID), gxylog.Err(err))
 		return
 	}
 	r.Role.Send(pid, &pb.ChannelUnregisterMsg{

@@ -2,12 +2,12 @@ package gxymq
 
 import (
 	"context"
+	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/os/gcfg"
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 var client pulsar.Client
@@ -61,7 +61,7 @@ func (p *PulsarMQ) Publish(ctx context.Context, topic string, msg string) error 
 		Topic: topic,
 	})
 	if err != nil {
-		glog.Errorf(ctx, "Create pulsar producer failed: %v, topic: %s", err, topic)
+		gxylog.Error(ctx, "Create pulsar producer failed", gxylog.Str("topic", topic), gxylog.Err(err))
 		return err
 	}
 	defer producer.Close()
@@ -71,7 +71,7 @@ func (p *PulsarMQ) Publish(ctx context.Context, topic string, msg string) error 
 		Payload: []byte(msg),
 	})
 	if err != nil {
-		glog.Errorf(ctx, "Pulsar publish message failed: %v, topic: %s", err, topic)
+		gxylog.Error(ctx, "Pulsar publish message failed", gxylog.Str("topic", topic), gxylog.Err(err))
 		return err
 	}
 
@@ -86,7 +86,7 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 		SubscriptionName: "sub-" + topic,
 	})
 	if err != nil {
-		glog.Errorf(ctx, "Pulsar subscribe failed: %v, topic: %s", err, topic)
+		gxylog.Error(ctx, "Pulsar subscribe failed", gxylog.Str("topic", topic), gxylog.Err(err))
 		return err
 	}
 
@@ -94,7 +94,7 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 	go func() {
 		defer func() {
 			consumer.Close() // Close方法没有返回值
-			glog.Infof(ctx, "Pulsar consumer closed: %s", topic)
+			gxylog.Info(ctx, "Pulsar consumer closed", gxylog.Str("topic", topic))
 		}()
 
 		for {
@@ -108,13 +108,13 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 					if ctx.Err() != nil {
 						return
 					}
-					glog.Errorf(ctx, "Failed to receive message: %v, topic: %s", err, topic)
+					gxylog.Error(ctx, "Failed to receive message", gxylog.Str("topic", topic), gxylog.Err(err))
 					continue
 				}
 
 				// 处理消息
 				if err := handler(ctx, string(msg.Payload())); err != nil {
-					glog.Errorf(ctx, "Failed to handle message: %v, topic: %s", err, topic)
+					gxylog.Error(ctx, "Failed to handle message", gxylog.Str("topic", topic), gxylog.Err(err))
 					// 处理失败，重试
 					consumer.Nack(msg)
 				} else {
@@ -134,6 +134,6 @@ func (p *PulsarMQ) Close(ctx context.Context) error {
 	p.client.Close()
 	// 关闭停止通道
 	close(p.stopCh)
-	glog.Infof(ctx, "Pulsar message queue closed")
+	gxylog.Info(ctx, "Pulsar message queue closed")
 	return nil
 }

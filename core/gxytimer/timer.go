@@ -2,10 +2,10 @@ package gxytimer
 
 import (
 	"context"
+	"gserver/core/gxylog"
 	"time"
 
 	"github.com/gogf/gf/v2/os/gcron"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/os/gtimer"
 	"github.com/robfig/cron/v3"
 )
@@ -162,7 +162,7 @@ func (s *GxyTimer) RestoreCron(ctx context.Context, tm time.Time) {
 
 func (s *GxyTimer) Cancel(ctx context.Context, name string) {
 	if info, ok := s.timerInfos[name]; ok {
-		glog.Debugf(ctx, "Cancel timer %s", name)
+		gxylog.Debug(ctx, "Cancel timer", gxylog.Str("name", name))
 		if info.timerEntry != nil {
 			info.timerEntry.Close()
 		}

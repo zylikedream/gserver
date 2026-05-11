@@ -10,7 +10,6 @@ import (
 	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/os/gcfg"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/panjf2000/gnet/v2"
 	"github.com/panjf2000/gnet/v2/pkg/logging"
 )
@@ -53,7 +52,7 @@ func (t *TcpServer) Start(ctx context.Context, el endpoint.EventHandler) error {
 			gnet.WithMulticore(true),
 			gnet.WithLogger(logger.NewGnetLogger()), gnet.WithLogLevel(logging.DebugLevel),
 			gnet.WithReuseAddr(true)); err != nil {
-			glog.Fatalf(ctx, "gnet run err:%s", err)
+			gxylog.Fatal(ctx, "gnet run failed", gxylog.Err(err))
 		}
 
 	}()
@@ -84,14 +83,14 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
 	data, err := c.Peek(-1)
 	if err != nil {
-		glog.Errorf(ctx, "get traffic data failed %s", err.Error())
+		gxylog.Error(ctx, "get traffic data failed", gxylog.Err(err))
 		return gnet.Close
 	}
 	dataLen := 0
 	for {
 		msg, len, err := endPoint.DecodeMsg(data)
 		if err != nil {
-			glog.Errorf(context.Background(), "decode msg failed:%+v, raw data:%v", err, data)
+			gxylog.Error(context.Background(), "decode msg failed", gxylog.Err(err), gxylog.Any("rawData", data))
 			return gnet.Close
 		}
 
@@ -112,7 +111,7 @@ func (t *TcpServer) OnClose(c gnet.Conn, err error) gnet.Action {
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
 	t.Handler.OnClose(endPoint, err)
 	if err != nil {
-		glog.Errorf(ctx, "conn close %s, error %+v", c.RemoteAddr().String(), err)
+		gxylog.Error(ctx, "conn close", gxylog.Str("addr", c.RemoteAddr().String()), gxylog.Err(err))
 	}
 	return gnet.None
 }

@@ -8,9 +8,9 @@ import (
 	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/frame/g"
+	"gserver/core/gxylog"
 
 	_ "github.com/gogf/gf/contrib/nosql/redis/v2"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -33,7 +33,7 @@ var app *redisApp
 
 func Redis() Client {
 	if app.conf == nil {
-		glog.Error(context.Background(), "redis not init, miss config")
+		gxylog.Error(context.Background(), "redis not init, miss config")
 	}
 	return app.client
 }
@@ -72,7 +72,7 @@ func (r *redisApp) OnModStart(ctx context.Context) error {
 	if err := r.client.Ping(timeoutCtx).Err(); err != nil {
 		return err
 	}
-	glog.Infof(ctx, "[module]redis start success: %s", r.conf.Addr)
+	gxylog.Info(ctx, "redis start success", gxylog.Str("addr", r.conf.Addr))
 	return nil
 }
 
@@ -82,7 +82,7 @@ func (r *redisApp) OnModStop(ctx context.Context) error {
 			return err
 		}
 	}
-	glog.Info(ctx, "[module]redis stop success")
+	gxylog.Info(ctx, "redis stop success")
 	return nil
 }
 

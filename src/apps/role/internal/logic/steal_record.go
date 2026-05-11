@@ -4,9 +4,8 @@ import (
 	"context"
 	"time"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
-
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 type StealRecord struct {
@@ -38,7 +37,7 @@ func hasStealRecord(ctx context.Context, stealerID, ownerID int64, plotID int32)
 		Where("stealer_id = ? AND owner_id = ? AND plot_id = ?", stealerID, ownerID, plotID).
 		Count(&count).Error
 	if err != nil {
-		glog.Errorf(ctx, "hasStealRecord error: %v", err)
+		gxylog.Error(ctx, "hasStealRecord error", gxylog.Err(err))
 		return true
 	}
 	return count > 0

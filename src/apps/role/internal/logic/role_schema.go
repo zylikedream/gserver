@@ -3,9 +3,8 @@ package logic
 import (
 	"context"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
-
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 func InitRoleSchema(ctx context.Context) {
@@ -26,8 +25,8 @@ func InitRoleSchema(ctx context.Context) {
 		&RoleChatState{},
 			&RoleGuildState{},
 	); err != nil {
-		glog.Fatal(ctx, err)
+		gxylog.Fatal(ctx, "role schema migration failed", gxylog.Err(err))
 	}
 
-	glog.Info(ctx, "[schema] all role tables migrated successfully")
+	gxylog.Info(ctx, "[schema] all role tables migrated successfully")
 }

@@ -3,6 +3,8 @@ package gxylog
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gctx"
@@ -55,4 +57,61 @@ func NewLogAdapter(ctx context.Context, typ string, level int) *LogAdapter {
 		Ctx:    NewContext(ctx, typ),
 		Level:  level,
 	}
+}
+
+// --- Structured Logging ---
+
+type Field struct {
+	Key   string
+	Value string
+}
+
+type Number interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64
+}
+
+func Str(key, val string) Field { return Field{key, val} }
+func Num[T Number](key string, val T) Field {
+	return Field{key, fmt.Sprintf("%d", val)}
+}
+func Bool(key string, val bool) Field {
+	return Field{key, strconv.FormatBool(val)}
+}
+func Err(err error) Field {
+	return Field{"error", fmt.Sprintf("%+v", err)}
+}
+func Any(key string, val any) Field {
+	return Field{key, fmt.Sprintf("%v", val)}
+}
+
+func formatFields(msg string, fields []Field) string {
+	if len(fields) == 0 {
+		return msg
+	}
+	var b strings.Builder
+	b.WriteString(msg)
+	for _, f := range fields {
+		b.WriteString(", ")
+		b.WriteString(f.Key)
+		b.WriteByte('=')
+		b.WriteString(f.Value)
+	}
+	return b.String()
+}
+
+func Info(ctx context.Context, msg string, fields ...Field) {
+	logger.Skip(1).Info(ctx, formatFields(msg, fields))
+}
+func Debug(ctx context.Context, msg string, fields ...Field) {
+	logger.Skip(1).Debug(ctx, formatFields(msg, fields))
+}
+func Warn(ctx context.Context, msg string, fields ...Field) {
+	logger.Skip(1).Warning(ctx, formatFields(msg, fields))
+}
+func Error(ctx context.Context, msg string, fields ...Field) {
+	logger.Skip(1).Error(ctx, formatFields(msg, fields))
+}
+func Fatal(ctx context.Context, msg string, fields ...Field) {
+	logger.Skip(1).Fatal(ctx, formatFields(msg, fields))
 }

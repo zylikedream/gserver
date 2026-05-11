@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
 	"math/rand"
 
 	"github.com/gogf/gf/v2/container/gmap"
 	"github.com/gogf/gf/v2/container/gtree"
-	"github.com/gogf/gf/v2/os/glog"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -133,8 +133,9 @@ func (s *consistentHashSelector) Select(ctx context.Context, service string, key
 	if hashval == "" || hashval != hservices.Hash {
 		s.rebuildRing(ring, services)
 		s.hashs.Set(ringKey, hservices.Hash)
-		glog.Debugf(ctx, "consistentHashSelector rebuild ring, ring: %s, hash: %s, services: %s",
-			ringKey, hservices.Hash, gxyutil.FormatObject(services))
+		gxylog.Debug(ctx, "consistentHashSelector rebuild ring",
+			gxylog.Str("ring", ringKey), gxylog.Str("hash", hservices.Hash),
+			gxylog.Str("services", gxyutil.FormatObject(services)))
 	}
 
 	// 计算服务的哈希值
@@ -171,7 +172,7 @@ func (s *consistentHashSelector) Select(ctx context.Context, service string, key
 		return selectedNode
 	}
 
-	glog.Warningf(context.Background(), "consistentHashSelector Select no node found, return random node")
+	gxylog.Warn(context.Background(), "consistentHashSelector Select no node found, return random node")
 	// 兜底方案：如果哈希环为空，随机返回一个节点
 	return services[rand.Intn(len(services))]
 }

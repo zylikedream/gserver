@@ -11,16 +11,15 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
-	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib"
+	"gserver/src/pkg/gameconfig"
 	"reflect"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
@@ -125,7 +124,7 @@ func (r *RoleMain) DelayInit(ctx context.Context) error {
 	if err := r.afterInitRole(ctx); err != nil {
 		return gerror.Wrapf(err, "after init role error, roleID: %d", r.RoleID)
 	}
-	glog.Debugf(ctx, "role start success, roleID: %d", r.RoleID)
+	gxylog.Debug(ctx, "role start success")
 	return nil
 }
 
@@ -136,7 +135,7 @@ func (r *RoleMain) initRole(ctx context.Context) error {
 	r.initTimer(ctx)
 	r.initMsgHandler()
 	r.state = RoleStateLoad
-	glog.Debugf(ctx, "init role success, roleID: %d", r.RoleID)
+	gxylog.Debug(ctx, "init role success")
 	return nil
 }
 
@@ -255,7 +254,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	}
 	r.sessionActiveTime = time.Now()
 	if !canHandleMsg(r.state, pbmsg) {
-		glog.Warningf(ctx, "role recv msg in state %d, ignore it  msg: %s", r.state, gxyutil.FormatObject(pbmsg))
+		gxylog.Warn(ctx, "role recv msg in wrong state, ignore", gxylog.Num("state", int(r.state)), gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
 		return nil, nil
 	}
 	var rsp proto.Message
@@ -309,7 +308,7 @@ func (r *RoleMain) initMsgHandler() {
 
 func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 	if err := r.save(ctx); err != nil {
-		glog.Errorf(ctx, "save error, roleID: %d, err: %+v", r.RoleID, err)
+		gxylog.Error(ctx, "save error", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
 		// 终止当前进程
 		r.Stop(err)
 		return
@@ -325,7 +324,7 @@ func (r *RoleMain) saveRoleModule(ctx context.Context, rmod IRoleModule) error {
 		return nil
 	}
 
-	glog.Debugf(ctx, "save mod %s, dirty: %v", modState.(tabler).TableName(), modState.IsDirty())
+	gxylog.Debug(ctx, "save mod", gxylog.Str("table", modState.(tabler).TableName()), gxylog.Bool("dirty", modState.IsDirty()))
 	if !modState.IsDirty() {
 		return nil
 	}
@@ -334,15 +333,15 @@ func (r *RoleMain) saveRoleModule(ctx context.Context, rmod IRoleModule) error {
 	key := getRoleLocateKey(r.RoleID)
 	owner, err := gxyredis.Redis().Get(ctx, key).Result()
 	if err == redis.Nil || owner == "" {
-		glog.Warningf(ctx, "actor %d not claimed in redis, skip save", r.RoleID)
+		gxylog.Warn(ctx, "actor not claimed in redis, skip save", gxylog.Num("roleID", r.RoleID))
 		return nil
 	}
 	if err != nil {
-		glog.Errorf(ctx, "redis get failed for role %d: %v, skip save", r.RoleID, err)
+		gxylog.Error(ctx, "redis get failed, skip save", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
 		return nil
 	}
 	if owner != gxyactor.ActorApp().NodeInstanceName() {
-		glog.Warningf(ctx, "actor %d claimed by %s, skip save", r.RoleID, owner)
+		gxylog.Warn(ctx, "actor claimed by another node, skip save", gxylog.Num("roleID", r.RoleID), gxylog.Str("owner", owner))
 		return nil
 	}
 
@@ -400,12 +399,12 @@ func getRoleLocateKey(roleID int64) string {
 
 func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 	if r.session == nil {
-		glog.Errorf(ctx, "session is nil, roleID: %d", r.RoleID)
+		gxylog.Error(ctx, "session is nil", gxylog.Num("roleID", r.RoleID))
 		return
 	}
 	svrMsg, err := r.newServerMsg(msg)
 	if err != nil {
-		glog.Errorf(ctx, "new server msg error, roleID: %d, err: %v", r.RoleID, err)
+		gxylog.Error(ctx, "new server msg error", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
 		return
 	}
 	r.Send(r.session, svrMsg)
@@ -444,7 +443,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	}
 	r.Basic.LoginTm = now
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
-		glog.Infof(ctx, "role reconnect, roleID: %d", r.RoleID)
+		gxylog.Info(ctx, "role reconnect", gxylog.Num("roleID", r.RoleID))
 	}
 	r.Timer().Cancel(ctx, SignleAliveOnce.Name)
 	r.state = RoleStateLogined
@@ -531,23 +530,23 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 		rmod := mod.(IRoleModule)
 		rmod.BeforeLogout(ctx)
 	}
-	glog.Infof(ctx, "role logout, roleID: %d, reason %s", r.RoleID, reason)
+	gxylog.Debug(ctx, "role logout", gxylog.Str("reason", reason))
 	return nil
 }
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {
-	glog.Debugf(ctx, "role stopped, roleID: %d, err: %v", r.RoleID, err)
+	gxylog.Debug(ctx, "role stopped", gxylog.Err(err))
 	if serr := r.StopModule(ctx); serr != nil {
-		glog.Errorf(ctx, "stop module error, roleID: %d, err: %v", r.RoleID, err)
+		gxylog.Error(ctx, "stop module error", gxylog.Err(serr))
 	}
 
-	glog.Infof(ctx, "role actor terminate, roleID: %d, reason: %v", r.RoleID, err)
+	gxylog.Debug(ctx, "role actor terminate", gxylog.Err(err))
 }
 
 func (r *RoleMain) OnModStop(ctx context.Context) error {
-	glog.Infof(ctx, "role stop, roleID: %d", r.RoleID)
+	gxylog.Debug(ctx, "role stop")
 	if serr := r.save(ctx); serr != nil {
-		glog.Errorf(ctx, "save error, roleID: %d, err: %+v", r.RoleID, serr)
+		gxylog.Error(ctx, "save error", gxylog.Err(serr))
 	}
 	return nil
 }

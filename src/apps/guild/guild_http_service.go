@@ -4,10 +4,9 @@ import (
 	"context"
 
 	"gserver/core/gxyhttp"
+	"gserver/core/gxylog"
 	"gserver/core/gxyservice"
 	guildlogic "gserver/src/apps/guild/logic"
-
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 type guildHttpService struct {
@@ -27,7 +26,7 @@ func (s *guildHttpService) OnModStart(ctx context.Context) error {
 	host := gxyservice.ServiceApp().Host
 	svr := gxyhttp.HttpSystem().NewHttpServer(host)
 	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), &guildlogic.GuildHandler{})
-	glog.Infof(ctx, "guild server starting")
+	gxylog.Info(ctx, "guild server starting")
 	if err := svr.Start(); err != nil {
 		return err
 	}
@@ -36,6 +35,6 @@ func (s *guildHttpService) OnModStart(ctx context.Context) error {
 }
 
 func (s *guildHttpService) OnModStop(ctx context.Context) error {
-	glog.Infof(ctx, "guild service stopping")
+	gxylog.Info(ctx, "guild service stopping")
 	return s.Svr.Shutdown()
 }

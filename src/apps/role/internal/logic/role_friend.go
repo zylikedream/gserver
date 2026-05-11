@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"gserver/core/gxyhttp"
+	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
 	"gserver/protocol/pb"
 	"gserver/src/apps/api"
@@ -15,7 +16,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/pkg/errors"
 )
@@ -154,7 +154,7 @@ func (r *RoleMain) ReqFriendSearchPlayer(ctx context.Context, req *pb.ReqFriendS
 		} else {
 			relation, err := getRelation(ctx, r.RoleID, p.RoleID)
 			if err != nil {
-				glog.Warningf(ctx, "getRelation error: %v", err)
+				gxylog.Warn(ctx, "getRelation error", gxylog.Err(err))
 			}
 			info.Relation = int32(relation)
 		}
@@ -244,7 +244,7 @@ func callFriendList(ctx context.Context, playerID int64) ([]friendEntryJSON, err
 func (r *RoleMain) notifyPlayer(ctx context.Context, targetID int64, msg proto.Message) {
 	pid, err := lib.GetRoleActor(targetID)
 	if err != nil {
-		glog.Warningf(ctx, "notifyPlayer: get actor failed, target=%d, err=%v", targetID, err)
+		gxylog.Warn(ctx, "notifyPlayer: get actor failed", gxylog.Num("target", targetID), gxylog.Err(err))
 		return
 	}
 	if pid == nil {

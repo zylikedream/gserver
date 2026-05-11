@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gserver/core/gxyapp"
+	"gserver/core/gxylog"
 	"gserver/protocol/pb"
 
 	"google.golang.org/protobuf/proto"
@@ -13,7 +14,6 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 // actorApp 基础Actor模块
@@ -65,7 +65,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 }
 
 func (a *actorApp) OnModStart(ctx context.Context) error {
-	glog.Infof(ctx, "actor %s started at %s", a.nodeName, a.Address())
+	gxylog.Info(ctx, "actor started ", gxylog.Str("nodeName", a.nodeName), gxylog.Str("address", a.Address()))
 	// 启动服务
 	return nil
 }
@@ -73,7 +73,7 @@ func (a *actorApp) OnModStart(ctx context.Context) error {
 // OnModStop 停止Actor模块 - 停止节点
 func (a *actorApp) OnModStop(ctx context.Context) error {
 	a.system.Shutdown()
-	glog.Infof(ctx, "actor system stopped: %s", a.Address())
+	gxylog.Info(ctx, "actor system stopped ", gxylog.Str("address", a.Address()))
 	return nil
 }
 
@@ -175,7 +175,7 @@ func newSupervisor() actor.SupervisorStrategy {
 }
 
 func decider(reason any) actor.Directive {
-	glog.Errorf(context.Background(), "actor error : %v", reason)
+	gxylog.Error(context.Background(), "actor error", gxylog.Any("reason", reason))
 	return actor.StopDirective
 }
 

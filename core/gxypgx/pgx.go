@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"gserver/core/gxyapp"
+	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/glog"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -27,7 +27,7 @@ var pgxAppInstance *PGXApp
 
 func PGX() *PGXApp {
 	if pgxAppInstance.db == nil {
-		glog.Error(context.Background(), "pgx not init, miss config")
+		gxylog.Error(context.Background(), "pgx not init, miss config")
 	}
 	return pgxAppInstance
 }
@@ -49,7 +49,6 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 	if conf.URL == "" {
 		return nil
 	}
-	glog.Debugf(ctx, "conf = %v", conf)
 	p.conf = conf
 
 	db, err := gorm.Open(postgres.Open(conf.URL), &gorm.Config{
@@ -71,9 +70,9 @@ func (p *PGXApp) OnModStart(ctx context.Context) error {
 		return err
 	}
 	if err := sqlDB.PingContext(ctx); err != nil {
-		glog.Fatal(ctx, err)
+		gxylog.Fatal(ctx, "postgres ping failed", gxylog.Err(err))
 	}
-	glog.Infof(ctx, "[module]postgres(gorm) start success: %s", p.conf.URL)
+	gxylog.Info(ctx, "postgres(gorm) start success", gxylog.Str("url", p.conf.URL))
 	return nil
 }
 
@@ -84,6 +83,6 @@ func (p *PGXApp) OnModStop(ctx context.Context) error {
 			sqlDB.Close()
 		}
 	}
-	glog.Info(ctx, "[module]postgres stop success")
+	gxylog.Info(ctx, "postgres stop success")
 	return nil
 }

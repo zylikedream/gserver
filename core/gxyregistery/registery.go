@@ -2,6 +2,7 @@ package gxyregistery
 
 import (
 	"context"
+	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
 	"sort"
 	"time"
@@ -9,7 +10,6 @@ import (
 	"github.com/gogf/gf/v2/container/gmap"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/gsvc"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/pkg/errors"
 )
@@ -89,7 +89,7 @@ func (r *registery) toServiceInfo(svc gsvc.Service) *ServiceInfo {
 	}
 	sv, err := NewServiceFromBytes([]byte(svc.GetValue()))
 	if err != nil {
-		glog.Errorf(context.Background(), "NewServiceFromBytes err: %v", err)
+		gxylog.Error(context.Background(), "NewServiceFromBytes failed", gxylog.Err(err))
 		return nil
 	}
 	return sv
@@ -150,9 +150,10 @@ func (r *registery) compareServiceInfos(old, new []*ServiceInfo) bool {
 }
 
 func (r *registery) StartWatch(name string) {
-	watcher, err := r.Registry.Watch(context.Background(), name)
+	ctx := context.Background()
+	watcher, err := r.Registry.Watch(ctx, name)
 	if err != nil {
-		glog.Errorf(context.Background(), "Watch err: %v", err)
+		gxylog.Error(ctx, "Watch err", gxylog.Err(err))
 		return
 	}
 
@@ -172,7 +173,7 @@ func (r *registery) StartWatch(name string) {
 	for {
 		services, err := watcher.Proceed()
 		if err != nil {
-			glog.Errorf(context.Background(), "Proceed err: %v", err)
+			gxylog.Error(context.Background(), "Proceed failed", gxylog.Err(err))
 			// 添加重试延迟，避免错误风暴
 			time.Sleep(time.Second)
 			continue
@@ -186,7 +187,7 @@ func (r *registery) StartWatch(name string) {
 			currentSvcList, ok := currentServices.([]*ServiceInfo)
 			if ok && r.compareServiceInfos(currentSvcList, serviceInfos) {
 				// 服务信息没有实际变化，跳过更新
-				glog.Debugf(context.Background(), "No actual change in services for %s, skipping update", name)
+				gxylog.Debug(ctx, "No actual change in services, skipping update", gxylog.Str("service", name))
 				continue
 			}
 		}
@@ -206,8 +207,7 @@ func (r *registery) updateServices(name string, services []*ServiceInfo) {
 	r.services.Set(name, services)
 	newSeq := r.seqs.GetOrSet(name, 0) + 1
 	r.seqs.Set(name, newSeq)
-	glog.Infof(context.Background(), "Updating services for %s, count: %d, seq: %d, services: %s", name,
-		len(services), newSeq, gxyutil.FormatObject(services))
+	gxylog.Info(context.Background(), "Updating services", gxylog.Str("name", name), gxylog.Num("count", len(services)), gxylog.Num("seq", newSeq), gxylog.Str("services", gxyutil.FormatObject(services)))
 }
 
 func (r *registery) GetHashServices(ctx context.Context, name string) (HashServices, error) {

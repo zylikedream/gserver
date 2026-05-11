@@ -5,7 +5,7 @@ import (
 	"gserver/core/gxyservice"
 
 	"github.com/gogf/gf/v2/net/ghttp"
-	"github.com/gogf/gf/v2/os/glog"
+	"gserver/core/gxylog"
 )
 
 type HttpService struct {
@@ -26,7 +26,7 @@ type Response struct {
 
 func SetHandler(server *ghttp.Server, ctx context.Context, name string, handler any) {
 	if server.Status() == ghttp.ServerStatusRunning {
-		glog.Warningf(ctx, "http server is running, can not set handler")
+		gxylog.Warn(ctx, "http server is running, can not set handler")
 		return
 	}
 	server.Group("/"+name, func(group *ghttp.RouterGroup) {

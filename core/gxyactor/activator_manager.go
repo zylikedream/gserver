@@ -16,7 +16,6 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/asynkron/protoactor-go/router"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -211,7 +210,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 }
 
 func (a *actorActivator) Terminate(ctx context.Context, err error) {
-	glog.Info(ctx, "actor activator stopped")
+	gxylog.Info(ctx, "actor activator stopped", gxylog.Err(err))
 }
 
 func (a *actorActivator) registerActorLocate(ctx context.Context, key string) error {
@@ -320,7 +319,7 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 }
 
 func (g *activatorManager) spawnActor(node string, kind string, id string) (PID, error) {
-	glog.Debugf(g.ctx, "spawn actor %s:%s at %s", kind, id, node)
+	gxylog.Debug(g.ctx, "spawn actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node))
 	activator := actor.NewPID(node, g.getRouterName())
 	rsp, err := Call(activator, &pb.ActorActive{
 		Kind: kind,
@@ -350,7 +349,7 @@ func (g *activatorManager) getActor(kind string, id string, spawn bool) (PID, er
 			return actor.NewPID(nodeHost, id), nil
 		}
 		// 节点已死 → fallback spawn（下面继续走）
-		glog.Warningf(ctx, "node %s for actor %s not alive, re-spawning", nodeName, key)
+		gxylog.Warn(ctx, "node not alive, re-spawning", gxylog.Str("node", nodeName), gxylog.Str("actor", key))
 	}
 
 	if !spawn {

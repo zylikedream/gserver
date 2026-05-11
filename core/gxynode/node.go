@@ -23,7 +23,6 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 type node struct {
@@ -68,7 +67,7 @@ func (a *node) GetModName() string {
 }
 
 func (n *node) OnModStart(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s starting....", n.Name)
+	gxylog.Info(context.Background(), "node starting....", gxylog.Str("name", n.Name))
 
 	loaded := map[string]bool{}
 	deps := []string{"redis", "pgx", "actor", "service", "http", "mq"}
@@ -100,17 +99,17 @@ func (n *node) loadApp(ctx context.Context, appName string, loaded map[string]bo
 }
 
 func (n *node) OnModStartAfter(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s start success", n.Name)
+	gxylog.Info(context.Background(), "node start success", gxylog.Str("name", n.Name))
 	return nil
 }
 
 func (n *node) OnModStopBefore(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s stopping...", n.Name)
+	gxylog.Info(context.Background(), "node stopping...", gxylog.Str("name", n.Name))
 	return nil
 }
 
 func (n *node) OnModStop(ctx context.Context) error {
-	glog.Infof(context.Background(), "node %s stop success", n.Name)
+	gxylog.Info(context.Background(), "node stop success", gxylog.Str("name", n.Name))
 	return nil
 }
 

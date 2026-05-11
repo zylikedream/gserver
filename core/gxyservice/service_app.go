@@ -3,10 +3,9 @@ package gxyservice
 import (
 	"context"
 	"gserver/core/gxyapp"
+	"gserver/core/gxylog"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyutil"
-
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 type serviceApp struct {
@@ -15,7 +14,7 @@ type serviceApp struct {
 	serviceInfo      []*gxyregistery.ServiceInfo
 	registry         gxyregistery.IRegistery
 	nodeInstanceName string
-	Host string 
+	Host             string
 }
 
 var svrApp *serviceApp
@@ -27,7 +26,7 @@ func ServiceApp() *serviceApp {
 func NewServiceApp(nodeInstanceName string, Host string) *serviceApp {
 	svrApp = &serviceApp{
 		nodeInstanceName: nodeInstanceName,
-		Host: Host,
+		Host:             Host,
 	}
 	return svrApp
 }
@@ -75,10 +74,10 @@ func (s *serviceApp) registerSevices() error {
 }
 
 func (s *serviceApp) OnModStop(ctx context.Context) error {
-	glog.Infof(ctx, "unregister %d services", len(s.serviceInfo))
+	gxylog.Info(ctx, "unregister services", gxylog.Num("svcnum", len(s.serviceInfo)))
 	for _, svcInfo := range s.serviceInfo {
 		if err := s.registry.UnRegister(ctx, svcInfo); err != nil {
-			glog.Errorf(ctx, "unregister service failed:%+v", err)
+			gxylog.Error(ctx, "unregister service failed", gxylog.Err(err))
 			continue
 		}
 	}
@@ -88,10 +87,13 @@ func (s *serviceApp) OnModStop(ctx context.Context) error {
 func (s *serviceApp) GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
 	services, err := s.registry.GetHashServices(ctx, name)
 	if err != nil {
-		glog.Errorf(ctx, "get service(%s:%s) failed:%+v", name, key, err)
+		gxylog.Error(ctx, "get service failed", gxylog.Str("name", name), gxylog.Str("key", key), gxylog.Err(err))
 		return nil
 	}
-	glog.Debugf(ctx, "get service(%s:%s) success, services: %s", name, key, gxyutil.FormatObject(services))
+
+	gxylog.Debug(ctx, "get service success", gxylog.Str("name", name), gxylog.Str("key", key),
+		gxylog.Str("services", gxyutil.FormatObject(services)))
+
 	return selector.Select(ctx, name, key, services)
 }
 
@@ -99,7 +101,7 @@ func (s *serviceApp) GetServiceInfo(ctx context.Context, name string, key string
 func (s *serviceApp) GetAddressByNodeName(ctx context.Context, name string, nodeInstanceName string) string {
 	services, err := s.registry.GetHashServices(ctx, name)
 	if err != nil {
-		glog.Errorf(ctx, "get services for node lookup failed:%+v", err)
+		gxylog.Error(ctx, "get services for node lookup failed", gxylog.Err(err))
 		return ""
 	}
 	for _, svc := range services.ServiceInfos {

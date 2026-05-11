@@ -3,10 +3,10 @@ package gxymq
 import (
 	"context"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxyredis"
 
 	"github.com/gogf/gf/v2/os/gcfg"
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 // 移除了消息级优先级相关结构体
@@ -36,7 +36,7 @@ func (mq *RedisMQ) Start(ctx context.Context) error {
 func (mq *RedisMQ) Publish(ctx context.Context, topic string, msg string) error {
 	// 直接使用Redis的PUBLISH命令发布消息
 	if err := mq.client.Publish(ctx, topic, msg).Err(); err != nil {
-		glog.Errorf(ctx, "Redis publish message failed: %v, topic: %s", err, topic)
+		gxylog.Error(ctx, "Redis publish message failed", gxylog.Str("topic", topic), gxylog.Err(err))
 		return err
 	}
 	return nil
@@ -48,9 +48,9 @@ func (mq *RedisMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 	go func() {
 		defer func() {
 			if err := subscriber.Close(); err != nil {
-				glog.Errorf(ctx, "Close subscriber failed: %v, topic: %s", err, topic)
+				gxylog.Error(ctx, "Close subscriber failed", gxylog.Err(err))
 			}
-			glog.Infof(ctx, "Redis subscriber closed: %s", topic)
+			gxylog.Info(ctx, "Redis subscriber closed", gxylog.Str("topic", topic))
 		}()
 
 		for {

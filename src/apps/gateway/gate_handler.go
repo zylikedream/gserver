@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 )
 
 type GateHandler struct {
@@ -20,25 +20,26 @@ func NewGateHandler() *GateHandler {
 }
 
 func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
+	ctx := context.Background()
 	connID := ep.Conn().RemoteAddr().String()
-	glog.Debugf(context.Background(), "New connection: %s", connID)
+	gxylog.Debug(ctx, "New connection", gxylog.Str("connID", connID))
 
 	// 通过SessionManager创建Session Actor
 	sessPid, err := SpawnSession(ep)
 	if err != nil {
-		glog.Errorf(context.Background(), "Failed to create session for %s: %+v", connID, err)
+		gxylog.Error(ctx, "Failed to create session for %s", gxylog.Str("connID", connID), gxylog.Err(err))
 		ep.Conn().Close()
 		return err
 	}
 	ep.SetData(sessPid)
-	glog.Debugf(context.Background(), "Session Actor created with PID: %v", sessPid)
+	gxylog.Debug(ctx, "Session Actor created with PID", gxylog.Any("pid", sessPid))
 	return nil
 }
 
 func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) error {
 	sess, ok := ep.GetData().(gxyactor.PID)
 	if !ok {
-		glog.Errorf(context.Background(), "Failed to get session from endpoint data")
+		gxylog.Error(context.Background(), "failed to get session from endpoint data")
 		return nil
 	}
 	gxyactor.LocalSend(sess, msg)

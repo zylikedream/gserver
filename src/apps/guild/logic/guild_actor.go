@@ -18,7 +18,6 @@ import (
 	"gserver/src/pkg/gameconfig"
 	"gserver/src/util"
 
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 )
@@ -61,8 +60,7 @@ func (g *GuildActor) DelayInit(ctx context.Context) error {
 	g.Timer().AddTick(ctx, &gxytimer.Tick{Name: "guild_save", Interval: 600 * time.Second}, g.TickSave)
 	g.Timer().AddCron(ctx, gxytimer.DayRefresh, g.onDayRefresh)
 
-	glog.Infof(ctx, "guild actor started, guildID=%d, members=%d, applies=%d",
-		g.GuildID, len(g.Data.Members), len(g.Data.ApplyList))
+	gxylog.Info(ctx, "guild actor started", gxylog.Num("guildID", g.GuildID), gxylog.Num("members", len(g.Data.Members)), gxylog.Num("applies", len(g.Data.ApplyList)))
 	return nil
 }
 
@@ -79,7 +77,7 @@ func (g *GuildActor) HandleMessage(ctx context.Context, msg any) error {
 
 func (g *GuildActor) OnModStop(ctx context.Context) error {
 	g.save(ctx)
-	glog.Infof(ctx, "guild actor stopped, guildID=%d", g.GuildID)
+	gxylog.Info(ctx, "guild actor stopped", gxylog.Num("guildID", g.GuildID))
 	return nil
 }
 

@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/example/echo/proto"
 	"gserver/core/gxynet/message"
 
-	"github.com/gogf/gf/v2/os/glog"
 	protobuf "google.golang.org/protobuf/proto"
 )
 
@@ -16,7 +16,7 @@ var ctx = context.Background()
 func init() {
 	var err error
 	if err != nil {
-		glog.Fatalf(ctx, "NewMessageCodec failed: %v", err)
+		gxylog.Fatal(ctx, "NewMessageCodec failed", gxylog.Err(err))
 		return
 	}
 }
@@ -30,12 +30,12 @@ type EchoEventHandler struct {
 }
 
 func (e *EchoEventHandler) OnOpen(ep endpoint.Endpoint) error {
-	glog.Infof(ctx, "conn open, addr=%s", ep.Conn().RemoteAddr())
+	gxylog.Info(ctx, "conn open", gxylog.Str("addr", ep.Conn().RemoteAddr().String()))
 	return nil
 }
 
 func (e *EchoEventHandler) OnClose(ep endpoint.Endpoint) {
-	glog.Infof(ctx, "conn close, addr=%s", ep.Conn().RemoteAddr())
+	gxylog.Info(ctx, "conn close", gxylog.Str("addr", ep.Conn().RemoteAddr().String()))
 }
 
 func (e *EchoEventHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) error {
@@ -44,7 +44,7 @@ func (e *EchoEventHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message)
 	if err != nil {
 		return err
 	}
-	glog.Infof(ctx, "recv echo req:%v", req)
+	gxylog.Info(ctx, "recv echo req", gxylog.Any("req", req))
 	rsp := &proto.EchoAck{
 		Code: 0,
 		Msg:  req.Msg,

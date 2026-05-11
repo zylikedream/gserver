@@ -13,12 +13,11 @@ import (
 	"fmt"
 	"time"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/example/echo/proto"
 	"gserver/core/gxynet/message"
 
-	"github.com/gogf/gf/v2/os/glog"
-	"go.uber.org/zap"
 	protobuf "google.golang.org/protobuf/proto"
 )
 
@@ -36,13 +35,13 @@ type EchoEventHandler struct {
 }
 
 func (e *EchoEventHandler) OnOpen(conn endpoint.Endpoint) error {
-	glog.Infof(ctx, "conn open, addr=%s", conn.Conn().RemoteAddr())
+	gxylog.Info(ctx, "conn open", gxylog.Str("addr", conn.Conn().RemoteAddr().String()))
 	go run(conn)
 	return nil
 }
 
 func (e *EchoEventHandler) OnClose(conn endpoint.Endpoint) {
-	glog.Infof(ctx, "conn close, addr=%s", conn.Conn().RemoteAddr())
+	gxylog.Info(ctx, "conn close", gxylog.Str("addr", conn.Conn().RemoteAddr().String()))
 }
 
 func (e *EchoEventHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) error {
@@ -51,7 +50,7 @@ func (e *EchoEventHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message)
 	if err != nil {
 		return err
 	}
-	glog.Infof(ctx, "recv message:%v", rsp)
+	gxylog.Info(ctx, "recv message", gxylog.Any("rsp", rsp))
 	return nil
 }
 
@@ -62,7 +61,7 @@ func run(sess endpoint.Endpoint) {
 			Msg: fmt.Sprintf("hello %d", i),
 		}
 		if err := SendMsg(sess, msg); err != nil {
-			glog.Error(ctx, "send error", zap.Error(err))
+			gxylog.Error(ctx, "send error", gxylog.Err(err))
 			break
 		}
 		i++
@@ -77,7 +76,7 @@ func SendMsg(ep endpoint.Endpoint, msg any) error {
 func EchoClient() {
 	// p, err := gxynet.NewNetwork("config/config.toml")
 	// if err != nil {
-	// 	glog.Error(ctx, "gxynet", zap.Namespace("new failed"), zap.Error(err))
+	// 	gxylog.Error(ctx, "gxynet", gxylog.Err(err))
 	// 	return
 	// }
 	// if err := p.Start(context.Background(), &EchoEventHandler{}); err != nil {

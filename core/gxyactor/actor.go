@@ -10,7 +10,6 @@ import (
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/gogf/gf/v2/os/glog"
 	"github.com/gogf/gf/v2/util/gutil"
 	"google.golang.org/protobuf/proto"
 )
@@ -67,11 +66,11 @@ func (a *ActorBase) Receive(actx actor.Context) {
 	a.Actx = actx
 	gutil.TryCatch(a.ctx, func(ctx context.Context) {
 		if err := a.doReceive(actx); err != nil {
-			glog.Errorf(a.ctx, "actor error, %+v", err)
+			gxylog.Error(a.ctx, "actor error", gxylog.Err(err))
 			a.Stop(err)
 		}
 	}, func(ctx context.Context, exception error) {
-		glog.Errorf(a.ctx, "actor internal error, %+v", exception)
+		gxylog.Error(a.ctx, "actor internal error", gxylog.Err(exception))
 		a.Stop(exception)
 	})
 }
@@ -99,7 +98,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 			a.timer.Active(a.ctx, msg)
 		})
 		if err != nil {
-			glog.Errorf(a.ctx, "timer active error, msg:%s, error:%+v", msg.Name, err)
+			gxylog.Error(a.ctx, "timer active error", gxylog.Str("msg", msg.Name), gxylog.Err(err))
 		}
 	case *pb.ActorStop:
 		a.Stop(gerror.New(msg.Reason))
@@ -112,7 +111,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		// Touch etc. — protoactor handles the response automatically
 	default:
 		if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
-			glog.Errorf(a.ctx, "handle msg failed, msg:%v, error:%+v", msg, err)
+			gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
 		}
 	}
 	return nil
@@ -121,7 +120,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 	rsp, err := a.callMsgHandler(a.ctx, msg)
 	if err != nil {
-		glog.Errorf(a.ctx, "handle rpc msg failed, msg:%v, error:%+v", msg, err)
+		gxylog.Error(a.ctx, "handle rpc msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
 		a.Respond(&pb.ActorError{
 			Reason: err.Error(),
 		})
@@ -135,10 +134,13 @@ func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 
 func (a *ActorBase) callMsgHandler(ctx context.Context, msg any) (any, error) {
 	tm := time.Now()
-	glog.Debugf(ctx, "handle msg start, msg: %v", gxyutil.FormatObject(msg))
+	gxylog.Debug(ctx, "handle msg start, msg", gxylog.Str("msg", gxyutil.FormatObject(msg)))
 	result, err := a.DoCallMsgHandler(ctx, msg)
-	glog.Debugf(ctx, "handle msg end, msg: %s, result: %s, err %+v, cost: %vms",
-		gxyutil.FormatObject(msg), gxyutil.FormatObject(result), err, time.Since(tm).Milliseconds())
+	gxylog.Debug(ctx, "handle msg end, msg",
+		gxylog.Str("msg", gxyutil.FormatObject(msg)),
+		gxylog.Str("result", gxyutil.FormatObject(result)),
+		gxylog.Err(err),
+		gxylog.Num("cost", time.Since(tm).Milliseconds()))
 	return result, err
 }
 
@@ -177,7 +179,6 @@ func (a *ActorBase) Terminate(ctx context.Context, err error) {
 // 回应CallSync方法
 func (a *ActorBase) Respond(msg any) {
 	if a.Actx.Sender() == nil {
-		glog.Infof(a.ctx, "respond sender is nil, msg: %v", msg)
 		return
 	}
 	a.Actx.Respond(msg)

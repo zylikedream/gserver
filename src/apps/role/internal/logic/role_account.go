@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
+	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
 	"gserver/src/util/uid"
 
-	"github.com/gogf/gf/v2/os/glog"
 	"gorm.io/gorm"
 )
 
@@ -43,7 +43,7 @@ func GetAccountByRoleID(roleID int64) string {
 	err := gxypgx.DB().Where("role_id = ?", roleID).First(roleAccount).Error
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			glog.Errorf(context.Background(), "check role exist error, roleID: %d, err: %v", roleID, err)
+			gxylog.Error(context.Background(), "check role exist error", gxylog.Num("roleID", roleID), gxylog.Err(err))
 		}
 		return ""
 	}
