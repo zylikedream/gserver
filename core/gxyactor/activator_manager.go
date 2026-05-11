@@ -62,7 +62,7 @@ type activatorRouter struct {
 func NewActivatorRouter() *activatorRouter {
 	r := &activatorRouter{}
 	ctx := gxylog.NewContext(context.Background(), "activator_router")
-	r.ActorBase = NewActorBase(ctx, r)
+	r.ActorBase = NewActorBase(ctx, r, "activator_router")
 	return r
 }
 
@@ -124,7 +124,7 @@ func NewActorActivator(kind string, manager *activatorManager) *actorActivator {
 		childs:  make(map[PID]string),
 	}
 	ctx := gxylog.NewContext(context.Background(), "actor_activator")
-	a.ActorBase = NewActorBase(ctx, a)
+	a.ActorBase = NewActorBase(ctx, a, "actor_activator")
 	return a
 }
 

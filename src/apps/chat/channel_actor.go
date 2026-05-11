@@ -70,7 +70,7 @@ func NewChannelActor() *ChannelActor {
 	a := &ChannelActor{
 		members: make(map[int64]*actor.PID),
 	}
-	a.ActorBase = gxyactor.NewActorBase(ctx, a)
+	a.ActorBase = gxyactor.NewActorBase(ctx, a, "channel")
 	return a
 }
 
@@ -84,7 +84,7 @@ func (a *ChannelActor) Init(ctx context.Context, args []any) error {
 	if err != nil {
 		return fmt.Errorf("channel actor init: invalid id %q: %w", id, err)
 	}
-		ch, ok := GetChannel(a.ChannelType)
+	ch, ok := GetChannel(a.ChannelType)
 	if !ok {
 		return errors.New("unknown channel type")
 	}

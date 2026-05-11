@@ -65,7 +65,7 @@ func NewSession(ep endpoint.Endpoint) *Session {
 		sessionInfo: &SessionInfo{},
 	}
 	ctx := gxylog.NewContext(context.Background(), "session")
-	s.ActorBase = gxyactor.NewActorBase(ctx, s)
+	s.ActorBase = gxyactor.NewActorBase(ctx, s, "session")
 	return s
 }
 

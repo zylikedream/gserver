@@ -2,12 +2,13 @@ package gxyactor
 
 import (
 	"context"
+	"time"
+
 	"gserver/core/gxylog"
 	"gserver/core/gxymetrics"
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -53,14 +54,20 @@ type ActorBase struct {
 	actor      IActor
 	stopErr    error
 	msgHandler *gxyutil.MsgHandler
+	actorKind  string
 }
 
-func NewActorBase(ctx context.Context, actor IActor) *ActorBase {
+func NewActorBase(ctx context.Context, actor IActor, actorKind string) *ActorBase {
 	return &ActorBase{
 		ctx:        ctx,
 		actor:      actor,
+		actorKind:  actorKind,
 		msgHandler: gxyutil.NewMsgHandler(),
 	}
+}
+
+func (a *ActorBase) ActorKind() string {
+	return a.actorKind
 }
 
 func (a *ActorBase) Receive(actx actor.Context) {
@@ -80,7 +87,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	switch msg := ctx.Message().(type) {
 	case *actor.Started:
 		a.self = ctx.Self()
-		gxymetrics.ActorActiveCount.WithLabelValues("actor").Inc()
+		gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Inc()
 		a.timer = NewActorTimer(a.self)
 		var initArgs []any
 		if actorCtx, ok := ctx.(*ActorContext); ok {
@@ -107,7 +114,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	case *actor.Stopping:
 		return nil
 	case *actor.Stopped:
-		gxymetrics.ActorActiveCount.WithLabelValues("actor").Dec()
+		gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Dec()
 		a.timer.Stop(a.ctx)
 		a.actor.Terminate(a.ctx, a.stopErr)
 	case actor.AutoRespond:
@@ -117,8 +124,8 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
 			gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
 		}
-		gxymetrics.ActorMessages.WithLabelValues("actor").Inc()
-		gxymetrics.ActorMessageDuration.WithLabelValues("actor").Observe(time.Since(start).Seconds())
+		gxymetrics.ActorMessages.WithLabelValues(a.ActorKind()).Inc()
+		gxymetrics.ActorMessageDuration.WithLabelValues(a.ActorKind()).Observe(time.Since(start).Seconds())
 	}
 	return nil
 }

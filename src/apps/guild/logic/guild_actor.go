@@ -34,7 +34,7 @@ type GuildActor struct {
 func NewGuildActor() *GuildActor {
 	ctx := gxylog.NewContext(context.Background(), "guild")
 	g := &GuildActor{}
-	g.ActorBase = gxyactor.NewActorBase(ctx, g)
+	g.ActorBase = gxyactor.NewActorBase(ctx, g, "guild")
 	return g
 }
 

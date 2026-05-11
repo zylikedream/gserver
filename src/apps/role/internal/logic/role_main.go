@@ -95,7 +95,7 @@ func NewRoleMain() *RoleMain {
 		state: RoleStateInit,
 	}
 	ctx := gxylog.NewContext(context.Background(), "role")
-	r.ActorBase = gxyactor.NewActorBase(ctx, r)
+	r.ActorBase = gxyactor.NewActorBase(ctx, r, "role")
 	return r
 }
 
