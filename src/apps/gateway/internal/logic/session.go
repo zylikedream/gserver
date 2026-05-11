@@ -180,7 +180,7 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 			s.Stop(gerror.New("client account logout"))
 		default:
 			gxylog.Debug(ctx, "recv client msg", gxylog.Str("path", msg.Path), gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
-			if err := s.SendRoleMsg(pbmsg, msg.Path); err != nil {
+			if err := s.SendRoleMsg(ctx, pbmsg, msg.Path); err != nil {
 				return gerror.Wrap(err, "send data msg error")
 			}
 		}
@@ -190,7 +190,7 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 	return nil
 }
 
-func (s *Session) SendRoleMsg(msg proto.Message, id string) error {
+func (s *Session) SendRoleMsg(ctx context.Context, msg proto.Message, id string) error {
 	req := &pb.ClientMsg{
 		Id:  id,
 		Msg: &anypb.Any{},
@@ -198,7 +198,7 @@ func (s *Session) SendRoleMsg(msg proto.Message, id string) error {
 	if err := anypb.MarshalFrom(req.Msg, msg, proto.MarshalOptions{}); err != nil {
 		return gerror.Newf("marshal req error, err: %v", err)
 	}
-	s.CallSync(s.sessionInfo.RolePid, req)
+	gxyactor.CallSync(ctx, s.sessionInfo.RolePid, req, s.Self())
 	return nil
 }
 
@@ -234,7 +234,7 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		msg := &pb.ReqAccountLogout{
 			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
 		}
-		s.SendRoleMsg(msg, codec.MessageMetaByMsg(msg).ID)
+		s.SendRoleMsg(ctx, msg, codec.MessageMetaByMsg(msg).ID)
 	}
 	s.state = StateDisconnected
 

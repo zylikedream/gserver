@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"context"
 	"sync"
 
 	"gserver/core/gxyactor"
@@ -36,7 +37,7 @@ func SendToAll(msg proto.Message) {
 	globalPM.mu.RLock()
 	defer globalPM.mu.RUnlock()
 	for _, pid := range globalPM.players {
-		gxyactor.Send(pid, msg)
+		gxyactor.Send(context.Background(), pid, msg)
 	}
 }
 

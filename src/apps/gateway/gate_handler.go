@@ -42,7 +42,7 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 		gxylog.Error(context.Background(), "failed to get session from endpoint data")
 		return nil
 	}
-	gxyactor.LocalSend(sess, msg)
+	gxyactor.LocalSend(context.Background(), sess, msg)
 	// 消息将直接由Session Actor处理
 	return nil
 }

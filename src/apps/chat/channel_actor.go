@@ -146,7 +146,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		}
 		// 通知所有成员
 		for _, pid := range a.members {
-			a.Send(pid, notify)
+			gxyactor.Send(ctx, pid, notify)
 		}
 		a.Respond(nil)
 

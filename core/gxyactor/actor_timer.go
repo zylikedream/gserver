@@ -32,14 +32,14 @@ func (s *ActorTimer) SetCronState(cronState ICronState) {
 
 func (s *ActorTimer) AddTick(ctx context.Context, tick *gxytimer.Tick, fun gxytimer.CallbackFunc) {
 	s.GxyTimer.AddTick(ctx, tick, func(ctx context.Context, info gxytimer.TimerActiveInfo) {
-		LocalSend(s.pid, ActorTimerMsg(info))
+		LocalSend(ctx, s.pid, ActorTimerMsg(info))
 	})
 	s.callbackFuncs[tick.Name] = fun
 }
 
 func (s *ActorTimer) AddOnce(ctx context.Context, once *gxytimer.Once, fun gxytimer.CallbackFunc) {
 	s.GxyTimer.AddOnce(ctx, once, func(ctx context.Context, info gxytimer.TimerActiveInfo) {
-		LocalSend(s.pid, ActorTimerMsg(info))
+		LocalSend(ctx, s.pid, ActorTimerMsg(info))
 	})
 	s.callbackFuncs[once.Name] = fun
 }
@@ -55,7 +55,7 @@ func (s *ActorTimer) AddCron(ctx context.Context, cron *gxytimer.Cron, fun gxyti
 		if s.cronState != nil {
 			s.cronState.SetCronTm(info.Time)
 		}
-		LocalSend(s.pid, ActorTimerMsg(info))
+		LocalSend(ctx, s.pid, ActorTimerMsg(info))
 	})
 	s.callbackFuncs[cron.Name] = fun
 }

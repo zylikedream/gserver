@@ -126,7 +126,7 @@ func (g *GuildActor) notifyPlayer(ctx context.Context, roleID int64, msg proto.M
 	if err != nil || pid == nil {
 		return
 	}
-	g.Send(pid, msg)
+	gxyactor.Send(ctx, pid, msg)
 }
 
 func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
@@ -142,7 +142,7 @@ func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
 		if err != nil || pid == nil {
 			continue
 		}
-		g.Send(pid, msg)
+		gxyactor.Send(ctx, pid, msg)
 	}
 }
 
@@ -153,7 +153,7 @@ func (g *GuildActor) notifyGuildBasic(ctx context.Context) {
 		if err != nil || pid == nil {
 			continue
 		}
-		g.Send(pid, msg)
+		gxyactor.Send(ctx, pid, msg)
 	}
 }
 
@@ -167,7 +167,7 @@ func (g *GuildActor) notifyApplyUpdate(ctx context.Context) {
 		if err != nil || pid == nil {
 			continue
 		}
-		g.Send(pid, msg)
+		gxyactor.Send(ctx, pid, msg)
 	}
 }
 

@@ -6,10 +6,11 @@ import (
 	"net/url"
 	"time"
 
+	"gserver/core/gxyactor"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
-	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
+	"gserver/src/pkg/gameconfig"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/lib"
@@ -45,7 +46,7 @@ func (r *RoleGuild) OnCreate(ctx context.Context) {}
 
 func (r *RoleGuild) OnModStart(ctx context.Context) error {
 	if r.GuildID > 0 {
-		if _, err := r.Role.Chat.JoinChannel(int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
+		if _, err := r.Role.Chat.JoinChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
 			gxylog.Error(ctx, "加入公会聊天失败", gxylog.Err(err))
 		}
 	}
@@ -61,7 +62,7 @@ func (r *RoleGuild) OnModStop(ctx context.Context) error {
 
 func (r *RoleGuild) SetGuildID(ctx context.Context, guildID int64) {
 	r.GuildID = guildID
-	if _, err := r.Role.Chat.JoinChannel(int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
+	if _, err := r.Role.Chat.JoinChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
 		gxylog.Error(ctx, "加入公会聊天失败", gxylog.Err(err))
 	}
 }
@@ -141,7 +142,7 @@ func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any,
 	if err != nil {
 		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
 	}
-	return r.Role.Call(pid, req, 10*time.Second)
+	return gxyactor.Call(ctx, pid, req, 10*time.Second)
 }
 
 func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
@@ -149,7 +150,7 @@ func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*
 	if err != nil {
 		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
 	}
-	rsp, err := r.Role.Call(pid, &pb.ReqGuildApply{RoleId: r.RoleID, GuildId: req.GuildId}, 10*time.Second)
+	rsp, err := gxyactor.Call(ctx, pid, &pb.ReqGuildApply{RoleId: r.RoleID, GuildId: req.GuildId}, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}

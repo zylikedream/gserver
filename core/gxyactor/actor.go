@@ -2,6 +2,7 @@ package gxyactor
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"gserver/core/gxylog"
@@ -13,7 +14,8 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gutil"
-	"google.golang.org/protobuf/proto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // 类型别名 - 抽象层，隐藏具体实现但保持兼容性
@@ -96,7 +98,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if err := a.actor.Init(a.ctx, initArgs); err != nil {
 			return gerror.Wrap(err, "init actor error")
 		}
-		a.LocalSend(a.self, &ActorInitMsg{})
+		LocalSend(a.ctx, a.self, &ActorInitMsg{})
 	case *ActorInitMsg:
 		a.msgHandler.AddHandler(a.actor)
 		if err := a.actor.DelayInit(a.ctx); err != nil {
@@ -120,6 +122,13 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	case actor.AutoRespond:
 		// Touch etc. — protoactor handles the response automatically
 	default:
+		carrier := readonlyHeaderCarrier{a.Actx.MessageHeader()}
+		extCtx := otel.GetTextMapPropagator().Extract(a.ctx, carrier)
+		_, span := otel.Tracer("gserver/actor").Start(extCtx, fmt.Sprintf("%T", msg))
+		defer span.End()
+		savedCtx := a.ctx
+		a.ctx = trace.ContextWithSpan(a.ctx, span)
+		defer func() { a.ctx = savedCtx }()
 		start := time.Now()
 		if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
 			gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
@@ -198,30 +207,6 @@ func (a *ActorBase) Respond(msg any) {
 }
 
 // 发送请求里带了sender，所以接收方可以调用respond回应消息
-func (a *ActorBase) CallSync(pid PID, msg proto.Message) {
-	a.Actx.Request(pid, msg)
-}
-
-func (a *ActorBase) Call(pid PID, msg proto.Message, timeout time.Duration) (any, error) {
-	result, err := a.Actx.RequestFuture(pid, msg, timeout).Result()
-	if err != nil {
-		return nil, err
-	}
-	if aerr, ok := result.(*pb.ActorError); ok {
-		return nil, gerror.New(aerr.Reason)
-	}
-	return result, nil
-}
-
-// Send是发送消息给可能在远程的actor, 所以必须走序列化，所以只能发送proto.Message
-func (a *ActorBase) Send(pid PID, msg proto.Message) {
-	a.Actx.Send(pid, msg)
-}
-
-// LocalSend是发送消息给本地actor, 不经过序列化, 所以可以发送any
-func (a *ActorBase) LocalSend(pid PID, msg any) {
-	a.Actx.Send(pid, msg)
-}
 
 func (a *ActorBase) Sender() PID {
 	return a.Actx.Sender()
@@ -239,6 +224,11 @@ func (a *ActorBase) Spawn(props *actor.Props, initArgs ...any) PID {
 		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
 	}
 	return a.Actx.Spawn(props)
+}
+
+// Context returns the actor's context with trace span enrichment.
+func (a *ActorBase) Context() context.Context {
+	return a.ctx
 }
 
 func (a *ActorBase) SetLogValue(key string, val any) *ActorBase {
@@ -264,3 +254,11 @@ func ContextDecorator(args ...any) actor.ContextDecorator {
 		}
 	}
 }
+
+// readonlyHeaderCarrier adapts actor.ReadonlyMessageHeader to propagation.TextMapCarrier
+// for OpenTelemetry trace context extraction. Set is a no-op since the header is read-only.
+type readonlyHeaderCarrier struct {
+	actor.ReadonlyMessageHeader
+}
+
+func (readonlyHeaderCarrier) Set(key, value string) {}

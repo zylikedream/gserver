@@ -50,7 +50,7 @@ func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
 }
 
 func StopSession(pid gxyactor.PID, err error) error {
-	return gxyactor.Send(pid, &pb.ActorStop{
+	return gxyactor.Send(context.Background(), pid, &pb.ActorStop{
 		Reason: err.Error(),
 	})
 }

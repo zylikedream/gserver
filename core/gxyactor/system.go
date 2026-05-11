@@ -9,7 +9,8 @@ import (
 	"gserver/core/gxylog"
 	"gserver/protocol/pb"
 
-	"google.golang.org/protobuf/proto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
@@ -59,6 +60,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
+	a.system.Root.WithSenderMiddleware(tracePropagationMiddleware())
 	a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName)
 	a.AddModule(ctx, a.activatorMgr)
 	return nil
@@ -107,7 +109,7 @@ func (a *actorApp) spawn(props *actor.Props, initArgs ...any) (PID, error) {
 
 // Send, call都是用于非actor向actor发送消息
 // Send 发送消息
-func (a *actorApp) send(pid PID, message proto.Message) error {
+func (a *actorApp) send(pid PID, message any) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
 	}
@@ -123,7 +125,7 @@ func (a *actorApp) localSend(pid PID, message any) {
 	a.system.Root.Send(pid, message)
 }
 
-func (a *actorApp) call(pid PID, message proto.Message, timeout time.Duration) (any, error) {
+func (a *actorApp) call(pid PID, message any, timeout time.Duration) (any, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
@@ -136,6 +138,13 @@ func (a *actorApp) call(pid PID, message proto.Message, timeout time.Duration) (
 		return nil, gerror.New(aerr.Reason)
 	}
 	return result, nil
+}
+
+func (a *actorApp) callSync(pid PID, message any, sender PID) {
+	if a.system == nil {
+		return
+	}
+	a.system.Root.RequestWithCustomSender(pid, message, sender)
 }
 
 func (a *actorApp) GetNodeName() string {
@@ -168,6 +177,43 @@ func (a *actorApp) ActivateActor(kind string, id string, spawn bool) (PID, error
 
 func (a *actorApp) GetActorCount(kind string) int {
 	return a.activatorMgr.GetActorCount(kind)
+}
+
+type messageEnvelopeCarrier struct {
+	envelope *actor.MessageEnvelope
+}
+
+func (c messageEnvelopeCarrier) Get(key string) string {
+	if c.envelope == nil || c.envelope.Header == nil {
+		return ""
+	}
+	return c.envelope.Header.Get(key)
+}
+
+func (c messageEnvelopeCarrier) Set(key, val string) {
+	if c.envelope != nil {
+		c.envelope.SetHeader(key, val)
+	}
+}
+
+func (c messageEnvelopeCarrier) Keys() []string {
+	if c.envelope == nil || c.envelope.Header == nil {
+		return nil
+	}
+	return c.envelope.Header.Keys()
+}
+
+// injectTrace injects OpenTelemetry trace context from ctx into a MessageEnvelope.
+// Returns nil when ctx has no valid span (no trace to propagate).
+func injectTrace(ctx context.Context, msg any) *actor.MessageEnvelope {
+	span := trace.SpanFromContext(ctx)
+	if !span.SpanContext().IsValid() {
+		return nil
+	}
+	env := &actor.MessageEnvelope{Message: msg}
+	carrier := messageEnvelopeCarrier{envelope: env}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	return env
 }
 
 func newSupervisor() actor.SupervisorStrategy {

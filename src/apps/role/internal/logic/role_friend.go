@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"gserver/core/gxyactor"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
@@ -250,7 +251,7 @@ func (r *RoleMain) notifyPlayer(ctx context.Context, targetID int64, msg proto.M
 	if pid == nil {
 		return
 	}
-	r.Send(pid, msg)
+	gxyactor.Send(ctx, pid, msg)
 }
 
 func (r *RoleMain) NotifyFriendNewRequest(ctx context.Context, msg *pb.NotifyFriendNewRequest) error {

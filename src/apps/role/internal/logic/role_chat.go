@@ -73,14 +73,14 @@ func (r *RoleChat) joinWorldChannel(ctx context.Context) (gxyactor.PID, error) {
 		return nil, err
 	}
 	r.lastLobbyID = lobbyID
-	channel, err := r.JoinChannel(int32(gamecfg.GardenEChatChannelType_WORLD), lobbyID)
+	channel, err := r.JoinChannel(ctx, int32(gamecfg.GardenEChatChannelType_WORLD), lobbyID)
 	if err != nil {
 		return nil, err
 	}
 	return channel, nil
 }
 
-func (r *RoleChat) JoinChannel(channelType int32, channelID int64) (gxyactor.PID, error) {
+func (r *RoleChat) JoinChannel(ctx context.Context, channelType int32, channelID int64) (gxyactor.PID, error) {
 	if channelID < 0 {
 		return nil, errors.New("channelID 不能小于 0")
 	}
@@ -89,7 +89,7 @@ func (r *RoleChat) JoinChannel(channelType int32, channelID int64) (gxyactor.PID
 		return nil, err
 	}
 	self := r.Role.Self()
-	r.Role.Send(channel, &pb.ChannelRegisterMsg{
+	gxyactor.Send(ctx, channel, &pb.ChannelRegisterMsg{
 		RoleId: r.RoleID,
 		Pid: &pb.ActorPid{
 			Address: self.Address,
@@ -154,7 +154,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 	if err != nil {
 		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
 	}
-	_, err = r.Role.Call(pid, &pb.ReqChannelSend{
+	_, err = gxyactor.Call(ctx, pid, &pb.ReqChannelSend{
 		ChannelType: channelType,
 		ChannelId:   channelID,
 		SenderId:    r.RoleID,
@@ -187,7 +187,7 @@ func (r *RoleChat) ReqChatChannelHistory(ctx context.Context, req *pb.ReqChatCha
 	if err != nil {
 		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
 	}
-	rsp, err := r.Role.Call(pid, &pb.ReqChatChannelHistory{
+	rsp, err := gxyactor.Call(ctx, pid, &pb.ReqChatChannelHistory{
 		ChannelType: channelType,
 		ChannelId:   channelID,
 		Count:       req.Count,
@@ -215,7 +215,7 @@ func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPr
 
 	// 通知目标角色
 	if targetPid, err := lib.GetRoleActor(req.TargetId); err == nil {
-		r.Role.Send(targetPid, &pb.NotifyChatPrivate{
+		gxyactor.Send(ctx, targetPid, &pb.NotifyChatPrivate{
 			Message: &pb.PChatMsg{
 				Sender:    r.Role.Public.GetRolePublic(ctx),
 				Content:   strings.TrimSpace(req.Content),
@@ -272,7 +272,7 @@ func (r *RoleChat) LeaveChannel(ctx context.Context, channelType int32, channelI
 		gxylog.Warn(ctx, "leaveChannel: get actor failed", gxylog.Num("channelType", channelType), gxylog.Num("channelID", channelID), gxylog.Err(err))
 		return
 	}
-	r.Role.Send(pid, &pb.ChannelUnregisterMsg{
+	gxyactor.Send(ctx, pid, &pb.ChannelUnregisterMsg{
 		RoleId:      r.RoleID,
 		ChannelType: channelType,
 		ChannelId:   channelID,

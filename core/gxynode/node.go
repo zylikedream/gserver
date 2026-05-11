@@ -15,6 +15,7 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/core/gxyredis"
 	"gserver/core/gxyservice"
+	"gserver/core/gxytrace"
 	"gserver/core/gxyutil"
 	"gserver/src/apps/chat"
 	"gserver/src/apps/friend"
@@ -71,7 +72,7 @@ func (n *node) OnModStart(ctx context.Context) error {
 	gxylog.Info(context.Background(), "node starting....", gxylog.Str("name", n.Name))
 
 	loaded := map[string]bool{}
-	deps := []string{"metrics", "redis", "pgx", "actor", "service", "http", "mq"}
+	deps := []string{"metrics", "trace", "redis", "pgx", "actor", "service", "http", "mq"}
 	for _, dep := range deps {
 		if err := n.loadApp(ctx, dep, loaded); err != nil {
 			return err
@@ -116,6 +117,7 @@ func (n *node) OnModStop(ctx context.Context) error {
 
 func (n *node) registerApps() {
 	gxyapp.RegisterApp("metrics", gxymetrics.NewMetricsApp())
+	gxyapp.RegisterApp("trace", gxytrace.NewTraceApp())
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())

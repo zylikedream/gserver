@@ -27,3 +27,5 @@
 	refresh_ttl = "10s"
 [metrics]
 	addr = ":9091"
+[trace]
+	endpoint = "localhost:4317"

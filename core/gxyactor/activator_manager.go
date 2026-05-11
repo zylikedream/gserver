@@ -3,6 +3,7 @@ package gxyactor
 import (
 	"context"
 	"fmt"
+
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxyredis"
@@ -181,13 +182,13 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		// Touch 确认（异步，验证 Init 是否成功）
 		sender := a.Actx.Sender()
 		go func(id string) {
-			if _, err := a.Call(pid, &actor.Touch{}, 2*time.Second); err != nil {
+			if _, err := Call(context.Background(), pid, &actor.Touch{}, 2*time.Second); err != nil {
 				a.unregisterActor(id, pid)
-				a.Send(sender, ActorError("actor init failed or actor died"))
+				Send(context.Background(), sender, ActorError("actor init failed or actor died"))
 				return
 			}
 			a.Actx.Watch(pid)
-			a.Send(sender, &remote.ActorPidResponse{Pid: pid})
+			Send(context.Background(), sender, &remote.ActorPidResponse{Pid: pid})
 		}(msg.Id)
 
 		return nil
@@ -293,12 +294,12 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 	poolPID, err := SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
 			return NewActorActivator(kind, g)
-		})), g.getPoolName(kind))
+		}), actor.WithSenderMiddleware(tracePropagationMiddleware())), g.getPoolName(kind))
 	if err != nil {
 		delete(g.activatorMetas, kind)
 		return err
 	}
-	LocalSend(g.routerPID, &localMsgRegisterPool{
+	LocalSend(g.ctx, g.routerPID, &localMsgRegisterPool{
 		Kind:   kind,
 		PoolID: poolPID,
 	})
@@ -312,7 +313,7 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 		return
 	}
 	StopActor(info.Pool)
-	LocalSend(g.routerPID, &localMsgUnRegisterPool{
+	LocalSend(g.ctx, g.routerPID, &localMsgUnRegisterPool{
 		Kind: kind,
 	})
 	delete(g.activatorMetas, kind)
@@ -321,7 +322,7 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 func (g *activatorManager) spawnActor(node string, kind string, id string) (PID, error) {
 	gxylog.Debug(g.ctx, "spawn actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node))
 	activator := actor.NewPID(node, g.getRouterName())
-	rsp, err := Call(activator, &pb.ActorActive{
+	rsp, err := Call(g.ctx, activator, &pb.ActorActive{
 		Kind: kind,
 		Id:   id,
 	}, -1)

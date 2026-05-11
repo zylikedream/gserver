@@ -1,8 +1,10 @@
 package gxyactor
 
 import (
-	"gserver/protocol/pb"
+	"context"
 	"time"
+
+	"gserver/protocol/pb"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"google.golang.org/protobuf/proto"
@@ -36,16 +38,34 @@ func SpawnFunc(prod func() actor.Actor, initArgs ...any) (pid PID, err error) {
 }
 
 // Send 发送消息（异步）
-func Send(pid PID, message proto.Message) error {
+func Send(ctx context.Context, pid PID, message proto.Message) error {
+	if env := injectTrace(ctx, message); env != nil {
+		return app.send(pid, env)
+	}
 	return app.send(pid, message)
 }
 
-func LocalSend(pid PID, message any) {
+func LocalSend(ctx context.Context, pid PID, message any) {
+	if env := injectTrace(ctx, message); env != nil {
+		app.localSend(pid, env)
+		return
+	}
 	app.localSend(pid, message)
 }
 
-func Call(pid PID, message proto.Message, timeout time.Duration) (any, error) {
+func Call(ctx context.Context, pid PID, message proto.Message, timeout time.Duration) (any, error) {
+	if env := injectTrace(ctx, message); env != nil {
+		return app.call(pid, env, timeout)
+	}
 	return app.call(pid, message, timeout)
+}
+
+func CallSync(ctx context.Context, pid PID, message proto.Message, sender PID) {
+	if env := injectTrace(ctx, message); env != nil {
+		app.callSync(pid, env, sender)
+		return
+	}
+	app.callSync(pid, message, sender)
 }
 
 func GetNodeName() string {
