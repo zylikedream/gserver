@@ -804,13 +804,17 @@ func parsePlotIDs(args []string) []int32 {
 	return ids
 }
 
-func parseChannelType(s string) (pb.ChannelType, error) {
+func parseChannelType(s string) (int32, error) {
 	switch strings.ToLower(s) {
 	case "world", "1":
-		return pb.ChannelType_CHANNEL_TYPE_WORLD, nil
-	case "guild", "2":
-		return pb.ChannelType_CHANNEL_TYPE_GUILD, nil
+		return 1, nil
+	case "guild", "4":
+		return 4, nil
 	default:
-		return pb.ChannelType_CHANNEL_TYPE_UNKNOWN, fmt.Errorf("unknown channel: %s (use world or guild)", s)
+		n, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return 0, fmt.Errorf("unknown channel: %s (use world=1 / guild=4 / system=3)", s)
+		}
+		return int32(n), nil
 	}
 }
