@@ -38,6 +38,7 @@ var groupDefs = []struct {
 	{"plot", "花园"},
 	{"maintask", "任务"},
 	{"residentorder", "任务"},
+	{"order", "任务"},
 	{"friend", "好友"},
 	{"chat", "聊天"},
 	{"guild", "公会"},
@@ -55,54 +56,7 @@ func groupOf(name string) string {
 }
 
 func init() {
-	// --- basic ---
-	register(&Command{
-		Name: "basic.info",
-		Help: "Get basic role info",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqBasicInfo{})
-		},
-	})
-	register(&Command{
-		Name:   "basic.set_name",
-		Help:   "Set role name",
-		Params: []string{"name"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: basic.set_name <name>")
-			}
-			return c.Request(&pb.ReqBasicSetName{Name: args[0]})
-		},
-	})
-	register(&Command{
-		Name:   "basic.set_head",
-		Help:   "Set role head icon",
-		Params: []string{"head"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: basic.set_head <head>")
-			}
-			return c.Request(&pb.ReqBasicSetHead{Head: args[0]})
-		},
-	})
-
-	// --- bag ---
-	register(&Command{
-		Name: "bag.info",
-		Help: "Get bag info",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqBagInfo{})
-		},
-	})
-
-	// --- breed ---
-	register(&Command{
-		Name: "flower.info",
-		Help: "Get flower info",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqFlowerInfo{})
-		},
-	})
+	// --- breed (aliases for flower.start_breed / flower.finish_breed) ---
 	register(&Command{
 		Name:   "breed.start",
 		Help:   "Start breeding a flower",
@@ -134,61 +88,7 @@ func init() {
 		},
 	})
 
-		// --- flower upgrade/break ---
-		register(&Command{
-			Name:   "flower.upgrade",
-			Help:   "Upgrade a flower",
-			Params: []string{"flower_id"},
-			Exec: func(c *client.Client, args []string) error {
-				if len(args) < 1 {
-					return fmt.Errorf("usage: flower.upgrade <flower_id>")
-				}
-				flowerID, err := strconv.ParseInt(args[0], 10, 32)
-				if err != nil {
-					return fmt.Errorf("invalid flower_id: %v", err)
-				}
-				return c.Request(&pb.ReqFlowerUpgrade{FlowerId: int32(flowerID)})
-			},
-		})
-		register(&Command{
-			Name:   "flower.break",
-			Help:   "Break/ascend a flower",
-			Params: []string{"flower_id"},
-			Exec: func(c *client.Client, args []string) error {
-				if len(args) < 1 {
-					return fmt.Errorf("usage: flower.break <flower_id>")
-				}
-				flowerID, err := strconv.ParseInt(args[0], 10, 32)
-				if err != nil {
-					return fmt.Errorf("invalid flower_id: %v", err)
-				}
-				return c.Request(&pb.ReqFlowerBreak{FlowerId: int32(flowerID)})
-			},
-		})
-
-	// --- plot ---
-	register(&Command{
-		Name: "plot.info",
-		Help: "Get plot info",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqPlotInfo{})
-		},
-	})
-	register(&Command{
-		Name:   "plot.unlock",
-		Help:   "Unlock a plot",
-		Params: []string{"plot_id"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: plot.unlock <plot_id>")
-			}
-			plotID, err := strconv.ParseInt(args[0], 10, 32)
-			if err != nil {
-				return fmt.Errorf("invalid plot_id: %v", err)
-			}
-			return c.Request(&pb.ReqPlotUnlock{PlotId: int32(plotID)})
-		},
-	})
+	// --- flower (plot commands with flower. prefix + custom parsing) ---
 	register(&Command{
 		Name:   "flower.plant",
 		Help:   "Plant a flower in plots",
@@ -244,7 +144,6 @@ func init() {
 			return c.Request(&pb.ReqPlotRemove{PlotIds: plotIDs})
 		},
 	})
-
 	register(&Command{
 		Name:   "flower.friend_plot",
 		Help:   "View friend's garden plots",
@@ -280,168 +179,7 @@ func init() {
 		},
 	})
 
-	// --- maintask ---
-	register(&Command{
-		Name: "maintask.info",
-		Help: "Get main task info",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqMainTaskInfo{})
-		},
-	})
-	register(&Command{
-		Name: "maintask.claim",
-		Help: "Claim main task reward",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqMainTaskClaim{})
-		},
-	})
-
-	// --- order ---
-	register(&Command{
-		Name: "order.info",
-		Help: "Get order info",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqResidentOrderInfo{})
-		},
-	})
-	register(&Command{
-		Name:   "order.submit",
-		Help:   "Submit an order",
-		Params: []string{"slot_id"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: order.submit <slot_id>")
-			}
-			slotID, err := strconv.ParseInt(args[0], 10, 32)
-			if err != nil {
-				return fmt.Errorf("invalid slot_id: %v", err)
-			}
-			return c.Request(&pb.ReqResidentOrderSubmit{SlotId: int32(slotID)})
-		},
-	})
-	register(&Command{
-		Name:   "order.claim",
-		Help:   "Claim order milestone reward",
-		Params: []string{"id"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: order.claim <id>")
-			}
-			id, err := strconv.ParseInt(args[0], 10, 32)
-			if err != nil {
-				return fmt.Errorf("invalid id: %v", err)
-			}
-			return c.Request(&pb.ReqResidentOrderClaimMilestone{Id: int32(id)})
-		},
-	})
-
-	// --- friend ---
-	register(&Command{
-		Name:   "friend.search",
-		Help:   "Search players by name",
-		Params: []string{"name"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.search <name>")
-			}
-			return c.Request(&pb.ReqFriendSearchPlayer{Name: args[0]})
-		},
-	})
-	register(&Command{
-		Name:   "friend.send_request",
-		Help:   "Send friend request to player(s)",
-		Params: []string{"target_id..."},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.send_request <target_id...>")
-			}
-			ids := make([]int64, 0, len(args))
-			for _, a := range args {
-				id, err := strconv.ParseInt(a, 10, 64)
-				if err != nil {
-					return fmt.Errorf("invalid target_id %q: %v", a, err)
-				}
-				ids = append(ids, id)
-			}
-			return c.Request(&pb.ReqFriendSendRequest{TargetIds: ids})
-		},
-	})
-	register(&Command{
-		Name:   "friend.accept",
-		Help:   "Accept friend request(s)",
-		Params: []string{"from_id..."},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.accept <from_id...>")
-			}
-			ids := make([]int64, 0, len(args))
-			for _, a := range args {
-				id, err := strconv.ParseInt(a, 10, 64)
-				if err != nil {
-					return fmt.Errorf("invalid from_id %q: %v", a, err)
-				}
-				ids = append(ids, id)
-			}
-			return c.Request(&pb.ReqFriendAcceptRequest{FromIds: ids})
-		},
-	})
-	register(&Command{
-		Name:   "friend.reject",
-		Help:   "Reject friend request(s)",
-		Params: []string{"from_id..."},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.reject <from_id...>")
-			}
-			ids := make([]int64, 0, len(args))
-			for _, a := range args {
-				id, err := strconv.ParseInt(a, 10, 64)
-				if err != nil {
-					return fmt.Errorf("invalid from_id %q: %v", a, err)
-				}
-				ids = append(ids, id)
-			}
-			return c.Request(&pb.ReqFriendRejectRequest{FromIds: ids})
-		},
-	})
-	register(&Command{
-		Name: "friend.list",
-		Help: "Get friend list",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqFriendList{})
-		},
-	})
-	register(&Command{
-		Name: "friend.apply_list",
-		Help: "Get friend apply list",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqFriendApplyList{})
-		},
-	})
-	register(&Command{
-		Name:   "friend.remove",
-		Help:   "Remove a friend",
-		Params: []string{"target_id"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: friend.remove <target_id>")
-			}
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid target_id: %v", err)
-			}
-			return c.Request(&pb.ReqFriendRemove{TargetId: id})
-		},
-	})
-
-	// --- chat ---
-	register(&Command{
-		Name: "chat.init",
-		Help: "Initialize chat (login)",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqChatInit{})
-		},
-	})
+	// --- chat (custom channel type parsing) ---
 	register(&Command{
 		Name:   "chat.send",
 		Help:   "Send message to a channel (world/guild)",
@@ -542,68 +280,7 @@ func init() {
 		},
 	})
 
-	// --- guild ---
-	register(&Command{
-		Name:   "guild.create",
-		Help:   "Create a guild",
-		Params: []string{"name", "declaration"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 2 {
-				return fmt.Errorf("usage: guild.create <name> <declaration>")
-			}
-			return c.Request(&pb.ReqGuildCreate{
-				Name:        args[0],
-				Declaration: args[1],
-			})
-		},
-	})
-	register(&Command{
-		Name:   "guild.search",
-		Help:   "Search guilds by keyword",
-		Params: []string{"keyword"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: guild.search <keyword>")
-			}
-			return c.Request(&pb.ReqGuildSearch{Keyword: args[0]})
-		},
-	})
-	register(&Command{
-		Name:   "guild.apply",
-		Help:   "Apply to join a guild",
-		Params: []string{"guild_id"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: guild.apply <guild_id>")
-			}
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid guild_id: %v", err)
-			}
-			return c.Request(&pb.ReqGuildApply{GuildId: id})
-		},
-	})
-	register(&Command{
-		Name: "guild.info",
-		Help: "Get guild hall info",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqGuildInfo{})
-		},
-	})
-	register(&Command{
-		Name: "guild.logs",
-		Help: "Get guild logs",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqGuildLogs{})
-		},
-	})
-	register(&Command{
-		Name: "guild.apply_list",
-		Help: "Get guild apply list",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqGuildApplyList{})
-		},
-	})
+	// --- guild (commands with custom parsing) ---
 	register(&Command{
 		Name:   "guild.approve",
 		Help:   "Approve/reject guild applications",
@@ -644,54 +321,6 @@ func init() {
 		},
 	})
 	register(&Command{
-		Name: "guild.leave",
-		Help: "Leave the guild",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqGuildLeave{})
-		},
-	})
-	register(&Command{
-		Name: "guild.disband",
-		Help: "Disband the guild",
-		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqGuildDisband{})
-		},
-	})
-	register(&Command{
-		Name:   "guild.set_position",
-		Help:   "Set member position (1=leader 2=vice 3=member)",
-		Params: []string{"target_id", "position"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 2 {
-				return fmt.Errorf("usage: guild.set_position <target_id> <position>")
-			}
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid target_id: %v", err)
-			}
-			pos, err := strconv.ParseInt(args[1], 10, 32)
-			if err != nil {
-				return fmt.Errorf("invalid position: %v", err)
-			}
-			return c.Request(&pb.ReqGuildSetPosition{TargetId: id, Position: int32(pos)})
-		},
-	})
-	register(&Command{
-		Name:   "guild.transfer_leader",
-		Help:   "Transfer guild leader",
-		Params: []string{"target_id"},
-		Exec: func(c *client.Client, args []string) error {
-			if len(args) < 1 {
-				return fmt.Errorf("usage: guild.transfer_leader <target_id>")
-			}
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid target_id: %v", err)
-			}
-			return c.Request(&pb.ReqGuildTransferLeader{TargetId: id})
-		},
-	})
-	register(&Command{
 		Name:   "guild.update_info",
 		Help:   "Update guild info",
 		Params: []string{"declaration", "announcement", "need_approval"},
@@ -716,25 +345,47 @@ func init() {
 		},
 	})
 
-	// --- gm ---
+	// --- order (shorter aliases for residentorder commands) ---
 	register(&Command{
-		Name:   "gm.cmd",
-		Help:   "Execute GM command",
-		Params: []string{"command"},
+		Name: "order.info",
+		Help: "Get order info",
+		Exec: func(c *client.Client, args []string) error {
+			return c.Request(&pb.ReqResidentOrderInfo{})
+		},
+	})
+	register(&Command{
+		Name:   "order.submit",
+		Help:   "Submit an order",
+		Params: []string{"slot_id"},
 		Exec: func(c *client.Client, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("usage: gm.cmd <command>")
+				return fmt.Errorf("usage: order.submit <slot_id>")
 			}
-			return c.Request(&pb.ReqGMCommand{Cmd: args[0]})
+			slotID, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid slot_id: %v", err)
+			}
+			return c.Request(&pb.ReqResidentOrderSubmit{SlotId: int32(slotID)})
 		},
 	})
 	register(&Command{
-		Name: "gm.help",
-		Help: "List available GM commands",
+		Name:   "order.claim",
+		Help:   "Claim order milestone reward",
+		Params: []string{"id"},
 		Exec: func(c *client.Client, args []string) error {
-			return c.Request(&pb.ReqGMHelp{})
+			if len(args) < 1 {
+				return fmt.Errorf("usage: order.claim <id>")
+			}
+			id, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil {
+				return fmt.Errorf("invalid id: %v", err)
+			}
+			return c.Request(&pb.ReqResidentOrderClaimMilestone{Id: int32(id)})
 		},
 	})
+
+	// Auto-register remaining commands from proto definitions
+	registerAutoCommands()
 }
 
 func printProtoJSON(prefix string, msg proto.Message) {
