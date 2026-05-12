@@ -323,7 +323,7 @@ func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo)
 func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
 }
 
-func (r *RoleMain) saveRoleModule(ctx context.Context, rmod IRoleModule) error {
+func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 	modState := rmod.PersistState()
 	if modState == nil {
 		return nil
@@ -388,7 +388,7 @@ func (r *RoleMain) save(ctx context.Context) error {
 		if rmod == nil {
 			continue
 		}
-		if err := r.saveRoleModule(ctx, rmod); err != nil {
+		if err := r.SaveRoleModule(ctx, rmod); err != nil {
 			errStr += err.Error()
 		}
 	}

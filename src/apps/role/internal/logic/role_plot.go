@@ -7,11 +7,11 @@ import (
 	"math/rand"
 	"time"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/pkg/errors"
 )
@@ -102,7 +102,7 @@ func (r *RolePlot) OnCreate(ctx context.Context) {
 
 func (r *RolePlot) forceSave(ctx context.Context) error {
 	r.MarkDirty()
-	return r.Role.saveRoleModule(ctx, r)
+	return r.Role.SaveRoleModule(ctx, r)
 }
 
 // ========== 公开方法 ==========

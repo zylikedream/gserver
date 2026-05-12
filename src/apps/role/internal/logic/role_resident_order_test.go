@@ -165,6 +165,14 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 		t.Fatal(err)
 	}
 	orderMod.OnCreate(context.Background())
+
+	// 清除冷却，让测试可以立刻提交订单
+	for _, slot := range orderMod.Slots {
+		if slot != nil {
+			slot.CooldownEnd = 0
+		}
+	}
+
 	return main, orderMod
 }
 

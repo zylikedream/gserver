@@ -331,3 +331,180 @@ guild actor doReceive default case
 ## tracer 名称
 
 使用 `gserver/actor` 作为 tracer name，span name 使用消息类型名 `fmt.Sprintf("%T", msg)`。
+
+## Grafana Tempo 查看
+
+### 访问方式
+
+1. 启动监控栈：`cd docker && docker-compose up -d`
+2. 访问 Grafana：`http://localhost:3000` → Explore → 选择 Tempo 数据源
+3. 或直接在 TraceQL 中输入 trace ID 查询
+
+### TraceQL 查询示例
+
+```traceql
+# 按 trace ID 查询
+bbd290366897a750673a41d307ec8ccc
+
+# 查询所有 actor 消息
+{resource.service.name = "gate"}
+
+# 查询某类消息
+{name = "*pb.ReqChatSendChannel"}
+
+# 查询慢请求（>100ms）
+{duration > 100ms}
+```
+
+### Trace 视图解读
+
+在 Grafana Explore 中打开一条 trace 后，页面分为三个区域：
+
+**1. 顶部元信息**
+
+- **Trace ID** — 唯一标识，可复制分享
+- **Start time** — 请求发起时间
+- **Duration** — 整条 trace 总耗时
+- **Services** — 经过的服务数量（如 gate、game）
+- **Overview 时间线** — 彩色条带可视化各 span 的起止和时长
+
+**2. Span 列表**
+
+每个 span 显示：`{service}: {operation} (duration)`
+
+示例 — 一条聊天请求的 trace（6 spans，3.62ms）：
+
+```
+gate: *pb.ReqChatSendChannel (565.14μs)           ← 根 span
+  └─ game: *pb.ReqChatSendChannel (1.41ms)         ← 跨节点调用
+       ├─ *pb.ReqChannelSend (255.91μs)             ← 频道消息发送
+       ├─ *pb.NotifyChatChannel (313μs)             ← 通知订阅者
+       ├─ gate: *pb.NotifyChatChannel (328.79μs)    ← 回推 gateway
+       └─ *pb.RspChatSendChannel (293.44μs)         ← 响应返回
+```
+
+**3. 怎么读 span 的层级关系**
+
+- **根 span**（无缩进）— 请求入口，通常是 gateway session actor 收到客户端消息时创建
+- **子 span**（缩进）— 由父 span 的 `send`/`call` 触发，trace context 通过 MessageEnvelope header 传播
+- **同级的多个子 span** — 父 span 处理过程中先后发起的多个下游调用（如先写频道、再通知、最后响应）
+- **服务名前缀**（`gate:` / `game:`）— span 创建时所在的节点，没有前缀的 span 与父 span 同节点
+
+**4. 实例解读：以 ReqGuildInfo 为例**
+
+Trace ID: `36a1ce56eb544771d6f6f9b16a178fa5`，4 spans，4.77ms，2 services。
+
+```
+gate: *pb.ReqGuildInfo (628.19μs)             ← 根 span，gateway 收到请求
+  ├─ game: *pb.ReqGuildInfo (2.85ms)           ← 跨节点：gate → game 远程调用
+  │    └─ *pb.ReqGuildInfo (1.51ms)            ← game 内部：guild actor 处理查询
+  └─ gate: *pb.RspGuildInfo (432.4μs)          ← 响应回 gateway
+```
+
+Overview 时间线对应：
+
+```
+0μs          628μs     1.19ms     2.39ms     3.58ms    4.77ms
+├─────────────┃──────────────────────────────────────────────┤
+│gate:Req     ████                                              │ gate 收到请求，转发
+│game:Req             ┃████████████████████████████████        │ game 处理
+│  *pb.Req             ┃  ████████████████████████             │ game 内部 actor 处理
+│gate:Rsp              ┃                                ████   │ 响应回 gate
+├─────────────┃──────────────────────────────────────────────┤
+```
+
+注意 `game:ReqGuildInfo` 和 `gate:RspGuildInfo` 是同级子 span（都是 `gate:ReqGuildInfo` 的子）。`game:Req` 处理完毕后，game 通过 `respond` 发回响应，gate 收到响应创建了 `gate:RspGuildInfo` span。两个同级 span 之间没有重叠，是串行的。
+
+**5. Span 时间关系模式**
+
+在 Overview 时间线中，每个 span 是一条彩色横条。以下是常见的位置关系：
+
+**模式一：子 span 串行嵌套（依次调用）**
+
+```
+父 span ████████████████████████████████████
+子 span 1  ████████████
+子 span 2              ██████████████
+子 span 3                            ████████████
+```
+
+子 span 1 结束后子 span 2 才开始，是串行执行。Actor 在 `HandleMessage` 中依次调用 `Call(A)` → `Call(B)` → `Respond(C)` 就会产生这种模式。上面的 ReqGuildInfo trace 就是典型的串行链路。
+
+**模式二：子 span 之间有间隔（等待）**
+
+```
+父 span ████████████████████████████████████
+子 span 1  ████████
+                   ← 间隔
+子 span 2              ██████████
+```
+
+间隔可能代表：
+- **网络等待** — `Call()` 发出请求后，等待远端 actor 处理并返回的 RTT。在 ReqGuildInfo trace 中，`game:ReqGuildInfo` 开始前有一小段间隔，就是跨节点消息传输的网络延迟
+- **异步事件等待** — actor 等待某个异步操作完成（如 DB 查询返回、等待定时器）
+- **本地计算** — 序列化/反序列化、业务逻辑等不产生 span 的 CPU 时间
+
+**模式三：子 span 时间重叠（并发执行）**
+
+```
+父 span ████████████████████████████████████
+子 span 1    ████████████████████
+子 span 2         ████████████████████████
+                  ^^^^^^^^
+                  重叠：两个子 span 同时在执行
+```
+
+在 Actor 模型中，一个 actor 向**多个**下游 actor 分别 `Send` 异步消息（不等待返回），每个下游 actor 各自创建 span，这些 span 就会重叠 — 它们在不同的 actor 进程中并行处理。
+
+常见于**广播/通知**场景，例如聊天频道通知多个在线玩家：
+- game actor 先后 `Send` 通知给多个 gate 节点
+- 各 gate 节点的 session actor 并行收到通知、各自创建 span
+- 这些 span 在时间线上重叠
+
+**模式四：同名 span（跨节点传播，不是重复处理）**
+
+```
+gate: *pb.ReqGuildInfo  ████████████████████
+  └─ game: *pb.ReqGuildInfo  ████████████
+       └─ *pb.ReqGuildInfo  ████████
+```
+
+同一个 operation 出现多次但 service 不同（`gate:` vs `game:`），这是**跨节点 actor 调用**：
+1. `gate: *pb.ReqGuildInfo` — gateway session actor 收到请求，创建根 span
+2. `game: *pb.ReqGuildInfo` — 通过 `Call` 转发到 game 节点，trace context 随 MessageEnvelope header 传播，远端 actor 提取后创建子 span
+3. `*pb.ReqGuildInfo`（无前缀）— game 节点内部的 actor 间调用，与父 span 同节点
+
+**模式五：子 span 超出父 span 范围（异常）**
+
+```
+父 span ████████████████
+子 span    ██████████████████████   ← 超出父 span
+```
+
+正常情况下子 span 必须在父 span 时间范围内。超出说明时间记录有误 — 通常原因是 `a.ctx` 中的 span 泄漏（`doReceive` 的 `savedCtx` 恢复逻辑未正确执行），或 goroutine 中使用了错误的 ctx。
+
+**模式六：多个独立根 span（链路断裂）**
+
+```
+根 span A  ████████████
+根 span B                  ████████████
+根 span C                                ████████████
+```
+
+三个 span 没有 parent-child 关系，各自是独立的 trace。可能原因：
+- 调用时 ctx 中没有有效 span（如 `context.Background()`）
+- 消息走了不经过 `send` 的路径（直接 `Root.Send`、timer 回调）
+- 跨网络调用时 trace header 丢失
+
+**6. 排查思路**
+
+- **整条链路慢** → 对比各子 span 耗时占比，找最大的那个
+- **某个环节慢** → 展开对应 span 查看详情，看 `actor_kind` 和 `msg` 属性定位具体 actor 和消息类型
+- **子 span 之间有大间隔** → 可能是网络延迟（跨节点 Call 的 RTT）或本地计算瓶颈，需结合 span 的 service 名判断
+- **子 span 重叠** → 正常的并发行为（异步 Send 多个下游），不需要处理
+- **链路断裂**（独立根 span）→ 检查调用是否使用了正确的 `ctx`，是否经过 `send`/`Call`
+- **span 超出父 span 范围** → 检查 `doReceive` 中 `savedCtx` 恢复逻辑是否正确
+
+### IUnspanMessage
+
+实现了 `IUnspanMessage` 接口的消息会跳过 span 创建（在 `doReceive` 中直接走 `handleMessage`）。用于 Actor 内部消息（如 `ActorActive` 等），避免产生大量无意义的离散 trace。

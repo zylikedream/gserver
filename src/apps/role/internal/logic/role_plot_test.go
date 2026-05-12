@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
@@ -71,8 +71,15 @@ func initPlotTestConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	friendConfig := loadTestTable(t, "garden_tbfriendconfig")
+	tbFriendConfig, err := gamecfg.NewGardenTbFriendConfig(friendConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbFlower: tbFlower, TbGardenPlot: tbGardenPlot,
-		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak, TbPlayerLevel: tbPlayerLevel}
+		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak, TbPlayerLevel: tbPlayerLevel,
+		TbFriendConfig: tbFriendConfig}
 	plotCfgInited = true
 }
 
@@ -84,6 +91,18 @@ func setupTestPlot(t *testing.T) *RolePlot {
 		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
 	)
 	t.Cleanup(patch.Reset)
+	patchSave := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SaveRoleModule",
+		func(_ *RoleMain, _ context.Context, _ IRoleModule) error { return nil },
+	)
+	t.Cleanup(patchSave.Reset)
+	patchStolen := gomonkey.ApplyFunc(countPlotStolen,
+		func(_ context.Context, _ int64, _ int32) (int64, error) { return 0, nil },
+	)
+	t.Cleanup(patchStolen.Reset)
+	patchDelSteal := gomonkey.ApplyFunc(deletePlotStealRecords,
+		func(_ context.Context, _ int64, _ int32) error { return nil },
+	)
+	t.Cleanup(patchDelSteal.Reset)
 
 	main := &RoleMain{}
 	basicMod := &RoleBasic{
