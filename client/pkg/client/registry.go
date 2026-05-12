@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	pb "hy_client/pb"
 
@@ -21,6 +22,7 @@ type messageMeta struct {
 	id   string
 	name string
 	typ  reflect.Type
+	md   protoreflect.MessageDescriptor
 }
 
 var registered bool
@@ -67,6 +69,7 @@ func registerMessage(md protoreflect.MessageDescriptor) {
 		id:   id,
 		name: string(md.Name()),
 		typ:  typ,
+		md:   md,
 	}
 	metaByID[id] = meta
 	metaByType[typ] = meta
@@ -102,10 +105,29 @@ func NewMessageByID(id string) proto.Message {
 	return msg
 }
 
+func NewMessageByName(name string) proto.Message {
+	mt, err := protoregistry.GlobalTypes.FindMessageByName(protoreflect.FullName("galaxy.protocol." + name))
+	if err != nil {
+		return nil
+	}
+	return mt.New().Interface()
+}
+
 func MessageNameByID(id string) string {
 	m, ok := metaByID[id]
 	if !ok {
 		return fmt.Sprintf("Unknown(%s)", id)
 	}
 	return m.name
+}
+
+func RangeReqMessages(fn func(msgID, name string, md protoreflect.MessageDescriptor) bool) {
+	for id, meta := range metaByID {
+		if !strings.HasPrefix(meta.name, "Req") {
+			continue
+		}
+		if !fn(id, meta.name, meta.md) {
+			break
+		}
+	}
 }
