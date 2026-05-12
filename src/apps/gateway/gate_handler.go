@@ -2,13 +2,12 @@ package gateway
 
 import (
 	"context"
+	"fmt"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
-
-	"github.com/gogf/gf/v2/errors/gerror"
 )
 
 type GateHandler struct {
@@ -50,6 +49,10 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 	sessPid, ok := ep.GetData().(gxyactor.PID)
 	if sessPid != nil && ok {
-		StopSession(sessPid, gerror.Newf("conn closed: %s", err))
+		reason := "noraml"
+		if err != nil {
+			reason = err.Error()
+		}
+		StopSession(sessPid, fmt.Errorf("conn closed: %s", reason))
 	}
 }

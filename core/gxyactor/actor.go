@@ -15,6 +15,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gutil"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -57,6 +58,7 @@ type ActorBase struct {
 	stopErr    error
 	msgHandler *gxyutil.MsgHandler
 	actorKind  string
+	span       trace.Span
 }
 
 func NewActorBase(ctx context.Context, actor IActor, actorKind string) *ActorBase {
@@ -66,6 +68,10 @@ func NewActorBase(ctx context.Context, actor IActor, actorKind string) *ActorBas
 		actorKind:  actorKind,
 		msgHandler: gxyutil.NewMsgHandler(),
 	}
+}
+
+func (a *ActorBase) Span() trace.Span {
+	return a.span
 }
 
 func (a *ActorBase) ActorKind() string {
@@ -121,26 +127,56 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		a.actor.Terminate(a.ctx, a.stopErr)
 	case actor.AutoRespond:
 		// Touch etc. — protoactor handles the response automatically
+	case IUnspanMessage:
+		return a.handleMessage(msg)
 	default:
-		header := a.Actx.MessageHeader()
-		headerMap := map[string]string{}
-		if header != nil {
-			headerMap = header.ToMap()
-		}
-		carrier := readonlyHeaderCarrier{headerMap}
-		extCtx := otel.GetTextMapPropagator().Extract(a.ctx, carrier)
-		_, span := otel.Tracer("gserver/actor").Start(extCtx, fmt.Sprintf("%T", msg))
-		defer span.End()
+		span := a.initSpan(msg)
+		a.span = span
 		savedCtx := a.ctx
 		a.ctx = trace.ContextWithSpan(a.ctx, span)
-		defer func() { a.ctx = savedCtx }()
-		start := time.Now()
-		if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
-			gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
+		defer func() {
+			span.End()
+			a.ctx = savedCtx
+		}()
+		if err := a.handleMessage(msg); err != nil {
+			span.RecordError(err)
+			return err
 		}
-		gxymetrics.ActorMessages.WithLabelValues(a.ActorKind()).Inc()
-		gxymetrics.ActorMessageDuration.WithLabelValues(a.ActorKind()).Observe(time.Since(start).Seconds())
 	}
+	return nil
+}
+
+func (a *ActorBase) initSpan(msg any) trace.Span {
+	header := a.Actx.MessageHeader()
+	headerMap := map[string]string{}
+	if header != nil {
+		headerMap = header.ToMap()
+	}
+	carrier := readonlyHeaderCarrier{headerMap}
+	extCtx := otel.GetTextMapPropagator().Extract(a.ctx, carrier)
+	_, span := otel.Tracer("gserver/actor").Start(extCtx, fmt.Sprintf("%T", msg))
+	span.SetAttributes(attribute.String("actor_kind", a.ActorKind()))
+	span.SetAttributes(attribute.String("msg", gxyutil.FormatObject(msg)))
+	// sc := span.SpanContext()
+	// if sc.IsValid() && sc.TraceID().IsValid() {
+	// 	parentSc := trace.SpanContextFromContext(extCtx)
+	// 	gxylog.Debug(a.ctx, "trace",
+	// 		gxylog.Str("trace_id", sc.TraceID().String()),
+	// 		gxylog.Str("msg_type", fmt.Sprintf("%T", msg)),
+	// 		gxylog.Bool("propagated", parentSc.IsValid()),
+	// 	)
+	// }
+	return span
+}
+
+func (a *ActorBase) handleMessage(msg any) error {
+	start := time.Now()
+	if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
+		gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
+		return err
+	}
+	gxymetrics.ActorMessages.WithLabelValues(a.ActorKind()).Inc()
+	gxymetrics.ActorMessageDuration.WithLabelValues(a.ActorKind()).Observe(time.Since(start).Seconds())
 	return nil
 }
 
@@ -148,13 +184,13 @@ func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 	rsp, err := a.callMsgHandler(a.ctx, msg)
 	if err != nil {
 		gxylog.Error(a.ctx, "handle rpc msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
-		a.Respond(&pb.ActorError{
+		Respond(ctx, a.Actx, &pb.ActorError{
 			Reason: err.Error(),
 		})
 		return nil, nil
 	}
 	if rsp != nil {
-		a.Respond(rsp)
+		Respond(ctx, a.Actx, rsp)
 	}
 	return rsp, nil
 }
@@ -203,32 +239,10 @@ func (a *ActorBase) DelayInit(ctx context.Context) error {
 func (a *ActorBase) Terminate(ctx context.Context, err error) {
 }
 
-// 回应CallSync方法
-func (a *ActorBase) Respond(msg any) {
-	if a.Actx.Sender() == nil {
-		return
-	}
-	a.Actx.Respond(msg)
-}
-
 // 发送请求里带了sender，所以接收方可以调用respond回应消息
 
 func (a *ActorBase) Sender() PID {
 	return a.Actx.Sender()
-}
-
-func (a *ActorBase) SpawnNamed(props *actor.Props, name string, initArgs ...any) (PID, error) {
-	if len(initArgs) > 0 {
-		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
-	}
-	return a.Actx.SpawnNamed(props, name)
-}
-
-func (a *ActorBase) Spawn(props *actor.Props, initArgs ...any) PID {
-	if len(initArgs) > 0 {
-		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
-	}
-	return a.Actx.Spawn(props)
 }
 
 // Context returns the actor's context with trace span enrichment.
@@ -276,4 +290,14 @@ func (c readonlyHeaderCarrier) Get(key string) string {
 
 func (c readonlyHeaderCarrier) Keys() []string {
 	return gutil.Keys(c.mp)
+}
+
+type IUnspanMessage interface {
+	Unspan()
+}
+
+type unspanMessage struct {
+}
+
+func (u *unspanMessage) Unspan() {
 }

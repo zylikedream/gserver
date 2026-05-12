@@ -128,7 +128,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 
 	case *pb.ReqChannelSend:
 		if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
-			a.Respond(err)
+			gxyactor.Respond(ctx, a.Actx, gxyactor.ActorError(err.Error()))
 			return nil
 		}
 		chatMsg := &pb.PChatMsg{
@@ -148,7 +148,6 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		for _, pid := range a.members {
 			gxyactor.Send(ctx, pid, notify)
 		}
-		a.Respond(nil)
 
 	case *pb.ReqChatChannelHistory:
 		count := int(m.Count)
@@ -156,7 +155,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 			count = a.channel.RingBufferSize()
 		}
 		msgs := a.buffer.Recent(count)
-		a.Respond(&pb.RspChatChannelHistory{Messages: msgs})
+		gxyactor.Respond(ctx, a.Actx, &pb.RspChatChannelHistory{Messages: msgs})
 	}
 	return nil
 }

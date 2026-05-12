@@ -44,27 +44,35 @@ func (r *RoleGuild) OnModInit(ctx context.Context) error { return nil }
 
 func (r *RoleGuild) OnCreate(ctx context.Context) {}
 
-func (r *RoleGuild) OnModStart(ctx context.Context) error {
-	if r.GuildID > 0 {
-		if _, err := r.Role.Chat.JoinChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
-			gxylog.Error(ctx, "加入公会聊天失败", gxylog.Err(err))
-		}
+func (r *RoleGuild) AfterLogin(ctx context.Context) {
+	if r.lastChannelID > 0 {
+		return
 	}
-	return nil
+	r.JoinGuildChannel(ctx)
+}
+
+func (r *RoleGuild) JoinGuildChannel(ctx context.Context) {
+	if r.GuildID <= 0 {
+		return
+	}
+	if _, err := r.Role.Chat.JoinChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
+		gxylog.Error(ctx, "加入公会聊天失败", gxylog.Err(err))
+	} else {
+		r.lastChannelID = r.GuildID
+	}
 }
 
 func (r *RoleGuild) OnModStop(ctx context.Context) error {
-	if r.GuildID > 0 {
-		r.Role.Chat.LeaveChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID)
+	if r.lastChannelID > 0 {
+		r.Role.Chat.LeaveChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.lastChannelID)
+		r.lastChannelID = 0
 	}
 	return nil
 }
 
 func (r *RoleGuild) SetGuildID(ctx context.Context, guildID int64) {
 	r.GuildID = guildID
-	if _, err := r.Role.Chat.JoinChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.GuildID); err != nil {
-		gxylog.Error(ctx, "加入公会聊天失败", gxylog.Err(err))
-	}
+	r.JoinGuildChannel(ctx)
 }
 
 // ===== HTTP helpers =====
@@ -138,7 +146,7 @@ func (r *RoleGuild) ReqGuildSearch(ctx context.Context, req *pb.ReqGuildSearch) 
 }
 
 func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any, error) {
-	pid, err := lib.GetGuildActor(r.GuildID)
+	pid, err := lib.GetGuildActor(ctx, r.GuildID)
 	if err != nil {
 		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
 	}
@@ -146,7 +154,7 @@ func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any,
 }
 
 func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
-	pid, err := lib.GetGuildActor(req.GuildId)
+	pid, err := lib.GetGuildActor(ctx, req.GuildId)
 	if err != nil {
 		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
 	}

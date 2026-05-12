@@ -19,6 +19,7 @@ import (
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -133,6 +134,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	if !ok {
 		return gerror.Newf("first packet is not pb.ReqHandShake, msg: %v", msg)
 	}
+	s.Span().SetName(fmt.Sprintf("%T", firstpacket))
 
 	s.sessionInfo.AccountUid = firstpacket.AccountUid
 	roleID, err := role.GetRoleIDByAccount(firstpacket.AccountUid)
@@ -140,7 +142,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		return gerror.Wrapf(err, "get role id error, account: %s", firstpacket.AccountUid)
 	}
 	s.SetLogValue(gxylog.ContextKeyRoleID, roleID)
-	rolePid, err := lib.ActivateRole(roleID)
+	rolePid, err := lib.ActivateRole(ctx, roleID)
 	if err != nil {
 		return gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
 	}
@@ -158,6 +160,10 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	}
 	SessionMgr().Add(roleID, s.Self())
 	s.state = StateHandshake
+	s.Span().SetAttributes(
+		attribute.String("accountUid", firstpacket.AccountUid),
+		attribute.Int64("roleID", roleID),
+	)
 	return nil
 }
 
@@ -175,6 +181,10 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		if !ok {
 			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", gxyutil.FormatObject(pbmsg))
 		}
+		s.Span().SetName(fmt.Sprintf("%T", pbmsg))
+		s.Span().SetAttributes(
+			attribute.Int64("roleID", s.sessionInfo.RoleID),
+		)
 		switch pbmsg.(type) {
 		case *pb.ReqAccountLogout:
 			s.Stop(gerror.New("client account logout"))
@@ -209,6 +219,11 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	if err != nil {
 		return gerror.Wrap(err, "unmarshal rsp error, err: %v")
 	}
+
+	s.Span().SetName(fmt.Sprintf("%T", pbmsg))
+	s.Span().SetAttributes(
+		attribute.Int64("roleID", s.sessionInfo.RoleID),
+	)
 	switch pbmsg.(type) {
 	case *pb.RspAccountLogin:
 		s.state = StateLogin
@@ -217,6 +232,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	if err := s.endpoint.SendMsg(pbmsg); err != nil {
 		return gerror.Wrap(err, "send rsp error, err: %v")
 	}
+
 	return nil
 }
 

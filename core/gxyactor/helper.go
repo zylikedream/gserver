@@ -46,6 +46,10 @@ func LocalSend(ctx context.Context, pid PID, message any) {
 	app.localSend(ctx, pid, message)
 }
 
+func Respond(ctx context.Context, actx actor.Context, message any) error {
+	return app.respond(ctx, actx, message)
+}
+
 func Call(ctx context.Context, pid PID, message proto.Message, timeout time.Duration) (any, error) {
 	return app.call(ctx, pid, message, timeout)
 }
@@ -70,8 +74,8 @@ func Address() string {
 	return app.Address()
 }
 
-func ActivateActor(kind string, id string, spawn bool) (PID, error) {
-	return app.ActivateActor(kind, id, spawn)
+func ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
+	return app.ActivateActor(ctx, kind, id, spawn)
 }
 
 func GetActorCount(kind string) int {

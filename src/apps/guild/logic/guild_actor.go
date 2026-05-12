@@ -122,7 +122,7 @@ func (g *GuildActor) addLog(ctx context.Context, content string) {
 // ===== 通知（携带数据） =====
 
 func (g *GuildActor) notifyPlayer(ctx context.Context, roleID int64, msg proto.Message) {
-	pid, err := lib.GetRoleActor(roleID)
+	pid, err := lib.GetRoleActor(ctx, roleID)
 	if err != nil || pid == nil {
 		return
 	}
@@ -138,7 +138,7 @@ func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
 		}
 		// 填充 self 字段
 		msg.Self = g.buildPGuildMember(ctx, m)
-		pid, err := lib.GetRoleActor(m.RoleID)
+		pid, err := lib.GetRoleActor(ctx, m.RoleID)
 		if err != nil || pid == nil {
 			continue
 		}
@@ -149,7 +149,7 @@ func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
 func (g *GuildActor) notifyGuildBasic(ctx context.Context) {
 	msg := g.buildNotifyGuildBasic(ctx)
 	for _, m := range g.Data.Members {
-		pid, err := lib.GetRoleActor(m.RoleID)
+		pid, err := lib.GetRoleActor(ctx, m.RoleID)
 		if err != nil || pid == nil {
 			continue
 		}
@@ -163,7 +163,7 @@ func (g *GuildActor) notifyApplyUpdate(ctx context.Context) {
 		if m.Position > 2 {
 			continue // 只有会长(1)/副会长(2)
 		}
-		pid, err := lib.GetRoleActor(m.RoleID)
+		pid, err := lib.GetRoleActor(ctx, m.RoleID)
 		if err != nil || pid == nil {
 			continue
 		}

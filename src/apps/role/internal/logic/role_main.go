@@ -22,6 +22,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gorm.io/gorm"
@@ -252,6 +253,10 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	if err != nil {
 		return nil, gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
 	}
+	r.Span().SetName(fmt.Sprintf("%T", pbmsg))
+	r.Span().SetAttributes(
+		attribute.Int64("roleID", r.RoleID),
+	)
 	r.sessionActiveTime = time.Now()
 	if !canHandleMsg(r.state, pbmsg) {
 		gxylog.Warn(ctx, "role recv msg in wrong state, ignore", gxylog.Num("state", int(r.state)), gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))

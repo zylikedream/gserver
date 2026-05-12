@@ -243,7 +243,7 @@ func callFriendList(ctx context.Context, playerID int64) ([]friendEntryJSON, err
 // ---- cross-actor notification ----
 
 func (r *RoleMain) notifyPlayer(ctx context.Context, targetID int64, msg proto.Message) {
-	pid, err := lib.GetRoleActor(targetID)
+	pid, err := lib.GetRoleActor(ctx, targetID)
 	if err != nil {
 		gxylog.Warn(ctx, "notifyPlayer: get actor failed", gxylog.Num("target", targetID), gxylog.Err(err))
 		return

@@ -126,6 +126,15 @@ func (a *actorApp) localSend(ctx context.Context, pid PID, message any) error {
 	return a.send(ctx, pid, message)
 }
 
+func (a *actorApp) respond(ctx context.Context, actx actor.Context, message any) error {
+	sender := actx.Sender()
+	if sender == nil {
+		gxylog.Warn(ctx, "sener is nil, can not respond")
+		return nil
+	}
+	return a.send(ctx, sender, message)
+}
+
 func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
 	// Extract trace headers and unwrap inner message
 	future := actor.NewFuture(a.system, timeout)
@@ -179,8 +188,8 @@ func (a *actorApp) Address() string {
 	return a.system.Address()
 }
 
-func (a *actorApp) ActivateActor(kind string, id string, spawn bool) (PID, error) {
-	return a.activatorMgr.getActor(kind, id, spawn)
+func (a *actorApp) ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
+	return a.activatorMgr.getActor(ctx, kind, id, spawn)
 }
 
 func (a *actorApp) GetActorCount(kind string) int {

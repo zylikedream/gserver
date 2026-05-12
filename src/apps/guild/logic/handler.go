@@ -7,10 +7,10 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/lib"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
@@ -64,7 +64,7 @@ func (h *GuildHandler) Create(ctx context.Context, req *CreateGuildReq) (any, er
 	}
 
 	// 激活 guild actor（DelayInit 从 DB 加载）
-	_, err := lib.GetGuildActor(guild.ID)
+	_, err := lib.GetGuildActor(ctx, guild.ID)
 	if err != nil {
 		gxypgx.DB().Delete(guild)
 		gxypgx.DB().Delete(GuildRoleState{GuildID: guild.ID})

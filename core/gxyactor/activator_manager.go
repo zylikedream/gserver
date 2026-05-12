@@ -34,11 +34,13 @@ type hashableActorActive struct {
 func (m *hashableActorActive) Hash() string { return m.hash }
 
 type localMsgRegisterPool struct {
+	unspanMessage
 	Kind   string
 	PoolID PID
 }
 
 type localMsgUnRegisterPool struct {
+	unspanMessage
 	Kind string
 }
 
@@ -79,7 +81,7 @@ func (r *activatorRouter) HandleMessage(ctx context.Context, msg any) error {
 		if poolPID == nil {
 			return fmt.Errorf("pool %s not registered", msg.Kind)
 		}
-		r.Actx.RequestWithCustomSender(poolPID, wrapped, sender)
+		CallSync(ctx, poolPID, wrapped, sender)
 	case *localMsgRegisterPool:
 		r.RegisterPool(msg.Kind, msg.PoolID)
 	case *localMsgUnRegisterPool:
@@ -160,22 +162,22 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *hashableActorActive:
 		props := a.meta.Props.Clone()
-		// notice 这儿不要使用a.SpawnNamed, 因为actor_context的spawn_named会把id偷偷的加上前缀，
-		// 导致actor.NewPid(msg.Id)返回的pid和a.SpawnNamed(msg.Id, msg.Id)返回的pid不同
+		// notice 这儿不要使用actor自带的SpawnNamed, 因为actor_context的spawn_named会把id偷偷的加上前缀，
+		// 导致actor.NewPid(msg.Id)返回的pid和a.SpawnNamed(msg.Id)返回的pid不同
 		pid, err := SpawnNamed(props, msg.Id, msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
-				a.Respond(&remote.ActorPidResponse{Pid: pid})
+				Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: pid})
 				return nil
 			}
-			a.Respond(ActorError(err.Error()))
+			Respond(ctx, a.Actx, ActorError(err.Error()))
 			return nil
 		}
 
 		// 注册 Redis
 		if err := a.registerActor(msg.Id, pid); err != nil {
 			StopActor(pid)
-			a.Respond(&pb.ActorError{Reason: fmt.Sprintf("registration failed, key taken by another node, err: %s", err.Error())})
+			Respond(ctx, a.Actx, ActorError(fmt.Sprintf("registration failed, key taken by another node, err: %s", err.Error())))
 			return nil
 		}
 
@@ -319,10 +321,10 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 	delete(g.activatorMetas, kind)
 }
 
-func (g *activatorManager) spawnActor(node string, kind string, id string) (PID, error) {
-	gxylog.Debug(g.ctx, "spawn actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node))
+func (g *activatorManager) spawnActor(ctx context.Context, node string, kind string, id string) (PID, error) {
+	gxylog.Debug(ctx, "spawn actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node))
 	activator := actor.NewPID(node, g.getRouterName())
-	rsp, err := Call(g.ctx, activator, &pb.ActorActive{
+	rsp, err := Call(ctx, activator, &pb.ActorActive{
 		Kind: kind,
 		Id:   id,
 	}, -1)
@@ -335,8 +337,7 @@ func (g *activatorManager) spawnActor(node string, kind string, id string) (PID,
 	return rsp.(*remote.ActorPidResponse).Pid, nil
 }
 
-func (g *activatorManager) getActor(kind string, id string, spawn bool) (PID, error) {
-	ctx := context.Background()
+func (g *activatorManager) getActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
 	key := getActorLocateKey(kind, id)
 	nodeName, err := gxyredis.Redis().Get(ctx, key).Result()
 	if err != nil && err != redis.Nil {
@@ -361,7 +362,7 @@ func (g *activatorManager) getActor(kind string, id string, spawn bool) (PID, er
 	if serviceInfo == nil || serviceInfo.NodeHost == "" {
 		return nil, gerror.Newf("find actor node failed, kind: %s, id: %s", kind, id)
 	}
-	return g.spawnActor(serviceInfo.NodeHost, kind, id)
+	return g.spawnActor(ctx, serviceInfo.NodeHost, kind, id)
 }
 
 func (g *activatorManager) GetActorCount(kind string) int {
