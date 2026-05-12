@@ -108,9 +108,6 @@ func (a *actorApp) spawn(props *actor.Props, initArgs ...any) (PID, error) {
 	return a.system.Root.Spawn(props), nil
 }
 
-// notice root调用request没有意义，,因为无法处理root进程的消息，就是接收方调用respond也无法处理(其实root进程的request和send方法时一样的)
-
-// Send, call都是用于非actor向actor发送消息
 // Send 发送消息
 func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
 	if a.system == nil {
@@ -125,42 +122,21 @@ func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
 }
 
 // LocalSend 发送消息给本地actor, 不经过序列化, 所以可以发送any
-func (a *actorApp) localSend(ctx context.Context, pid PID, message any) {
-	if a.system == nil {
-		return
-	}
-	if env := injectTrace(ctx, message); env != nil {
-		a.system.Root.Send(pid, env)
-		return
-	}
-	a.system.Root.Send(pid, message)
+func (a *actorApp) localSend(ctx context.Context, pid PID, message any) error {
+	return a.send(ctx, pid, message)
 }
 
 func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
-	if a.system == nil {
-		return nil, fmt.Errorf("node not initialized")
-	}
-
 	// Extract trace headers and unwrap inner message
-	hdr := actor.UnwrapEnvelopeHeader(message)
-	msg := actor.UnwrapEnvelopeMessage(message)
-
 	future := actor.NewFuture(a.system, timeout)
 	env := &actor.MessageEnvelope{
-		Message: msg,
+		Message: message,
 		Sender:  future.PID(),
 	}
-	if hdr != nil {
-		for _, k := range hdr.Keys() {
-			env.SetHeader(k, hdr.Get(k))
-		}
+	err := a.send(ctx, pid, env)
+	if err != nil {
+		return nil, err
 	}
-
-	// Inject trace context into the envelope
-	carrier := messageEnvelopeCarrier{envelope: env}
-	otel.GetTextMapPropagator().Inject(ctx, carrier)
-
-	a.system.Root.Send(pid, env)
 	result, err := future.Result()
 	if err != nil {
 		return nil, err
@@ -171,30 +147,12 @@ func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.
 	return result, nil
 }
 
-func (a *actorApp) callSync(ctx context.Context, pid PID, message any, sender PID) {
-	if a.system == nil {
-		return
-	}
-
-	// Extract trace headers and unwrap inner message
-	hdr := actor.UnwrapEnvelopeHeader(message)
-	msg := actor.UnwrapEnvelopeMessage(message)
-
+func (a *actorApp) callSync(ctx context.Context, pid PID, message any, sender PID) error {
 	env := &actor.MessageEnvelope{
-		Message: msg,
+		Message: message,
 		Sender:  sender,
 	}
-	if hdr != nil {
-		for _, k := range hdr.Keys() {
-			env.SetHeader(k, hdr.Get(k))
-		}
-	}
-
-	// Inject trace context into the envelope
-	carrier := messageEnvelopeCarrier{envelope: env}
-	otel.GetTextMapPropagator().Inject(ctx, carrier)
-
-	a.system.Root.Send(pid, env)
+	return a.send(ctx, pid, env)
 }
 
 func (a *actorApp) GetNodeName() string {
@@ -256,11 +214,17 @@ func (c messageEnvelopeCarrier) Keys() []string {
 // injectTrace injects OpenTelemetry trace context from ctx into a MessageEnvelope.
 // Returns nil when ctx has no valid span (no trace to propagate).
 func injectTrace(ctx context.Context, msg any) *actor.MessageEnvelope {
+	env := &actor.MessageEnvelope{}
+	switch msg := msg.(type) {
+	case *actor.MessageEnvelope:
+		env = msg
+	default:
+		env.Message = msg
+	}
 	span := trace.SpanFromContext(ctx)
 	if !span.SpanContext().IsValid() {
 		return nil
 	}
-	env := &actor.MessageEnvelope{Message: msg}
 	carrier := messageEnvelopeCarrier{envelope: env}
 	otel.GetTextMapPropagator().Inject(ctx, carrier)
 	return env
