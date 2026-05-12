@@ -122,7 +122,12 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 	case actor.AutoRespond:
 		// Touch etc. — protoactor handles the response automatically
 	default:
-		carrier := readonlyHeaderCarrier{a.Actx.MessageHeader()}
+		header := a.Actx.MessageHeader()
+		headerMap := map[string]string{}
+		if header != nil {
+			headerMap = header.ToMap()
+		}
+		carrier := readonlyHeaderCarrier{headerMap}
 		extCtx := otel.GetTextMapPropagator().Extract(a.ctx, carrier)
 		_, span := otel.Tracer("gserver/actor").Start(extCtx, fmt.Sprintf("%T", msg))
 		defer span.End()
@@ -258,7 +263,17 @@ func ContextDecorator(args ...any) actor.ContextDecorator {
 // readonlyHeaderCarrier adapts actor.ReadonlyMessageHeader to propagation.TextMapCarrier
 // for OpenTelemetry trace context extraction. Set is a no-op since the header is read-only.
 type readonlyHeaderCarrier struct {
-	actor.ReadonlyMessageHeader
+	mp map[string]string
 }
 
-func (readonlyHeaderCarrier) Set(key, value string) {}
+func (c readonlyHeaderCarrier) Set(key, value string) {
+	c.mp[key] = value
+}
+
+func (c readonlyHeaderCarrier) Get(key string) string {
+	return c.mp[key]
+}
+
+func (c readonlyHeaderCarrier) Keys() []string {
+	return gutil.Keys(c.mp)
+}

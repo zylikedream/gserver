@@ -54,13 +54,16 @@ func NewActorApp(nodeName string, nodeInstanceName string, host string) *actorAp
 	return app
 }
 
+func (a *actorApp) newSystem() *actor.ActorSystem {
+	return actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging))
+}
+
 // OnModInit Actor模块初始化 - 启动节点
 func (a *actorApp) OnModInit(ctx context.Context) error {
-	a.system = actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging))
+	a.system = a.newSystem()
 	config := remote.Configure(a.host, 0)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
-	a.system.Root.WithSenderMiddleware(tracePropagationMiddleware())
 	a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName)
 	a.AddModule(ctx, a.activatorMgr)
 	return nil
@@ -109,28 +112,56 @@ func (a *actorApp) spawn(props *actor.Props, initArgs ...any) (PID, error) {
 
 // Send, call都是用于非actor向actor发送消息
 // Send 发送消息
-func (a *actorApp) send(pid PID, message any) error {
+func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
 	if a.system == nil {
 		return fmt.Errorf("node not initialized")
+	}
+	if env := injectTrace(ctx, message); env != nil {
+		a.system.Root.Send(pid, env)
+		return nil
 	}
 	a.system.Root.Send(pid, message)
 	return nil
 }
 
 // LocalSend 发送消息给本地actor, 不经过序列化, 所以可以发送any
-func (a *actorApp) localSend(pid PID, message any) {
+func (a *actorApp) localSend(ctx context.Context, pid PID, message any) {
 	if a.system == nil {
+		return
+	}
+	if env := injectTrace(ctx, message); env != nil {
+		a.system.Root.Send(pid, env)
 		return
 	}
 	a.system.Root.Send(pid, message)
 }
 
-func (a *actorApp) call(pid PID, message any, timeout time.Duration) (any, error) {
+func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
 	if a.system == nil {
 		return nil, fmt.Errorf("node not initialized")
 	}
 
-	result, err := a.system.Root.RequestFuture(pid, message, timeout).Result()
+	// Extract trace headers and unwrap inner message
+	hdr := actor.UnwrapEnvelopeHeader(message)
+	msg := actor.UnwrapEnvelopeMessage(message)
+
+	future := actor.NewFuture(a.system, timeout)
+	env := &actor.MessageEnvelope{
+		Message: msg,
+		Sender:  future.PID(),
+	}
+	if hdr != nil {
+		for _, k := range hdr.Keys() {
+			env.SetHeader(k, hdr.Get(k))
+		}
+	}
+
+	// Inject trace context into the envelope
+	carrier := messageEnvelopeCarrier{envelope: env}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+
+	a.system.Root.Send(pid, env)
+	result, err := future.Result()
 	if err != nil {
 		return nil, err
 	}
@@ -140,11 +171,30 @@ func (a *actorApp) call(pid PID, message any, timeout time.Duration) (any, error
 	return result, nil
 }
 
-func (a *actorApp) callSync(pid PID, message any, sender PID) {
+func (a *actorApp) callSync(ctx context.Context, pid PID, message any, sender PID) {
 	if a.system == nil {
 		return
 	}
-	a.system.Root.RequestWithCustomSender(pid, message, sender)
+
+	// Extract trace headers and unwrap inner message
+	hdr := actor.UnwrapEnvelopeHeader(message)
+	msg := actor.UnwrapEnvelopeMessage(message)
+
+	env := &actor.MessageEnvelope{
+		Message: msg,
+		Sender:  sender,
+	}
+	if hdr != nil {
+		for _, k := range hdr.Keys() {
+			env.SetHeader(k, hdr.Get(k))
+		}
+	}
+
+	// Inject trace context into the envelope
+	carrier := messageEnvelopeCarrier{envelope: env}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+
+	a.system.Root.Send(pid, env)
 }
 
 func (a *actorApp) GetNodeName() string {

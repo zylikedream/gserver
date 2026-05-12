@@ -294,7 +294,7 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 	poolPID, err := SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
 			return NewActorActivator(kind, g)
-		}), actor.WithSenderMiddleware(tracePropagationMiddleware())), g.getPoolName(kind))
+		})), g.getPoolName(kind))
 	if err != nil {
 		delete(g.activatorMetas, kind)
 		return err
