@@ -1,10 +1,8 @@
-package dns
+package redis
 
 import (
 	"context"
 	"fmt"
-	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -17,15 +15,16 @@ import (
 )
 
 const (
-	dnsServiceKeyPrefix = "gserver:dns:svc"
+	redisServiceKeyPrefix = "gserver:svc"
 	defaultPollInterval = 10 * time.Second
 	defaultFieldTTL     = 30 * time.Second
 	heartbeatInterval   = 20 * time.Second
 )
 
 // Registry implements gsvc.Registry using Redis + DNS.
+// Service data is stored in Redis Hash with field-level TTL,
+// NodeHost already contains the correct pod IP set via POD_IP at registration time.
 type Registry struct {
-	domain   string
 	interval time.Duration
 
 	mu         sync.Mutex
@@ -35,12 +34,11 @@ type Registry struct {
 }
 
 // New returns a new DNS registry.
-func New(domain string, interval time.Duration) *Registry {
+func New(interval time.Duration) *Registry {
 	if interval <= 0 {
 		interval = defaultPollInterval
 	}
 	return &Registry{
-		domain:     domain,
 		interval:   interval,
 		heartbeats: make(map[string]map[string]struct{}),
 		stopCh:     make(chan struct{}),
@@ -48,30 +46,30 @@ func New(domain string, interval time.Duration) *Registry {
 }
 
 func hashKey(svcName string) string {
-	return fmt.Sprintf("%s:%s", dnsServiceKeyPrefix, svcName)
+	return fmt.Sprintf("%s:%s", redisServiceKeyPrefix, svcName)
 }
 
 // Register stores the service in a Redis Hash with field-level TTL.
 func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Service, error) {
-	podName := extractPodName(service)
 	key := hashKey(service.GetName())
-	if err := gxyredis.Redis().HSet(ctx, key, podName, service.GetValue()).Err(); err != nil {
+	field := service.GetKey()
+	if err := gxyredis.Redis().HSet(ctx, key, field, service.GetValue()).Err(); err != nil {
 		return nil, err
 	}
-	r.setFieldTTL(ctx, key, podName)
-	r.trackHeartbeat(key, podName)
+	r.setFieldTTL(ctx, key, field)
+	r.trackHeartbeat(key, field)
 	return service, nil
 }
 
 // Deregister removes the service from Redis and stops heartbeat.
 func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
-	podName := extractPodName(service)
 	key := hashKey(service.GetName())
-	r.untrackHeartbeat(key, podName)
-	return gxyredis.Redis().HDel(ctx, key, podName).Err()
+	field := service.GetKey()
+	r.untrackHeartbeat(key, field)
+	return gxyredis.Redis().HDel(ctx, key, field).Err()
 }
 
-// Search returns all services of the given name from Redis Hash, resolving pod IPs via DNS.
+// Search returns all services of the given name from Redis Hash.
 func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Service, error) {
 	key := hashKey(in.Name)
 	fields, err := gxyredis.Redis().HGetAll(ctx, key).Result()
@@ -83,13 +81,13 @@ func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Serv
 	}
 
 	var services []gsvc.Service
-	for podName, jsonStr := range fields {
+	for _, jsonStr := range fields {
 		if jsonStr == "" {
 			continue
 		}
-		svc, err := serviceFromJSON(jsonStr, podName, r.domain, in.Name)
+		svc, err := serviceFromJSON(jsonStr)
 		if err != nil {
-			gxylog.Warn(ctx, "dns registry parse failed", gxylog.Err(err))
+			gxylog.Warn(ctx, "redis registry parse failed", gxylog.Err(err))
 			continue
 		}
 		services = append(services, svc)
@@ -109,7 +107,7 @@ func (r *Registry) Watch(ctx context.Context, key string) (gsvc.Watcher, error) 
 
 // Type returns the registry type name.
 func (r *Registry) Type() string {
-	return "dns"
+	return "redis"
 }
 
 // ---- heartbeat ----
@@ -118,7 +116,7 @@ func (r *Registry) Type() string {
 func (r *Registry) setFieldTTL(ctx context.Context, key, field string) {
 	ttl := int(defaultFieldTTL.Seconds())
 	if err := gxyredis.Redis().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
-		gxylog.Warn(context.Background(), "dns set field ttl failed",
+		gxylog.Warn(context.Background(), "redis set field ttl failed",
 			gxylog.Str("key", key), gxylog.Str("field", field), gxylog.Err(err))
 	}
 }
@@ -187,7 +185,7 @@ func (r *Registry) renewHeartbeats() {
 			args[5+i] = f
 		}
 		if err := gxyredis.Redis().Do(context.Background(), args...).Err(); err != nil {
-			gxylog.Warn(context.Background(), "dns heartbeat renew failed",
+			gxylog.Warn(context.Background(), "redis heartbeat renew failed",
 				gxylog.Str("key", key), gxylog.Err(err))
 		}
 	}
@@ -204,123 +202,44 @@ type serviceData struct {
 	NodeHost string `json:"NodeHost"`
 }
 
-// dnsService adapts serviceData to the gsvc.Service interface.
-type dnsService struct {
+// redisService adapts serviceData to the gsvc.Service interface.
+type redisService struct {
 	serviceData
 	jsonStr string
 	key     string
 }
 
-func (s *dnsService) GetName() string             { return s.serviceData.Name }
-func (s *dnsService) GetVersion() string          { return s.serviceData.Version }
-func (s *dnsService) GetKey() string              { return s.key }
-func (s *dnsService) GetValue() string            { return s.jsonStr }
-func (s *dnsService) GetPrefix() string           { return gsvc.DefaultSeparator + s.serviceData.Name }
-func (s *dnsService) GetMetadata() gsvc.Metadata  { return nil }
-func (s *dnsService) GetEndpoints() gsvc.Endpoints { return gsvc.NewEndpoints(s.serviceData.NodeHost) }
+func (s *redisService) GetName() string             { return s.serviceData.Name }
+func (s *redisService) GetVersion() string          { return s.serviceData.Version }
+func (s *redisService) GetKey() string              { return s.key }
+func (s *redisService) GetValue() string            { return s.jsonStr }
+func (s *redisService) GetPrefix() string           { return gsvc.DefaultSeparator + s.serviceData.Name }
+func (s *redisService) GetMetadata() gsvc.Metadata  { return nil }
+func (s *redisService) GetEndpoints() gsvc.Endpoints { return gsvc.NewEndpoints(s.serviceData.NodeHost) }
 
 // ---- helper ----
 
-// extractPodName extracts the pod name from the service's NodeName field.
-// The ServiceInfo stores NodeName as "game-0@uid", we take the part before "@".
-func extractPodName(svc gsvc.Service) string {
-	// We need to get the NodeName. For our ServiceInfo, the key is:
-	// "gserver-{NodeName}-{Name}:{NodeHost}"
-	key := svc.GetKey()
-	parts := strings.SplitN(key, "-", 2)
-	if len(parts) < 2 {
-		return ""
-	}
-	// parts[1] = "game-0@uid-role:0.0.0.0:10090"
-	// After the first "-", find the LAST "-" and take everything before it
-	rest := parts[1]
-	idx := strings.LastIndex(rest, "-")
-	if idx < 0 {
-		return ""
-	}
-	nodeInfo := rest[:idx]
-	nodeParts := strings.SplitN(nodeInfo, "@", 2)
-	if len(nodeParts) != 2 {
-		return nodeInfo
-	}
-	return nodeParts[0]
-}
-
-func serviceFromJSON(jsonStr string, podName string, domain string, svcName string) (gsvc.Service, error) {
+func serviceFromJSON(jsonStr string) (gsvc.Service, error) {
 	var data serviceData
 	if err := gjson.Unmarshal([]byte(jsonStr), &data); err != nil {
 		return nil, err
 	}
 
-	if podName == "" {
-		return nil, gerror.New("cannot extract pod name, empty field")
+	if data.NodeName == "" {
+		return nil, gerror.New("empty node name in service data")
 	}
 
-	host, port, err := splitHostPort(data.NodeHost)
-	if err != nil {
-		return nil, err
-	}
-
-	// Build per-service DNS domain from the configured domain + service name.
-	// e.g., domain="game-svc.default.svc.cluster.local", svcName="role"
-	//       → "role-svc.default.svc.cluster.local"
-	svcDomain := perServiceDomain(domain, svcName)
-	resolvedIP, err := resolvePod(podName, svcDomain)
-	if err != nil {
-		gxylog.Warn(context.Background(), "dns resolve failed, using original host",
-			gxylog.Str("pod", podName), gxylog.Str("domain", svcDomain), gxylog.Err(err))
-	} else {
-		host = resolvedIP
-	}
-
-	data.NodeHost = fmt.Sprintf("%s:%s", host, port)
-	// Re-serialize so GetValue() returns the resolved address for registery.toServiceInfo.
-	updatedJSON, _ := gjson.Marshal(data)
-	return &dnsService{
+	// data.NodeHost already contains the correct pod IP (set during registration via POD_IP),
+	// no need for extra DNS resolution.
+	return &redisService{
 		serviceData: data,
-		jsonStr:     string(updatedJSON),
+		jsonStr:     jsonStr,
 		key:         buildServiceKey(data.Name, data.NodeName, data.NodeHost),
 	}, nil
 }
 
-func perServiceDomain(domain, svcName string) string {
-	if domain == "" {
-		return ""
-	}
-	// domain = "game-svc.default.svc.cluster.local"
-	// Extract ".default.svc.cluster.local" and prepend "{svcName}-svc"
-	parts := strings.SplitN(domain, ".", 2)
-	if len(parts) < 2 {
-		return domain
-	}
-	return svcName + "-svc." + parts[1]
-}
-
 func buildServiceKey(name, nodeName, nodeHost string) string {
 	return fmt.Sprintf("gserver-%s-%s:%s", nodeName, name, nodeHost)
-}
-
-func splitHostPort(hostport string) (host, port string, err error) {
-	host, port, err = net.SplitHostPort(hostport)
-	if err != nil {
-		return hostport, "", nil
-	}
-	return
-}
-
-func resolvePod(podName, domain string) (string, error) {
-	addr := podName
-	if domain != "" {
-		addr = podName + "." + domain
-	}
-	ips, err := net.DefaultResolver.LookupHost(context.Background(), addr)
-	if err != nil {
-		return "", err
-	}
-	if len(ips) == 0 {
-		return "", gerror.New("no IP found for " + addr)
-	}
-	return ips[0], nil
 }
 
 // ---- watcher ----
@@ -342,7 +261,7 @@ func (w *watcher) Proceed() ([]gsvc.Service, error) {
 		case <-ticker.C:
 			services, hash, err := w.fetchWithHash()
 			if err != nil {
-				gxylog.Warn(context.Background(), "dns watcher fetch error", gxylog.Err(err))
+				gxylog.Warn(context.Background(), "redis watcher fetch error", gxylog.Err(err))
 				continue
 			}
 			w.mu.Lock()

@@ -1,12 +1,8 @@
-package dns
+package redis
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net"
-	"reflect"
-	"strings"
 	"testing"
 
 	"gserver/core/gxyredis"
@@ -52,53 +48,6 @@ func patchRedis(mock *mockRedisClient) *gomonkey.Patches {
 	return gomonkey.ApplyFunc(gxyredis.Redis, func() gxyredis.Client {
 		return gxyredis.Client(mock)
 	})
-}
-
-// patchDNS patches net.DefaultResolver.LookupHost.
-// fn must be func(*net.Resolver, context.Context, string) ([]string, error).
-func patchDNS(fn any) *gomonkey.Patches {
-	return gomonkey.ApplyMethod(reflect.TypeOf(net.DefaultResolver), "LookupHost", fn)
-}
-
-// ---- extractPodName ----
-
-func TestExtractPodName(t *testing.T) {
-	tests := []struct {
-		name string
-		key  string
-		want string
-	}{
-		{"normal", "gserver-game-0@uid-role:0.0.0.0:10090", "game-0"},
-		{"different_name", "gserver-game-1@uid-friend:10.0.1.5:10090", "game-1"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := &dnsService{key: tt.key}
-			if got := extractPodName(svc); got != tt.want {
-				t.Errorf("extractPodName(%q) = %q, want %q", tt.key, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestExtractPodName_EdgeCases(t *testing.T) {
-	tests := []struct {
-		name string
-		key  string
-		want string
-	}{
-		{"empty_key", "", ""},
-		{"no_dash", "short", ""},
-		{"no_at", "gserver-game0-role:0.0.0.0:10090", "game0"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := &dnsService{key: tt.key}
-			if got := extractPodName(svc); got != tt.want {
-				t.Errorf("extractPodName(%q) = %q, want %q", tt.key, got, tt.want)
-			}
-		})
-	}
 }
 
 // ---- gsvc.Service stub for tests ----
@@ -154,7 +103,7 @@ func TestRegistry_RegisterAndDeregister(t *testing.T) {
 	p := patchRedis(mock)
 	defer p.Reset()
 
-	r := New("", 0)
+	r := New(0)
 	svc := &testService{
 		name:     "role",
 		nodeName: "game-0@abc123",
@@ -166,7 +115,7 @@ func TestRegistry_RegisterAndDeregister(t *testing.T) {
 		t.Fatalf("Register failed: %v", err)
 	}
 
-	expectedStoreKey := "gserver:dns:svc:role:game-0"
+	expectedStoreKey := "gserver:svc:role:gserver-game-0@abc123-role:0.0.0.0:10090"
 	if _, ok := store[expectedStoreKey]; !ok {
 		t.Errorf("expected store key %s to exist", expectedStoreKey)
 	}
@@ -183,19 +132,15 @@ func TestRegistry_RegisterAndDeregister(t *testing.T) {
 
 func TestRegistry_Search(t *testing.T) {
 	mock := &mockRedisClient{}
-	r := New("svc.cluster.local", 0)
+	r := New(0)
 
 	svcJSON := `{"Name":"role","NodeName":"game-0@abc123","Version":"1.0","Weight":0,"NodeHost":"0.0.0.0:10090"}`
 	mock.hgetAllFn = func(_ context.Context, key string) *redis.MapStringStringCmd {
 		return makeMapCmd(map[string]string{"game-0": svcJSON})
 	}
 
-	p1 := patchRedis(mock)
-	defer p1.Reset()
-	p2 := patchDNS(func(_ *net.Resolver, _ context.Context, host string) ([]string, error) {
-		return []string{"10.0.1.5"}, nil
-	})
-	defer p2.Reset()
+	p := patchRedis(mock)
+	defer p.Reset()
 
 	services, err := r.Search(context.Background(), gsvc.SearchInput{Name: "role"})
 	if err != nil {
@@ -213,15 +158,10 @@ func TestRegistry_Search(t *testing.T) {
 		t.Errorf("expected version '1.0', got %q", svc.GetVersion())
 	}
 
-	// GetValue() must contain the resolved IP (not 0.0.0.0)
-	val := svc.GetValue()
-	if !strings.Contains(val, "10.0.1.5") {
-		t.Errorf("GetValue() should contain resolved IP, got: %s", val)
-	}
-
+	// No DNS resolution: NodeHost stays as-is from Redis
 	ep := svc.GetEndpoints()
-	if len(ep) == 0 || ep[0].Host() != "10.0.1.5" || ep[0].Port() != 10090 {
-		t.Errorf("expected '10.0.1.5:10090', got %s:%d", ep[0].Host(), ep[0].Port())
+	if len(ep) == 0 || ep[0].Host() != "0.0.0.0" || ep[0].Port() != 10090 {
+		t.Errorf("expected '0.0.0.0:10090', got %s:%d", ep[0].Host(), ep[0].Port())
 	}
 }
 
@@ -234,7 +174,7 @@ func TestRegistry_Search_Empty(t *testing.T) {
 	p := patchRedis(mock)
 	defer p.Reset()
 
-	r := New("", 0)
+	r := New(0)
 	services, err := r.Search(context.Background(), gsvc.SearchInput{Name: "nonexistent"})
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
@@ -244,53 +184,12 @@ func TestRegistry_Search_Empty(t *testing.T) {
 	}
 }
 
-func TestRegistry_Search_DNSFallback(t *testing.T) {
-	mock := &mockRedisClient{}
-	r := New("svc.cluster.local", 0)
-
-	svcJSON := `{"Name":"role","NodeName":"game-0@abc123","Version":"","Weight":0,"NodeHost":"0.0.0.0:10090"}`
-	mock.hgetAllFn = func(_ context.Context, key string) *redis.MapStringStringCmd {
-		return makeMapCmd(map[string]string{"game-0": svcJSON})
-	}
-
-	p1 := patchRedis(mock)
-	defer p1.Reset()
-	p2 := patchDNS(func(_ *net.Resolver, _ context.Context, host string) ([]string, error) {
-		return nil, errors.New("dns timeout")
-	})
-	defer p2.Reset()
-
-	services, err := r.Search(context.Background(), gsvc.SearchInput{Name: "role"})
-	if err != nil {
-		t.Fatalf("Search failed: %v", err)
-	}
-	if len(services) != 1 {
-		t.Fatalf("expected 1 service, got %d", len(services))
-	}
-
-	// DNS failed → keep original host
-	ep := services[0].GetEndpoints()
-	if ep[0].Host() != "0.0.0.0" {
-		t.Errorf("expected fallback host '0.0.0.0', got %q", ep[0].Host())
-	}
-
-	val := services[0].GetValue()
-	if !strings.Contains(val, "0.0.0.0") {
-		t.Errorf("GetValue() should keep original host on DNS failure, got: %s", val)
-	}
-}
-
 // ---- serviceFromJSON ----
 
 func TestServiceFromJSON_Minimal(t *testing.T) {
 	jsonStr := `{"Name":"friend","NodeName":"game-1@def456","Version":"","Weight":0,"NodeHost":"0.0.0.0:10091"}`
 
-	p := patchDNS(func(_ *net.Resolver, _ context.Context, host string) ([]string, error) {
-		return []string{"10.0.1.6"}, nil
-	})
-	defer p.Reset()
-
-	svc, err := serviceFromJSON(jsonStr, "game-1", "svc.cluster.local", "friend")
+	svc, err := serviceFromJSON(jsonStr)
 	if err != nil {
 		t.Fatalf("serviceFromJSON failed: %v", err)
 	}
@@ -299,21 +198,21 @@ func TestServiceFromJSON_Minimal(t *testing.T) {
 	}
 
 	ep := svc.GetEndpoints()
-	if len(ep) == 0 || ep[0].Host() != "10.0.1.6" || ep[0].Port() != 10091 {
-		t.Errorf("expected '10.0.1.6:10091', got %s:%d", ep[0].Host(), ep[0].Port())
+	if len(ep) == 0 || ep[0].Host() != "0.0.0.0" || ep[0].Port() != 10091 {
+		t.Errorf("expected '0.0.0.0:10091', got %s:%d", ep[0].Host(), ep[0].Port())
 	}
 }
 
 func TestServiceFromJSON_InvalidJSON(t *testing.T) {
-	_, err := serviceFromJSON("{bad json", "game-0", "svc.cluster.local", "role")
+	_, err := serviceFromJSON("{bad json")
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
 }
 
 func TestServiceFromJSON_EmptyPodName(t *testing.T) {
-	jsonStr := `{"Name":"role","NodeName":"game-0@abc","NodeHost":"0.0.0.0:10090"}`
-	_, err := serviceFromJSON(jsonStr, "", "svc.cluster.local", "role")
+	jsonStr := `{"Name":"role","NodeName":"","NodeHost":"0.0.0.0:10090"}`
+	_, err := serviceFromJSON(jsonStr)
 	if err == nil {
 		t.Fatal("expected error for empty pod name")
 	}

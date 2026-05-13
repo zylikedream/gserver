@@ -28,9 +28,8 @@ data:
         stStatus = 0
 
     [registery]
-        type = "dns"
-    [registery.dns]
-        domain = "game-svc.default.svc.cluster.local"
+        type = "redis"
+    [registery.redis]
         interval = 10
 
     [trace]

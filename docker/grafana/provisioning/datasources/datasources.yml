@@ -6,6 +6,11 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
 
+  - name: Prometheus-K8s
+    type: prometheus
+    access: proxy
+    url: http://host.docker.internal:9999
+
   - name: Tempo
     type: tempo
     access: proxy

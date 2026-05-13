@@ -5,7 +5,7 @@ metadata:
 data:
   friend.toml: |
     [node]
-        name = "role"
+        name = "friend"
         host = "0.0.0.0"
         apps = ["friend"]
     [port]
@@ -27,10 +27,8 @@ data:
         stStatus = 0
 
     [registery]
-        type = "dns"
-    [registery.dns]
-        # 按实际 namespace 修改: game-svc.<namespace>.svc.cluster.local
-        domain = "friend-svc.default.svc.cluster.local"
+        type = "redis"
+    [registery.redis]
         interval = 10
 
     [metrics]
