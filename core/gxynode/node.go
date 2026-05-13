@@ -3,6 +3,8 @@ package gxynode
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"gserver/core/gxyactor"
@@ -32,10 +34,8 @@ type node struct {
 	config           string
 	Name             string
 	NodeInstanceName string
-	Host             string
-	NodeHost         string
-	Port         int
 	apps             []string
+	Host             string
 }
 
 func NewNode(config string) *node {
@@ -49,16 +49,18 @@ func (n *node) OnModInit(ctx context.Context) error {
 	gxyutil.SetConfig(n.config)
 	cfg := g.Cfg()
 	n.Name = cfg.MustGet(ctx, "node.name").String()
-	n.Host = cfg.MustGet(ctx, "node.host").String()
-	n.Port = cfg.MustGet(ctx, "node.port").Int()
 	n.apps = cfg.MustGet(ctx, "node.apps").Strings()
-	n.NodeInstanceName = fmt.Sprintf("%s@%x", n.Name, time.Now().UnixNano())
-	n.NodeHost = n.Host
-	if n.Port > 0 {
-		n.NodeHost = fmt.Sprintf("%s:%d", n.Host, n.Port)
+	n.Host = cfg.MustGet(ctx, "node.host").String()
+	if ip := os.Getenv("POD_IP"); ip != "" {
+		n.Host = ip
 	}
-	if n.Host == "" || n.Name == "" {
-		return gerror.New("no name or host'")
+	podName := n.Name
+	if h := os.Getenv("HOSTNAME"); h != "" && strings.HasPrefix(h, n.Name+"-") {
+		podName = h
+	}
+	n.NodeInstanceName = fmt.Sprintf("%s@%x", podName, time.Now().UnixNano())
+	if n.Name == "" {
+		return gerror.New("no node name '")
 	}
 	if err := g.Validator().Data(n).Run(ctx); err != nil {
 		return gerror.Newf("validate node err: %+v, check host is ipv4?", err)
@@ -128,12 +130,12 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
-	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host, n.Port))
+	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
 	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp())
-	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName, n.NodeHost))
-	gxyapp.RegisterApp("chat", chat.NewChatApp())
-	gxyapp.RegisterApp("friend", friend.NewFriendApp())
+	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName))
+	gxyapp.RegisterApp("chat", chat.NewChatApp(n.Host))
+	gxyapp.RegisterApp("friend", friend.NewFriendApp(n.Host))
 	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())
-	gxyapp.RegisterApp("guild", guild.NewGuildApp())
+	gxyapp.RegisterApp("guild", guild.NewGuildApp(n.Host))
 }

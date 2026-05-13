@@ -118,6 +118,11 @@ newproto:
 	echo "" >> $$file; \
 	echo "created: $$file (ID range: $${prefix}01~$${prefix}99)"
 
+.PHONY: docker
+docker: cli.install
+	@docker build -t game-server:latest .
+
+
 # Generate protobuf files for database tables.
 .PHONY: pbentity
 pbentity: cli.install

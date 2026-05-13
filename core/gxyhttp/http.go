@@ -32,13 +32,13 @@ func NewHttpApp() *httpApp {
 
 var httpServerSeq int64
 
-func (h *httpApp) NewHttpServer(host string) *ghttp.Server {
+func (h *httpApp) NewHttpServer(addr string) *ghttp.Server {
 	// 生成一个唯一的服务器名称
 	// 服务器名称格式为: gserver-序号
 	// 序号从1开始递增
 	seq := atomic.AddInt64(&httpServerSeq, 1)
 	svr := ghttp.GetServer(fmt.Sprintf("gserver-%d", seq))
-	svr.SetAddr(fmt.Sprintf("%s:%d", host, 0))
+	svr.SetAddr(addr)
 	svr.SetLogger(gxylog.GetLogger().Clone())
 	svr.SetLogLevel("debug")
 	return svr

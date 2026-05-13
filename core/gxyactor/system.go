@@ -15,6 +15,7 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 // actorApp 基础Actor模块
@@ -25,7 +26,6 @@ type actorApp struct {
 	nodeName         string
 	nodeInstanceName string
 	host             string
-	grpcPort         int
 	activatorMgr     *activatorManager
 }
 
@@ -45,12 +45,11 @@ func (a *actorApp) NodeName() string {
 }
 
 // NewActorSystem创建基础Actor模块
-func NewActorApp(nodeName string, nodeInstanceName string, host string, grpcPort int) *actorApp {
+func NewActorApp(nodeName string, nodeInstanceName string, host string) *actorApp {
 	app = &actorApp{
 		nodeName:         nodeName,
 		nodeInstanceName: nodeInstanceName,
 		host:             host,
-		grpcPort:         grpcPort,
 	}
 
 	return app
@@ -62,8 +61,9 @@ func (a *actorApp) newSystem() *actor.ActorSystem {
 
 // OnModInit Actor模块初始化 - 启动节点
 func (a *actorApp) OnModInit(ctx context.Context) error {
+	port := g.Cfg().MustGet(ctx, "port.actor").Int()
 	a.system = a.newSystem()
-	config := remote.Configure(a.host, a.grpcPort)
+	config := remote.Configure(a.host, port)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
 	a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName)

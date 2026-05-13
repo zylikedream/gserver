@@ -14,7 +14,6 @@ type serviceApp struct {
 	serviceInfo      []*gxyregistery.ServiceInfo
 	registry         gxyregistery.IRegistery
 	nodeInstanceName string
-	Host             string
 }
 
 var svrApp *serviceApp
@@ -23,10 +22,9 @@ func ServiceApp() *serviceApp {
 	return svrApp
 }
 
-func NewServiceApp(nodeInstanceName string, Host string) *serviceApp {
+func NewServiceApp(nodeInstanceName string) *serviceApp {
 	svrApp = &serviceApp{
 		nodeInstanceName: nodeInstanceName,
-		Host:             Host,
 	}
 	return svrApp
 }

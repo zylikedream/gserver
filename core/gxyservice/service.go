@@ -33,7 +33,3 @@ func (s *Service) Weight() int {
 func (s *Service) Version() string {
 	return DEFAULT_VERSION
 }
-
-func (s *Service) Host() string {
-	return ServiceApp().Host
-}

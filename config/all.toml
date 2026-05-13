@@ -1,10 +1,13 @@
 [node]
     name = "game"
     host = "127.0.0.1"
-	port = 25100
 	apps = ["chat", "role", "friend", "guild"]
-[friend]
-	port = 251
+[port]
+	actor = 25101
+	chat = 25102
+	role = 25103
+	friend = 25104
+	guild = 25105
 [postgres]
 #	url = "postgresql://postgres.roepimjsbdawvohntmfq:%40Supabase252525@aws-1-ap-southeast-1.pooler.supabase.com:5432/gserver?sslmode=require&pool_max_conns=20&pool_min_conns=5"
 	url = "postgresql://postgres:%40zyc0131@127.0.0.1:5432/gserver?sslmode=disable"

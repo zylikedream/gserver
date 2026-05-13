@@ -22,6 +22,7 @@ type mockRedisClient struct {
 	hsetFn    func(ctx context.Context, key string, values ...any) *redis.IntCmd
 	hdelFn    func(ctx context.Context, key string, fields ...string) *redis.IntCmd
 	hgetAllFn func(ctx context.Context, key string) *redis.MapStringStringCmd
+	doFn      func(ctx context.Context, args ...any) *redis.Cmd
 }
 
 func (m *mockRedisClient) HSet(ctx context.Context, key string, values ...any) *redis.IntCmd {
@@ -34,6 +35,16 @@ func (m *mockRedisClient) HDel(ctx context.Context, key string, fields ...string
 
 func (m *mockRedisClient) HGetAll(ctx context.Context, key string) *redis.MapStringStringCmd {
 	return m.hgetAllFn(ctx, key)
+}
+
+func (m *mockRedisClient) Do(ctx context.Context, args ...any) *redis.Cmd {
+	if m.doFn != nil {
+		return m.doFn(ctx, args...)
+	}
+	// Default: return OK for HEXPIRE
+	cmd := redis.NewCmd(ctx)
+	cmd.SetVal("OK")
+	return cmd
 }
 
 // patchRedis patches gxyredis.Redis to return the mock client.
@@ -279,7 +290,7 @@ func TestServiceFromJSON_Minimal(t *testing.T) {
 	})
 	defer p.Reset()
 
-	svc, err := serviceFromJSON(jsonStr, "game-1", "svc.cluster.local")
+	svc, err := serviceFromJSON(jsonStr, "game-1", "svc.cluster.local", "friend")
 	if err != nil {
 		t.Fatalf("serviceFromJSON failed: %v", err)
 	}
@@ -294,7 +305,7 @@ func TestServiceFromJSON_Minimal(t *testing.T) {
 }
 
 func TestServiceFromJSON_InvalidJSON(t *testing.T) {
-	_, err := serviceFromJSON("{bad json", "game-0", "svc.cluster.local")
+	_, err := serviceFromJSON("{bad json", "game-0", "svc.cluster.local", "role")
 	if err == nil {
 		t.Fatal("expected error for invalid JSON")
 	}
@@ -302,7 +313,7 @@ func TestServiceFromJSON_InvalidJSON(t *testing.T) {
 
 func TestServiceFromJSON_EmptyPodName(t *testing.T) {
 	jsonStr := `{"Name":"role","NodeName":"game-0@abc","NodeHost":"0.0.0.0:10090"}`
-	_, err := serviceFromJSON(jsonStr, "", "svc.cluster.local")
+	_, err := serviceFromJSON(jsonStr, "", "svc.cluster.local", "role")
 	if err == nil {
 		t.Fatal("expected error for empty pod name")
 	}

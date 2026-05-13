@@ -1,8 +1,10 @@
 [node]
     name = "game"
     host = "127.0.0.1"
-	port = 24005
 	apps = ["guild"]
+[port]
+	actor = 25031
+	guild = 25032
 [postgres]
 	url = "postgresql://postgres:%40zyc0131@127.0.0.1:5432/postgres?sslmode=disable"
 [redis]

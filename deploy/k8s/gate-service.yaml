@@ -3,11 +3,11 @@ kind: Service
 metadata:
   name: gate-svc
 spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local
+  type: NodePort
   selector:
     app: gate
   ports:
     - name: tcp
       port: 10086
       targetPort: 10086
+      nodePort: 30086

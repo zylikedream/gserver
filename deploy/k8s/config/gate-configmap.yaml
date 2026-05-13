@@ -7,8 +7,10 @@ data:
     [node]
         name = "gate"
         host = "0.0.0.0"
-        port = 10091
         apps = ["gate"]
+    
+    [port]
+        actor = 19001
 
     [postgres]
         url = "postgresql://postgres:%40zyc0131@host.docker.internal:5432/postgres?sslmode=disable"
@@ -47,3 +49,5 @@ data:
         id_length = 2
         byte_order = "little"
         max_size = 3145728
+    [metrics]
+        addr = ":9091"

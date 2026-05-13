@@ -19,12 +19,19 @@ import (
 const (
 	dnsServiceKeyPrefix = "gserver:dns:svc"
 	defaultPollInterval = 10 * time.Second
+	defaultFieldTTL     = 30 * time.Second
+	heartbeatInterval   = 20 * time.Second
 )
 
 // Registry implements gsvc.Registry using Redis + DNS.
 type Registry struct {
 	domain   string
 	interval time.Duration
+
+	mu         sync.Mutex
+	heartbeats map[string]map[string]struct{} // key → set of fields to renew
+	stopCh     chan struct{}
+	started    bool
 }
 
 // New returns a new DNS registry.
@@ -33,8 +40,10 @@ func New(domain string, interval time.Duration) *Registry {
 		interval = defaultPollInterval
 	}
 	return &Registry{
-		domain:   domain,
-		interval: interval,
+		domain:     domain,
+		interval:   interval,
+		heartbeats: make(map[string]map[string]struct{}),
+		stopCh:     make(chan struct{}),
 	}
 }
 
@@ -42,20 +51,23 @@ func hashKey(svcName string) string {
 	return fmt.Sprintf("%s:%s", dnsServiceKeyPrefix, svcName)
 }
 
-// Register stores the service in a Redis Hash keyed by pod name.
+// Register stores the service in a Redis Hash with field-level TTL.
 func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Service, error) {
 	podName := extractPodName(service)
 	key := hashKey(service.GetName())
 	if err := gxyredis.Redis().HSet(ctx, key, podName, service.GetValue()).Err(); err != nil {
 		return nil, err
 	}
+	r.setFieldTTL(ctx, key, podName)
+	r.trackHeartbeat(key, podName)
 	return service, nil
 }
 
-// Deregister removes the service from Redis.
+// Deregister removes the service from Redis and stops heartbeat.
 func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 	podName := extractPodName(service)
 	key := hashKey(service.GetName())
+	r.untrackHeartbeat(key, podName)
 	return gxyredis.Redis().HDel(ctx, key, podName).Err()
 }
 
@@ -75,7 +87,7 @@ func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Serv
 		if jsonStr == "" {
 			continue
 		}
-		svc, err := serviceFromJSON(jsonStr, podName, r.domain)
+		svc, err := serviceFromJSON(jsonStr, podName, r.domain, in.Name)
 		if err != nil {
 			gxylog.Warn(ctx, "dns registry parse failed", gxylog.Err(err))
 			continue
@@ -98,6 +110,87 @@ func (r *Registry) Watch(ctx context.Context, key string) (gsvc.Watcher, error) 
 // Type returns the registry type name.
 func (r *Registry) Type() string {
 	return "dns"
+}
+
+// ---- heartbeat ----
+
+// setFieldTTL sets field-level TTL on the hash field (Redis 7.4+ HEXPIRE).
+func (r *Registry) setFieldTTL(ctx context.Context, key, field string) {
+	ttl := int(defaultFieldTTL.Seconds())
+	if err := gxyredis.Redis().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
+		gxylog.Warn(context.Background(), "dns set field ttl failed",
+			gxylog.Str("key", key), gxylog.Str("field", field), gxylog.Err(err))
+	}
+}
+
+func (r *Registry) trackHeartbeat(key, field string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.heartbeats[key] == nil {
+		r.heartbeats[key] = make(map[string]struct{})
+	}
+	r.heartbeats[key][field] = struct{}{}
+
+	if !r.started {
+		r.started = true
+		go r.heartbeatLoop()
+	}
+}
+
+func (r *Registry) untrackHeartbeat(key, field string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if fields, ok := r.heartbeats[key]; ok {
+		delete(fields, field)
+		if len(fields) == 0 {
+			delete(r.heartbeats, key)
+		}
+	}
+}
+
+func (r *Registry) heartbeatLoop() {
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			r.renewHeartbeats()
+		case <-r.stopCh:
+			return
+		}
+	}
+}
+
+func (r *Registry) renewHeartbeats() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	ttl := int(defaultFieldTTL.Seconds())
+	for key, fields := range r.heartbeats {
+		if len(fields) == 0 {
+			continue
+		}
+		fieldSlice := make([]string, 0, len(fields))
+		for f := range fields {
+			fieldSlice = append(fieldSlice, f)
+		}
+		args := make([]any, 5+len(fieldSlice))
+		args[0] = "HEXPIRE"
+		args[1] = key
+		args[2] = ttl
+		args[3] = "FIELDS"
+		args[4] = len(fieldSlice)
+		for i, f := range fieldSlice {
+			args[5+i] = f
+		}
+		if err := gxyredis.Redis().Do(context.Background(), args...).Err(); err != nil {
+			gxylog.Warn(context.Background(), "dns heartbeat renew failed",
+				gxylog.Str("key", key), gxylog.Err(err))
+		}
+	}
 }
 
 // ---- service adapter ----
@@ -153,7 +246,7 @@ func extractPodName(svc gsvc.Service) string {
 	return nodeParts[0]
 }
 
-func serviceFromJSON(jsonStr string, podName string, domain string) (gsvc.Service, error) {
+func serviceFromJSON(jsonStr string, podName string, domain string, svcName string) (gsvc.Service, error) {
 	var data serviceData
 	if err := gjson.Unmarshal([]byte(jsonStr), &data); err != nil {
 		return nil, err
@@ -168,10 +261,14 @@ func serviceFromJSON(jsonStr string, podName string, domain string) (gsvc.Servic
 		return nil, err
 	}
 
-	resolvedIP, err := resolvePod(podName, domain)
+	// Build per-service DNS domain from the configured domain + service name.
+	// e.g., domain="game-svc.default.svc.cluster.local", svcName="role"
+	//       → "role-svc.default.svc.cluster.local"
+	svcDomain := perServiceDomain(domain, svcName)
+	resolvedIP, err := resolvePod(podName, svcDomain)
 	if err != nil {
 		gxylog.Warn(context.Background(), "dns resolve failed, using original host",
-			gxylog.Str("pod", podName), gxylog.Err(err))
+			gxylog.Str("pod", podName), gxylog.Str("domain", svcDomain), gxylog.Err(err))
 	} else {
 		host = resolvedIP
 	}
@@ -184,6 +281,19 @@ func serviceFromJSON(jsonStr string, podName string, domain string) (gsvc.Servic
 		jsonStr:     string(updatedJSON),
 		key:         buildServiceKey(data.Name, data.NodeName, data.NodeHost),
 	}, nil
+}
+
+func perServiceDomain(domain, svcName string) string {
+	if domain == "" {
+		return ""
+	}
+	// domain = "game-svc.default.svc.cluster.local"
+	// Extract ".default.svc.cluster.local" and prepend "{svcName}-svc"
+	parts := strings.SplitN(domain, ".", 2)
+	if len(parts) < 2 {
+		return domain
+	}
+	return svcName + "-svc." + parts[1]
 }
 
 func buildServiceKey(name, nodeName, nodeHost string) string {

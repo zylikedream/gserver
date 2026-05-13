@@ -1,15 +1,16 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: game-config
+  name: chat-config
 data:
-  game.toml: |
+  chat.toml: |
     [node]
-        name = "game"
+        name = "role"
         host = "0.0.0.0"
-        port = 10090
-        apps = ["chat", "role", "friend", "guild"]
-
+        apps = ["chat"]
+    [port]
+        actor = 19001
+        chat = 19003
     [postgres]
         url = "postgresql://postgres:%40zyc0131@host.docker.internal:5432/postgres?sslmode=disable"
 
@@ -29,7 +30,7 @@ data:
         type = "dns"
     [registery.dns]
         # 按实际 namespace 修改: game-svc.<namespace>.svc.cluster.local
-        domain = "game-svc.default.svc.cluster.local"
+        domain = "chat-svc.default.svc.cluster.local"
         interval = 10
 
     [metrics]

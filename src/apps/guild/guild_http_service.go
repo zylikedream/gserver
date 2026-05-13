@@ -2,19 +2,24 @@ package guild
 
 import (
 	"context"
+	"fmt"
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
-	"gserver/core/gxyservice"
 	guildlogic "gserver/src/apps/guild/logic"
+
+	"github.com/gogf/gf/v2/frame/g"
 )
 
 type guildHttpService struct {
 	gxyhttp.HttpService
+	host string
 }
 
-func NewGuildHttpService() *guildHttpService {
-	return &guildHttpService{}
+func NewGuildHttpService(host string) *guildHttpService {
+	return &guildHttpService{
+		host: host,
+	}
 }
 
 // ServiceName 使用 guild-http 避免与 guild actor 的 Consul 服务名冲突
@@ -23,8 +28,8 @@ func (s *guildHttpService) ServiceName() string {
 }
 
 func (s *guildHttpService) OnModStart(ctx context.Context) error {
-	host := gxyservice.ServiceApp().Host
-	svr := gxyhttp.HttpSystem().NewHttpServer(host)
+	port := g.Cfg().MustGet(ctx, "port.guild").Int()
+	svr := gxyhttp.HttpSystem().NewHttpServer(fmt.Sprintf("%s:%d", s.host, port))
 	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), &guildlogic.GuildHandler{})
 	gxylog.Info(ctx, "guild server starting")
 	if err := svr.Start(); err != nil {
