@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: game
+spec:
+  serviceName: game-svc
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: game
+  template:
+    metadata:
+      labels:
+        app: game
+    spec:
+      hostAliases:
+        - ip: "172.18.0.1"
+          hostnames:
+            - "host.docker.internal"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: game
+          image: game-server:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/config/game.toml"]
+          ports:
+            - name: grpc
+              containerPort: 10090
+            - name: metrics
+              containerPort: 9091
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: log
+              mountPath: /var/log/game
+          readinessProbe:
+            tcpSocket:
+              port: 10090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 10090
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+      volumes:
+        - name: config
+          configMap:
+            name: game-config
+        - name: log
+          emptyDir: {}

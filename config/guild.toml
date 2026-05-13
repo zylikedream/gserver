@@ -1,6 +1,7 @@
 [node]
     name = "game"
     host = "127.0.0.1"
+	port = 24005
 	apps = ["guild"]
 [postgres]
 	url = "postgresql://postgres:%40zyc0131@127.0.0.1:5432/postgres?sslmode=disable"

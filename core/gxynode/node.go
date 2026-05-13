@@ -33,6 +33,8 @@ type node struct {
 	Name             string
 	NodeInstanceName string
 	Host             string
+	NodeHost         string
+	Port         int
 	apps             []string
 }
 
@@ -48,8 +50,13 @@ func (n *node) OnModInit(ctx context.Context) error {
 	cfg := g.Cfg()
 	n.Name = cfg.MustGet(ctx, "node.name").String()
 	n.Host = cfg.MustGet(ctx, "node.host").String()
+	n.Port = cfg.MustGet(ctx, "node.port").Int()
 	n.apps = cfg.MustGet(ctx, "node.apps").Strings()
 	n.NodeInstanceName = fmt.Sprintf("%s@%x", n.Name, time.Now().UnixNano())
+	n.NodeHost = n.Host
+	if n.Port > 0 {
+		n.NodeHost = fmt.Sprintf("%s:%d", n.Host, n.Port)
+	}
 	if n.Host == "" || n.Name == "" {
 		return gerror.New("no name or host'")
 	}
@@ -121,9 +128,9 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
-	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
+	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host, n.Port))
 	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp())
-	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName, n.Host))
+	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName, n.NodeHost))
 	gxyapp.RegisterApp("chat", chat.NewChatApp())
 	gxyapp.RegisterApp("friend", friend.NewFriendApp())
 	gxyapp.RegisterApp("role", role.NewRoleApp())

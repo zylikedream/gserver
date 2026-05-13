@@ -1,0 +1,10 @@
+.git
+.gitmodules
+log/
+config/*.toml
+!config/k8s.toml
+deploy/
+protocol/
+gameconfig/
+docs/
+.wolf/

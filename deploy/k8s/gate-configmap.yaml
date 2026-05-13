@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gate-config
+data:
+  gate.toml: |
+    [node]
+        name = "gate"
+        host = "0.0.0.0"
+        port = 10091
+        apps = ["gate"]
+
+    [postgres]
+        url = "postgresql://postgres:%40zyc0131@host.docker.internal:5432/postgres?sslmode=disable"
+
+    [redis]
+        addr = "host.docker.internal:6379"
+        password = "@zyc0131"
+        db = 0
+        dial_timeout = "5s"
+
+    [log]
+        path = "/var/log/game"
+        level = "all"
+        file = "{Y-m-d}.log"
+        stStatus = 0
+
+    [registery]
+        type = "dns"
+    [registery.dns]
+        domain = "game-svc.default.svc.cluster.local"
+        interval = 10
+
+    [trace]
+        endpoint = "host.docker.internal:4317"
+
+    [gxynet]
+        peer = "tcp_server"
+    [peer.tcp_server]
+        addr = ":10086"
+    [processor]
+        packet = "ltiv"
+        codec = "protobuf"
+    [packet.ltiv]
+        size_length = 2
+        type_length = 1
+        id_length = 2
+        byte_order = "little"
+        max_size = 3145728

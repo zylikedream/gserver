@@ -25,6 +25,7 @@ type actorApp struct {
 	nodeName         string
 	nodeInstanceName string
 	host             string
+	grpcPort         int
 	activatorMgr     *activatorManager
 }
 
@@ -44,11 +45,12 @@ func (a *actorApp) NodeName() string {
 }
 
 // NewActorSystem创建基础Actor模块
-func NewActorApp(nodeName string, nodeInstanceName string, host string) *actorApp {
+func NewActorApp(nodeName string, nodeInstanceName string, host string, grpcPort int) *actorApp {
 	app = &actorApp{
 		nodeName:         nodeName,
 		nodeInstanceName: nodeInstanceName,
 		host:             host,
+		grpcPort:         grpcPort,
 	}
 
 	return app
@@ -61,7 +63,7 @@ func (a *actorApp) newSystem() *actor.ActorSystem {
 // OnModInit Actor模块初始化 - 启动节点
 func (a *actorApp) OnModInit(ctx context.Context) error {
 	a.system = a.newSystem()
-	config := remote.Configure(a.host, 0)
+	config := remote.Configure(a.host, a.grpcPort)
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
 	a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName)

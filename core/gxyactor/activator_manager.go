@@ -3,6 +3,8 @@ package gxyactor
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
@@ -11,7 +13,6 @@ import (
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 	"gserver/src/util"
-	"time"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
@@ -142,9 +143,12 @@ func (a *actorActivator) DelayInit(ctx context.Context) error {
 
 func (a *actorActivator) registerActor(id string, pid PID) error {
 	// 注册 Redis
-	if err := a.registerActorLocate(a.ctx, getActorLocateKey(a.kind, id)); err != nil {
+	locateKey := getActorLocateKey(a.kind, id)
+	if err := a.registerActorLocate(a.ctx, locateKey); err != nil {
 		return err
 	}
+	// 追踪 actor 到节点集合，用于崩溃后清理
+	a.manager.trackActor(a.kind, id)
 
 	// 注册成功，加入 childs
 	a.childs[pid] = id
@@ -248,11 +252,39 @@ func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorMan
 	}
 }
 
+// trackActor records the actor in a per-node Redis set for cleanup on restart.
+func (g *activatorManager) trackActor(kind, id string) {
+	key := fmt.Sprintf("node:actors:%s", g.nodeName)
+	gxyredis.Redis().SAdd(g.ctx, key, kind+":"+id)
+}
+
+// cleanupActors removes stale actor Redis entries for this node.
+// Called on startup to purge entries from the previous process instance.
+func (g *activatorManager) cleanupActors(ctx context.Context) {
+	key := fmt.Sprintf("node:actors:%s", g.nodeName)
+	actorIDs, err := gxyredis.Redis().SMembers(ctx, key).Result()
+	if err != nil || len(actorIDs) == 0 {
+		return
+	}
+	for _, id := range actorIDs {
+		parts := strings.SplitN(id, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		locateKey := getActorLocateKey(parts[0], parts[1])
+		gxyredis.Redis().Del(ctx, locateKey)
+	}
+	gxyredis.Redis().Del(ctx, key)
+	gxylog.Info(ctx, "cleaned up stale actor entries", gxylog.Str("node", g.nodeName), gxylog.Num("count", int64(len(actorIDs))))
+}
+
 func (g *activatorManager) OnModInit(ctx context.Context) error {
 	return nil
 }
 
 func (g *activatorManager) OnModStart(ctx context.Context) error {
+	g.cleanupActors(ctx)
+
 	// Create router (external entry point for remote nodes)
 	routerPID, err := SpawnNamed(
 		actor.PropsFromProducer(func() actor.Actor {

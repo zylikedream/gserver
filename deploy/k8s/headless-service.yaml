@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: game-svc
+  labels:
+    app: game
+spec:
+  clusterIP: None
+  selector:
+    app: game
+  ports:
+    - name: grpc
+      port: 10090

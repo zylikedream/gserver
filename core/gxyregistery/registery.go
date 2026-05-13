@@ -17,6 +17,7 @@ import (
 const (
 	REGISTERY_TYPE_ETCD   = "etcd"
 	REGISTERY_TYPE_CONSUL = "consul"
+	REGISTERY_TYPE_DNS    = "dns"
 )
 
 type IRegistery interface {
@@ -45,6 +46,8 @@ func NewRegistery() (*registery, error) {
 		}
 	case REGISTERY_TYPE_CONSUL:
 		r, err = newConsulRegistery(cfg)
+	case REGISTERY_TYPE_DNS:
+		r, err = newDNSRegistery(cfg)
 	default:
 		return nil, errors.Errorf("not support registery type %s", t)
 	}

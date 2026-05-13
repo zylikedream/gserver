@@ -1,6 +1,7 @@
 [node]
     name = "game"
     host = "127.0.0.1"
+	port = 25020
 	apps = ["role"]
 [postgres]
 #	url = "postgresql://postgres.roepimjsbdawvohntmfq:%40Supabase252525@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require&pool_max_conns=20&pool_min_conns=5"

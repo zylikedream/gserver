@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gate
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gate
+  template:
+    metadata:
+      labels:
+        app: gate
+    spec:
+      hostAliases:
+        - ip: "172.18.0.1"
+          hostnames:
+            - "host.docker.internal"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: gate
+          image: game-server:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/config/gate.toml"]
+          ports:
+            - name: grpc
+              containerPort: 10091
+            - name: tcp
+              containerPort: 10086
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: log
+              mountPath: /var/log/game
+          readinessProbe:
+            tcpSocket:
+              port: 10086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 10086
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+      volumes:
+        - name: config
+          configMap:
+            name: gate-config
+        - name: log
+          emptyDir: {}

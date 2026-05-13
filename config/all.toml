@@ -1,14 +1,17 @@
 [node]
     name = "game"
     host = "127.0.0.1"
+	port = 25100
 	apps = ["chat", "role", "friend", "guild"]
+[friend]
+	port = 251
 [postgres]
-#	url = "postgresql://postgres.roepimjsbdawvohntmfq:%40Supabase252525@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require&pool_max_conns=20&pool_min_conns=5"
-	url = "postgresql://postgres:%40zyc0131@127.0.0.1:5432/postgres?sslmode=disable"
+#	url = "postgresql://postgres.roepimjsbdawvohntmfq:%40Supabase252525@aws-1-ap-southeast-1.pooler.supabase.com:5432/gserver?sslmode=require&pool_max_conns=20&pool_min_conns=5"
+	url = "postgresql://postgres:%40zyc0131@127.0.0.1:5432/gserver?sslmode=disable"
 [redis]
 	addr = "localhost:6379"
 	password = "@zyc0131"
-	db = 0
+	db = 1
 	dial_timeout = "5s"
 [log]
 	path = "./log"
