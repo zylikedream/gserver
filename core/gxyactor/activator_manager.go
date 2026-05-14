@@ -188,7 +188,8 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		// Touch 确认（异步，验证 Init 是否成功）
 		sender := a.Actx.Sender()
 		go func(id string) {
-			if _, err := Call(context.Background(), pid, &actor.Touch{}, 2*time.Second); err != nil {
+			if _, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second); err != nil {
+				gxylog.Warn(context.Background(), "actor touch failed", gxylog.Str("kind", a.kind), gxylog.Str("id", id), gxylog.Err(err))
 				a.unregisterActor(id, pid)
 				Send(context.Background(), sender, ActorError("actor init failed or actor died"))
 				return
