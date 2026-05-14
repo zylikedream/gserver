@@ -2,7 +2,9 @@ package peer
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxymetrics"
@@ -113,8 +115,10 @@ func (t *TcpServer) OnClose(c gnet.Conn, err error) gnet.Action {
 	gxymetrics.TcpConnections.WithLabelValues("server").Dec()
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
 	t.Handler.OnClose(endPoint, err)
-	if err != nil {
-		gxylog.Error(ctx, "conn close", gxylog.Str("addr", c.RemoteAddr().String()), gxylog.Err(err))
+	if err != nil && !errors.Is(err, io.EOF) {
+		t.Handler.OnClose(endPoint, nil)
+	} else {
+		t.Handler.OnClose(endPoint, err)
 	}
 	return gnet.None
 }

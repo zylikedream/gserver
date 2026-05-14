@@ -2,6 +2,7 @@ package gxypgx
 
 import (
 	"context"
+	"time"
 
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
@@ -20,7 +21,10 @@ type PGXApp struct {
 }
 
 type pgxConfig struct {
-	URL string `toml:"url"`
+	URL             string `toml:"url"`
+	MaxOpenConns    int    `toml:"max_open_conns"`
+	MaxIdleConns    int    `toml:"max_idle_conns"`
+	ConnMaxLifetime int    `toml:"conn_max_lifetime"` // minutes
 }
 
 var pgxAppInstance *PGXApp
@@ -42,7 +46,11 @@ func NewPGXApp() *PGXApp {
 }
 
 func (p *PGXApp) OnModInit(ctx context.Context) error {
-	conf := &pgxConfig{}
+	conf := &pgxConfig{
+		MaxOpenConns:    30,
+		MaxIdleConns:    10,
+		ConnMaxLifetime: 30,
+	}
 	if err := gxyutil.CfgUnmarshalKey(ctx, g.Cfg(), "postgres", conf); err != nil {
 		return err
 	}
@@ -72,6 +80,10 @@ func (p *PGXApp) OnModStart(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	sqlDB.SetMaxOpenConns(p.conf.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(p.conf.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(time.Duration(p.conf.ConnMaxLifetime) * time.Minute)
+
 	if err := sqlDB.PingContext(ctx); err != nil {
 		gxylog.Fatal(ctx, "postgres ping failed", gxylog.Err(err))
 	}

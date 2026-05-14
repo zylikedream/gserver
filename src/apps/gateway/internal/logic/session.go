@@ -230,7 +230,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	}
 	gxylog.Debug(ctx, "send client msg", gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
 	if err := s.endpoint.SendMsg(pbmsg); err != nil {
-		return gerror.Wrap(err, "send rsp error, err: %v")
+		return gerror.Wrap(err, "send rsp error, err")
 	}
 
 	return nil
@@ -238,7 +238,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 
 // Terminate 终止会话
 func (s *Session) Terminate(ctx context.Context, err error) {
-	gxylog.Info(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
+	gxylog.Debug(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
 	SessionMgr().Remove(s.sessionInfo.RoleID)
 	// 关闭网络连接
 	if s.endpoint != nil {
