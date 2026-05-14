@@ -12,6 +12,7 @@ import (
 type BotManager struct {
 	cfg     *Config
 	metrics *MetricsCollector
+	bots    []*Bot
 }
 
 func NewBotManager(cfg *Config) *BotManager {
@@ -34,6 +35,7 @@ func (m *BotManager) Run() {
 	for i := 0; i < m.cfg.Bots; i++ {
 		uid := fmt.Sprintf(m.cfg.AccountPattern, i)
 		bot := NewBot(i, uid, m.cfg, m.metrics)
+		m.bots = append(m.bots, bot)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -48,6 +50,10 @@ func (m *BotManager) Run() {
 
 	fmt.Println("\nShutting down...")
 	close(stopReporter)
+
+	for _, bot := range m.bots {
+		bot.Stop()
+	}
 	wg.Wait()
 	m.metrics.PrintFinal()
 }

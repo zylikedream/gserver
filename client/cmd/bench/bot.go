@@ -14,6 +14,7 @@ type Bot struct {
 	cfg     *Config
 	metrics *MetricsCollector
 	cl      *client.Client
+	stopCh  chan struct{}
 }
 
 func NewBot(index int, uid string, cfg *Config, metrics *MetricsCollector) *Bot {
@@ -22,6 +23,14 @@ func NewBot(index int, uid string, cfg *Config, metrics *MetricsCollector) *Bot 
 		uid:     uid,
 		cfg:     cfg,
 		metrics: metrics,
+		stopCh:  make(chan struct{}),
+	}
+}
+
+func (b *Bot) Stop() {
+	close(b.stopCh)
+	if b.cl != nil {
+		b.cl.Close()
 	}
 }
 
@@ -57,10 +66,19 @@ func (b *Bot) Run() {
 	// Script loop
 	for {
 		for _, action := range b.cfg.Scenario {
+			select {
+			case <-b.stopCh:
+				return
+			default:
+			}
 			b.executeAction(action)
 			delay := action.Delay.Random()
 			if delay > 0 {
-				time.Sleep(delay)
+				select {
+				case <-b.stopCh:
+					return
+				case <-time.After(delay):
+				}
 			}
 		}
 	}
