@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const (
@@ -206,7 +207,8 @@ type tabler interface {
 
 func loadModuleState(_ context.Context, roleID int64, modState IPersistState) error {
 	tableName := modState.(tabler).TableName()
-	err := gxypgx.DB().Table(tableName).Where("role_id = ?", roleID).First(modState).Error
+	err := gxypgx.DB().Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).
+		Table(tableName).Where("role_id = ?", roleID).First(modState).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		modState.SetRoleID(roleID)
 		return nil
@@ -404,7 +406,6 @@ func getRoleLocateKey(roleID int64) string {
 
 func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 	if r.session == nil {
-		gxylog.Error(ctx, "session is nil", gxylog.Num("roleID", r.RoleID))
 		return
 	}
 	svrMsg, err := r.newServerMsg(msg)

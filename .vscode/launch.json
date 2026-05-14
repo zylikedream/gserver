@@ -19,7 +19,8 @@
             "mode": "auto",
             "program": "${workspaceFolder}/node/main.go",
             "args": [
-                "-config all.toml"
+                "-config all.toml",
+                "--pressure"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"
@@ -31,7 +32,8 @@
             "mode": "auto",
             "program": "${workspaceFolder}/node/main.go",
             "args": [
-                "-config gate.toml"
+                "--config gate.toml",
+                "--pressure"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"

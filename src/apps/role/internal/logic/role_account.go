@@ -2,13 +2,9 @@ package logic
 
 import (
 	"context"
-	"errors"
-
 	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
 	"gserver/src/util/uid"
-
-	"gorm.io/gorm"
 )
 
 type RoleAccount struct {
@@ -18,36 +14,30 @@ type RoleAccount struct {
 
 func (RoleAccount) TableName() string { return "role_account" }
 
-func GetRoleIDByAccount(account string) (int64, error) {
-	roleAccount := &RoleAccount{}
-	err := gxypgx.DB().Where("account = ?", account).First(roleAccount).Error
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+func GetRoleIDByAccount(ctx context.Context, account string) (int64, error) {
+	var accounts []RoleAccount
+	gxypgx.DB().Where("account = ?", account).Find(&accounts)
+	if len(accounts) > 0 {
+		return accounts[0].RoleID, nil
+	}
+	roleID, err := genRoleID()
+	if err != nil {
 		return 0, err
 	}
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		roleID, err := genRoleID()
-		if err != nil {
-			return 0, err
-		}
-		roleAccount.RoleID = roleID
-		roleAccount.Account = account
-		if err := gxypgx.DB().Save(roleAccount).Error; err != nil {
-			return 0, err
-		}
+	if err := gxypgx.DB().Save(&RoleAccount{RoleID: roleID, Account: account}).Error; err != nil {
+		return 0, err
 	}
-	return roleAccount.RoleID, nil
+	gxylog.Info(ctx, "create role account", gxylog.Num("roleID", roleID), gxylog.Str("account", account))
+	return roleID, nil
 }
 
 func GetAccountByRoleID(roleID int64) string {
-	roleAccount := &RoleAccount{}
-	err := gxypgx.DB().Where("role_id = ?", roleID).First(roleAccount).Error
-	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			gxylog.Error(context.Background(), "check role exist error", gxylog.Num("roleID", roleID), gxylog.Err(err))
-		}
+	var accounts []RoleAccount
+	gxypgx.DB().Where("role_id = ?", roleID).Find(&accounts)
+	if len(accounts) == 0 {
 		return ""
 	}
-	return roleAccount.Account
+	return accounts[0].Account
 }
 
 func genRoleID() (int64, error) {

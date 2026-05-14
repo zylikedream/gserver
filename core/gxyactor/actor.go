@@ -2,6 +2,7 @@ package gxyactor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -118,7 +119,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 			gxylog.Error(a.ctx, "timer active error", gxylog.Str("msg", msg.Name), gxylog.Err(err))
 		}
 	case *pb.ActorStop:
-		a.Stop(gerror.New(msg.Reason))
+		a.Stop(errors.New(msg.Reason))
 	case *actor.Stopping:
 		return nil
 	case *actor.Stopped:

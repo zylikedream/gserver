@@ -38,6 +38,10 @@ func run() {
 			if err = rootModule.StartModule(ctx); err != nil {
 				gxylog.Fatal(ctx, "start game failed", gxylog.Err(err))
 			}
+			if _, ok := parser.GetOptAll()["pressure"]; ok {
+				gxylog.SetLevel("info")
+				gxylog.Info(ctx, "pressure mode enabled, log level set to info")
+			}
 			return nil
 		},
 	}

@@ -4,8 +4,15 @@
 
 set -e
 
-REDIS_DB=0
+# k8s环境
+# REDIS_DB=0
+# PG_DB="postgres"
+
+# local环境
+REDIS_DB=1
 PG_DB="gserver"
+
+
 
 echo "=== Cleaning Redis ==="
 redis-cli -n "$REDIS_DB" FLUSHDB

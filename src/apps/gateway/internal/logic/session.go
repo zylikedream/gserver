@@ -137,7 +137,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.Span().SetName(fmt.Sprintf("%T", firstpacket))
 
 	s.sessionInfo.AccountUid = firstpacket.AccountUid
-	roleID, err := role.GetRoleIDByAccount(firstpacket.AccountUid)
+	roleID, err := role.GetRoleIDByAccount(ctx, firstpacket.AccountUid)
 	if err != nil {
 		return gerror.Wrapf(err, "get role id error, account: %s", firstpacket.AccountUid)
 	}

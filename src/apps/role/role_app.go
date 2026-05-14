@@ -50,6 +50,6 @@ func GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
 	return logic.GetRolePublic(ctx, roleID)
 }
 
-func GetRoleIDByAccount(account string) (int64, error) {
-	return logic.GetRoleIDByAccount(account)
+func GetRoleIDByAccount(ctx context.Context, account string) (int64, error) {
+	return logic.GetRoleIDByAccount(ctx, account)
 }

@@ -41,6 +41,10 @@ func NewContext(ctx context.Context, mod string) context.Context {
 	return WithValue(ctx, ContextKeyModType, mod)
 }
 
+func SetLevel(level string) {
+	logger.SetLevelStr(level)
+}
+
 func GetLogger() *glog.Logger {
 	return logger
 }

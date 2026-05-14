@@ -2,13 +2,11 @@ package logic
 
 import (
 	"context"
-	"errors"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
 	"gserver/src/apps/api"
 
 	"github.com/gogf/gf/v2/frame/g"
-	"gorm.io/gorm"
 )
 
 type FriendHandler struct {
@@ -71,12 +69,12 @@ type ListReq struct {
 }
 
 func (h *FriendHandler) List(ctx context.Context, req *ListReq) (any, error) {
-	var data FriendData
-	err := gxypgx.DB().WithContext(ctx).First(&data, req.PlayerID).Error
-	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+	var data []FriendData
+	gxypgx.DB().WithContext(ctx).Find(&data, req.PlayerID)
+	if len(data) == 0 {
 		return &FriendData{PlayerID: req.PlayerID}, nil
 	}
-	return &data, mapErr(err)
+	return &data[0], nil
 }
 
 func mapErr(err error) error {
