@@ -36,6 +36,7 @@ func (b *Bot) Run() {
 		AccountUID: b.uid,
 	})
 	if err := b.cl.Connect(); err != nil {
+		fmt.Printf("[Bot %d] Connect failed: %v\n", b.index, err)
 		b.metrics.Record("Connect", 0, false)
 		return
 	}
@@ -43,10 +44,12 @@ func (b *Bot) Run() {
 
 	// Login
 	if _, err := b.cl.Handshake(); err != nil {
+		fmt.Printf("[Bot %d] Handshake failed: %v\n", b.index, err)
 		b.metrics.Record("Handshake", 0, false)
 		return
 	}
 	if _, err := b.cl.Login(); err != nil {
+		fmt.Printf("[Bot %d] Login failed: %v\n", b.index, err)
 		b.metrics.Record("Login", 0, false)
 		return
 	}
@@ -101,6 +104,7 @@ func (b *Bot) executeAction(a Action) {
 
 	fullName := string(md.FullName())
 	if err != nil {
+		fmt.Printf("[Bot %d] %s failed: %v\n", b.index, fullName, err)
 		b.metrics.Record(fullName, lat, false)
 	} else {
 		b.metrics.Record(fullName, lat, true)

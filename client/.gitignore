@@ -1,6 +1,6 @@
 bin/
-bench
-hy
+/bench
+/hy
 pb/
 *.exe
 *.exe~
