@@ -1,24 +1,27 @@
 package event
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestEventBusPublishNestedEventsAfterCurrentHandlers(t *testing.T) {
 	bus := NewEventBus()
 	var order []string
-
-	bus.Subscribe(EVENT_BREED_START, func(event EventParam) {
+	ctx := context.Background()
+	bus.Subscribe(EVENT_BREED_START, func(ctx context.Context, event EventParam) {
 		order = append(order, "a1")
-		bus.Publish(EVENT_BREED_FINISH, nil)
+		bus.Publish(ctx, EVENT_BREED_FINISH, nil)
 		order = append(order, "a1_done")
 	})
-	bus.Subscribe(EVENT_BREED_START, func(event EventParam) {
+	bus.Subscribe(EVENT_BREED_START, func(ctx context.Context, event EventParam) {
 		order = append(order, "a2")
 	})
-	bus.Subscribe(EVENT_BREED_FINISH, func(event EventParam) {
+	bus.Subscribe(EVENT_BREED_FINISH, func(ctx context.Context, event EventParam) {
 		order = append(order, "b1")
 	})
 
-	bus.Publish(EVENT_BREED_START, nil)
+	bus.Publish(ctx, EVENT_BREED_START, nil)
 
 	want := []string{"a1", "a1_done", "a2", "b1"}
 	if len(order) != len(want) {
@@ -34,20 +37,21 @@ func TestEventBusPublishNestedEventsAfterCurrentHandlers(t *testing.T) {
 func TestEventBusNestedEventsAreFIFO(t *testing.T) {
 	bus := NewEventBus()
 	var order []string
+	ctx := context.Background()
 
-	bus.Subscribe(EVENT_BREED_START, func(event EventParam) {
+	bus.Subscribe(EVENT_BREED_START, func(ctx context.Context, event EventParam) {
 		order = append(order, "a")
-		bus.Publish(EVENT_BREED_FINISH, nil)
-		bus.Publish(EVENT_PLANT_FLOWER, nil)
+		bus.Publish(ctx, EVENT_BREED_FINISH, nil)
+		bus.Publish(ctx, EVENT_PLANT_FLOWER, nil)
 	})
-	bus.Subscribe(EVENT_BREED_FINISH, func(event EventParam) {
+	bus.Subscribe(EVENT_BREED_FINISH, func(ctx context.Context, event EventParam) {
 		order = append(order, "b")
 	})
-	bus.Subscribe(EVENT_PLANT_FLOWER, func(event EventParam) {
+	bus.Subscribe(EVENT_PLANT_FLOWER, func(ctx context.Context, event EventParam) {
 		order = append(order, "c")
 	})
 
-	bus.Publish(EVENT_BREED_START, nil)
+	bus.Publish(ctx, EVENT_BREED_START, nil)
 
 	want := []string{"a", "b", "c"}
 	for i := range want {

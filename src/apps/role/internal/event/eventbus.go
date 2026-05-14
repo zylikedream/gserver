@@ -1,6 +1,10 @@
 package event
 
-import "github.com/gogf/gf/v2/util/guid"
+import (
+	"context"
+
+	"github.com/gogf/gf/v2/util/guid"
+)
 
 type EventRef string
 type EventType string
@@ -17,13 +21,13 @@ type queuedEvent struct {
 
 type eventHandler struct {
 	ref     EventRef
-	handler func(event EventParam)
+	handler func(ctx context.Context, event EventParam)
 }
 
 type IEventBus interface {
-	Subscribe(eventType EventType, handler func(event EventParam)) EventRef
+	Subscribe(eventType EventType, handler func(ctx context.Context, event EventParam)) EventRef
 	Unsubscribe(eventType EventType, ref EventRef)
-	Publish(eventType EventType, data any)
+	Publish(ctx context.Context, eventType EventType, data any)
 }
 
 type EventBus struct {
@@ -39,7 +43,7 @@ func NewEventBus() *EventBus {
 	}
 }
 
-func (e *EventBus) Subscribe(eventType EventType, handler func(event EventParam)) EventRef {
+func (e *EventBus) Subscribe(eventType EventType, handler func(ctx context.Context, event EventParam)) EventRef {
 	ref := EventRef(guid.S())
 	e.eventHandlers[eventType] = append(e.eventHandlers[eventType], eventHandler{
 		ref:     ref,
@@ -58,7 +62,7 @@ func (e *EventBus) Unsubscribe(eventType EventType, ref EventRef) {
 	}
 }
 
-func (e *EventBus) Publish(eventType EventType, data any) {
+func (e *EventBus) Publish(ctx context.Context, eventType EventType, data any) {
 	e.eventQueue = append(e.eventQueue, queuedEvent{eventType: eventType, data: data})
 	if e.publishing {
 		return
@@ -72,7 +76,7 @@ func (e *EventBus) Publish(eventType EventType, data any) {
 		e.eventQueue = e.eventQueue[1:]
 		handlers := append([]eventHandler(nil), e.eventHandlers[ev.eventType]...)
 		for _, h := range handlers {
-			h.handler(EventParam{
+			h.handler(ctx, EventParam{
 				EType: ev.eventType,
 				Data:  ev.data,
 			})

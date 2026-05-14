@@ -173,7 +173,7 @@ func (r *RolePlot) ReqPlotUnlock(ctx context.Context, req *pb.ReqPlotUnlock) (*p
 	if err := r.forceSave(ctx); err != nil {
 		return nil, err
 	}
-	r.Role.PublishRoleEvent(event.EVENT_UNLOCK_PLOT, event.UnlockPlotEventData{PlotID: plotID})
+	r.Role.PublishRoleEvent(ctx, event.EVENT_UNLOCK_PLOT, event.UnlockPlotEventData{PlotID: plotID})
 
 	return &pb.RspPlotUnlock{Plot: pPlotInfo(r.Plots[plotID])}, nil
 }
@@ -212,7 +212,7 @@ func (r *RolePlot) ReqPlotPlant(ctx context.Context, req *pb.ReqPlotPlant) (*pb.
 	if err := r.forceSave(ctx); err != nil {
 		return nil, err
 	}
-	r.Role.PublishRoleEvent(event.EVENT_PLANT_FLOWER, event.PlantFlowerEventData{
+	r.Role.PublishRoleEvent(ctx, event.EVENT_PLANT_FLOWER, event.PlantFlowerEventData{
 		FlowerID: flowerID,
 		PlotIDs:  append([]int32(nil), req.PlotIds...),
 	})
@@ -264,7 +264,7 @@ func (r *RolePlot) ReqPlotWater(ctx context.Context, req *pb.ReqPlotWater) (*pb.
 	if err := r.forceSave(ctx); err != nil {
 		return nil, err
 	}
-	r.Role.PublishRoleEvent(event.EVENT_WATER_FLOWER, event.WaterFlowerEventData{
+	r.Role.PublishRoleEvent(ctx, event.EVENT_WATER_FLOWER, event.WaterFlowerEventData{
 		PlotIDs: append([]int32(nil), req.PlotIds...),
 	})
 
@@ -394,7 +394,7 @@ func (r *RolePlot) ReqPlotHarvest(ctx context.Context, req *pb.ReqPlotHarvest) (
 	if err := r.forceSave(ctx); err != nil {
 		return nil, err
 	}
-	r.Role.PublishRoleEvent(event.EVENT_HARVEST_FLOWER, event.HarvestFlowerEventData{
+	r.Role.PublishRoleEvent(ctx, event.EVENT_HARVEST_FLOWER, event.HarvestFlowerEventData{
 		Items:   append([]*gamecfg.GardenGoodStack(nil), harvestItems...),
 		Flowers: harvestFlowers,
 	})

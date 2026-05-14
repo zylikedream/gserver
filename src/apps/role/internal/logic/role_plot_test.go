@@ -134,9 +134,9 @@ func setupTestPlotWithMaterials(t *testing.T) *RolePlot {
 	// 水滴
 	p.Role.Bag.Goods[WATER_ITEM_ID] = bag.BagGood{GoodID: WATER_ITEM_ID, Num: 100}
 	// 解锁花并设为已收获状态（可种植）
-	p.Role.Flower.AddFlower(plotTestFlower)
+	p.Role.Flower.AddFlower(context.Background(), plotTestFlower)
 	p.Role.Flower.Flowers[plotTestFlower].State = int32(pb.FlowerState_FLOWER_HARVESTED)
-	p.Role.Flower.AddFlower(plotOtherFlower)
+	p.Role.Flower.AddFlower(context.Background(), plotOtherFlower)
 	p.Role.Flower.Flowers[plotOtherFlower].State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	return p
 }

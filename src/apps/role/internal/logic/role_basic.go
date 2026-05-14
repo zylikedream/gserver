@@ -59,14 +59,14 @@ func (r *RoleBasic) subscribeEvents() {
 	r.Role.SubscribeRoleEvent(event.EVENT_GOOD_CHANGE, r.onGoodChangeEvent)
 }
 
-func (r *RoleBasic) onGoodChangeEvent(param event.EventParam) {
+func (r *RoleBasic) onGoodChangeEvent(ctx context.Context, param event.EventParam) {
 	data, ok := param.Data.(event.GoodChangeEventData)
 	if !ok {
 		return
 	}
 	for _, change := range data.Changes {
 		if change.GoodID == PLAYER_EXP_ITEM_ID {
-			r.RefreshLevelByExp(context.Background(), int64(change.PreNum), int64(change.Num), change.Reason)
+			r.RefreshLevelByExp(ctx, int64(change.PreNum), int64(change.Num), change.Reason)
 			return
 		}
 	}
@@ -123,7 +123,7 @@ func (r *RoleBasic) RefreshLevelByExp(ctx context.Context, oldExp int64, newExp 
 			r.notifyRoleLevelUp(ctx, oldLevel, newLevel, oldExp, newExp)
 		}
 		if r.Role != nil {
-			r.Role.PublishRoleEvent(event.EVENT_PLAYER_LEVEL, event.PlayerLevelEventData{
+			r.Role.PublishRoleEvent(ctx, event.EVENT_PLAYER_LEVEL, event.PlayerLevelEventData{
 				OldLevel: oldLevel,
 				NewLevel: newLevel,
 				OldExp:   oldExp,

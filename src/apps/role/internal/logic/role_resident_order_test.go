@@ -6,11 +6,11 @@ import (
 	"reflect"
 	"testing"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
@@ -155,7 +155,7 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 	main.ResidentOrder = orderMod
 
 	for _, fid := range flowerIDs {
-		flowerMod.AddFlower(fid)
+		flowerMod.AddFlower(context.Background(), fid)
 		if f, ok := flowerMod.Flowers[fid]; ok {
 			f.State = int32(pb.FlowerState_FLOWER_HARVESTED)
 		}
@@ -446,7 +446,7 @@ func TestOrderCompleteEvent(t *testing.T) {
 
 	// 监听事件
 	eventCh := make(chan event.EventParam, 1)
-	orderMod.Role.SubscribeRoleEvent(event.EVENT_ORDER_COMPLETE, func(param event.EventParam) {
+	orderMod.Role.SubscribeRoleEvent(event.EVENT_ORDER_COMPLETE, func(_ context.Context, param event.EventParam) {
 		eventCh <- param
 	})
 
@@ -497,7 +497,7 @@ func TestSlotLocking_NoBasic(t *testing.T) {
 		RoleModule:      RoleModule{Role: main},
 		RoleFlowerState: RoleFlowerState{Flowers: make(FlowerMap)},
 	}
-	fakeFlower.AddFlower(101)
+	fakeFlower.AddFlower(context.Background(), 101)
 	fakeFlower.Flowers[101].State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	main.Flower = fakeFlower
 

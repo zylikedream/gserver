@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"gserver/src/pkg/gameconfig"
+	"gserver/core/gxylog"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/pkg/errors"
 )
@@ -85,9 +86,34 @@ func (r *RoleFlower) OnModInit(ctx context.Context) error {
 	return nil
 }
 
+func (r *RoleFlower) OnModStart(ctx context.Context) error {
+	r.Role.eventBus.Subscribe(event.EVENT_GOOD_CHANGE, r.onGoodChangeEvent)
+	return nil
+}
+
+func (r *RoleFlower) onGoodChangeEvent(ctx context.Context, param event.EventParam) {
+	data, ok := param.Data.(event.GoodChangeEventData)
+	if !ok {
+		return
+	}
+	for _, change := range data.Changes {
+		item := gameconfig.GameConfig().TbItem.Get(int32(change.GoodID))
+		if item == nil || item.SubType != gamecfg.GardenEItemSubType_SEED {
+			continue
+		}
+		flowerID := int32(change.GoodID)
+		r.AddFlower(ctx, flowerID)
+
+	}
+}
+
 // ========== 公开方法 ==========
 
-func (r *RoleFlower) AddFlower(flowerID int32) {
+func (r *RoleFlower) AddFlower(ctx context.Context, flowerID int32) {
+	if _, ok := r.Flowers[flowerID]; ok {
+		gxylog.Warn(ctx, "flower already added", gxylog.Num("flowerID", int64(flowerID)))
+		return
+	}
 	r.Flowers[flowerID] = &FlowerData{
 		FlowerID:   flowerID,
 		State:      int32(pb.FlowerState_FLOWER_UNLOCKED),
@@ -180,7 +206,7 @@ func (r *RoleFlower) ReqFlowerStartBreed(ctx context.Context, req *pb.ReqFlowerS
 	flower.State = int32(pb.FlowerState_FLOWER_BREEDING)
 	flower.StateTime = time.Now().Add(time.Duration(cfg.BreedTime) * time.Second)
 	r.MarkDirty()
-	r.Role.PublishRoleEvent(event.EVENT_BREED_START, event.BreedStartEventData{FlowerID: flowerID})
+	r.Role.PublishRoleEvent(ctx, event.EVENT_BREED_START, event.BreedStartEventData{FlowerID: flowerID})
 
 	return &pb.RspFlowerStartBreed{Flower: PFlowerInfo(flower)}, nil
 }
@@ -199,7 +225,7 @@ func (r *RoleFlower) ReqFlowerFinishBreed(ctx context.Context, req *pb.ReqFlower
 	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	flower.StateTime = time.Now()
 	r.MarkDirty()
-	r.Role.PublishRoleEvent(event.EVENT_BREED_FINISH, event.BreedFinishEventData{FlowerID: flowerID})
+	r.Role.PublishRoleEvent(ctx, event.EVENT_BREED_FINISH, event.BreedFinishEventData{FlowerID: flowerID})
 
 	return &pb.RspFlowerFinishBreed{Flower: PFlowerInfo(flower)}, nil
 }
@@ -257,7 +283,7 @@ func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgr
 	oldLevel := flower.Level
 	flower.Level = nextLevel
 	r.MarkDirty()
-	r.Role.PublishRoleEvent(event.EVENT_FLOWER_LEVEL, event.FlowerLevelEventData{
+	r.Role.PublishRoleEvent(ctx, event.EVENT_FLOWER_LEVEL, event.FlowerLevelEventData{
 		FlowerID: flowerID,
 		OldLevel: oldLevel,
 		NewLevel: nextLevel,

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
@@ -175,7 +175,7 @@ func maxFlowerLevel(t *testing.T, levelGroup int32) int32 {
 func TestFlowerUnlock(t *testing.T) {
 	f := setupTestFlower(t)
 
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 
 	fd, ok := f.Flowers[flowerTestID]
 	if !ok {
@@ -196,7 +196,7 @@ func TestFlowerUnlock(t *testing.T) {
 
 func TestFindBreeding_None(t *testing.T) {
 	f := setupTestFlower(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 
 	if found := f.FindBreeding(); found != nil {
 		t.Fatalf("expected nil, got %v", found)
@@ -205,7 +205,7 @@ func TestFindBreeding_None(t *testing.T) {
 
 func TestFindBreeding_OneBreeding(t *testing.T) {
 	f := setupTestFlower(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 
 	found := f.FindBreeding()
@@ -221,7 +221,7 @@ func TestFindBreeding_OneBreeding(t *testing.T) {
 
 func TestStartBreed_Success(t *testing.T) {
 	f := setupTestFlowerWithMaterials(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	cfg := flowerConfig(t, flowerTestID)
 	before := map[int]uint64{}
 	for _, cost := range cfg.BreedCost {
@@ -264,8 +264,8 @@ func TestStartBreed_NotUnlocked(t *testing.T) {
 
 func TestStartBreed_AlreadyBreeding(t *testing.T) {
 	f := setupTestFlowerWithMaterials(t)
-	f.AddFlower(flowerTestID)
-	f.AddFlower(flowerTestOtherID)
+	f.AddFlower(context.Background(), flowerTestID)
+	f.AddFlower(context.Background(), flowerTestOtherID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 
 	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestOtherID})
@@ -276,7 +276,7 @@ func TestStartBreed_AlreadyBreeding(t *testing.T) {
 
 func TestStartBreed_MaterialNotEnough(t *testing.T) {
 	f := setupTestFlower(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 
 	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
 	if err == nil {
@@ -288,7 +288,7 @@ func TestStartBreed_MaterialNotEnough(t *testing.T) {
 
 func TestFinishBreed_Success(t *testing.T) {
 	f := setupTestFlowerWithMaterials(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 	f.Flowers[flowerTestID].StateTime = time.Now().Add(-1 * time.Hour) // past
 
@@ -308,7 +308,7 @@ func TestFinishBreed_Success(t *testing.T) {
 
 func TestFinishBreed_NotBreeding(t *testing.T) {
 	f := setupTestFlowerWithMaterials(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	// status stays UNLOCKED
 
 	_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
@@ -319,7 +319,7 @@ func TestFinishBreed_NotBreeding(t *testing.T) {
 
 func TestFinishBreed_NotDone(t *testing.T) {
 	f := setupTestFlowerWithMaterials(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 	f.Flowers[flowerTestID].StateTime = time.Now().Add(1 * time.Hour) // future
 
@@ -342,7 +342,7 @@ func TestFinishBreed_NotUnlocked(t *testing.T) {
 
 func TestBreedInfo_BreedDone(t *testing.T) {
 	f := setupTestFlower(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 	f.Flowers[flowerTestID].StateTime = time.Now().Add(-1 * time.Hour) // past
 
@@ -361,7 +361,7 @@ func TestBreedInfo_BreedDone(t *testing.T) {
 
 func TestBreedInfo_StillBreeding(t *testing.T) {
 	f := setupTestFlower(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 	f.Flowers[flowerTestID].StateTime = time.Now().Add(1 * time.Hour) // future
 
@@ -434,7 +434,7 @@ func TestFlowerMap_ValueAndScan(t *testing.T) {
 
 func TestUpgradeFlower_Success(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	flower := f.Flowers[flowerTestID]
 	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	flower.StateTime = time.Now()
@@ -467,7 +467,7 @@ func TestUpgradeFlower_Success(t *testing.T) {
 
 func TestUpgradeFlower_MaxLevel(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	flower := f.Flowers[flowerTestID]
 	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	flower.StateTime = time.Now()
@@ -483,7 +483,7 @@ func TestUpgradeFlower_MaxLevel(t *testing.T) {
 
 func TestUpgradeFlower_NeedBreak(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	flower := f.Flowers[flowerTestID]
 	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	flower.StateTime = time.Now()
@@ -512,7 +512,7 @@ func TestUpgradeFlower_NotUnlocked(t *testing.T) {
 
 func TestBreakFlower_Success(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	cfg := flowerConfig(t, flowerTestID)
 	breakCfg := flowerBreakConfig(t, cfg.LevelGroup, 1)
 	f.Flowers[flowerTestID].Level = breakCfg.NeedLevel
@@ -533,7 +533,7 @@ func TestBreakFlower_Success(t *testing.T) {
 
 func TestBreakFlower_PlayerLevelNotEnough(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	cfg := flowerConfig(t, flowerTestID)
 	breakCfg := flowerBreakConfig(t, cfg.LevelGroup, 1)
 	f.Role.Basic.Level = breakCfg.PlayerLevelLimit - 1
@@ -547,7 +547,7 @@ func TestBreakFlower_PlayerLevelNotEnough(t *testing.T) {
 
 func TestBreakFlower_LevelNotEnough(t *testing.T) {
 	f := setupTestFlowerWithEssence(t)
-	f.AddFlower(flowerTestID)
+	f.AddFlower(context.Background(), flowerTestID)
 	cfg := flowerConfig(t, flowerTestID)
 	breakCfg := flowerBreakConfig(t, cfg.LevelGroup, 1)
 	f.Flowers[flowerTestID].Level = breakCfg.NeedLevel - 1

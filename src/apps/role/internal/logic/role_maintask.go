@@ -98,7 +98,7 @@ func (r *RoleMainTask) PMainTaskInfo() *pb.PMainTaskInfo {
 	}
 }
 
-func (r *RoleMainTask) onRoleEvent(param event.EventParam) {
+func (r *RoleMainTask) onRoleEvent(ctx context.Context, param event.EventParam) {
 	cfg := r.currentTaskConfig()
 	if cfg == nil {
 		return
@@ -107,7 +107,7 @@ func (r *RoleMainTask) onRoleEvent(param event.EventParam) {
 	if state.ApplyEvent(taskConfigFromMainTask(cfg), r.Role, param) {
 		r.applyState(state)
 		r.MarkDirty()
-		r.notifyMainTaskUpdate(context.Background())
+		r.notifyMainTaskUpdate(ctx)
 	}
 }
 

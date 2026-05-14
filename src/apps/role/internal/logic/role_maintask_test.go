@@ -122,7 +122,7 @@ func TestMainTaskAfterAcceptGoodEvent(t *testing.T) {
 	main, mt, _ := setupTestMainTask(t)
 	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1007))
 
-	main.PublishRoleEvent(event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{
+	main.PublishRoleEvent(context.Background(), event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{
 		Changes: []event.GoodChange{{GoodID: 10001, PreNum: 0, Num: 2, AddNum: 2}},
 	})
 
@@ -180,7 +180,7 @@ func TestMainTaskCurrentStateRefreshesOnEvent(t *testing.T) {
 	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1009))
 
 	mt.Role.Basic.Level = 3
-	main.PublishRoleEvent(event.EVENT_PLAYER_LEVEL, event.PlayerLevelEventData{
+	main.PublishRoleEvent(context.Background(), event.EVENT_PLAYER_LEVEL, event.PlayerLevelEventData{
 		OldLevel: 1,
 		NewLevel: 3,
 		Reason:   "test",

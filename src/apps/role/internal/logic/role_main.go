@@ -415,14 +415,14 @@ func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 	gxyactor.Send(ctx, r.session, svrMsg)
 }
 
-func (r *RoleMain) PublishRoleEvent(eventType event.EventType, data any) {
+func (r *RoleMain) PublishRoleEvent(ctx context.Context, eventType event.EventType, data any) {
 	if r.eventBus == nil {
 		return
 	}
-	r.eventBus.Publish(eventType, data)
+	r.eventBus.Publish(ctx, eventType, data)
 }
 
-func (r *RoleMain) SubscribeRoleEvent(eventType event.EventType, handler func(event.EventParam)) event.EventRef {
+func (r *RoleMain) SubscribeRoleEvent(eventType event.EventType, handler func(ctx context.Context, event event.EventParam)) event.EventRef {
 	if r.eventBus == nil {
 		return ""
 	}

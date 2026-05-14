@@ -255,7 +255,7 @@ func (r *RoleGM) SetPlayerLevel(level int) error {
 // 用法: add_flower [花ID]
 // 示例: add_flower 101
 func (r *RoleGM) AddFlower(flowerID int) error {
-	r.Role.Flower.AddFlower(int32(flowerID))
+	r.Role.Flower.AddFlower(context.Background(), int32(flowerID))
 	return nil
 }
 
@@ -278,7 +278,7 @@ func (r *RoleGM) AddFlowerLevel(flowerID int, level int) error {
 // AddOrderFlower 设置鲜花为已培育完成状态（用于订单生成测试）
 // 用法: add_order_flower [花ID]
 func (r *RoleGM) AddOrderFlower(flowerID int) error {
-	r.Role.Flower.AddFlower(int32(flowerID))
+	r.Role.Flower.AddFlower(context.Background(), int32(flowerID))
 	if flower, ok := r.Role.Flower.Flowers[int32(flowerID)]; ok {
 		flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	}

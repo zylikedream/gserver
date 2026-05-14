@@ -292,7 +292,7 @@ func (r *RoleBag) onGoodUpdateEvent(ctx context.Context, updates map[int]bag.Goo
 			Reason:    update.Reason,
 		})
 	}
-	r.Role.PublishRoleEvent(event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{Changes: changes})
+	r.Role.PublishRoleEvent(ctx, event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{Changes: changes})
 }
 
 // 保存物品变更操作

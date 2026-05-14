@@ -297,7 +297,7 @@ func (r *RoleResidentOrder) ReqResidentOrderSubmit(ctx context.Context, req *pb.
 	r.refreshSlot(req.SlotId)
 	r.CompletedCount++
 
-	r.Role.PublishRoleEvent(event.EVENT_ORDER_COMPLETE, &event.OrderCompleteEventData{
+	r.Role.PublishRoleEvent(ctx, event.EVENT_ORDER_COMPLETE, &event.OrderCompleteEventData{
 		SlotID: req.SlotId,
 	})
 
