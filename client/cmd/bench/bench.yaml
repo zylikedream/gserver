@@ -1,16 +1,16 @@
-addr: "127.0.0.1:9000"
-bots: 10
+addr: "127.0.0.1:11086"
+bots: 1000
 account_pattern: "loadtest_%d"
 scenario:
   - msg: ReqBasicInfo
     delay: 5s
   - msg: ReqFriendList
-    delay: 10s
+    delay: 2s
   - msg: ReqChatSendChannel
     fields:
       channel_type: 1
       content: "hello everyone"
-    delay: 3-8s
+    delay: 3s
   - msg: ReqFlowerInfo
-    delay: 30s
+    delay: 2s
 report_interval: 5s
