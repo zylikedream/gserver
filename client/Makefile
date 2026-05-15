@@ -2,6 +2,7 @@
 
 build:
 	go build -o bin/hy ./cmd/hy/
+	go build -o bin/bench ./cmd/bench/
 
 proto:
 	@mkdir -p pb
@@ -14,6 +15,6 @@ clean:
 	rm -rf bin/ pb/
 
 proto-update:
-	git subtree pull --prefix=proto/client proto master  --squash
+	git submodule update --remote proto/client
 	@mkdir -p pb
 	protoc -I proto/client --go_out=pb --go_opt=paths=source_relative proto/client/*.proto
