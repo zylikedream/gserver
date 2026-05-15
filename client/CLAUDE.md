@@ -5,6 +5,7 @@ Console debugging client for "My Garden World" (gserver).
 ## Build & Run
 
 ```bash
+git submodule update --init  # clone proto/client submodule
 make build          # build binary
 make proto          # regenerate protobuf
 make test           # run tests
