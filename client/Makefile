@@ -1,3 +1,5 @@
+PROTO_INCLUDE ?= $(shell pkg-config --variable=includedir protobuf 2>/dev/null || echo "/usr/include")
+
 .PHONY: build proto proto-update test clean
 
 build:
@@ -6,7 +8,7 @@ build:
 
 proto:
 	@mkdir -p pb
-	protoc -I proto/client --go_out=pb --go_opt=paths=source_relative proto/client/*.proto
+	protoc -I proto/client -I $(PROTO_INCLUDE) --go_out=pb --go_opt=paths=source_relative proto/client/*.proto
 
 test:
 	go test ./...
@@ -17,4 +19,4 @@ clean:
 proto-update:
 	git submodule update --remote proto/client
 	@mkdir -p pb
-	protoc -I proto/client --go_out=pb --go_opt=paths=source_relative proto/client/*.proto
+	protoc -I proto/client -I $(PROTO_INCLUDE) --go_out=pb --go_opt=paths=source_relative proto/client/*.proto
