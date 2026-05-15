@@ -2,8 +2,6 @@ package logic
 
 import (
 	"context"
-	"database/sql/driver"
-	"encoding/json"
 	"errors"
 	"time"
 
@@ -34,33 +32,9 @@ type DailyStealEntry struct {
 // key: friendID
 type DailyStealMap map[int64]*DailyStealEntry
 
-func (m DailyStealMap) Value() (driver.Value, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return json.Marshal(m)
-}
-
-func (m *DailyStealMap) Scan(value any) error {
-	if value == nil {
-		*m = make(DailyStealMap)
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("invalid type for DailyStealMap")
-	}
-	var dm DailyStealMap
-	if err := json.Unmarshal(bytes, &dm); err != nil {
-		return err
-	}
-	*m = dm
-	return nil
-}
-
 type RoleStealState struct {
 	RolePersistState
-	DailySteals DailyStealMap `gorm:"column:daily_steals;type:jsonb"`
+	DailySteals DailyStealMap `gorm:"column:daily_steals;type:jsonb;serializer:json"`
 	StealDate   string        `gorm:"column:steal_date"`
 }
 

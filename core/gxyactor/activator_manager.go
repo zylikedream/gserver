@@ -299,9 +299,7 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 }
 
 func (g *activatorManager) OnModStop(ctx context.Context) error {
-	for _, info := range g.activatorMetas {
-		StopActor(info.Pool)
-	}
+	StopActor(g.routerPID)
 	return nil
 }
 
@@ -347,6 +345,21 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 	if !ok {
 		return
 	}
+	// 先停所有活跃 Actor，触发 Terminate → save → Redis 清理
+	for _, pid := range info.mgr.All() {
+		StopActor(pid)
+	}
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if info.mgr.Count() == 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if n := info.mgr.Count(); n > 0 {
+		gxylog.Warn(g.ctx, "actors still alive after drain", gxylog.Str("kind", kind), gxylog.Num("count", int64(n)))
+	}
+
 	StopActor(info.Pool)
 	LocalSend(g.ctx, g.routerPID, &localMsgUnRegisterPool{
 		Kind: kind,

@@ -28,13 +28,14 @@ var (
 
 // Registry implements gsvc.Registry interface using consul.
 type Registry struct {
-	client              *api.Client       // Consul client
-	address             string            // Consul address
-	options             map[string]string // Additional options
-	healthCheckInterval time.Duration     // Health check interval
-	ttl                 time.Duration     // TTL for service registration
-	mu                  sync.RWMutex      // Mutex for thread safety
-	logger              *glog.Logger      // Logger for logging
+	client              *api.Client          // Consul client
+	address             string               // Consul address
+	options             map[string]string    // Additional options
+	healthCheckInterval time.Duration        // Health check interval
+	ttl                 time.Duration        // TTL for service registration
+	mu                  sync.RWMutex         // Mutex for thread safety
+	stopHealthCheck     map[string]context.CancelFunc // Stop signals for health check goroutines
+	logger              *glog.Logger         // Logger for logging
 }
 
 // Option is the configuration option type for registry.
@@ -89,6 +90,7 @@ func New(opts ...Option) (gsvc.Registry, error) {
 		options:             make(map[string]string),
 		healthCheckInterval: DefaultHealthCheckInterval,
 		ttl:                 DefaultTTL,
+		stopHealthCheck:     make(map[string]context.CancelFunc),
 		logger:              glog.DefaultLogger(),
 	}
 
@@ -172,7 +174,11 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	}
 
 	// Start TTL health check goroutine
-	go r.ttlHealthCheck(serviceID)
+	ctx, cancel := context.WithCancel(context.Background())
+	r.mu.Lock()
+	r.stopHealthCheck[serviceID] = cancel
+	r.mu.Unlock()
+	go r.ttlHealthCheck(ctx, serviceID)
 
 	return service, nil
 }
@@ -185,6 +191,15 @@ func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 	}
 
 	r.logger.Infof(ctx, "deregister service: %s", serviceID)
+
+	// Stop health check goroutine first
+	r.mu.Lock()
+	if cancel, ok := r.stopHealthCheck[serviceID]; ok {
+		cancel()
+		delete(r.stopHealthCheck, serviceID)
+	}
+	r.mu.Unlock()
+
 	// Deregister service
 	if err := r.client.Agent().ServiceDeregister(serviceID); err != nil {
 		return gerror.Wrap(err, "failed to deregister service")
@@ -194,7 +209,7 @@ func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 }
 
 // ttlHealthCheck maintains the TTL health check for a service
-func (r *Registry) ttlHealthCheck(serviceID string) {
+func (r *Registry) ttlHealthCheck(ctx context.Context, serviceID string) {
 	ticker := time.NewTicker(r.healthCheckInterval)
 	defer ticker.Stop()
 
@@ -203,7 +218,13 @@ func (r *Registry) ttlHealthCheck(serviceID string) {
 	maxRetries := 3
 	retryInterval := time.Second * 2
 
-	for range ticker.C {
+	for {
+		select {
+		case <-ctx.Done():
+			r.logger.Infof(context.Background(), "health check stopped for service: %s", serviceID)
+			return
+		case <-ticker.C:
+		}
 		err := r.client.Agent().PassTTL(checkID, "")
 		if err != nil {
 			r.logger.Errorf(context.Background(), "failed to pass TTL health check: %s, error %+v, retry count: %d", checkID, err, retryCount)

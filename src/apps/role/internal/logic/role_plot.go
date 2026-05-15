@@ -2,8 +2,6 @@ package logic
 
 import (
 	"context"
-	"database/sql/driver"
-	"encoding/json"
 	"math/rand"
 	"time"
 
@@ -37,33 +35,9 @@ type PlotData struct {
 
 type PlotMap map[int32]*PlotData
 
-func (m PlotMap) Value() (driver.Value, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return json.Marshal(m)
-}
-
-func (m *PlotMap) Scan(value interface{}) error {
-	if value == nil {
-		*m = make(PlotMap)
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("invalid type for PlotMap")
-	}
-	var plotMap map[int32]*PlotData
-	if err := json.Unmarshal(bytes, &plotMap); err != nil {
-		return err
-	}
-	*m = PlotMap(plotMap)
-	return nil
-}
-
 type RolePlotState struct {
 	RolePersistState
-	Plots PlotMap `gorm:"column:plots;type:jsonb"`
+	Plots PlotMap `gorm:"column:plots;type:jsonb;serializer:json"`
 }
 
 func (RolePlotState) TableName() string { return "role_plot" }

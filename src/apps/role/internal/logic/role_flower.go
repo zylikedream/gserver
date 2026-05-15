@@ -2,8 +2,6 @@ package logic
 
 import (
 	"context"
-	"database/sql/driver"
-	"encoding/json"
 	"time"
 
 	"gserver/core/gxylog"
@@ -35,33 +33,9 @@ type FlowerData struct {
 
 type FlowerMap map[int32]*FlowerData
 
-func (m FlowerMap) Value() (driver.Value, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return json.Marshal(m)
-}
-
-func (m *FlowerMap) Scan(value interface{}) error {
-	if value == nil {
-		*m = make(FlowerMap)
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("invalid type for FlowerMap")
-	}
-	var flowerMap map[int32]*FlowerData
-	if err := json.Unmarshal(bytes, &flowerMap); err != nil {
-		return err
-	}
-	*m = FlowerMap(flowerMap)
-	return nil
-}
-
 type RoleFlowerState struct {
 	RolePersistState
-	Flowers FlowerMap `gorm:"column:flowers;type:jsonb"`
+	Flowers FlowerMap `gorm:"column:flowers;type:jsonb;serializer:json"`
 }
 
 func (RoleFlowerState) TableName() string { return "role_flower" }

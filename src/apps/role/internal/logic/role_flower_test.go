@@ -391,45 +391,6 @@ func TestBreedInfo_Empty(t *testing.T) {
 	}
 }
 
-// ========== FlowerMap Scan/Value ==========
-
-func TestFlowerMap_ScanNil(t *testing.T) {
-	var m FlowerMap
-	if err := m.Scan(nil); err != nil {
-		t.Fatal(err)
-	}
-	if len(m) != 0 {
-		t.Fatalf("expected empty map, got %d entries", len(m))
-	}
-}
-
-func TestFlowerMap_ValueAndScan(t *testing.T) {
-	original := FlowerMap{
-		101: {FlowerID: 101, State: 1, StateTime: time.Unix(1700000000, 0), Level: 1, BreakStage: 0},
-		102: {FlowerID: 102, State: 2, StateTime: time.Unix(1700001000, 0), Level: 1, BreakStage: 0},
-	}
-
-	val, err := original.Value()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var restored FlowerMap
-	if err := restored.Scan(val); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(restored) != 2 {
-		t.Fatalf("expected 2, got %d", len(restored))
-	}
-	if restored[101].FlowerID != 101 || restored[101].State != 1 {
-		t.Fatalf("unexpected restored[101]: %v", restored[101])
-	}
-	if restored[102].FlowerID != 102 || restored[102].State != 2 {
-		t.Fatalf("unexpected restored[102]: %v", restored[102])
-	}
-}
-
 // ========== UpgradeFlower ==========
 
 func TestUpgradeFlower_Success(t *testing.T) {

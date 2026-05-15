@@ -84,7 +84,7 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 	case *actor.Terminated:
 		if gxyactor.PidEqual(msg.Who, s.sessionInfo.RolePid) {
 			s.sessionInfo.RolePid = nil
-			s.Stop(gerror.New("role terminated"))
+			s.Stop(errors.New("role terminated"))
 		}
 	case *pb.ActorError:
 		s.Stop(gerror.New(msg.Reason))

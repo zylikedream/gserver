@@ -2,8 +2,6 @@ package logic
 
 import (
 	"context"
-	"database/sql/driver"
-	"encoding/json"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
@@ -23,36 +21,9 @@ var (
 
 type GoodsMap map[int]bag.BagGood
 
-func (m GoodsMap) Value() (driver.Value, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return json.Marshal(m)
-}
-
-func (m *GoodsMap) Scan(value interface{}) error {
-	if value == nil {
-		*m = make(GoodsMap)
-		return nil
-	}
-
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("invalid type for GoodsMap")
-	}
-
-	var goodsMap map[int]bag.BagGood
-	if err := json.Unmarshal(bytes, &goodsMap); err != nil {
-		return err
-	}
-
-	*m = GoodsMap(goodsMap)
-	return nil
-}
-
 type RoleBagState struct {
 	RolePersistState
-	Goods GoodsMap `gorm:"column:goods;type:jsonb"`
+	Goods GoodsMap `gorm:"column:goods;type:jsonb;serializer:json"`
 }
 
 func (RoleBagState) TableName() string { return "role_bag" }

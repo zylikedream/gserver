@@ -2,8 +2,6 @@ package logic
 
 import (
 	"context"
-	"database/sql/driver"
-	"encoding/json"
 	"math/rand"
 	"time"
 
@@ -13,8 +11,6 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/util"
-
-	"github.com/pkg/errors"
 )
 
 // ========== 数据模型 ==========
@@ -29,61 +25,13 @@ type OrderSlotData struct {
 
 type OrderSlotMap map[int32]*OrderSlotData
 
-func (m OrderSlotMap) Value() (driver.Value, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return json.Marshal(m)
-}
-
-func (m *OrderSlotMap) Scan(value interface{}) error {
-	if value == nil {
-		*m = make(OrderSlotMap)
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("invalid type for OrderSlotMap")
-	}
-	var slotMap map[int32]*OrderSlotData
-	if err := json.Unmarshal(bytes, &slotMap); err != nil {
-		return err
-	}
-	*m = OrderSlotMap(slotMap)
-	return nil
-}
-
 type Int32List []int32
-
-func (l Int32List) Value() (driver.Value, error) {
-	if l == nil {
-		return nil, nil
-	}
-	return json.Marshal(l)
-}
-
-func (l *Int32List) Scan(value interface{}) error {
-	if value == nil {
-		*l = make(Int32List, 0)
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("invalid type for Int32List")
-	}
-	var list []int32
-	if err := json.Unmarshal(bytes, &list); err != nil {
-		return err
-	}
-	*l = Int32List(list)
-	return nil
-}
 
 type RoleResidentOrderState struct {
 	RolePersistState
-	Slots             OrderSlotMap `gorm:"column:slots;type:jsonb"`
+	Slots             OrderSlotMap `gorm:"column:slots;type:jsonb;serializer:json"`
 	CompletedCount    int32        `gorm:"column:completed_count"`
-	ClaimedMilestones Int32List    `gorm:"column:claimed_milestones;type:jsonb"`
+	ClaimedMilestones Int32List    `gorm:"column:claimed_milestones;type:jsonb;serializer:json"`
 }
 
 func (RoleResidentOrderState) TableName() string { return "role_resident_order" }

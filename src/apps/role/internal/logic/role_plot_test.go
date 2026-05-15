@@ -173,45 +173,6 @@ func plotHarvestTimes(t *testing.T, flowerID int32, level int32) int32 {
 	return cfg.HarvestTimes + levelCfg.HarvestTimesAdd
 }
 
-// ========== PlotMap Scan/Value ==========
-
-func TestPlotMap_ScanNil(t *testing.T) {
-	var m PlotMap
-	if err := m.Scan(nil); err != nil {
-		t.Fatal(err)
-	}
-	if len(m) != 0 {
-		t.Fatalf("expected empty map, got %d entries", len(m))
-	}
-}
-
-func TestPlotMap_ValueAndScan(t *testing.T) {
-	original := PlotMap{
-		1: {PlotID: 1, FlowerID: 101, State: 1, HarvestCount: 0, StateTime: time.Unix(1700000000, 0)},
-		2: {PlotID: 2, State: 0},
-	}
-
-	val, err := original.Value()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var restored PlotMap
-	if err := restored.Scan(val); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(restored) != 2 {
-		t.Fatalf("expected 2, got %d", len(restored))
-	}
-	if restored[1].FlowerID != 101 || restored[1].State != 1 {
-		t.Fatalf("unexpected restored[1]: %v", restored[1])
-	}
-	if restored[2].State != 0 {
-		t.Fatalf("unexpected restored[2]: %v", restored[2])
-	}
-}
-
 // ========== UnlockPlot ==========
 
 func TestUnlockPlot_Success(t *testing.T) {

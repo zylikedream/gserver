@@ -2,63 +2,17 @@ package logic
 
 import (
 	"context"
-	"encoding/json"
 	"reflect"
 	"testing"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
-	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/pkg/gameconfig"
 
 	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
 )
-
-func TestOrderSlotMap_ValueAndScan(t *testing.T) {
-	original := OrderSlotMap{
-		1: {
-			SlotID:      1,
-			ResidentID:  1001,
-			Demands:     []bag.BagGood{{GoodID: 2001, Num: 2}},
-			Reward:      []bag.BagGood{{GoodID: 1, Num: 30}},
-			CooldownEnd: 123456789,
-		},
-	}
-
-	value, err := original.Value()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var scanned OrderSlotMap
-	if err := scanned.Scan(value); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(original, scanned) {
-		originalJSON, _ := json.Marshal(original)
-		scannedJSON, _ := json.Marshal(scanned)
-		t.Fatalf("slot map mismatch: original=%s scanned=%s", originalJSON, scannedJSON)
-	}
-}
-
-func TestInt32List_ValueAndScan(t *testing.T) {
-	original := Int32List{1, 2, 5}
-
-	value, err := original.Value()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var scanned Int32List
-	if err := scanned.Scan(value); err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(original, scanned) {
-		t.Fatalf("int32 list mismatch: original=%v scanned=%v", original, scanned)
-	}
-}
 
 func initOrderTestConfig(t *testing.T) {
 	t.Helper()
