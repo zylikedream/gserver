@@ -418,3 +418,19 @@ func (g *activatorManager) GetActorCount(kind string) int {
 	}
 	return info.mgr.Count()
 }
+
+func (g *activatorManager) GetLocalActor(kind string, id string) PID {
+	info, ok := g.activatorMetas[kind]
+	if !ok {
+		return nil
+	}
+	return info.mgr.Get(id)
+}
+
+func (g *activatorManager) GetLocalActorAll(kind string) []PID {
+	info, ok := g.activatorMetas[kind]
+	if !ok {
+		return nil
+	}
+	return info.mgr.All()
+}

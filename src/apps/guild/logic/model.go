@@ -1,26 +1,27 @@
 package logic
 
 import (
+	"gserver/src/lib"
 	"time"
 )
 
 // Guild 公会主表，Members/ApplyList/Logs 存储为 JSONB 列
 type Guild struct {
-	ID           int64         `gorm:"column:id;primaryKey;autoIncrement"`
-	Name         string        `gorm:"column:name;uniqueIndex;size:32"`
-	Level        int32         `gorm:"column:level"`
-	Icon         string        `gorm:"column:icon;size:256"`
-	Declaration  string        `gorm:"column:declaration;size:200"`
-	Announcement string        `gorm:"column:announcement;size:500"`
-	NeedApproval bool          `gorm:"column:need_approval"`
-	MemberCount  int32         `gorm:"column:member_count"`
-	LeaderID     int64         `gorm:"column:leader_id"`
+	ID           int64          `gorm:"column:id;primaryKey;autoIncrement"`
+	Name         string         `gorm:"column:name;uniqueIndex;size:32"`
+	Level        int32          `gorm:"column:level"`
+	Icon         string         `gorm:"column:icon;size:256"`
+	Declaration  string         `gorm:"column:declaration;size:200"`
+	Announcement string         `gorm:"column:announcement;size:500"`
+	NeedApproval bool           `gorm:"column:need_approval"`
+	MemberCount  int32          `gorm:"column:member_count"`
+	LeaderID     int64          `gorm:"column:leader_id"`
 	Members      []*GuildMember `gorm:"type:jsonb;serializer:json"`
 	ApplyList    []*GuildApply  `gorm:"type:jsonb;serializer:json"`
 	Logs         []*GuildLog    `gorm:"type:jsonb;serializer:json"`
-	CreatedAt    time.Time     `gorm:"column:created_at"`
-	UpdatedAt    time.Time     `gorm:"column:updated_at"`
-	Version      int64         `gorm:"column:version"`
+	CreatedAt    time.Time      `gorm:"column:created_at"`
+	UpdatedAt    time.Time      `gorm:"column:updated_at"`
+	Version      int64          `gorm:"column:version"`
 }
 
 func (Guild) TableName() string { return "guild" }
@@ -49,9 +50,4 @@ type GuildLog struct {
 }
 
 // GuildRoleState 映射 role_guild 表，供 guild actor 原子操作（独立表不走 JSONB）
-type GuildRoleState struct {
-	RoleID  int64 `gorm:"column:role_id;primaryKey"`
-	GuildID int64 `gorm:"column:guild_id"`
-}
-
-func (GuildRoleState) TableName() string { return "role_guild" }
+type GuildRoleState = lib.RoleGuildRecord

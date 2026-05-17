@@ -19,28 +19,23 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ===== 持久化状态 =====
-
-type RoleGuildState struct {
-	RolePersistState
-	GuildID int64 `gorm:"column:guild_id"` // 0=无公会
-}
-
-func (RoleGuildState) TableName() string { return "role_guild" }
-
 // ===== 子模块 =====
 
 type RoleGuild struct {
 	RoleModule
-	RoleGuildState
+	GuildID       int64
 	lastChannelID int64
 }
 
 var _ IRoleModule = (*RoleGuild)(nil)
 
-func (r *RoleGuild) PersistState() IPersistState { return &r.RoleGuildState }
+func (r *RoleGuild) PersistState() IPersistState { return nil }
 
 func (r *RoleGuild) OnModInit(ctx context.Context) error { return nil }
+
+func (r *RoleGuild) OnModStart(ctx context.Context) error {
+	return r.ReloadGuildID(ctx)
+}
 
 func (r *RoleGuild) OnCreate(ctx context.Context) {}
 
@@ -63,16 +58,33 @@ func (r *RoleGuild) JoinGuildChannel(ctx context.Context) {
 }
 
 func (r *RoleGuild) OnModStop(ctx context.Context) error {
+	r.leaveGuildChannel(ctx)
+	return nil
+}
+
+func (r *RoleGuild) leaveGuildChannel(ctx context.Context) {
 	if r.lastChannelID > 0 {
 		r.Role.Chat.LeaveChannel(ctx, int32(gamecfg.GardenEChatChannelType_GUILD), r.lastChannelID)
 		r.lastChannelID = 0
 	}
-	return nil
 }
 
 func (r *RoleGuild) SetGuildID(ctx context.Context, guildID int64) {
+	if r.GuildID == guildID {
+		return
+	}
+	r.leaveGuildChannel(ctx)
 	r.GuildID = guildID
 	r.JoinGuildChannel(ctx)
+}
+
+func (r *RoleGuild) ReloadGuildID(ctx context.Context) error {
+	guildID, err := lib.GetGuildIDByRoleID(ctx, r.RoleID)
+	if err != nil {
+		return err
+	}
+	r.SetGuildID(ctx, guildID)
+	return nil
 }
 
 // ===== HTTP helpers =====
@@ -109,18 +121,17 @@ func callGuildSearch(ctx context.Context, keyword string) ([]*pb.PGuildBasic, er
 // ===== Proto Handlers =====
 
 func (r *RoleGuild) ReqGuildCreate(ctx context.Context, req *pb.ReqGuildCreate) (*pb.RspGuildCreate, error) {
-	basic := r.Role.GetBasic()
 	guildCfg := gameconfig.GameConfig().TbGuildConfig.Get()
 	if guildCfg == nil {
 		return nil, fmt.Errorf("公会配置未找到")
 	}
-	if basic.Level < guildCfg.UnlockLevel {
+	if r.Role.Basic.Level < guildCfg.UnlockLevel {
 		return nil, fmt.Errorf("等级不足，需要 Lv%d", guildCfg.UnlockLevel)
 	}
 	if r.GuildID > 0 {
 		return nil, fmt.Errorf("你已加入公会")
 	}
-	if !r.Role.GetBag().CheckGoods(guildCfg.CreateCost) {
+	if !r.Role.Bag.CheckGoods(guildCfg.CreateCost) {
 		return nil, fmt.Errorf("创建公会消耗不足")
 	}
 
@@ -129,11 +140,11 @@ func (r *RoleGuild) ReqGuildCreate(ctx context.Context, req *pb.ReqGuildCreate) 
 		return nil, err
 	}
 	// 扣除公会创建消耗
-	if err := r.Role.GetBag().SaveGoods(ctx, guildCfg.CreateCost, nil, "create_guild"); err != nil {
+	if err := r.Role.Bag.SaveGoods(ctx, guildCfg.CreateCost, nil, "create_guild"); err != nil {
 		return nil, err
 	}
 
-	r.GuildID = guildID
+	r.SetGuildID(ctx, guildID)
 	return &pb.RspGuildCreate{GuildId: guildID}, nil
 }
 
@@ -275,7 +286,7 @@ func (r *RoleGuild) ReqGuildLeave(ctx context.Context, req *pb.ReqGuildLeave) (*
 	if err != nil {
 		return nil, err
 	}
-	r.GuildID = 0
+	r.SetGuildID(ctx, 0)
 	return rsp.(*pb.RspGuildLeave), nil
 }
 
@@ -288,6 +299,6 @@ func (r *RoleGuild) ReqGuildDisband(ctx context.Context, req *pb.ReqGuildDisband
 	if err != nil {
 		return nil, err
 	}
-	r.GuildID = 0
+	r.SetGuildID(ctx, 0)
 	return rsp.(*pb.RspGuildDisband), nil
 }

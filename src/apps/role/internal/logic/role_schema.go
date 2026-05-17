@@ -18,12 +18,11 @@ func InitRoleSchema(ctx context.Context) {
 		&RolePublicState{},
 		&RoleFlowerState{},
 		&RolePlotState{},
-			&RoleStealState{},
+		&RoleStealState{},
 		&RoleMainTaskState{},
 		&RoleResidentOrderState{},
 		&StealRecord{},
 		&RoleChatState{},
-			&RoleGuildState{},
 	); err != nil {
 		gxylog.Fatal(ctx, "role schema migration failed", gxylog.Err(err))
 	}

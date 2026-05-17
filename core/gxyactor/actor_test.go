@@ -90,6 +90,25 @@ func TestActorMgr_Overwrite(t *testing.T) {
 	}
 }
 
+func TestActivatorManager_GetLocalActor(t *testing.T) {
+	mgr := NewActivatorManager("node", "node@1")
+	pid := actor.NewPID("local", "role-1")
+	mgr.activatorMetas["role"] = &activatorMeta{
+		Kind: "role",
+		mgr:  NewActorMgr("role"),
+	}
+	mgr.activatorMetas["role"].mgr.Add("1", pid)
+	if got := mgr.GetLocalActor("role", "1"); !PidEqual(got, pid) {
+		t.Fatalf("expected %v, got %v", pid, got)
+	}
+	if got := mgr.GetLocalActor("role", "2"); got != nil {
+		t.Fatalf("expected nil for missing actor, got %v", got)
+	}
+	if got := mgr.GetLocalActor("missing", "1"); got != nil {
+		t.Fatalf("expected nil for missing kind, got %v", got)
+	}
+}
+
 // ========== PidEqual ==========
 
 func TestPidEqual_Same(t *testing.T) {

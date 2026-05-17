@@ -20,6 +20,7 @@ import (
 
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
+	"gorm.io/gorm/clause"
 )
 
 const MaxLogCount = 100
@@ -122,11 +123,7 @@ func (g *GuildActor) addLog(ctx context.Context, content string) {
 // ===== 通知（携带数据） =====
 
 func (g *GuildActor) notifyPlayer(ctx context.Context, roleID int64, msg proto.Message) {
-	pid, err := lib.GetRoleActor(ctx, roleID)
-	if err != nil || pid == nil {
-		return
-	}
-	gxyactor.Send(ctx, pid, msg)
+	lib.PublishRoleNotify(ctx, roleID, msg)
 }
 
 func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
@@ -138,22 +135,14 @@ func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {
 		}
 		// 填充 self 字段
 		msg.Self = g.buildPGuildMember(ctx, m)
-		pid, err := lib.GetRoleActor(ctx, m.RoleID)
-		if err != nil || pid == nil {
-			continue
-		}
-		gxyactor.Send(ctx, pid, msg)
+		g.notifyPlayer(ctx, m.RoleID, msg)
 	}
 }
 
 func (g *GuildActor) notifyGuildBasic(ctx context.Context) {
 	msg := g.buildNotifyGuildBasic(ctx)
 	for _, m := range g.Data.Members {
-		pid, err := lib.GetRoleActor(ctx, m.RoleID)
-		if err != nil || pid == nil {
-			continue
-		}
-		gxyactor.Send(ctx, pid, msg)
+		g.notifyPlayer(ctx, m.RoleID, msg)
 	}
 }
 
@@ -163,11 +152,7 @@ func (g *GuildActor) notifyApplyUpdate(ctx context.Context) {
 		if m.Position > 2 {
 			continue // 只有会长(1)/副会长(2)
 		}
-		pid, err := lib.GetRoleActor(ctx, m.RoleID)
-		if err != nil || pid == nil {
-			continue
-		}
-		gxyactor.Send(ctx, pid, msg)
+		g.notifyPlayer(ctx, m.RoleID, msg)
 	}
 }
 
@@ -363,10 +348,18 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 	}
 
 	// 原子门：INSERT OR UPDATE，WHERE guild_id=0 确保只对无公会玩家生效
-	result := gxypgx.DB().Exec(
-		"INSERT INTO role_guild (role_id, guild_id) VALUES (?, ?) ON CONFLICT (role_id) DO UPDATE SET guild_id = ? WHERE role_guild.guild_id = 0",
-		roleID, g.GuildID, g.GuildID,
-	)
+	result := gxypgx.DB().Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "role_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"guild_id": g.GuildID,
+		}),
+		Where: clause.Where{Exprs: []clause.Expression{
+			clause.Eq{Column: clause.Column{Table: "role_guild", Name: "guild_id"}, Value: 0},
+		}},
+	}).Create(&GuildRoleState{
+		RoleID:  roleID,
+		GuildID: g.GuildID,
+	})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -378,7 +371,6 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 	g.Data.Members = append(g.Data.Members, member)
 	g.Data.MemberCount = int32(len(g.Data.Members))
 
-	g.notifyGuildInfo(ctx) // 通知全部成员（含新成员）
 	g.addLog(ctx, fmt.Sprintf("玩家 %d 加入公会", roleID))
 	return nil
 }
@@ -388,6 +380,7 @@ func (g *GuildActor) joinDirect(ctx context.Context, req *pb.ReqGuildApply) (*pb
 	if err := g.addMember(ctx, req.RoleId); err != nil {
 		return nil, err
 	}
+	g.notifyGuildInfo(ctx) // 通知全部成员（含新成员）
 	return &pb.RspGuildApply{}, nil
 }
 
@@ -420,6 +413,11 @@ func (g *GuildActor) ApproveApply(ctx context.Context, operatorID int64, req *pb
 			return err
 		}
 	}
+
+	g.notifyApplyUpdate(ctx)
+	if req.Approve {
+		g.notifyGuildInfo(ctx)
+	}
 	return nil
 }
 
@@ -439,7 +437,6 @@ func (g *GuildActor) processSingleApply(ctx context.Context, applyID int64, appr
 	// 拒绝：仅更新状态
 	if !approve {
 		apply.Status = 2
-		g.notifyApplyUpdate(ctx)
 		return nil
 	}
 
@@ -448,7 +445,6 @@ func (g *GuildActor) processSingleApply(ctx context.Context, applyID int64, appr
 	if err := g.addMember(ctx, apply.RoleID); err != nil {
 		return err
 	}
-	g.notifyApplyUpdate(ctx)
 	return nil
 }
 

@@ -6,10 +6,10 @@ import (
 
 	"gserver/core/gxyapp"
 	"gserver/core/gxyservice"
-	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic"
 	"gserver/src/lib"
+	"gserver/src/pkg/gameconfig"
 )
 
 type roleApp struct {
@@ -25,11 +25,12 @@ func (r *roleApp) OnModInit(ctx context.Context) error {
 	logic.InitRoleSchema(ctx)
 	gxyservice.ServiceApp().LoadService(ctx, NewRoleActorService())
 
+	r.AddModule(ctx, lib.NewRoleNotify())
 	// 广播模块：订阅系统消息，持久化后推送给所有在线玩家
 	r.AddModule(ctx, lib.NewBroadcast("role", func(ctx context.Context, topic string, msg *lib.BroadcastMsg) *lib.BroadcastMsg {
 		switch msg.MsgType {
 		case lib.BroadCastTypeSystemMsg:
-			lib.SendToAll(&pb.NotifyChatSystem{
+			lib.NotifyLocalAll(ctx, &pb.NotifyChatSystem{
 				Message: &pb.PChatMsg{
 					Content:   msg.Data,
 					Timestamp: time.Now().Unix(),

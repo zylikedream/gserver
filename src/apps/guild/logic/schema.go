@@ -10,6 +10,7 @@ import (
 func InitGuildSchema(ctx context.Context) {
 	if err := gxypgx.DB().AutoMigrate(
 		&Guild{},
+		&GuildRoleState{},
 	); err != nil {
 		gxylog.Fatal(ctx, "guild schema migration failed", gxylog.Err(err))
 	}

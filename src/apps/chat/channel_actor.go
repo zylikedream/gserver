@@ -12,6 +12,7 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
+	"gserver/src/lib"
 
 	"github.com/asynkron/protoactor-go/actor"
 )
@@ -54,13 +55,19 @@ func (rb *ringBuffer) Len() int {
 	return len(rb.msgs)
 }
 
+type channelMember struct {
+	Pid      *actor.PID
+	RoleID   int64
+	JoinTime time.Time
+}
+
 type ChannelActor struct {
 	gxymodule.ModuleBase
 	*gxyactor.ActorBase
 	ChannelType  int32
 	ChannelID    int64
 	channel      IChannel
-	members      map[int64]*actor.PID
+	members      map[int64]*channelMember
 	buffer       *ringBuffer
 	lastSavedSeq int
 }
@@ -68,7 +75,7 @@ type ChannelActor struct {
 func NewChannelActor() *ChannelActor {
 	ctx := gxylog.NewContext(context.Background(), "channel")
 	a := &ChannelActor{
-		members: make(map[int64]*actor.PID),
+		members: make(map[int64]*channelMember),
 	}
 	a.ActorBase = gxyactor.NewActorBase(ctx, a, "channel")
 	return a
@@ -106,9 +113,14 @@ func (a *ChannelActor) DelayInit(ctx context.Context) error {
 func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 	switch m := msg.(type) {
 	case *pb.ChannelRegisterMsg:
-		a.members[m.RoleId] = &actor.PID{
+		pid := &actor.PID{
 			Address: m.Pid.Address,
 			Id:      m.Pid.Id,
+		}
+		a.members[m.RoleId] = &channelMember{
+			Pid:      pid,
+			RoleID:   m.RoleId,
+			JoinTime: time.Now(),
 		}
 		a.Timer().Cancel(ctx, stopTimerName)
 
@@ -145,8 +157,8 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 			Timestamp:   chatMsg.Timestamp,
 		}
 		// 通知所有成员
-		for _, pid := range a.members {
-			gxyactor.Send(ctx, pid, notify)
+		for _, mbr := range a.members {
+			lib.PublishRoleNotify(ctx, mbr.RoleID, notify)
 		}
 
 	case *pb.ReqChatChannelHistory:

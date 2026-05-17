@@ -42,8 +42,8 @@ func Send(ctx context.Context, pid PID, message proto.Message) error {
 	return app.send(ctx, pid, message)
 }
 
-func LocalSend(ctx context.Context, pid PID, message any) {
-	app.localSend(ctx, pid, message)
+func LocalSend(ctx context.Context, pid PID, message any) error {
+	return app.localSend(ctx, pid, message)
 }
 
 func Respond(ctx context.Context, actx actor.Context, message any) error {
@@ -80,6 +80,14 @@ func ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID
 
 func GetActorCount(kind string) int {
 	return app.GetActorCount(kind)
+}
+
+func GetLocalActor(kind string, id string) PID {
+	return app.GetLocalActor(kind, id)
+}
+
+func GetLocalActorAll(kind string) []PID {
+	return app.GetLocalActorAll(kind)
 }
 
 func ActorError(reason string) *pb.ActorError {

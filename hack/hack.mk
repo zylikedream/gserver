@@ -79,7 +79,7 @@ pbraw: cli.install
 # 生成不带omitempty标签的protobuf代码
 .PHONY: pb
 pb: cli.install
-	@git submodule update --init
+	@if [ ! -d gameconfig/gosrc ]; then git submodule update --init gameconfig; fi
 	@find protocol -name "*.pb.go" -delete
 	@$(MAKE) pbraw
 	@echo "Removing omitempty tags from generated protobuf files..."

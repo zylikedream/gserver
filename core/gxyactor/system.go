@@ -198,6 +198,14 @@ func (a *actorApp) GetActorCount(kind string) int {
 	return a.activatorMgr.GetActorCount(kind)
 }
 
+func (a *actorApp) GetLocalActor(kind string, id string) PID {
+	return a.activatorMgr.GetLocalActor(kind, id)
+}
+
+func (a *actorApp) GetLocalActorAll(kind string) []PID {
+	return a.activatorMgr.GetLocalActorAll(kind)
+}
+
 type messageEnvelopeCarrier struct {
 	envelope *actor.MessageEnvelope
 }

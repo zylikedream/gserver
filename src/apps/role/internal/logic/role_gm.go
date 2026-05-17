@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	"gserver/core/gxyactor"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
@@ -322,4 +323,18 @@ func (r *RoleGM) UnlockPlot(plotID int) error {
 // 示例: send_system_msg 服务器即将维护，请及时下线
 func (r *RoleGM) SendSystemMsg(content string) error {
 	return lib.SendSystemMsg(r.ctx, content)
+}
+
+// StopRole 停止指定角色的会话（从内存驱逐)
+// 用法: stop_role [RoleID]
+// 示例: stop_role 1001 从内存驱逐
+func (r *RoleGM) StopRole(roleID int64) error {
+	rolePid := lib.GetRolePid(roleID)
+	if rolePid == nil {
+		return fmt.Errorf("role %d not found ", roleID)
+	}
+	gxyactor.LocalSend(r.ctx, rolePid, &pb.ActorStop{
+		Reason: "gm stop role",
+	})
+	return nil
 }

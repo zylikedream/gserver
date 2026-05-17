@@ -212,15 +212,15 @@ func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPr
 		return nil, err
 	}
 
-	// 通知目标角色
-	if targetPid, err := lib.GetRoleActor(ctx, req.TargetId); err == nil {
-		gxyactor.Send(ctx, targetPid, &pb.NotifyChatPrivate{
-			Message: &pb.PChatMsg{
-				Sender:    r.Role.Public.GetRolePublic(ctx),
-				Content:   strings.TrimSpace(req.Content),
-				Timestamp: ts,
-			},
-		})
+	// 私聊正文已由 chat-http 持久化；在线通知走 RoleNotify，避免 role 节点互相直连。
+	if err := lib.PublishRoleNotify(ctx, req.TargetId, &pb.NotifyChatPrivate{
+		Message: &pb.PChatMsg{
+			Sender:    r.Role.Public.GetRolePublic(ctx),
+			Content:   strings.TrimSpace(req.Content),
+			Timestamp: ts,
+		},
+	}); err != nil {
+		gxylog.Warn(ctx, "publish private chat notify failed", gxylog.Num("target", req.TargetId), gxylog.Err(err))
 	}
 
 	return &pb.RspChatSendPrivate{}, nil

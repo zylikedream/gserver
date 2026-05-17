@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"gserver/core/gxyactor"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
@@ -14,16 +13,18 @@ import (
 	"gserver/src/lib"
 	"gserver/src/pkg/gameconfig"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/pkg/errors"
 )
 
+type RoleFriend struct {
+	RoleModule
+}
+
 // ---- write operations (call friend service via HTTP) ----
 
-func (r *RoleMain) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriendSendRequest) (*pb.RspFriendSendRequest, error) {
+func (r *RoleFriend) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriendSendRequest) (*pb.RspFriendSendRequest, error) {
 	successIDs, err := callFriendBatch(ctx, "send_request", r.RoleID, req.TargetIds)
 	rsp := &pb.RspFriendSendRequest{}
 	if len(successIDs) == 0 {
@@ -35,7 +36,7 @@ func (r *RoleMain) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriendSe
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
-		r.notifyPlayer(ctx, id, &pb.NotifyFriendNewRequest{
+		lib.PublishRoleNotify(ctx, id, &pb.NotifyFriendNewRequest{
 			ApplyInfo: &pb.PApplyInfo{
 				PlayerInfo: GetRolePublic(ctx, r.RoleID),
 			},
@@ -44,7 +45,7 @@ func (r *RoleMain) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriendSe
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqFriendAcceptRequest(ctx context.Context, req *pb.ReqFriendAcceptRequest) (*pb.RspFriendAcceptRequest, error) {
+func (r *RoleFriend) ReqFriendAcceptRequest(ctx context.Context, req *pb.ReqFriendAcceptRequest) (*pb.RspFriendAcceptRequest, error) {
 	successIDs, err := callFriendBatch(ctx, "accept_request", r.RoleID, req.FromIds)
 	rsp := &pb.RspFriendAcceptRequest{}
 	if len(successIDs) == 0 {
@@ -56,26 +57,26 @@ func (r *RoleMain) ReqFriendAcceptRequest(ctx context.Context, req *pb.ReqFriend
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
-		r.notifyPlayer(ctx, id, &pb.NotifyNewFriend{
+		lib.PublishRoleNotify(ctx, id, &pb.NotifyNewFriend{
 			FriendInfo: &pb.PFriendInfo{PlayerInfo: GetRolePublic(ctx, r.RoleID)},
 		})
 	}
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqFriendRejectRequest(ctx context.Context, req *pb.ReqFriendRejectRequest) (*pb.RspFriendRejectRequest, error) {
+func (r *RoleFriend) ReqFriendRejectRequest(ctx context.Context, req *pb.ReqFriendRejectRequest) (*pb.RspFriendRejectRequest, error) {
 	_, err := callFriendBatch(ctx, "reject_request", r.RoleID, req.FromIds)
 	return &pb.RspFriendRejectRequest{}, err
 }
 
-func (r *RoleMain) ReqFriendRemove(ctx context.Context, req *pb.ReqFriendRemove) (*pb.RspFriendRemove, error) {
+func (r *RoleFriend) ReqFriendRemove(ctx context.Context, req *pb.ReqFriendRemove) (*pb.RspFriendRemove, error) {
 	err := callFriendWrite(ctx, "remove_friend", r.RoleID, req.TargetId)
 	return &pb.RspFriendRemove{}, err
 }
 
 // ---- read operations ----
 
-func (r *RoleMain) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (*pb.RspFriendList, error) {
+func (r *RoleFriend) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (*pb.RspFriendList, error) {
 	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
 
 	friendIDs, err := callFriendList(ctx, r.RoleID)
@@ -100,7 +101,7 @@ func (r *RoleMain) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (*p
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendApplyList) (*pb.RspFriendApplyList, error) {
+func (r *RoleFriend) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendApplyList) (*pb.RspFriendApplyList, error) {
 	data, err := callFriendData(ctx, r.RoleID)
 	if err != nil {
 		return &pb.RspFriendApplyList{}, nil
@@ -132,7 +133,7 @@ func (r *RoleMain) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendAppl
 	return rsp, nil
 }
 
-func (r *RoleMain) ReqFriendSearchPlayer(ctx context.Context, req *pb.ReqFriendSearchPlayer) (*pb.RspFriendSearchPlayer, error) {
+func (r *RoleFriend) ReqFriendSearchPlayer(ctx context.Context, req *pb.ReqFriendSearchPlayer) (*pb.RspFriendSearchPlayer, error) {
 	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
 
 	publics := []RolePublicState{}
@@ -239,32 +240,6 @@ func callFriendList(ctx context.Context, playerID int64) ([]friendEntryJSON, err
 	}
 	return fd.Friends, nil
 }
-
-// ---- cross-actor notification ----
-
-func (r *RoleMain) notifyPlayer(ctx context.Context, targetID int64, msg proto.Message) {
-	pid, err := lib.GetRoleActor(ctx, targetID)
-	if err != nil {
-		gxylog.Warn(ctx, "notifyPlayer: get actor failed", gxylog.Num("target", targetID), gxylog.Err(err))
-		return
-	}
-	if pid == nil {
-		return
-	}
-	gxyactor.Send(ctx, pid, msg)
-}
-
-func (r *RoleMain) NotifyFriendNewRequest(ctx context.Context, msg *pb.NotifyFriendNewRequest) error {
-	r.SendClient(ctx, msg)
-	return nil
-}
-
-func (r *RoleMain) NotifyNewFriend(ctx context.Context, msg *pb.NotifyNewFriend) error {
-	r.SendClient(ctx, msg)
-	return nil
-}
-
-// ---- relation check ----
 
 type relation int32
 

@@ -231,20 +231,6 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 }
 
 func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
-	switch m := msg.(type) {
-	case *pb.NotifyChatChannel, *pb.NotifyChatSystem, *pb.NotifyChatPrivate:
-		r.SendClient(ctx, m.(proto.Message))
-		return nil
-	case *pb.NotifyGuildInfo:
-		if r.Guild.GuildID == 0 && m.Guild != nil {
-			r.Guild.SetGuildID(ctx, m.Guild.Id)
-		}
-		r.SendClient(ctx, m)
-		return nil
-	case *pb.NotifyGuildBasic, *pb.NotifyGuildKicked, *pb.NotifyGuildApply:
-		r.SendClient(ctx, m.(proto.Message))
-		return nil
-	}
 	_, err := r.AutoHandleMsg(ctx, msg)
 	return err
 }
@@ -337,7 +323,7 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 	gxylog.Debug(ctx, "save mod", gxylog.Str("table", modState.(tabler).TableName()))
 
 	// 第一层：Redis 归属检查
-	key := getRoleLocateKey(r.RoleID)
+	key := lib.GetRoleLocateKey(r.RoleID)
 	owner, err := gxyredis.Redis().Get(ctx, key).Result()
 	if err == redis.Nil || owner == "" {
 		gxylog.Warn(ctx, "actor not claimed in redis, skip save", gxylog.Num("roleID", r.RoleID))
@@ -400,10 +386,6 @@ func (r *RoleMain) save(ctx context.Context) error {
 	return nil
 }
 
-func getRoleLocateKey(roleID int64) string {
-	return fmt.Sprintf("gserver:locate:node:actor:role:%d", roleID)
-}
-
 func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 	if r.session == nil {
 		return
@@ -454,7 +436,6 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	r.Timer().Cancel(ctx, SignleAliveOnce.Name)
 	r.state = RoleStateLogined
 	r.Public.IsOnline = true
-	lib.RegisterPlayer(r.RoleID, r.Self())
 	if err := r.afterRoleLogin(ctx); err != nil {
 		return nil, err
 	}
@@ -530,7 +511,6 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
 		r.Stop(errors.New("single alive timeout"))
 	})
-	lib.UnregisterPlayer(r.RoleID)
 	r.state = RoleStateLogout
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
@@ -557,8 +537,19 @@ func (r *RoleMain) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-// GetBag 实现 roleSender 接口，供兄弟模块跨模块访问背包
-func (r *RoleMain) GetBag() *RoleBag { return r.Bag }
-
-// GetBasic 实现 roleSender 接口，供兄弟模块跨模块访问基础信息
-func (r *RoleMain) GetBasic() *RoleBasic { return r.Basic }
+func (r *RoleMain) OnNotifyMessage(ctx context.Context, notify *lib.OnRoleNotifyMsg) error {
+	msg := notify.Msg
+	if msg == nil {
+		return nil
+	}
+	switch m := msg.(type) {
+	case *pb.NotifyGuildInfo:
+		if r.Guild.GuildID == 0 && m.Guild != nil {
+			r.Guild.SetGuildID(ctx, m.Guild.Id)
+		}
+	case *pb.NotifyGuildKicked:
+		r.Guild.SetGuildID(ctx, 0)
+	}
+	r.SendClient(ctx, msg)
+	return nil
+}
