@@ -5,23 +5,23 @@ import (
 )
 
 type BotState struct {
-	Inventory map[int32]int64         // prop_id -> count
-	Tasks     map[int32]int32         // task_id -> status (0=progress, 1=claimable, 2=finished)
-	Plots     map[int32]*PlotState    // plot_id -> plot state
-	Flowers   map[int32]*FlowerState  // flower_id -> flower state
+	Inventory map[int32]int64        // prop_id -> count
+	Tasks     map[int32]int32        // task_id -> status (0=progress, 1=claimable, 2=finished)
+	Plots     map[int32]*PlotState   // plot_id -> plot state
+	Flowers   map[int32]*FlowerState // flower_id -> flower state
 }
 
 type PlotState struct {
 	PlotID       int32
 	FlowerID     int32
-	State        int32  // 0=empty, 1=planted, 2=growing, 3=harvestable
+	State        int32 // 0=empty, 1=planted, 2=growing, 3=harvestable
 	HarvestCount int32
 	StateTime    int64
 }
 
 type FlowerState struct {
 	FlowerID  int32
-	State     int32  // 0=unlocked, 1=breeding, 2=breed_done, 3=harvested
+	State     int32 // 0=unlocked, 1=breeding, 2=breed_done, 3=harvested
 	StateTime int64
 	Level     int32
 }
@@ -101,4 +101,9 @@ func (s *BotState) UpdateFlowers(flowers []*pb.PFlowerInfo) {
 func (s *BotState) IsBreedDone(flowerID int32) bool {
 	f, ok := s.Flowers[flowerID]
 	return ok && f.State >= 2 // BREED_DONE or HARVESTED
+}
+
+func (s *BotState) IsFlowerBreeding(flowerID int32) bool {
+	f, ok := s.Flowers[flowerID]
+	return ok && f.State == 1 // BREEDING
 }

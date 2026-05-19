@@ -120,9 +120,12 @@ func (a *BotActions) pullInitialState() {
 
 func (a *BotActions) Breed(args map[string]interface{}) error {
 	flowerID := getIntArg(args, "flower_id")
-	_, err := a.client.RequestWithResponse(&pb.ReqFlowerStartBreed{FlowerId: flowerID})
+	rsp, err := a.client.RequestWithResponse(&pb.ReqFlowerStartBreed{FlowerId: flowerID})
 	if err != nil {
 		return fmt.Errorf("start_breed flower=%d: %w", flowerID, err)
+	}
+	if f, ok := rsp.(*pb.RspFlowerStartBreed); ok {
+		a.state.UpdateFlowers([]*pb.PFlowerInfo{f.Flower})
 	}
 	return nil
 }
@@ -154,6 +157,12 @@ func (a *BotActions) EnsureBreed(args map[string]interface{}) error {
 	flowerID := getIntArg(args, "flower_id")
 	if a.state.IsBreedDone(flowerID) {
 		return nil
+	}
+	// If already breeding, just wait and finish
+	if a.state.IsFlowerBreeding(flowerID) {
+		a.log.Printf("flower %d already breeding, waiting for completion", flowerID)
+		time.Sleep(10*time.Second + time.Duration(rand.Int63n(3))*time.Second)
+		return a.FinishBreed(args)
 	}
 	if err := a.Breed(args); err != nil {
 		return err
