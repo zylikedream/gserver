@@ -1,7 +1,6 @@
 package endpoint
 
 import (
-	"bytes"
 	"net"
 
 	"gserver/core/gxynet/message"
@@ -11,7 +10,6 @@ import (
 type TcpEndpoint struct {
 	conn net.Conn
 	proc processor.Processor
-	buf  *bytes.Buffer
 	data any
 }
 
@@ -19,20 +17,17 @@ func NewTcpEndPoint(conn net.Conn, proc processor.Processor) *TcpEndpoint {
 	return &TcpEndpoint{
 		proc: proc,
 		conn: conn,
-		buf:  &bytes.Buffer{},
 	}
 }
 
 func (t *TcpEndpoint) DecodeMsg(data []byte) (*message.Message, int, error) {
-	t.buf.Write(data)
-	pkgLen, msg, err := t.proc.Decode(t.buf.Bytes())
+	pkgLen, msg, err := t.proc.Decode(data)
 	if err != nil {
 		return nil, 0, err
 	}
 	if msg == nil {
 		return nil, 0, nil
 	}
-	t.buf.Next(int(pkgLen))
 	return msg, int(pkgLen), nil
 }
 

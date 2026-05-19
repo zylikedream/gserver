@@ -89,8 +89,9 @@ func (t *TcpConnector) OnTraffic(c gnet.Conn) gnet.Action {
 		gxylog.Error(context.Background(), "get traffic data failed", gxylog.Err(err))
 		return gnet.Close
 	}
+	dataLen := 0
 	for {
-		msg, len, err := endPoint.DecodeMsg(data)
+		msg, pkgLen, err := endPoint.DecodeMsg(data)
 		if err != nil {
 			gxylog.Error(context.Background(), "decode msg failed", gxylog.Err(err), gxylog.Any("rawData", data))
 			return gnet.Close
@@ -98,12 +99,21 @@ func (t *TcpConnector) OnTraffic(c gnet.Conn) gnet.Action {
 		if msg == nil {
 			break
 		}
-		_, err = c.Discard(len)
-		if err != nil {
+		if pkgLen <= 0 || pkgLen > len(data) {
+			gxylog.Error(context.Background(), "invalid decoded package length",
+				gxylog.Num("pkgLen", pkgLen),
+				gxylog.Num("dataLen", len(data)),
+				gxylog.Any("rawData", data))
 			return gnet.Close
 		}
-		data = data[len:]
+		dataLen += pkgLen
+		data = data[pkgLen:]
 		t.Handler.OnMessage(endPoint, msg)
+	}
+	if dataLen > 0 {
+		if _, err = c.Discard(dataLen); err != nil {
+			return gnet.Close
+		}
 	}
 	return gnet.None
 }
