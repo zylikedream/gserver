@@ -7,6 +7,7 @@ import (
 
 	"hy_client/pb"
 	"hy_client/pkg/client"
+
 	"google.golang.org/protobuf/proto"
 )
 
@@ -155,13 +156,17 @@ func (a *BotActions) FinishBreed(args map[string]interface{}) error {
 
 func (a *BotActions) EnsureBreed(args map[string]interface{}) error {
 	flowerID := getIntArg(args, "flower_id")
-	if a.state.IsBreedDone(flowerID) {
-		return nil
+	f := a.state.Flowers[flowerID]
+	if f == nil {
+		return fmt.Errorf("flower %d not found", flowerID)
 	}
-	// If already breeding, just wait and finish
-	if a.state.IsFlowerBreeding(flowerID) {
-		a.log.Printf("flower %d already breeding, waiting for completion", flowerID)
+	switch f.State {
+	case int32(pb.FlowerState_FLOWER_HARVESTED):
+		return nil
+	case int32(pb.FlowerState_FLOWER_BREEDING):
 		time.Sleep(10*time.Second + time.Duration(rand.Int63n(3))*time.Second)
+		return a.FinishBreed(args)
+	case int32(pb.FlowerState_FLOWER_BREED_DONE):
 		return a.FinishBreed(args)
 	}
 	if err := a.Breed(args); err != nil {
@@ -185,9 +190,12 @@ func (a *BotActions) Plant(args map[string]interface{}) error {
 	if len(plotIDs) == 0 {
 		return nil
 	}
-	_, err := a.client.RequestWithResponse(&pb.ReqPlotPlant{PlotIds: plotIDs, FlowerId: flowerID})
+	rsp, err := a.client.RequestWithResponse(&pb.ReqPlotPlant{PlotIds: plotIDs, FlowerId: flowerID})
 	if err != nil {
 		return fmt.Errorf("plant plots=%v flower=%d: %w", plotIDs, flowerID, err)
+	}
+	if p, ok := rsp.(*pb.RspPlotPlant); ok {
+		a.state.UpdatePlots(p.Plots)
 	}
 	return nil
 }
@@ -197,9 +205,12 @@ func (a *BotActions) Water(args map[string]interface{}) error {
 	if len(plotIDs) == 0 {
 		return nil
 	}
-	_, err := a.client.RequestWithResponse(&pb.ReqPlotWater{PlotIds: plotIDs})
+	rsp, err := a.client.RequestWithResponse(&pb.ReqPlotWater{PlotIds: plotIDs})
 	if err != nil {
 		return fmt.Errorf("water plots=%v: %w", plotIDs, err)
+	}
+	if w, ok := rsp.(*pb.RspPlotWater); ok {
+		a.state.UpdatePlots(w.Plots)
 	}
 	return nil
 }
