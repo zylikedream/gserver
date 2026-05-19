@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
@@ -159,6 +161,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		return gerror.Newf("send rsp error, err: %v", err)
 	}
 	SessionMgr().Add(roleID, s.Self())
+	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
 	s.state = StateHandshake
 	s.Span().SetAttributes(
 		attribute.String("accountUid", firstpacket.AccountUid),
@@ -228,6 +231,10 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	case *pb.RspAccountLogin:
 		s.state = StateLogin
 	}
+	if s.state == StateDisconnected {
+		gxylog.Debug(ctx, "session disconnected, skip send", gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
+		return nil
+	}
 	gxylog.Debug(ctx, "send client msg", gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
 	if err := s.endpoint.SendMsg(pbmsg); err != nil {
 		return gerror.Wrap(err, "send rsp error, err")
@@ -240,6 +247,8 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 func (s *Session) Terminate(ctx context.Context, err error) {
 	gxylog.Debug(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
 	SessionMgr().Remove(s.sessionInfo.RoleID)
+	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
+	gxymetrics.SessionDisconnects.WithLabelValues(sessionDisconnectReason(err)).Inc()
 	// 关闭网络连接
 	if s.endpoint != nil {
 		s.endpoint.SetData(nil)
@@ -254,6 +263,31 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 	}
 	s.state = StateDisconnected
 
+}
+
+func sessionDisconnectReason(err error) string {
+	if err == nil {
+		return "unknown"
+	}
+	reason := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(reason, "client account logout"):
+		return "client_logout"
+	case strings.Contains(reason, "client idle timeout"):
+		return "client_idle_timeout"
+	case strings.Contains(reason, "server idle timeout"):
+		return "server_idle_timeout"
+	case strings.Contains(reason, "role terminated"):
+		return "role_terminated"
+	case strings.Contains(reason, "multi login"):
+		return "multi_login"
+	case strings.Contains(reason, "gateway service stop"):
+		return "service_stop"
+	case strings.Contains(reason, "conn closed"):
+		return "conn_closed"
+	default:
+		return "error"
+	}
 }
 
 // updateClientLastActive 更新最后活跃时间

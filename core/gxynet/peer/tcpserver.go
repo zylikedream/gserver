@@ -114,11 +114,10 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 func (t *TcpServer) OnClose(c gnet.Conn, err error) gnet.Action {
 	gxymetrics.TcpConnections.WithLabelValues("server").Dec()
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
-	t.Handler.OnClose(endPoint, err)
 	if err != nil && !errors.Is(err, io.EOF) {
-		t.Handler.OnClose(endPoint, nil)
-	} else {
 		t.Handler.OnClose(endPoint, err)
+	} else {
+		t.Handler.OnClose(endPoint, nil)
 	}
 	return gnet.None
 }

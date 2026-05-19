@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gserver/core/gxylog"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxymodule"
 	"gserver/core/gxyredis"
 	"gserver/core/gxyregistery"
@@ -384,6 +385,10 @@ func (g *activatorManager) spawnActor(ctx context.Context, node string, kind str
 }
 
 func (g *activatorManager) getActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
+	result := "error"
+	defer func() {
+		gxymetrics.ActorLocate.WithLabelValues(kind, result).Inc()
+	}()
 	key := getActorLocateKey(kind, id)
 	nodeName, err := gxyredis.Redis().Get(ctx, key).Result()
 	if err != nil && err != redis.Nil {
@@ -394,13 +399,16 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 		// Redis 中存的是 nodeInstanceName（game-2@uid），直接传给 Consul 查地址
 		nodeHost := gxyservice.ServiceApp().GetAddressByNodeName(ctx, kind, nodeName)
 		if nodeHost != "" {
+			result = "hit"
 			return actor.NewPID(nodeHost, id), nil
 		}
 		// 节点已死 → fallback spawn（下面继续走）
+		result = "node_dead"
 		gxylog.Warn(ctx, "node not alive, re-spawning", gxylog.Str("node", nodeName), gxylog.Str("actor", key))
 	}
 
 	if !spawn {
+		result = "not_found"
 		return nil, gerror.Newf("actor kind:%s, id:%s not found", kind, id)
 	}
 
@@ -408,7 +416,14 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 	if serviceInfo == nil || serviceInfo.NodeHost == "" {
 		return nil, gerror.Newf("find actor node failed, kind: %s, id: %s", kind, id)
 	}
-	return g.spawnActor(ctx, serviceInfo.NodeHost, kind, id)
+	pid, err := g.spawnActor(ctx, serviceInfo.NodeHost, kind, id)
+	if err != nil {
+		return nil, err
+	}
+	if result != "node_dead" {
+		result = "miss"
+	}
+	return pid, nil
 }
 
 func (g *activatorManager) GetActorCount(kind string) int {

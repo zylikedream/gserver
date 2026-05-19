@@ -35,4 +35,55 @@ var (
 		Help:    "Redis request duration",
 		Buckets: prometheus.DefBuckets,
 	}, []string{"cmd"})
+
+	OnlinePlayers = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "online_players",
+		Help: "Current online players on this node",
+	})
+
+	ClientRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "client_requests_total",
+		Help: "Total client protocol requests processed",
+	}, []string{"msg_id", "msg_name", "result"})
+
+	ClientRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "client_request_duration_seconds",
+		Help:    "Client protocol request handling duration",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"msg_id", "msg_name", "result"})
+
+	GatewayPackets = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "gateway_packets_total",
+		Help: "Total gateway packets received by type and result",
+	}, []string{"type", "result"})
+
+	SessionDisconnects = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "session_disconnect_total",
+		Help: "Total session disconnects by reason",
+	}, []string{"reason"})
+
+	RoleLogins = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "role_login_total",
+		Help: "Total role logins by result",
+	}, []string{"result"})
+
+	RoleLogouts = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "role_logout_total",
+		Help: "Total role logouts by reason",
+	}, []string{"reason"})
+
+	RoleNotifyPublish = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "role_notify_publish_total",
+		Help: "Total RoleNotify publish attempts",
+	}, []string{"msg_type", "result", "target"})
+
+	RoleNotifyConsume = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "role_notify_consume_total",
+		Help: "Total RoleNotify consume attempts",
+	}, []string{"msg_type", "result"})
+
+	ActorLocate = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "actor_locate_total",
+		Help: "Total actor locate attempts",
+	}, []string{"kind", "result"})
 )

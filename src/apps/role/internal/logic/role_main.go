@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxymodule"
+	"gserver/core/gxynet/codec"
 	"gserver/core/gxypgx"
 	"gserver/core/gxyredis"
 	"gserver/core/gxytimer"
@@ -17,6 +19,7 @@ import (
 	"gserver/src/lib"
 	"gserver/src/pkg/gameconfig"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -34,6 +37,7 @@ const (
 	PERSIST_INTERVAL       = 600 * time.Second
 	SINGLE_ALIVE_INTERVAL  = 10 * time.Minute
 	PUBLIC_UPDATE_INTERVAL = 8 * time.Minute
+	SLOW_CLIENT_REQUEST    = 200 * time.Millisecond
 )
 
 var (
@@ -77,6 +81,7 @@ type roleModules struct {
 	GM            *RoleGM
 	Chat          *RoleChat
 	Guild         *RoleGuild
+	Friend        *RoleFriend
 }
 
 type RoleMain struct {
@@ -237,10 +242,30 @@ func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
 
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
 	id := climsg.Id
+	start := time.Now()
+	msgID := id
+	msgName := "unknown"
+	result := "error"
+	defer func() {
+		gxymetrics.ClientRequests.WithLabelValues(msgID, msgName, result).Inc()
+		cost := time.Since(start)
+		gxymetrics.ObserveWithTrace(ctx, gxymetrics.ClientRequestDuration.WithLabelValues(msgID, msgName, result), cost.Seconds())
+		if cost >= SLOW_CLIENT_REQUEST {
+			gxylog.Warn(ctx, "slow client request",
+				gxylog.Str("msg_id", msgID),
+				gxylog.Str("msg_name", msgName),
+				gxylog.Str("result", result),
+				gxylog.Str("trace_id", gxymetrics.TraceIDFromContext(ctx)),
+				gxylog.Num("cost_ms", cost.Milliseconds()),
+			)
+		}
+	}()
+
 	pbmsg, err := anypb.UnmarshalNew(climsg.GetMsg(), proto.UnmarshalOptions{})
 	if err != nil {
 		return nil, gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
 	}
+	msgID, msgName = clientMessageMetricLabels(id, pbmsg)
 	r.Span().SetName(fmt.Sprintf("%T", pbmsg))
 	r.Span().SetAttributes(
 		attribute.Int64("roleID", r.RoleID),
@@ -248,29 +273,46 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	r.sessionActiveTime = time.Now()
 	if !canHandleMsg(r.state, pbmsg) {
 		gxylog.Warn(ctx, "role recv msg in wrong state, ignore", gxylog.Num("state", int(r.state)), gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
+		result = "ignored"
 		return nil, nil
 	}
 	var rsp proto.Message
 	res, err := r.DoCallMsgHandler(ctx, pbmsg)
 	if err != nil {
+		result = "error"
 		res = &pb.Ack{
 			Code:   1,
 			Id:     id,
 			Reason: err.Error(),
 		}
+	} else {
+		result = "ok"
 	}
 	if res != nil {
 		pbmsg, ok := res.(proto.Message)
 		if !ok {
+			result = "error"
 			return nil, gerror.Wrapf(err, "res is not proto.Message, roleID: %d", r.RoleID)
 		}
 		svrMsg, err := r.newServerMsg(pbmsg)
 		if err != nil {
+			result = "error"
 			return nil, gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 		}
 		rsp = svrMsg
 	}
 	return rsp, nil
+}
+
+func clientMessageMetricLabels(id string, msg proto.Message) (string, string) {
+	meta := codec.MessageMetaByMsg(msg)
+	if meta == nil {
+		return id, string(msg.ProtoReflect().Descriptor().Name())
+	}
+	if meta.ID != "" {
+		id = meta.ID
+	}
+	return id, meta.Name
 }
 
 func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
@@ -412,7 +454,14 @@ func (r *RoleMain) SubscribeRoleEvent(eventType event.EventType, handler func(ct
 	return r.eventBus.Subscribe(eventType, handler)
 }
 
-func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (*pb.RspAccountLogin, error) {
+func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (rsp *pb.RspAccountLogin, err error) {
+	result := "ok"
+	defer func() {
+		if err != nil {
+			result = "error"
+		}
+		gxymetrics.RoleLogins.WithLabelValues(result).Inc()
+	}()
 	newSession := r.Sender()
 	if r.state == RoleStateLogined && !gxyactor.PidEqual(r.session, newSession) { // 表示重复登录
 		// 断开旧连接
@@ -500,6 +549,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	if r.state == RoleStateLogout {
 		return nil
 	}
+	gxymetrics.RoleLogouts.WithLabelValues(roleLogoutReason(reason)).Inc()
 	r.Timer().Cancel(ctx, SessionAliveCheckTick.Name)
 	r.session = nil
 	r.Basic.LogoutTm = time.Now()
@@ -518,6 +568,20 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	}
 	gxylog.Debug(ctx, "role logout", gxylog.Str("reason", reason))
 	return nil
+}
+
+func roleLogoutReason(reason string) string {
+	reason = strings.ToLower(reason)
+	switch {
+	case strings.Contains(reason, "client account logout"):
+		return "client_logout"
+	case strings.Contains(reason, "session alive timeout"):
+		return "session_alive_timeout"
+	case strings.Contains(reason, "session terminated"):
+		return "session_terminated"
+	default:
+		return "unknown"
+	}
 }
 
 func (r *RoleMain) Terminate(ctx context.Context, err error) {

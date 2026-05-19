@@ -28,3 +28,4 @@ graphify-out/
 .wolf/
 __debug_*
 .letta/
+.codegraph

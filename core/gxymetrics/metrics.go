@@ -53,6 +53,16 @@ func (m *metricsApp) OnModInit(ctx context.Context) error {
 		ActorMessageDuration,
 		DBQueryDuration,
 		RedisRequestDuration,
+		OnlinePlayers,
+		ClientRequests,
+		ClientRequestDuration,
+		GatewayPackets,
+		SessionDisconnects,
+		RoleLogins,
+		RoleLogouts,
+		RoleNotifyPublish,
+		RoleNotifyConsume,
+		ActorLocate,
 	)
 	runtime.SetBlockProfileRate(10000000) // 只采样 ≥10ms 的同步阻塞
 	runtime.SetMutexProfileFraction(100)  // 采样 1% 的锁竞争
@@ -63,7 +73,9 @@ func (m *metricsApp) OnModStart(ctx context.Context) error {
 	if !m.conf.Enabled {
 		return nil
 	}
-	http.Handle(m.conf.Path, promhttp.Handler())
+	http.Handle(m.conf.Path, promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+	}))
 	go func() {
 		if err := http.ListenAndServe(m.conf.Addr, nil); err != nil {
 			gxylog.Error(ctx, "metrics server error", gxylog.Err(err))
