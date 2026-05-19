@@ -53,6 +53,10 @@ func getIntSliceArg(args map[string]interface{}, key string) []int32 {
 				switch n := item.(type) {
 				case int:
 					result[i] = int32(n)
+				case int32:
+					result[i] = n
+				case int64:
+					result[i] = int32(n)
 				case float64:
 					result[i] = int32(n)
 				}
