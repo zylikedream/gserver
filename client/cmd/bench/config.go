@@ -10,17 +10,52 @@ import (
 )
 
 type Config struct {
-	Addr            string        `yaml:"addr"`
-	Bots            int           `yaml:"bots"`
-	AccountPattern  string        `yaml:"account_pattern"`
-	Scenario        []Action      `yaml:"scenario"`
-	ReportInterval  time.Duration `yaml:"report_interval"`
+	Addr           string           `yaml:"addr"`
+	AccountPattern string           `yaml:"account_pattern"`
+	TotalBots      int              `yaml:"total_bots"`
+	StartupRate    int              `yaml:"startup_rate"`
+	ReportInterval time.Duration    `yaml:"report_interval"`
+	LogFile        string           `yaml:"log_file"`
+	BotTypes       []BotTypeConfig  `yaml:"bot_types"`
+	ChatMixin      *ChatMixinConfig `yaml:"chat_mixin,omitempty"`
 }
 
-type Action struct {
-	Msg    string                 `yaml:"msg"`
-	Fields map[string]interface{} `yaml:"fields,omitempty"`
-	Delay  DurationRange          `yaml:"delay"`
+type BotTypeConfig struct {
+	ID     string       `yaml:"id"`
+	Weight int          `yaml:"weight"`
+	Script []ScriptStep `yaml:"script"`
+}
+
+type ScriptStep struct {
+	Do   string
+	Args map[string]interface{}
+}
+
+func (s *ScriptStep) UnmarshalYAML(value *yaml.Node) error {
+	var m map[string]interface{}
+	if err := value.Decode(&m); err != nil {
+		return err
+	}
+	for k, v := range m {
+		s.Do = k
+		if v == nil {
+			s.Args = map[string]interface{}{}
+		} else {
+			args, ok := v.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("script step %q: args must be a map", k)
+			}
+			s.Args = args
+		}
+		return nil
+	}
+	return fmt.Errorf("empty script step")
+}
+
+type ChatMixinConfig struct {
+	Chance   float64  `yaml:"chance"`
+	Channel  int32    `yaml:"channel"`
+	Messages []string `yaml:"messages"`
 }
 
 type DurationRange struct {
@@ -66,26 +101,62 @@ func (d DurationRange) Random() time.Duration {
 func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read config: %v", err)
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %v", err)
+		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	if cfg.Addr == "" {
 		return nil, fmt.Errorf("addr is required")
 	}
-	if cfg.Bots <= 0 {
-		return nil, fmt.Errorf("bots must be > 0")
-	}
 	if cfg.AccountPattern == "" {
 		return nil, fmt.Errorf("account_pattern is required")
 	}
-	if len(cfg.Scenario) == 0 {
-		return nil, fmt.Errorf("scenario is required")
+	if cfg.TotalBots <= 0 {
+		return nil, fmt.Errorf("total_bots must be > 0")
+	}
+	if len(cfg.BotTypes) == 0 {
+		return nil, fmt.Errorf("bot_types is required")
+	}
+	totalWeight := 0
+	for _, bt := range cfg.BotTypes {
+		if bt.Weight <= 0 {
+			return nil, fmt.Errorf("bot_type %q: weight must be > 0", bt.ID)
+		}
+		if len(bt.Script) == 0 {
+			return nil, fmt.Errorf("bot_type %q: script is empty", bt.ID)
+		}
+		totalWeight += bt.Weight
+	}
+	if totalWeight <= 0 {
+		return nil, fmt.Errorf("total weight must be > 0")
 	}
 	if cfg.ReportInterval <= 0 {
 		cfg.ReportInterval = 5 * time.Second
 	}
 	return &cfg, nil
+}
+
+func (cfg *Config) BotTypeFor(index int) *BotTypeConfig {
+	totalWeight := 0
+	for _, bt := range cfg.BotTypes {
+		totalWeight += bt.Weight
+	}
+	pos := index % totalWeight
+	for _, bt := range cfg.BotTypes {
+		pos -= bt.Weight
+		if pos < 0 {
+			return &BotTypeConfig{
+				ID:     bt.ID,
+				Weight: bt.Weight,
+				Script: bt.Script,
+			}
+		}
+	}
+	return &BotTypeConfig{
+		ID:     cfg.BotTypes[0].ID,
+		Weight: cfg.BotTypes[0].Weight,
+		Script: cfg.BotTypes[0].Script,
+	}
 }

@@ -1,16 +1,61 @@
 addr: "127.0.0.1:11086"
-bots: 1000
 account_pattern: "loadtest_%d"
-scenario:
-  - msg: ReqBasicInfo
-    delay: 5s
-  - msg: ReqFriendList
-    delay: 2s
-  - msg: ReqChatSendChannel
-    fields:
-      channel_type: 1
-      content: "hello everyone"
-    delay: 3s
-  - msg: ReqFlowerInfo
-    delay: 2s
+total_bots: 1000
+startup_rate: 50
 report_interval: 5s
+
+bot_types:
+  - id: newbie
+    weight: 40
+    script:
+      - login: {}
+      - wait_range: {min: 0, max: 5}
+      - breed: {flower_id: 101}
+      - wait_for_breed: {extra_max: 2}
+      - finish_breed: {flower_id: 101}
+      - claim_task: {task_id: 1003}
+      - plant: {plot_ids: [1], flower_id: 101}
+      - claim_task: {task_id: 1004}
+      - water: {plot_ids: [1]}
+      - claim_task: {task_id: 1005}
+      - wait_for_harvest: {extra_max: 2}
+      - harvest: {plot_ids: [1]}
+      - claim_task: {task_id: 1006}
+      - claim_task: {task_id: 1007}
+      - loop:
+          count: 0
+          script:
+            - plant_cycle: {plot_max: 3}
+            - wait_range: {min: 3, max: 8}
+
+  - id: planter
+    weight: 25
+    script:
+      - login: {}
+      - ensure_breed: {flower_id: 101}
+      - loop:
+          count: 0
+          script:
+            - plant_cycle: {plot_max: 3}
+            - wait_range: {min: 3, max: 8}
+
+  - id: order
+    weight: 15
+    script:
+      - login: {}
+      - ensure_breed: {flower_id: 101}
+      - loop:
+          count: 0
+          script:
+            - check_orders: {}
+            - submit_orders: {}
+            - plant_cycle: {plot_max: 2}
+            - wait_range: {min: 5, max: 15}
+
+chat_mixin:
+  chance: 0.1
+  channel: 1
+  messages:
+    - "大家好"
+    - "加油种花"
+    - "hello ~"
