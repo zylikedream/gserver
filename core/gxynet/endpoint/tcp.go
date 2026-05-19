@@ -2,7 +2,6 @@ package endpoint
 
 import (
 	"bytes"
-	"context"
 	"net"
 
 	"gserver/core/gxynet/message"
@@ -59,7 +58,7 @@ func (t *TcpEndpoint) sendRaw(msg *message.Message) error {
 	return nil
 }
 
-func (t *TcpEndpoint) Close(ctx context.Context, err error) {
+func (t *TcpEndpoint) Close() {
 	t.conn.Close()
 }
 

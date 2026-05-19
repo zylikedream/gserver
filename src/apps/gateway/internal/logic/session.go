@@ -157,8 +157,8 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		AccountUid: firstpacket.AccountUid,
 		RoleId:     roleID,
 	}
-	if err := s.endpoint.SendMsg(rsp); err != nil {
-		return gerror.Newf("send rsp error, err: %v", err)
+	if err := s.sendClientMsg(ctx, rsp); err != nil {
+		return err
 	}
 	SessionMgr().Add(roleID, s.Self())
 	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
@@ -236,10 +236,19 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 		return nil
 	}
 	gxylog.Debug(ctx, "send client msg", gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
-	if err := s.endpoint.SendMsg(pbmsg); err != nil {
-		return gerror.Wrap(err, "send rsp error, err")
+	if err := s.sendClientMsg(ctx, pbmsg); err != nil {
+		return err
 	}
 
+	return nil
+}
+
+func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
+	if err := s.endpoint.SendMsg(msg); err != nil {
+		gxylog.Debug(ctx, "send client msg failed, stop session", gxylog.Err(err))
+		s.Stop(fmt.Errorf("conn closed: send client msg failed: %w", err))
+		return nil
+	}
 	return nil
 }
 
@@ -252,7 +261,7 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 	// 关闭网络连接
 	if s.endpoint != nil {
 		s.endpoint.SetData(nil)
-		s.endpoint.Conn().Close()
+		s.endpoint.Close()
 	}
 	if s.sessionInfo.RolePid != nil {
 		s.Actx.Unwatch(s.sessionInfo.RolePid)
