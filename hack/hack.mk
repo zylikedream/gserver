@@ -31,6 +31,41 @@ service: cli.install
 	@gf gen service
 
 
+# Build, load into kind, apply K8s manifests, and rollout restart all services.
+# Usage: make deploy-k8s
+.PHONY: deploy-k8s
+deploy-k8s:
+	@echo "=== Building docker image ==="
+	docker build -f deploy/Dockerfile -t game-server:latest .
+	@echo ""
+	@echo "=== Loading image into kind ==="
+	kind load docker-image game-server:latest
+	@echo ""
+	@echo "=== Applying K8s manifests ==="
+	kubectl apply -f deploy/k8s/role-statefulset.yaml
+	kubectl apply -f deploy/k8s/gate-deployment.yaml
+	kubectl apply -f deploy/k8s/chat-statefulset.yaml
+	kubectl apply -f deploy/k8s/friend-statefulset.yaml
+	kubectl apply -f deploy/k8s/guild-statefulset.yaml
+	@echo ""
+	@echo "=== Rolling restart ==="
+	kubectl rollout restart deployment/gate
+	kubectl rollout restart statefulset/role
+	kubectl rollout restart statefulset/chat
+	kubectl rollout restart statefulset/friend
+	kubectl rollout restart statefulset/guild
+	@echo ""
+	@echo "=== Waiting for rollouts to complete ==="
+	@for d in deployment/gate; do \
+		echo "Waiting for $$d..."; \
+		kubectl rollout status $$d --timeout=120s; \
+	done
+	@for s in statefulset/role statefulset/chat statefulset/friend statefulset/guild; do \
+		echo "Waiting for $$s..."; \
+		kubectl rollout status $$s --timeout=120s; \
+	done
+	@echo "=== Done ==="
+
 # Build docker image.
 .PHONY: image
 image: cli.install

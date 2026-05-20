@@ -22,6 +22,8 @@ nodes:
     extraPortMappings:
       - containerPort: 30086
         hostPort: 10086
+      - containerPort: 30999
+        hostPort: 30999
 ```
 
 > **坑：Kind 节点自带 HTTP_PROXY 环境变量。** `kind create cluster` 会自动继承宿主机的 HTTP_PROXY，指向 `127.0.0.1:7897`。如果你的代理没在运行，Pod 拉镜像会超时失败（ImagePullBackOff）。详见下文"镜像拉取"。
@@ -102,7 +104,7 @@ Grafana 不在 K8s 里跑，而是用本地 Docker Compose 启动，通过 datas
 datasources:
   - name: Prometheus-K8s
     type: prometheus
-    url: http://host.docker.internal:9999
+    url: http://host.docker.internal:30999
 ```
 
 > **坑：Linux/WSL2 上 Docker Engine 不支持 `host.docker.internal`。** Docker Desktop 自动注册了这个域名，但 Docker Engine on Linux 不会。两种解法：
@@ -111,7 +113,7 @@ datasources:
 
 ### Prometheus 查询
 
-K8s Prometheus 暴露在 `NodePort:30999`，可通过 `http://<node-ip>:30999` 访问。
+K8s Prometheus 暴露在 `NodePort:30999`，并通过 kind 的 `extraPortMappings` 映射到宿主机 `30999`，Grafana 通过 `http://host.docker.internal:30999` 访问。
 
 ## 注册中心：Redis
 
@@ -184,7 +186,32 @@ subjects:
 
 **解决：** 在 Prometheus 配置中添加 relabel 规则，补充 `app`、`node` 标签，使两个环境的 metrics 标签结构一致。
 
-### 5. ConfigMap 更新后服务未生效
+### 5. 镜像更新后如何重启服务
+
+构建新镜像 → 导入 Kind → 滚动重启：
+
+```bash
+# 1. 构建
+docker build -f deploy/Dockerfile -t gserver:latest .
+
+# 2. 导入 Kind
+kind load docker-image gserver:latest
+
+# 3. 滚动重启所有服务
+kubectl rollout restart deployment/gate -n gserver
+kubectl rollout restart statefulset/role -n gserver
+kubectl rollout restart statefulset/chat -n gserver
+kubectl rollout restart statefulset/friend -n gserver
+kubectl rollout restart statefulset/guild -n gserver
+
+# 4. 查看状态
+kubectl rollout status deployment/gate -n gserver
+kubectl rollout status statefulset/role -n gserver
+```
+
+> `rollout restart` 会触发 Pod 滚动更新，新 Pod 拉取镜像时因为 `imagePullPolicy: IfNotPresent` 会直接用本地已导入的版本。
+
+### 6. ConfigMap 更新后服务未生效
 
 **原因：** K8s ConfigMap 挂载到 Pod 后默认不会热更新。StatefulSet 需要手动重启 Pod：
 

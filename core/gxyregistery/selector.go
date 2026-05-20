@@ -73,7 +73,7 @@ type consistentHashSelector struct {
 	virtualNodeCount int
 }
 
-var consistentHashSelectorInstance = ConsistentHashSelectorWithVirtualNodes(10)
+var consistentHashSelectorInstance = ConsistentHashSelectorWithVirtualNodes(100)
 
 // ConsistentHashSelector 返回一致性哈希选择器实例
 func ConsistentHashSelector() ServiceSelector {

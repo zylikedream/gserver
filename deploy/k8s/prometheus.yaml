@@ -103,9 +103,10 @@ kind: Service
 metadata:
   name: prometheus-svc
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
     app: prometheus
   ports:
     - port: 9090
       targetPort: 9090
+      nodePort: 30999

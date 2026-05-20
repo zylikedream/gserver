@@ -1,16 +1,27 @@
 #!/bin/bash
-# Clean all data from Redis and PostgreSQL for local development.
-# Usage: PGPASSWORD='@zyc0131' bash hack/clean-data.sh
+# Clean all data from Redis and PostgreSQL.
+# Usage:
+#   PGPASSWORD='@zyc0131' bash hack/clean-data.sh          # 默认 local
+#   PGPASSWORD='@zyc0131' bash hack/clean-data.sh local    # local
+#   PGPASSWORD='@zyc0131' bash hack/clean-data.sh k8s      # k8s
 
 set -e
 
-# k8s环境
-# REDIS_DB=0
-# PG_DB="postgres"
-
-# local环境
-REDIS_DB=1
-PG_DB="gserver"
+ENV="${1:-local}"
+case "$ENV" in
+  local)
+    REDIS_DB=1
+    PG_DB="gserver"
+    ;;
+  k8s)
+    REDIS_DB=0
+    PG_DB="postgres"
+    ;;
+  *)
+    echo "Usage: $0 [local|k8s]" >&2
+    exit 1
+    ;;
+esac
 
 
 
