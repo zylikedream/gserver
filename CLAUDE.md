@@ -1,48 +1,52 @@
-# OpenWolf
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## OpenWolf
 
 @.wolf/OPENWOLF.md
 
-This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md every session. Check .wolf/cerebrum.md before generating code. Check .wolf/anatomy.md before reading files.
-
-
-# CLAUDE.md
-
-This file provides guidance to Claude Code when working with this repository.
+This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md every session.
 
 ## Build & Test
 
 ```bash
-go build ./...       # or: make build
-make pb              # generate protobuf from protocol/ submodule
-go test ./...
-go run node/main.go --config config/game.toml
+go build ./...                 # compile all packages
+make test                      # run all tests (-gcflags=-l for gomonkey)
+make lint                      # run golangci-lint
+go test -gcflags=-l ./pkg/...  # run tests for a specific package
+go run node/main.go --config config/<name>.toml  # run server with config
+
+# Protobuf generation (always run after editing .proto files)
+make pb
 ```
 
-Project uses Go 1.25.1. No linter/formatter configured in Makefile.
+## Key Conventions
 
-## Tool Preferences
+- **Plan first**: for architecture changes or new features, present a plan before writing code
+- **Feature branch + PR**: develop on feature branches, merge via PR
+- **gofmt**: format all Go code with `gofmt -w` before committing
+- **Commit style**: concise, focus on why not what (Chinese or English OK)
 
-- **Go 代码引用,查询,读取**：尽量用 LSP tool（goToDefinition, findReferences, hover），不用 grep/find
-- **Web 搜索/浏览网页**：用 `playwright-cli` skill，不用 WebSearch/WebFetch
+## Architecture
 
-## Architecture Overview
+Distributed game server on the **Actor model** (protoactor-go) + GoFrame v2.
 
-GServer is a distributed game server on the **Actor model** ([protoactor-go](https://github.com/asynkron/protoactor-go)) + **GoFrame v2** utility framework.
+- `core/` — shared framework (gxyactor, gxynet, gxyredis, gxypgx, etc.)
+- `src/apps/` — deployable microservices (gateway, role, chat, friend, guild)
+- `node/main.go` — entry point (starts a Node with apps from TOML config)
+- `protocol/` — protobuf definitions (client/ + server/) + generated code (pb/)
 
-### Module/App System
+## Gotchas
 
-`core/gxymodule/` — lifecycle: `Init → Start → StartAfter → StopBefore → Stop`. Modules form parent-child trees. Apps (top-level modules) registered via `RegisterApp()` and loaded from TOML config.
+- **`go test -gcflags=-l`** is required — gomonkey patches need inlining disabled
+- **`make pb`** strips `omitempty` from generated JSON tags via sed
+- **Dev infra**: redis/consul via docker, grafana/prometheus/tempo via docker-compose
+- **Submodules**: `protocol/client` and `gameconfig` — init after clone
+- **Run config**: `config/*.toml` selects which apps to start (`gate.toml`, `all.toml`, etc.)
 
-### Actor System (`core/gxyactor/`)
-
-Activator-based grain management. Two-layer location: **Redis** caches which node hosts each actor (key: `gserver:locate:node:actor:{kind}:{id}`, value: `nodeInstanceName`, TTL=12h, no renewal), **Consul** resolves node address. See `docs/system/actor-location.md`.
-
-### Persistence (`core/gxypgx/`)
-
-PostgreSQL via **GORM** with `gorm:"column:name"` tags. AutoMigrate for schema. Role data uses per-module tables with dirty-tracking and periodic flush (600s). See `src/apps/role/internal/logic/role_main.go`.
-
-### Apps
-
-- **gateway** (`src/apps/gateway/`): TCP (gnet v2), LTPV packet codec, session actors
-- **role** (`src/apps/role/`): Player grains with sub-modules (Basic, Bag, Extra, Public, Flower, Plot). PostgreSQL + JSONB columns. In-process event bus.
-- **world** (`src/apps/world/`): Singleton server actors.
+以第一性原理！从原始需求和问题本质出发，不从惯例或模板出发。 
+1.不要假设我清楚自己想要什么。动机或目标不清晰时，停下来讨论。 
+2.目标清晰但路径不是最短的，直接告诉我并好的办法。 
+3.遇到问题追根因，不打补丁。每个决策都要能答"为什么”。 
+4.输出说重点，砍掉一切不改变决策的信息

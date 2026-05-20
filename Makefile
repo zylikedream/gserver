@@ -5,3 +5,8 @@ include hack/hack.mk
 .PHONY: test
 test:
 	go test -gcflags=-l ./...
+
+# Lint Go code using golangci-lint.
+.PHONY: lint
+lint:
+	golangci-lint run ./...

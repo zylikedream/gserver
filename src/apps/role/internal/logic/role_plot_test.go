@@ -16,6 +16,53 @@ import (
 	proto "google.golang.org/protobuf/proto"
 )
 
+type memoryRolePlotSnapshotStore struct {
+	plots map[int64]PlotMap
+}
+
+func newMemoryRolePlotSnapshotStore() *memoryRolePlotSnapshotStore {
+	return &memoryRolePlotSnapshotStore{plots: make(map[int64]PlotMap)}
+}
+
+func (s *memoryRolePlotSnapshotStore) Get(_ context.Context, roleID int64) (PlotMap, bool) {
+	plots, ok := s.plots[roleID]
+	return clonePlotMap(plots), ok
+}
+
+func (s *memoryRolePlotSnapshotStore) Set(_ context.Context, roleID int64, plots PlotMap) error {
+	s.plots[roleID] = clonePlotMap(plots)
+	return nil
+}
+
+type memoryPlotLockManager struct {
+	held    map[string]string
+	order   []string
+	blocked map[string]bool
+}
+
+func newMemoryPlotLockManager() *memoryPlotLockManager {
+	return &memoryPlotLockManager{held: make(map[string]string), blocked: make(map[string]bool)}
+}
+
+func (m *memoryPlotLockManager) Acquire(_ context.Context, key string, _ time.Duration) (string, bool, error) {
+	m.order = append(m.order, key)
+	if m.blocked[key] {
+		return "", false, nil
+	}
+	if _, ok := m.held[key]; ok {
+		return "", false, nil
+	}
+	token := key + ":token"
+	m.held[key] = token
+	return token, true, nil
+}
+
+func (m *memoryPlotLockManager) Release(_ context.Context, key string, token string) {
+	if m.held[key] == token {
+		delete(m.held, key)
+	}
+}
+
 // ========== test setup ==========
 
 var plotCfgInited bool
@@ -87,6 +134,13 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	t.Helper()
 	initPlotTestConfig(t)
 
+	oldSnapshotStore := rolePlotSnapshots
+	rolePlotSnapshots = newMemoryRolePlotSnapshotStore()
+	t.Cleanup(func() { rolePlotSnapshots = oldSnapshotStore })
+	oldLocks := plotLocks
+	plotLocks = newMemoryPlotLockManager()
+	t.Cleanup(func() { plotLocks = oldLocks })
+
 	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
 		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
 	)
@@ -104,7 +158,7 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	)
 	t.Cleanup(patchDelSteal.Reset)
 
-	main := &RoleMain{}
+	main := &RoleMain{RoleID: 1001}
 	basicMod := &RoleBasic{
 		RoleModule:     RoleModule{Role: main},
 		RoleBasicState: RoleBasicState{Level: 20},
@@ -118,8 +172,8 @@ func setupTestPlot(t *testing.T) *RolePlot {
 		RoleFlowerState: RoleFlowerState{Flowers: make(FlowerMap)},
 	}
 	plotMod := &RolePlot{
-		RoleModule:    RoleModule{Role: main},
-		RolePlotState: RolePlotState{Plots: make(PlotMap)},
+		RoleModule:    RoleModule{RoleID: main.RoleID, Role: main},
+		RolePlotState: RolePlotState{RolePersistState: RolePersistState{RoleID: main.RoleID}, Plots: make(PlotMap)},
 	}
 	main.Basic = basicMod
 	main.Bag = bagMod
@@ -244,6 +298,13 @@ func TestPlantFlower_Success(t *testing.T) {
 	}
 	if p.Plots[plotTestID].FlowerID != plotTestFlower {
 		t.Fatalf("expected flower %d, got %d", plotTestFlower, p.Plots[plotTestID].FlowerID)
+	}
+	snapshot, ok := rolePlotSnapshots.Get(context.Background(), p.RoleID)
+	if !ok {
+		t.Fatal("expected role plot snapshot")
+	}
+	if got := snapshot[plotTestID].FlowerID; got != plotTestFlower {
+		t.Fatalf("expected snapshot flower %d, got %d", plotTestFlower, got)
 	}
 }
 

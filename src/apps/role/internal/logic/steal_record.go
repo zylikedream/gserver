@@ -23,6 +23,10 @@ func initStealSchema(ctx context.Context) {
 	_ = gxypgx.DB().AutoMigrate(&StealRecord{})
 }
 
+func createStealRecord(ctx context.Context, record *StealRecord) error {
+	return gxypgx.DB().WithContext(ctx).Create(record).Error
+}
+
 func countPlotStolen(ctx context.Context, ownerID int64, plotID int32) (int64, error) {
 	var count int64
 	err := gxypgx.DB().WithContext(ctx).Model(&StealRecord{}).

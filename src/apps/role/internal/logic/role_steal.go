@@ -5,12 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"gserver/core/gxypgx"
-	"gorm.io/gorm/clause"
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 )
 
 var (
@@ -108,12 +106,8 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 		return nil, ErrNotFriend
 	}
 
-	var row struct {
-		Plots PlotMap `gorm:"column:plots;type:jsonb"`
-	}
-	err := gxypgx.DB().WithContext(ctx).Table("role_plot").
-		Where("role_id = ?", friendID).First(&row).Error
-	if err != nil {
+	plots, ok := getRolePlotSnapshot(ctx, friendID)
+	if !ok {
 		return &pb.RspPlotFriendInfo{}, nil
 	}
 
@@ -125,7 +119,7 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 		StealUsed:  dailyCount,
 	}
 
-	for _, plot := range row.Plots {
+	for _, plot := range plots {
 		state := getPlotState(plot)
 		info := &pb.PPlotInfo{
 			PlotId:       plot.PlotID,
@@ -162,77 +156,63 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 		return nil, ErrStealDailyFull
 	}
 
-	// FOR UPDATE lock target's role_plot row
-	tx := gxypgx.DB().WithContext(ctx).Begin()
-	defer tx.Rollback()
+	var rsp *pb.RspPlotSteal
+	err := withPlotLocks(ctx, friendID, []int32{plotID}, func() error {
+		plots, ok := getRolePlotSnapshot(ctx, friendID)
+		if !ok {
+			return ErrStealLocked
+		}
+		plot, ok := plots[plotID]
+		if !ok {
+			return ErrStealLocked
+		}
+		state := getPlotState(plot)
+		if state != int32(pb.PlotState_PLOT_HARVESTABLE) {
+			return ErrStealNotHarvestable
+		}
 
-	var row struct {
-		Plots PlotMap `gorm:"column:plots;type:jsonb"`
-	}
-	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Table("role_plot").
-		Where("role_id = ?", friendID).First(&row).Error
-	if err != nil {
-		return nil, err
-	}
+		stolenCount, err := countPlotStolen(ctx, friendID, plotID)
+		if err != nil {
+			return err
+		}
+		if stolenCount >= int64(cfg.FlowerMaxBeStolenTimes) {
+			return ErrStealFlowerFull
+		}
 
-	plot, ok := row.Plots[plotID]
-	if !ok {
-		return nil, ErrStealLocked
-	}
-	state := getPlotState(plot)
-	if state != int32(pb.PlotState_PLOT_HARVESTABLE) {
-		return nil, ErrStealNotHarvestable
-	}
+		if hasStealRecord(ctx, r.RoleID, friendID, plotID) {
+			return ErrStealLocked
+		}
 
-	// Check per-flower total stolen count
-	stolenCount, err := countPlotStolen(ctx, friendID, plotID)
-	if err != nil {
-		return nil, err
-	}
-	if stolenCount >= int64(cfg.FlowerMaxBeStolenTimes) {
-		return nil, ErrStealFlowerFull
-	}
+		if err := createStealRecord(ctx, &StealRecord{
+			OwnerID:   friendID,
+			PlotID:    plotID,
+			StealerID: r.RoleID,
+			FlowerID:  plot.FlowerID,
+			StealTime: time.Now(),
+		}); err != nil {
+			return err
+		}
 
-	// Check if already stolen this plot this cycle
-	alreadyStolen := hasStealRecord(ctx, r.RoleID, friendID, plotID)
-	if alreadyStolen {
-		return nil, ErrStealLocked
-	}
+		r.incDailyCount(friendID)
 
-	// Insert steal_record
-	if err := tx.Create(&StealRecord{
-		OwnerID:   friendID,
-		PlotID:    plotID,
-		StealerID: r.RoleID,
-		FlowerID:  plot.FlowerID,
-		StealTime: time.Now(),
-	}).Error; err != nil {
-		return nil, err
-	}
+		flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+		if flowerCfg == nil {
+			return errors.New("flower config not found")
+		}
+		rewardNum := int(cfg.StealRewardNum)
 
-	if err := tx.Commit().Error; err != nil {
-		return nil, err
-	}
+		if err := r.Role.Bag.SaveGoods(ctx, nil,
+			[]*gamecfg.GardenGoodStack{bag.MakeGoodStack(int(flowerCfg.HarvestItemId), rewardNum)}, "steal_flower"); err != nil {
+			return err
+		}
 
-	r.incDailyCount(friendID)
-
-	// Give reward
-	flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
-	if flowerCfg == nil {
-		return nil, errors.New("flower config not found")
-	}
-	rewardNum := int(cfg.StealRewardNum)
-
-	if err := r.Role.Bag.SaveGoods(ctx, nil,
-		[]*gamecfg.GardenGoodStack{bag.MakeGoodStack(int(flowerCfg.HarvestItemId), rewardNum)}, "steal_flower"); err != nil {
-		return nil, err
-	}
-
-	return &pb.RspPlotSteal{
-		Success: true,
-		Rewards: []*pb.PGoodInfo{
-			{PropId: flowerCfg.HarvestItemId, Num: int64(rewardNum)},
-		},
-	}, nil
+		rsp = &pb.RspPlotSteal{
+			Success: true,
+			Rewards: []*pb.PGoodInfo{
+				{PropId: flowerCfg.HarvestItemId, Num: int64(rewardNum)},
+			},
+		}
+		return nil
+	})
+	return rsp, err
 }

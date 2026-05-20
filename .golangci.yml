@@ -1,0 +1,19 @@
+version: "2"
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    staticcheck:
+      checks:
+        - all
+    errcheck:
+      check-type-assertions: true
+formatters:
+  enable:
+    - gofmt
+run:
+  timeout: 5m
