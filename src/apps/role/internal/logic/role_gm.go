@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -337,4 +338,57 @@ func (r *RoleGM) StopRole(roleID int64) error {
 		Reason: "gm stop role",
 	})
 	return nil
+}
+
+// SendMail 发送邮件给指定角色
+// 用法: send_mail [RoleID] [标题] [内容]
+// 示例: send_mail 1001 测试邮件 这是一封测试邮件
+func (r *RoleGM) SendMail(roleID int64, title string, content string) error {
+	return SendMail(r.ctx, roleID, SendMailOpts{
+		Title:   title,
+		Summary: content,
+		Content: content,
+	})
+}
+
+// SendMailAll 发送全服邮件
+// 用法: send_mail_all [标题] [内容]
+// 示例: send_mail_all 系统维护补偿 感谢您的支持
+func (r *RoleGM) SendMailAll(title string, content string) error {
+	return SendMailToAll(r.ctx, SendMailOpts{
+		Title:   title,
+		Content: content,
+	})
+}
+
+// SendMailGoods 发送带附件的邮件
+// 用法: send_mail_goods [RoleID] [标题] [内容] [GoodID:Num,...]
+// 示例: send_mail_goods 1001 补偿 维护补偿 101:5,102:3
+func (r *RoleGM) SendMailGoods(roleID int64, title string, content string, goodsSpec string) error {
+	var goods []bag.Good
+	for _, part := range strings.Split(goodsSpec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		kv := strings.Split(part, ":")
+		if len(kv) != 2 {
+			return fmt.Errorf("invalid goods spec: %s", part)
+		}
+		goodID, err := strconv.Atoi(strings.TrimSpace(kv[0]))
+		if err != nil {
+			return fmt.Errorf("invalid good id: %s", kv[0])
+		}
+		num, err := strconv.Atoi(strings.TrimSpace(kv[1]))
+		if err != nil {
+			return fmt.Errorf("invalid num: %s", kv[1])
+		}
+		goods = append(goods, bag.Good{GoodID: goodID, Num: uint64(num)})
+	}
+	return SendMail(r.ctx, roleID, SendMailOpts{
+		Title:       title,
+		Summary:     content,
+		Content:     content,
+		Attachments: goods,
+	})
 }

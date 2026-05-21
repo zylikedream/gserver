@@ -2,10 +2,13 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
+	gamecfg "gserver/gameconfig/gosrc"
+	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
 )
 
@@ -84,7 +87,14 @@ func (r *RoleMail) OnModInit(ctx context.Context) error {
 	}
 	r.mailCache = mails
 
-	// 3. 清理过期邮件
+	// 3. 确保 MaxID >= 已有邮件的最大 ID（处理外部发信）
+	for _, m := range mails {
+		if m.ID > r.meta.MaxID {
+			r.meta.MaxID = m.ID
+		}
+	}
+
+	// 4. 清理过期邮件
 	r.cleanExpired(ctx)
 
 	// 4. 展开全服邮件
@@ -168,3 +178,210 @@ func (r *RoleMail) expandSysMail(ctx context.Context) error {
 func (r *RoleMail) OnCreate(ctx context.Context) {}
 
 func (r *RoleMail) OnModStop(ctx context.Context) error { return nil }
+
+func (r *RoleMail) calcRedDot() (unread, unclaimed int32) {
+	now := time.Now().Unix()
+	for _, m := range r.mailCache {
+		if m.ExpireAt > 0 && m.ExpireAt < now {
+			continue
+		}
+		if !m.IsRead {
+			unread++
+		}
+		if len(m.Attachments) > 0 && !m.IsClaimed {
+			unclaimed++
+		}
+	}
+	return
+}
+
+func (r *RoleMail) findMail(id int64) *MailEntry {
+	for i := range r.mailCache {
+		if r.mailCache[i].ID == id {
+			return &r.mailCache[i]
+		}
+	}
+	return nil
+}
+
+func (r *RoleMail) ReqMailList(ctx context.Context, req *pb.ReqMailList) (*pb.RspMailList, error) {
+	now := time.Now().Unix()
+	items := make([]*pb.PMailItem, 0, len(r.mailCache))
+	for _, m := range r.mailCache {
+		if m.ExpireAt > 0 && m.ExpireAt < now {
+			continue
+		}
+		items = append(items, &pb.PMailItem{
+			Id:            m.ID,
+			Title:         m.Title,
+			Summary:       m.Summary,
+			SendAt:        m.SendAt,
+			ExpireAt:      m.ExpireAt,
+			IsRead:        m.IsRead,
+			HasAttachment: len(m.Attachments) > 0,
+			IsClaimed:     m.IsClaimed,
+		})
+	}
+	unread, unclaimed := r.calcRedDot()
+	return &pb.RspMailList{
+		Mails:          items,
+		UnreadCount:    unread,
+		UnclaimedCount: unclaimed,
+	}, nil
+}
+
+func (r *RoleMail) ReqMailDetail(ctx context.Context, req *pb.ReqMailDetail) (*pb.RspMailDetail, error) {
+	mail := r.findMail(req.MailId)
+	if mail == nil {
+		return nil, errors.New("mail not found")
+	}
+
+	if !mail.IsRead {
+		mail.IsRead = true
+		gxypgx.DB().WithContext(ctx).
+			Model(&MailEntry{}).
+			Where("id = ?", req.MailId).
+			Update("is_read", true)
+	}
+
+	attachments := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
+	for _, a := range mail.Attachments {
+		attachments = append(attachments, &pb.PGoodInfo{
+			PropId: int32(a.GoodID),
+			Num:    int64(a.Num),
+		})
+	}
+
+	return &pb.RspMailDetail{
+		Mail: &pb.PMailDetail{
+			Id:          mail.ID,
+			Title:       mail.Title,
+			Content:     mail.Content,
+			SendAt:      mail.SendAt,
+			ExpireAt:    mail.ExpireAt,
+			Attachments: attachments,
+			IsClaimed:   mail.IsClaimed,
+		},
+	}, nil
+}
+
+func (r *RoleMail) ReqMailClaim(ctx context.Context, req *pb.ReqMailClaim) (*pb.RspMailClaim, error) {
+	mail := r.findMail(req.MailId)
+	if mail == nil {
+		return nil, errors.New("mail not found")
+	}
+	if mail.ExpireAt > 0 && mail.ExpireAt < time.Now().Unix() {
+		return nil, errors.New("mail expired")
+	}
+	if len(mail.Attachments) == 0 {
+		return nil, errors.New("no attachments")
+	}
+	if mail.IsClaimed {
+		return nil, errors.New("already claimed")
+	}
+
+	goods := make([]*gamecfg.GardenGoodStack, 0, len(mail.Attachments))
+	for _, a := range mail.Attachments {
+		goods = append(goods, bag.MakeGoodStack(a.GoodID, int(a.Num)))
+	}
+	if err := r.Role.Bag.SaveGoods(ctx, nil, goods, "mail_claim", bag.OptNotifyReward()); err != nil {
+		return nil, err
+	}
+
+	mail.IsClaimed = true
+	gxypgx.DB().WithContext(ctx).
+		Model(&MailEntry{}).
+		Where("id = ?", req.MailId).
+		Update("is_claimed", true)
+
+	rewards := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
+	for _, a := range mail.Attachments {
+		rewards = append(rewards, &pb.PGoodInfo{
+			PropId: int32(a.GoodID),
+			Num:    int64(a.Num),
+		})
+	}
+
+	_, unclaimed := r.calcRedDot()
+	return &pb.RspMailClaim{
+		Rewards:        rewards,
+		UnclaimedCount: unclaimed,
+	}, nil
+}
+
+func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll) (*pb.RspMailClaimAll, error) {
+	now := time.Now().Unix()
+	var allGoods []*gamecfg.GardenGoodStack
+	var claimedIDs []int64
+
+	for i := range r.mailCache {
+		m := &r.mailCache[i]
+		if m.ExpireAt > 0 && m.ExpireAt < now {
+			continue
+		}
+		if len(m.Attachments) == 0 || m.IsClaimed {
+			continue
+		}
+		for _, a := range m.Attachments {
+			allGoods = append(allGoods, bag.MakeGoodStack(a.GoodID, int(a.Num)))
+		}
+		m.IsClaimed = true
+		claimedIDs = append(claimedIDs, m.ID)
+	}
+
+	if len(claimedIDs) == 0 {
+		return &pb.RspMailClaimAll{}, nil
+	}
+
+	if err := r.Role.Bag.SaveGoods(ctx, nil, allGoods, "mail_claim_all", bag.OptNotifyReward()); err != nil {
+		return nil, err
+	}
+
+	gxypgx.DB().WithContext(ctx).
+		Model(&MailEntry{}).
+		Where("id IN ?", claimedIDs).
+		Update("is_claimed", true)
+
+	rewards := make([]*pb.PGoodInfo, 0, len(allGoods))
+	for _, g := range allGoods {
+		rewards = append(rewards, &pb.PGoodInfo{
+			PropId: g.Id,
+			Num:    int64(g.Num),
+		})
+	}
+
+	_, unclaimed := r.calcRedDot()
+	return &pb.RspMailClaimAll{
+		Rewards:        rewards,
+		UnclaimedCount: unclaimed,
+	}, nil
+}
+
+func (r *RoleMail) ReqMailDelete(ctx context.Context, req *pb.ReqMailDelete) (*pb.RspMailDelete, error) {
+	mail := r.findMail(req.MailId)
+	if mail == nil {
+		return nil, errors.New("mail not found")
+	}
+	if len(mail.Attachments) > 0 && !mail.IsClaimed {
+		return nil, errors.New("claim attachments before delete")
+	}
+
+	var kept []MailEntry
+	for _, m := range r.mailCache {
+		if m.ID != req.MailId {
+			kept = append(kept, m)
+		}
+	}
+	r.mailCache = kept
+
+	gxypgx.DB().WithContext(ctx).
+		Model(&MailEntry{}).
+		Where("id = ?", req.MailId).
+		Update("is_deleted", true)
+
+	unread, unclaimed := r.calcRedDot()
+	return &pb.RspMailDelete{
+		UnreadCount:    unread,
+		UnclaimedCount: unclaimed,
+	}, nil
+}
