@@ -45,8 +45,12 @@ Distributed game server on the **Actor model** (protoactor-go) + GoFrame v2.
 - **Submodules**: `protocol/client` and `gameconfig` — init after clone
 - **Run config**: `config/*.toml` selects which apps to start (`gate.toml`, `all.toml`, etc.)
 
+## development tips
+- **每次开发功能需要先拉取新分支来开发, 如果开发之前有未提交的更改，提醒我先提交**
+
 以第一性原理！从原始需求和问题本质出发，不从惯例或模板出发。 
 1.不要假设我清楚自己想要什么。动机或目标不清晰时，停下来讨论。 
 2.目标清晰但路径不是最短的，直接告诉我并好的办法。 
 3.遇到问题追根因，不打补丁。每个决策都要能答"为什么”。 
 4.输出说重点，砍掉一切不改变决策的信息
+

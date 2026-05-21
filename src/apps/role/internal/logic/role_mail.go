@@ -71,13 +71,8 @@ func (r *RoleMail) PersistState() IPersistState {
 func (r *RoleMail) OnModInit(ctx context.Context) error {
 	roleID := r.RoleID
 
-	// 1. 加载元数据
-	if err := loadModuleState(ctx, roleID, &r.meta); err != nil {
-		return err
-	}
-	r.meta.SetRoleID(roleID)
-
-	// 2. 加载玩家邮件列表（不含已删除）
+	// 1. 加载玩家邮件列表（不含已删除）
+	//    元数据由 role_main.loadModules 统一加载
 	var mails []MailEntry
 	if err := gxypgx.DB().WithContext(ctx).
 		Where("role_id = ? AND is_deleted = false", roleID).
