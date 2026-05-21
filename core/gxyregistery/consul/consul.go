@@ -28,14 +28,14 @@ var (
 
 // Registry implements gsvc.Registry interface using consul.
 type Registry struct {
-	client              *api.Client          // Consul client
-	address             string               // Consul address
-	options             map[string]string    // Additional options
-	healthCheckInterval time.Duration        // Health check interval
-	ttl                 time.Duration        // TTL for service registration
-	mu                  sync.RWMutex         // Mutex for thread safety
+	client              *api.Client                   // Consul client
+	address             string                        // Consul address
+	options             map[string]string             // Additional options
+	healthCheckInterval time.Duration                 // Health check interval
+	ttl                 time.Duration                 // TTL for service registration
+	mu                  sync.RWMutex                  // Mutex for thread safety
 	stopHealthCheck     map[string]context.CancelFunc // Stop signals for health check goroutines
-	logger              *glog.Logger         // Logger for logging
+	logger              *glog.Logger                  // Logger for logging
 }
 
 // Option is the configuration option type for registry.
@@ -178,7 +178,7 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	r.mu.Lock()
 	r.stopHealthCheck[serviceID] = cancel
 	r.mu.Unlock()
-	go r.ttlHealthCheck(ctx, serviceID)
+	go r.ttlHealthCheck(ctx, serviceID, reg)
 
 	return service, nil
 }
@@ -209,7 +209,7 @@ func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 }
 
 // ttlHealthCheck maintains the TTL health check for a service
-func (r *Registry) ttlHealthCheck(ctx context.Context, serviceID string) {
+func (r *Registry) ttlHealthCheck(ctx context.Context, serviceID string, reg *api.AgentServiceRegistration) {
 	ticker := time.NewTicker(r.healthCheckInterval)
 	defer ticker.Stop()
 
@@ -230,15 +230,20 @@ func (r *Registry) ttlHealthCheck(ctx context.Context, serviceID string) {
 			r.logger.Errorf(context.Background(), "failed to pass TTL health check: %s, error %+v, retry count: %d", checkID, err, retryCount)
 			retryCount++
 			if retryCount <= maxRetries {
-				// 立即重试，不等待下一个ticker周期
 				time.Sleep(retryInterval)
 				continue
 			}
-			// 达到最大重试次数后，尝试重新注册服务
-			r.logger.Errorf(context.Background(), "max retries reached for health check: %s", checkID)
-			return
+			// 达到最大重试次数，尝试重新注册服务
+			r.logger.Errorf(context.Background(), "max retries reached for health check: %s, try to re-register", checkID)
+			if err := r.client.Agent().ServiceRegister(reg); err != nil {
+				r.logger.Errorf(context.Background(), "failed to re-register service: %s, error %+v", checkID, err)
+				return
+			}
+			// 重新注册成功，重置重试计数继续健康检查
+			r.logger.Infof(context.Background(), "re-register service success: %s", checkID)
+			retryCount = 0
+			continue
 		}
-		// 健康检查成功，重置重试计数
 		retryCount = 0
 	}
 }

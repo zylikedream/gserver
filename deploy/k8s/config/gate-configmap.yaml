@@ -28,9 +28,11 @@ data:
         stStatus = 0
 
     [registery]
-        type = "redis"
-    [registery.redis]
-        interval = 10
+        type = "consul"
+    [registery.consul]
+        address = "host.docker.internal:8500"
+        ttl = "20s"
+        refresh_ttl = "10s"
 
     [trace]
         endpoint = "host.docker.internal:4317"

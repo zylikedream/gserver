@@ -90,7 +90,7 @@ registery.go:
 
 ## 后端实现
 
-### Redis — 当前 K8s 环境使用
+### Redis
 
 **存储**: Redis Hash `gserver:svc:{serviceName}`，field=pod名，value=JSON
 
@@ -114,7 +114,7 @@ interval = 10
 interval = 10                                    # poll 间隔(秒)
 ```
 
-### Consul (本地开发环境使用)
+### Consul (本地和 K8s 当前使用)
 
 **存储**: Consul Service Catalog，`/v1/agent/service/register`
 
@@ -188,12 +188,11 @@ type HashServices struct {
 ```toml
 # config/all.toml
 [registery]
-    # type = "consul"
+    type = "consul"
     # type = "etcd"
-    type = "redis"
+    # type = "redis"
 
 [registery.redis]
-    domain = "game-svc.default.svc.cluster.local"
     interval = 10
 
 [registery.consul]

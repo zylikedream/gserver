@@ -83,7 +83,7 @@ kubectl apply -f deploy/k8s/headless-service.yaml
 
 ### OpenKruiseGame
 
-OKG 路径用于把 `role`、`chat`、`friend`、`guild` 从原生 `StatefulSet` 迁移到 `GameServerSet`。`gate` 仍然保持 `Deployment + NodePort`，Redis 注册发现、PostgreSQL、Prometheus、Grafana 先不改。
+OKG 路径用于把 `role`、`chat`、`friend`、`guild` 从原生 `StatefulSet` 迁移到 `GameServerSet`。`gate` 仍然保持 `Deployment + NodePort`。K8s 环境当前使用 Consul 做服务注册发现，Redis 仍然保留给 actor locate、分布式锁和业务缓存。
 
 OKG 官方推荐用 Helm 安装。若本机还没有 Helm，可以先安装：
 
@@ -134,19 +134,40 @@ make install-okg \
 make deploy-k8s-okg
 ```
 
+默认镜像 tag 使用当前 git short sha；如果工作区有未提交改动，会追加 `.dirty`。也可以手动指定：
+
+```bash
+make deploy-k8s-okg TAG=dev-001
+```
+
+OKG 镜像构建默认不会再依赖 `golang:*` Docker 基础镜像。`make build-okg-image` 会先用本机 Go 编译 Linux 二进制到 `temp/docker/server`，再用 `deploy/Dockerfile.runtime` 打运行镜像。这样可以避开 Docker Hub 的 golang 镜像限流问题。
+
 这个目标会做几件事：
 
-- 构建并导入 `game-server:latest` 到 Kind。
+- 构建并导入 `game-server:<tag>` 到 Kind。
 - 应用 `deploy/k8s/config/`、`game-service-rbac.yaml`、`prometheus.yaml`、`gate-service.yaml`。
 - 删除旧的 `role/chat/friend/guild` StatefulSet，避免和 OKG Pod 双跑。
 - 应用 `role/chat/friend/guild` 的 `GameServerSet`。
+- 更新 `role/chat/friend/guild` 的 `GameServerSet` 镜像为 `game-server:<tag>`，触发 OKG 更新。
 - 应用 `gate-deployment.yaml`。
 
-如果本地已经有可用的 `game-server:latest`，或者 Docker Hub 基础镜像拉取很慢，可以跳过构建，只导入并应用：
+如果只是更新游戏服镜像，不需要重新 apply 全套 manifest，可以执行：
 
 ```bash
-kind load docker-image game-server:latest --name game-cluster
-make apply-k8s-okg
+make build-update-okg-image TAG=dev-001
+```
+
+如果本地已经有可用镜像，可以手动导入并只更新 `GameServerSet` 镜像：
+
+```bash
+kind load docker-image game-server:dev-001 --name game-cluster
+make update-okg-image TAG=dev-001
+```
+
+`make deploy-k8s-okg` 和 `make build-update-okg-image` 默认使用 Kind 集群名 `game-cluster`。如果你的集群名不同，可以覆盖：
+
+```bash
+make build-update-okg-image TAG=dev-001 KIND_CLUSTER=your-cluster
 ```
 
 OKG 版本新增的 manifest：
@@ -201,7 +222,7 @@ make delete-k8s-okg
 
 如果要回到 StatefulSet 路径，先执行 `make delete-k8s-okg`，再重新 apply 原来的 `*-statefulset.yaml`。
 
-> **注意：** 不要同时运行同一组服务的 StatefulSet 和 GameServerSet。它们会使用相同的 `app` 标签，容易造成 Redis 注册、Prometheus 目标和网关路由混乱。
+> **注意：** 不要同时运行同一组服务的 StatefulSet 和 GameServerSet。它们会使用相同的 `app` 标签，容易造成 Consul 注册、Prometheus 目标和网关路由混乱。
 
 ## 可观测性
 
@@ -237,14 +258,13 @@ datasources:
 
 K8s Prometheus 暴露在 `NodePort:30999`，并通过 kind 的 `extraPortMappings` 映射到宿主机 `30999`，Grafana 通过 `http://host.docker.internal:30999` 访问。
 
-## 注册中心：Redis
+## 注册中心：Consul
 
-原方案使用 Consul，后改为 Redis。详见 `docs/system/gxyregistery-architecture.md`。
+K8s ConfigMap 当前使用 Consul 做 `role`、`chat`、`friend`、`guild`、`gate` 的服务注册发现。详见 `docs/system/gxyregistery-architecture.md`。
 
-### Key 结构
+Redis 仍然是必需依赖，但不再承担服务注册发现：
 
 ```
-gserver:svc:{serviceName}       ← Hash，存服务列表
 gserver:locate:node:actor:{kind}:{id}  ← String，存 Actor 所在节点
 ```
 
@@ -253,9 +273,11 @@ gserver:locate:node:actor:{kind}:{id}  ← String，存 Actor 所在节点
 ```toml
 # config/*.toml — registery 段
 [registery]
-  type = "redis"
-[registery.redis]
-  interval = 10  # 注册刷新间隔（秒）
+  type = "consul"
+[registery.consul]
+  address = "host.docker.internal:8500"
+  ttl = "20s"
+  refresh_ttl = "10s"
 ```
 
 ## FAQ / 踩坑记录
@@ -310,7 +332,7 @@ subjects:
 
 ### 5. 镜像更新后如何重启服务
 
-构建新镜像 → 导入 Kind → 滚动重启：
+StatefulSet 旧路径使用原生 `rollout restart`：
 
 ```bash
 # 1. 构建
@@ -332,6 +354,16 @@ kubectl rollout status statefulset/role -n gserver
 ```
 
 > `rollout restart` 会触发 Pod 滚动更新，新 Pod 拉取镜像时因为 `imagePullPolicy: IfNotPresent` 会直接用本地已导入的版本。
+
+OKG 路径不要使用 `kubectl rollout restart gss/...`，kubectl 的 rollout 子命令不支持 `GameServerSet` 这种 CRD。应该更新 `GameServerSet` 模板里的镜像：
+
+```bash
+make build-update-okg-image TAG=dev-001
+```
+
+这个目标会构建 `game-server:dev-001`、导入 Kind，并 patch `role/chat/friend/guild` 的 `GameServerSet` 镜像。因为镜像 tag 发生变化，OKG 会按 `GameServerSet.updateStrategy` 更新对应 Pod。
+
+`make update-okg-image` 也会同时更新 `GameServerSet` 模板里的 `restartAt` annotation。这样即使临时复用同一个 tag，OKG 也能看到模板变化并触发更新。生产环境仍建议每次使用新的 tag。
 
 ### 6. ConfigMap 更新后服务未生效
 

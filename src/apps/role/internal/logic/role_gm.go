@@ -2,14 +2,13 @@ package logic
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
+	"go/ast"
 	"go/doc"
 	"go/parser"
 	"go/token"
-	"os"
-	"path/filepath"
 	"reflect"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -56,41 +55,41 @@ func gmEnsureInited() {
 	gmCmdMap = gmBuildCmdMap()
 }
 
-// gmExtractDocs 用 go/doc 解析 role_gm.go 源文件，提取带 "用法:" 注释的方法作为 GM 命令
-func gmExtractDocs() []CmdDoc {
-	_, filePath, _, _ := runtime.Caller(0)
-	dir := filepath.Dir(filePath)
-	filename := filepath.Base(filePath)
+//go:embed role_gm.go
+var gmSource string
 
+// gmExtractDocs 解析 role_gm.go 源码，提取带 "用法:" 注释的方法作为 GM 命令
+func gmExtractDocs() []CmdDoc {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
-		return fi.Name() == filename
-	}, parser.ParseComments)
+	f, err := parser.ParseFile(fset, "role_gm.go", gmSource, parser.ParseComments)
 	if err != nil {
 		return nil
 	}
 
-	for _, pkg := range pkgs {
-		p := doc.New(pkg, "./", 0)
-		for _, t := range p.Types {
-			if t.Name != "RoleGM" {
+	pkg := &ast.Package{
+		Name: "logic",
+		Files: map[string]*ast.File{
+			"role_gm.go": f,
+		},
+	}
+	p := doc.New(pkg, "./", 0)
+	for _, t := range p.Types {
+		if t.Name != "RoleGM" {
+			continue
+		}
+		var docs []CmdDoc
+		for _, m := range t.Methods {
+			if !m.Decl.Name.IsExported() {
 				continue
 			}
-			var docs []CmdDoc
-			for _, m := range t.Methods {
-				if !m.Decl.Name.IsExported() {
-					continue
-				}
-				// 只提取带 "用法:" 注释的方法（区分 GM 命令和 proto handler）
-				if !strings.Contains(m.Doc, "用法:") && !strings.Contains(m.Doc, "用法：") {
-					continue
-				}
-				cmdName := camelToSnake(m.Name)
-				d := gmParseCmdDoc(cmdName, m.Doc)
-				docs = append(docs, d)
+			if !strings.Contains(m.Doc, "用法:") && !strings.Contains(m.Doc, "用法：") {
+				continue
 			}
-			return docs
+			cmdName := camelToSnake(m.Name)
+			d := gmParseCmdDoc(cmdName, m.Doc)
+			docs = append(docs, d)
 		}
+		return docs
 	}
 	return nil
 }

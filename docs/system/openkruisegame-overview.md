@@ -112,7 +112,7 @@ OKG 提供 Cloud Provider & Network Plugin，用来把游戏服实例暴露给�
 - Huawei ELB
 - JD Cloud 网络插件
 
-对当前 GServer 来说，第一阶段不需要立刻使用 OKG 网络插件。`gate` 仍然可以保持现有 NodePort 暴露方式，role/chat/friend/guild 继续走内部 Redis 注册发现。
+对当前 GServer 来说，第一阶段不需要立刻使用 OKG 网络插件。`gate` 仍然可以保持现有 NodePort 暴露方式，role/chat/friend/guild 继续走内部 Consul 注册发现。
 
 ## 状态模型
 
@@ -187,7 +187,7 @@ guild-statefulset.yaml  -> guild-gameserverset.yaml
 
 - `gate` 继续使用 `Deployment`。
 - `gate` 继续通过 NodePort 对外提供入口。
-- Redis 注册发现不变。
+- Consul 注册发现不变。
 - PostgreSQL 不变。
 - Prometheus / Grafana 不变。
 - 业务 actor 寻址逻辑不变。
@@ -297,7 +297,7 @@ OKG 只管理工作负载生命周期。它不会自动知道：
 - 节点是否还有脏数据。
 - 某个玩家是否应该迁移。
 - actor 是否已经注销。
-- Redis 注册是否已经刷新。
+- Consul 注册是否已经刷新。
 
 这些仍然需要 GServer 自己处理。
 
@@ -314,7 +314,7 @@ role GameServerSet
 
 否则可能造成：
 
-- Redis 注册重复。
+- Consul 注册重复。
 - Prometheus 目标重复。
 - Grafana 指标混乱。
 - 网关路由到非预期节点。
@@ -328,7 +328,7 @@ selector:
   game.kruise.io/owner-gss: role
 ```
 
-当前 GServer 主要靠 Redis 注册发现，不强依赖实例 DNS。但如果保留 Headless Service，需要确认 selector 不会同时选中旧 StatefulSet 和新 GameServerSet。
+当前 GServer 主要靠 Consul 注册发现，不强依赖实例 DNS。但如果保留 Headless Service，需要确认 selector 不会同时选中旧 StatefulSet 和新 GameServerSet。
 
 ### 原地升级有限制
 

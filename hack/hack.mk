@@ -3,6 +3,15 @@
 HELM ?= helm
 KRUISE_IMAGE_REPO ?= openkruise-registry.cn-shanghai.cr.aliyuncs.com/openkruise/kruise-manager
 OKG_IMAGE_REPO ?= registry-cn-hangzhou.ack.aliyuncs.com/acs/kruise-game-manager
+OKG_IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null)
+ifneq (, $(shell git status --porcelain 2>/dev/null))
+OKG_IMAGE_TAG := $(OKG_IMAGE_TAG).dirty
+endif
+OKG_IMAGE_TAG := $(if $(TAG),$(TAG),$(OKG_IMAGE_TAG))
+OKG_IMAGE ?= game-server:$(OKG_IMAGE_TAG)
+OKG_SERVICES ?= role chat friend guild
+OKG_DOCKERFILE ?= deploy/Dockerfile.runtime
+KIND_CLUSTER ?= game-cluster
 
 # Update GoFrame and its CLI to latest stable version.
 .PHONY: up
@@ -43,41 +52,6 @@ service: cli.install
 
 # Build, load into kind, apply K8s manifests, and rollout restart all services.
 # Usage: make deploy-k8s
-.PHONY: deploy-k8s
-deploy-k8s:
-	@echo "=== Building docker image ==="
-	docker build -f deploy/Dockerfile -t game-server:latest .
-	@echo ""
-	@echo "=== Loading image into kind ==="
-	kind load docker-image game-server:latest
-	@echo ""
-	@echo "=== Applying K8s manifests ==="
-	kubectl apply -f deploy/k8s/role-statefulset.yaml
-	kubectl apply -f deploy/k8s/gate-deployment.yaml
-	kubectl apply -f deploy/k8s/chat-statefulset.yaml
-	kubectl apply -f deploy/k8s/friend-statefulset.yaml
-	kubectl apply -f deploy/k8s/guild-statefulset.yaml
-	@echo ""
-	@echo "=== Rolling restart ==="
-	kubectl rollout restart deployment/gate
-	kubectl rollout restart statefulset/role
-	kubectl rollout restart statefulset/chat
-	kubectl rollout restart statefulset/friend
-	kubectl rollout restart statefulset/guild
-	@echo ""
-	@echo "=== Waiting for rollouts to complete ==="
-	@for d in deployment/gate; do \
-		echo "Waiting for $$d..."; \
-		kubectl rollout status $$d --timeout=120s; \
-	done
-	@for s in statefulset/role statefulset/chat statefulset/friend statefulset/guild; do \
-		echo "Waiting for $$s..."; \
-		kubectl rollout status $$s --timeout=120s; \
-	done
-	@echo "=== Done ==="
-
-# Install OpenKruise and OpenKruiseGame into the current Kubernetes cluster.
-# Usage: make install-okg
 .PHONY: install-okg
 install-okg:
 	@echo "=== Installing OpenKruiseGame dependencies ==="
@@ -92,16 +66,16 @@ install-okg:
 	kubectl wait --for=condition=Established crd/gameservers.game.kruise.io --timeout=120s
 
 # Build, load into kind, and deploy game service pools through OpenKruiseGame.
-# Usage: make deploy-k8s-okg
+# Usage: make deploy-k8s-okg [TAG=dev-001]
 .PHONY: deploy-k8s-okg
 deploy-k8s-okg: install-okg
-	@echo "=== Building docker image ==="
-	docker build -f deploy/Dockerfile -t game-server:latest .
+	@$(MAKE) build-okg-image OKG_IMAGE=$(OKG_IMAGE)
 	@echo ""
 	@echo "=== Loading image into kind ==="
-	kind load docker-image game-server:latest
+	kind load docker-image $(OKG_IMAGE) --name $(KIND_CLUSTER)
 	@echo ""
 	@$(MAKE) apply-k8s-okg
+	@$(MAKE) update-okg-image OKG_IMAGE=$(OKG_IMAGE)
 
 # Apply OpenKruiseGame manifests using the image already loaded into kind.
 # Usage: make apply-k8s-okg
@@ -146,6 +120,41 @@ status-k8s-okg:
 	@echo ""
 	@echo "=== Game service pods ==="
 	kubectl get pods -l app.kubernetes.io/part-of=gserver -o wide
+
+# Update OpenKruiseGame GameServerSet container images.
+# Usage: make update-okg-image [TAG=dev-001]
+.PHONY: update-okg-image
+update-okg-image:
+	@echo "=== Updating OKG image to $(OKG_IMAGE) ==="
+	$(eval _RESTART_AT := $(shell date +%s))
+	@for svc in $(OKG_SERVICES); do \
+		echo "Updating $$svc..."; \
+		kubectl patch gss $$svc --type json \
+			-p="[{\"op\":\"replace\",\"path\":\"/spec/gameServerTemplate/spec/containers/0/image\",\"value\":\"$(OKG_IMAGE)\"},{\"op\":\"add\",\"path\":\"/spec/gameServerTemplate/metadata/annotations/restartAt\",\"value\":\"$(_RESTART_AT)\"}]"; \
+	done
+	@$(MAKE) status-k8s-okg
+
+# Build, load, and update only OKG game service images.
+# Usage: make build-update-okg-image [TAG=dev-001]
+.PHONY: build-update-okg-image
+build-update-okg-image:
+	@$(MAKE) build-okg-image OKG_IMAGE=$(OKG_IMAGE)
+	@echo ""
+	@echo "=== Loading image into kind ==="
+	kind load docker-image $(OKG_IMAGE) --name $(KIND_CLUSTER)
+	@echo ""
+	@$(MAKE) update-okg-image OKG_IMAGE=$(OKG_IMAGE)
+
+# Build OKG runtime image from a locally compiled Go binary.
+# Usage: make build-okg-image [TAG=dev-001]
+.PHONY: build-okg-image
+build-okg-image:
+	@echo "=== Building linux server binary ==="
+	mkdir -p temp/docker
+	CGO_ENABLED=0 GOOS=linux GOARCH=$$(go env GOARCH) go build -o temp/docker/server ./node/
+	@echo ""
+	@echo "=== Building docker image $(OKG_IMAGE) ==="
+	docker build -f $(OKG_DOCKERFILE) -t $(OKG_IMAGE) .
 
 # Build docker image.
 .PHONY: image
