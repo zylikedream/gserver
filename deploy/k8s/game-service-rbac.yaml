@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: game-service
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: game-service-gameserver-reader
+rules:
+  - apiGroups: ["game.kruise.io"]
+    resources: ["gameservers"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: game-service-gameserver-reader
+subjects:
+  - kind: ServiceAccount
+    name: game-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: game-service-gameserver-reader

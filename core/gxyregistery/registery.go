@@ -143,9 +143,7 @@ func (r *registery) compareServiceInfos(old, new []*ServiceInfo) bool {
 			return false
 		}
 		// 比较关键信息是否变化
-		if oldSvc.GetVersion() != newSvc.GetVersion() ||
-			oldSvc.GetEndpoints()[0].Host() != newSvc.GetEndpoints()[0].Host() ||
-			oldSvc.GetEndpoints()[0].Port() != newSvc.GetEndpoints()[0].Port() {
+		if oldSvc.GetValue() != newSvc.GetValue() {
 			return false
 		}
 	}

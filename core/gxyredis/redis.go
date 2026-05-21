@@ -31,6 +31,7 @@ type redisApp struct {
 
 var app *redisApp
 
+//go:noinline
 func Redis() Client {
 	if app.conf == nil {
 		gxylog.Error(context.Background(), "redis not init, miss config")

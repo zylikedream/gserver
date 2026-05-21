@@ -238,6 +238,16 @@ OpsState = WaitToBeDeleted
 
 业务侧停止分配新玩家到该节点，然后等待已有玩家下线，再放行删除。
 
+GServer 里通过 `NodeEnv` 完成这一步：K8s 环境下进程根据 `GS_NAME` 查询自己的 OKG `GameServer`，把 `OpsState` 映射成 registry 里的服务状态。
+
+```text
+None / Allocated / 空值  -> serving
+WaitToBeDeleted / Kill  -> draining
+Maintaining             -> maintaining
+```
+
+selector 只会选择 `serving` 节点，所以 `draining` 和 `maintaining` 节点会自动从新请求分配路径里摘掉。
+
 ### 玩家数上报
 
 OKG 本身不知道某个 role 节点有多少玩家。这个信息需要业务提供。

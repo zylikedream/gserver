@@ -3,11 +3,12 @@ package redis
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
-	"gserver/core/gxyredis"
 	"gserver/core/gxylog"
+	"gserver/core/gxyredis"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -16,9 +17,9 @@ import (
 
 const (
 	redisServiceKeyPrefix = "gserver:svc"
-	defaultPollInterval = 10 * time.Second
-	defaultFieldTTL     = 30 * time.Second
-	heartbeatInterval   = 20 * time.Second
+	defaultPollInterval   = 10 * time.Second
+	defaultFieldTTL       = 30 * time.Second
+	heartbeatInterval     = 20 * time.Second
 )
 
 // Registry implements gsvc.Registry using Redis + DNS.
@@ -92,6 +93,9 @@ func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Serv
 		}
 		services = append(services, svc)
 	}
+	sort.Slice(services, func(i, j int) bool {
+		return services[i].GetKey() < services[j].GetKey()
+	})
 	return services, nil
 }
 
@@ -209,13 +213,15 @@ type redisService struct {
 	key     string
 }
 
-func (s *redisService) GetName() string             { return s.serviceData.Name }
-func (s *redisService) GetVersion() string          { return s.serviceData.Version }
-func (s *redisService) GetKey() string              { return s.key }
-func (s *redisService) GetValue() string            { return s.jsonStr }
-func (s *redisService) GetPrefix() string           { return gsvc.DefaultSeparator + s.serviceData.Name }
-func (s *redisService) GetMetadata() gsvc.Metadata  { return nil }
-func (s *redisService) GetEndpoints() gsvc.Endpoints { return gsvc.NewEndpoints(s.serviceData.NodeHost) }
+func (s *redisService) GetName() string            { return s.serviceData.Name }
+func (s *redisService) GetVersion() string         { return s.serviceData.Version }
+func (s *redisService) GetKey() string             { return s.key }
+func (s *redisService) GetValue() string           { return s.jsonStr }
+func (s *redisService) GetPrefix() string          { return gsvc.DefaultSeparator + s.serviceData.Name }
+func (s *redisService) GetMetadata() gsvc.Metadata { return nil }
+func (s *redisService) GetEndpoints() gsvc.Endpoints {
+	return gsvc.NewEndpoints(s.serviceData.NodeHost)
+}
 
 // ---- helper ----
 
@@ -292,6 +298,7 @@ func (w *watcher) fetchWithHash() ([]gsvc.Service, string, error) {
 	hash := fmt.Sprintf("%d", len(services))
 	for _, s := range services {
 		hash += s.GetKey()
+		hash += s.GetValue()
 	}
 	return services, hash, nil
 }

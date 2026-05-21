@@ -109,6 +109,7 @@ deploy-k8s-okg: install-okg
 apply-k8s-okg:
 	@echo "=== Applying shared K8s manifests ==="
 	kubectl apply -f deploy/k8s/config/
+	kubectl apply -f deploy/k8s/game-service-rbac.yaml
 	kubectl apply -f deploy/k8s/prometheus.yaml
 	kubectl apply -f deploy/k8s/gate-service.yaml
 	@echo ""

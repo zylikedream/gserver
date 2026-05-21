@@ -60,8 +60,8 @@ type testService struct {
 	weight   int
 }
 
-func (s *testService) GetName() string            { return s.name }
-func (s *testService) GetVersion() string          { return s.version }
+func (s *testService) GetName() string    { return s.name }
+func (s *testService) GetVersion() string { return s.version }
 func (s *testService) GetKey() string {
 	return "gserver-" + s.nodeName + "-" + s.name + ":" + s.host
 }
@@ -215,5 +215,32 @@ func TestServiceFromJSON_EmptyPodName(t *testing.T) {
 	_, err := serviceFromJSON(jsonStr)
 	if err == nil {
 		t.Fatal("expected error for empty pod name")
+	}
+}
+
+func TestWatcherHashChangesWhenServiceValueChanges(t *testing.T) {
+	mock := &mockRedisClient{}
+	currentValue := `{"Name":"role","NodeName":"role-0","Version":"1.0","Weight":0,"NodeHost":"10.0.0.1:19001","State":"serving"}`
+	mock.hgetAllFn = func(_ context.Context, key string) *redis.MapStringStringCmd {
+		return makeMapCmd(map[string]string{"role-0": currentValue})
+	}
+
+	p := patchRedis(mock)
+	defer p.Reset()
+
+	r := New(0)
+	w := &watcher{registry: r, name: "role"}
+
+	_, hash1, err := w.fetchWithHash()
+	if err != nil {
+		t.Fatalf("fetchWithHash failed: %v", err)
+	}
+	currentValue = `{"Name":"role","NodeName":"role-0","Version":"1.0","Weight":0,"NodeHost":"10.0.0.1:19001","State":"draining"}`
+	_, hash2, err := w.fetchWithHash()
+	if err != nil {
+		t.Fatalf("fetchWithHash failed: %v", err)
+	}
+	if hash1 == hash2 {
+		t.Fatalf("expected hash to change when service value changes, got %q", hash1)
 	}
 }

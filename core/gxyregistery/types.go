@@ -11,6 +11,14 @@ const (
 	SERVICE_NAMESPACE = "gserver"
 )
 
+type ServiceState string
+
+const (
+	ServiceStateServing     ServiceState = "serving"
+	ServiceStateDraining    ServiceState = "draining"
+	ServiceStateMaintaining ServiceState = "maintaining"
+)
+
 type HashServices struct {
 	ServiceInfos []*ServiceInfo
 	Hash         string
@@ -22,6 +30,7 @@ type ServiceData struct {
 	Version  string
 	Weight   int
 	NodeHost string
+	State    ServiceState
 }
 
 type ServiceInfo struct {
@@ -36,6 +45,7 @@ func NewServiceInfo(name string, nodeName string, nodeHost string, version strin
 			Version:  version,
 			Weight:   weight,
 			NodeHost: nodeHost,
+			State:    ServiceStateServing,
 		},
 	}
 }
@@ -45,9 +55,17 @@ func NewServiceFromBytes(data []byte) (*ServiceInfo, error) {
 	if err := gjson.Unmarshal(data, &sv); err != nil {
 		return nil, err
 	}
-	return &ServiceInfo{
+	serviceInfo := &ServiceInfo{
 		ServiceData: sv,
-	}, nil
+	}
+	return serviceInfo.withDefaultState(), nil
+}
+
+func (s *ServiceInfo) withDefaultState() *ServiceInfo {
+	if s.State == "" {
+		s.State = ServiceStateServing
+	}
+	return s
 }
 
 func (s *ServiceInfo) GetName() string {
@@ -80,5 +98,10 @@ func (s *ServiceInfo) GetMetadata() gsvc.Metadata {
 		"weight":    s.Weight,
 		"node_name": s.NodeName,
 		"host":      s.NodeHost,
+		"state":     s.State,
 	}
+}
+
+func (s *ServiceInfo) IsServing() bool {
+	return s != nil && (s.State == "" || s.State == ServiceStateServing)
 }

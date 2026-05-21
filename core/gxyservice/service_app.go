@@ -4,8 +4,10 @@ import (
 	"context"
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
+	"gserver/core/gxynodeenv"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyutil"
+	"time"
 )
 
 type serviceApp struct {
@@ -14,6 +16,8 @@ type serviceApp struct {
 	serviceInfo      []*gxyregistery.ServiceInfo
 	registry         gxyregistery.IRegistery
 	nodeInstanceName string
+	nodeEnv          gxynodeenv.NodeEnv
+	refreshCancel    context.CancelFunc
 }
 
 var svrApp *serviceApp
@@ -44,6 +48,7 @@ func (s *serviceApp) OnModInit(ctx context.Context) error {
 		return err
 	}
 	s.registry = registry
+	s.nodeEnv = gxynodeenv.NewAutoNodeEnv()
 	return nil
 }
 
@@ -52,6 +57,7 @@ func (s *serviceApp) OnModStartAfter(ctx context.Context) error {
 	if err := s.registerSevices(); err != nil {
 		return err
 	}
+	s.startServiceStateRefresh()
 	return nil
 }
 
@@ -62,6 +68,7 @@ func (s *serviceApp) registerSevices() error {
 			s.nodeInstanceName,
 			service.Host(),
 			service.Version(), service.Weight())
+		s.refreshServiceState(context.Background(), svcInfo)
 		if err := s.registry.Register(context.Background(), svcInfo); err != nil {
 			return err
 		}
@@ -71,7 +78,62 @@ func (s *serviceApp) registerSevices() error {
 	return nil
 }
 
+func (s *serviceApp) startServiceStateRefresh() {
+	if s.nodeEnv == nil || len(s.serviceInfo) == 0 {
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.refreshCancel = cancel
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.refreshRegisteredServices(ctx)
+			}
+		}
+	}()
+}
+
+func (s *serviceApp) refreshRegisteredServices(ctx context.Context) {
+	for _, svcInfo := range s.serviceInfo {
+		oldState := svcInfo.State
+		if !s.refreshServiceState(ctx, svcInfo) {
+			continue
+		}
+		if oldState == svcInfo.State {
+			continue
+		}
+		if err := s.registry.Register(ctx, svcInfo); err != nil {
+			gxylog.Error(ctx, "refresh service state failed", gxylog.Str("service", svcInfo.Name), gxylog.Str("node", svcInfo.NodeName), gxylog.Err(err))
+			continue
+		}
+		gxylog.Info(ctx, "refresh service state", gxylog.Str("service", svcInfo.Name), gxylog.Str("node", svcInfo.NodeName), gxylog.Str("state", string(svcInfo.State)))
+	}
+}
+
+func (s *serviceApp) refreshServiceState(ctx context.Context, svcInfo *gxyregistery.ServiceInfo) bool {
+	if s.nodeEnv == nil {
+		svcInfo.State = gxyregistery.ServiceStateServing
+		return true
+	}
+	state, err := s.nodeEnv.State(ctx)
+	if err != nil {
+		gxylog.Warn(ctx, "load node state failed", gxylog.Err(err))
+		return false
+	}
+	svcInfo.State = state
+	return true
+}
+
 func (s *serviceApp) OnModStop(ctx context.Context) error {
+	if s.refreshCancel != nil {
+		s.refreshCancel()
+		s.refreshCancel = nil
+	}
 	gxylog.Info(ctx, "unregister services", gxylog.Num("svcnum", len(s.serviceInfo)))
 	for _, svcInfo := range s.serviceInfo {
 		if err := s.registry.UnRegister(ctx, svcInfo); err != nil {

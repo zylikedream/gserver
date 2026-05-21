@@ -1,38 +1,46 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+```bash
+go build ./...                 # compile all packages
+make test                      # run all tests (-gcflags=-l for gomonkey)
+make lint                      # run golangci-lint
+go test -gcflags=-l ./pkg/...  # run tests for a specific package
+go run node/main.go --config config/<name>.toml  # run server with config
 
-This Go 1.25 game server uses an actor/module architecture. Shared framework packages live under `core/` for actor, networking, Redis, PostgreSQL/GORM, discovery, timers, MQ, and logging. Runtime entrypoint code is in `node/`.
+# Protobuf generation (always run after editing .proto files)
+make pb
+```
 
-Business apps live in `src/apps/`: `gateway` handles TCP sessions, while `role` owns player actors and modules such as Basic, Bag, Flower, Plot, and GM. Shared helpers are in `src/lib/` and `src/util/`. Generated protobuf Go files are in `protocol/pb/`; source proto files are under `protocol/client/` and `protocol/server/`. Game config code lives in `gameconfig/`; docs live in `docs/`.
+## Key Conventions
 
-## Build, Test, and Development Commands
+- **Plan first**: for architecture changes or new features, present a plan before writing code
+- **Feature branch + PR**: develop on feature branches, merge via PR
+- **gofmt**: format all Go code with `gofmt -w` before committing
+- **Commit style**: concise, focus on why not what (Chinese or English OK)
 
-- `go build ./...`: compile all packages.
-- `make build`: build using GoFrame CLI settings from `hack/`.
-- `go test ./...`: run the full Go test suite.
-- `go test ./src/apps/role/internal/logic`: run role-module tests.
-- `go run node/main.go --config config/game.toml`: start a local node.
-- `make pb`: regenerate protobuf files and remove `omitempty` tags.
-- `make pbids`: show protobuf message ID ranges.
-- `make newproto MOD=name`: create a client proto with the next ID range.
+## Architecture
 
-## Coding Style & Naming Conventions
+Distributed game server on the **Actor model** (protoactor-go) + GoFrame v2.
 
-Use `gofmt` on changed Go files. There is no configured linter in the Makefile. Prefer package-local conventions. Actor types and role modules use exported CamelCase names such as `RoleMain`, `RoleBag`, and `NewRoleMain`; files use snake_case, for example `role_main.go`.
+- `core/` — shared framework (gxyactor, gxynet, gxyredis, gxypgx, etc.)
+- `src/apps/` — deployable microservices (gateway, role, chat, friend, guild)
+- `node/main.go` — entry point (starts a Node with apps from TOML config)
+- `protocol/` — protobuf definitions (client/ + server/) + generated code (pb/)
 
-For persistence structs, keep explicit `gorm:"column:name"` tags. For protocol changes, update `.proto` first, then regenerate `protocol/pb`.
+## Gotchas
 
-## Testing Guidelines
+- **`go test -gcflags=-l`** is required — gomonkey patches need inlining disabled
+- **`make pb`** strips `omitempty` from generated JSON tags via sed
+- **Dev infra**: redis/consul via docker, grafana/prometheus/tempo via docker-compose
+- **Submodules**: `protocol/client` and `gameconfig` — init after clone
+- **Run config**: `config/*.toml` selects which apps to start (`gate.toml`, `all.toml`, etc.)
 
-Tests use Go’s standard `testing` package, with `gomonkey` in role-module tests for method patching. Put tests beside the package under test and name files `*_test.go`. Prefer targeted package tests while iterating, then run `go test ./...` before handoff. Add focused tests for role behavior, persistence, protobuf handlers, and resource or timer edge cases.
+## development tips
+- **每次开发功能需要先拉取新分支来开发, 如果开发之前有未提交的更改，提醒我先提交**
 
-## Commit & Pull Request Guidelines
+以第一性原理！从原始需求和问题本质出发，不从惯例或模板出发。 
+1.不要假设我清楚自己想要什么。动机或目标不清晰时，停下来讨论。 
+2.目标清晰但路径不是最短的，直接告诉我并好的办法。 
+3.遇到问题追根因，不打补丁。每个决策都要能答"为什么”。 
+4.输出说重点，砍掉一切不改变决策的信息
 
-Recent history uses short conventional prefixes such as `feat:`, `fix:`, `test:`, `docs:`, and scoped forms like `feat(role):`. Keep subjects concise and action-oriented; Chinese descriptions are acceptable.
-
-Pull requests should explain the behavioral change, list affected modules, mention generated files, and include test results. For protocol changes, include the proto file, regenerated `protocol/pb` output, and the `make pbids` range.
-
-## Security & Configuration Tips
-
-Do not commit local secrets or machine-specific endpoints. Runtime configuration belongs in `config/*.toml`; verify PostgreSQL, Redis, and Consul before running locally. Treat `protocol/` and `gameconfig/` as generated or synchronized inputs unless the task explicitly changes them.

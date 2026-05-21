@@ -137,7 +137,7 @@ make deploy-k8s-okg
 这个目标会做几件事：
 
 - 构建并导入 `game-server:latest` 到 Kind。
-- 应用 `deploy/k8s/config/`、`prometheus.yaml`、`gate-service.yaml`。
+- 应用 `deploy/k8s/config/`、`game-service-rbac.yaml`、`prometheus.yaml`、`gate-service.yaml`。
 - 删除旧的 `role/chat/friend/guild` StatefulSet，避免和 OKG Pod 双跑。
 - 应用 `role/chat/friend/guild` 的 `GameServerSet`。
 - 应用 `gate-deployment.yaml`。
@@ -156,7 +156,24 @@ deploy/k8s/role-gameserverset.yaml
 deploy/k8s/chat-gameserverset.yaml
 deploy/k8s/friend-gameserverset.yaml
 deploy/k8s/guild-gameserverset.yaml
+deploy/k8s/game-service-rbac.yaml
 ```
+
+每个游戏服 Pod 会通过 `GS_NAME` 知道自己的 `GameServer` 名称，并通过 `game-service-rbac.yaml` 授权读取自己的 OKG `GameServer` 状态。进程内的 `NodeEnv` 会把 OKG `OpsState` 映射到 registry 状态：
+
+```text
+None / Allocated / 空值  -> serving
+WaitToBeDeleted / Kill  -> draining
+Maintaining             -> maintaining
+```
+
+selector 只会选择 `serving` 节点。因此手动执行：
+
+```bash
+kubectl patch gs role-1 --type merge -p '{"spec":{"opsState":"WaitToBeDeleted"}}'
+```
+
+几秒后，`role-1` 会在 registry 中变成 `draining`，后续新请求不会再被分配到该节点。
 
 查看 OKG 状态：
 

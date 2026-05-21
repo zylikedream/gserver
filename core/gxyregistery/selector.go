@@ -27,7 +27,7 @@ func RandomSelector() ServiceSelector {
 }
 
 func (s *randomServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *ServiceInfo {
-	services := hservices.ServiceInfos
+	services := servingServices(hservices.ServiceInfos)
 	if len(services) == 0 {
 		return nil
 	}
@@ -48,7 +48,7 @@ func RoundRobinSelector() ServiceSelector {
 }
 
 func (s *roundRobinServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *ServiceInfo {
-	services := hservices.ServiceInfos
+	services := servingServices(hservices.ServiceInfos)
 	if len(services) == 0 {
 		return nil
 	}
@@ -92,7 +92,7 @@ func ConsistentHashSelectorWithVirtualNodes(count int) ServiceSelector {
 // Select 根据一致性哈希算法选择一个服务节点
 // 使用service作为key计算哈希值，在哈希环上找到对应的节点
 func (s *consistentHashSelector) Select(ctx context.Context, service string, key string, hservices HashServices) *ServiceInfo {
-	services := hservices.ServiceInfos
+	services := servingServices(hservices.ServiceInfos)
 	if len(services) == 0 {
 		return nil
 	}
@@ -175,6 +175,16 @@ func (s *consistentHashSelector) Select(ctx context.Context, service string, key
 	gxylog.Warn(context.Background(), "consistentHashSelector Select no node found, return random node")
 	// 兜底方案：如果哈希环为空，随机返回一个节点
 	return services[rand.Intn(len(services))]
+}
+
+func servingServices(services []*ServiceInfo) []*ServiceInfo {
+	filtered := make([]*ServiceInfo, 0, len(services))
+	for _, svc := range services {
+		if svc != nil && svc.IsServing() {
+			filtered = append(filtered, svc)
+		}
+	}
+	return filtered
 }
 
 // rebuildRing 重建一致性哈希环

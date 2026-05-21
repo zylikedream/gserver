@@ -19,6 +19,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
     spec:
+      serviceAccountName: game-service
       hostAliases:
         - ip: "172.18.0.1"
           hostnames:

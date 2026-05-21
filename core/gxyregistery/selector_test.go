@@ -128,3 +128,43 @@ func TestConsistentHashRebalance(t *testing.T) {
 	t.Logf("role-0: %d (%.1f%%)", finalCounts["role-0"], float64(finalCounts["role-0"])/float64(n)*100)
 	t.Logf("role-1: %d (%.1f%%)", finalCounts["role-1"], float64(finalCounts["role-1"])/float64(n)*100)
 }
+
+func TestConsistentHashSelectorSkipsDrainingServices(t *testing.T) {
+	selector := ConsistentHashSelectorWithVirtualNodes(10)
+	draining := makeServiceInfo("role", "role-0", "10.244.0.43:19001")
+	draining.State = ServiceStateDraining
+	serving := makeServiceInfo("role", "role-1", "10.244.0.38:19001")
+	serving.State = ServiceStateServing
+	svcs := HashServices{
+		ServiceInfos: []*ServiceInfo{draining, serving},
+		Hash:         "1",
+	}
+
+	for i := 0; i < 100; i++ {
+		key := fmt.Sprintf("role:%d", i)
+		svc := selector.Select(context.Background(), "role", key, svcs)
+		if svc == nil {
+			t.Fatal("select returned nil")
+		}
+		if svc.NodeName != "role-1" {
+			t.Fatalf("expected serving node role-1, got %s", svc.NodeName)
+		}
+	}
+}
+
+func TestSelectorReturnsNilWhenNoServingServices(t *testing.T) {
+	selector := ConsistentHashSelectorWithVirtualNodes(10)
+	draining := makeServiceInfo("role", "role-0", "10.244.0.43:19001")
+	draining.State = ServiceStateDraining
+	maintaining := makeServiceInfo("role", "role-1", "10.244.0.38:19001")
+	maintaining.State = ServiceStateMaintaining
+	svcs := HashServices{
+		ServiceInfos: []*ServiceInfo{draining, maintaining},
+		Hash:         "1",
+	}
+
+	svc := selector.Select(context.Background(), "role", "role:1", svcs)
+	if svc != nil {
+		t.Fatalf("expected nil when all services are unavailable, got %s", svc.NodeName)
+	}
+}
