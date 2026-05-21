@@ -84,6 +84,7 @@ type roleModules struct {
 	Chat          *RoleChat
 	Guild         *RoleGuild
 	Friend        *RoleFriend
+	Mail          *RoleMail
 }
 
 type RoleMain struct {

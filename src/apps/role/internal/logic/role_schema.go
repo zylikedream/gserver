@@ -23,6 +23,9 @@ func InitRoleSchema(ctx context.Context) {
 		&RoleResidentOrderState{},
 		&StealRecord{},
 		&RoleChatState{},
+		&MailEntry{},
+		&RoleMailMeta{},
+		&SysMailItem{},
 	); err != nil {
 		gxylog.Fatal(ctx, "role schema migration failed", gxylog.Err(err))
 	}
