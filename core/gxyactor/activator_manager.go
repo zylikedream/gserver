@@ -236,6 +236,15 @@ func getActorLocateKey(kind string, id string) string {
 	return fmt.Sprintf("%s:%s:%s:%s", redisLocatePrefix, "actor", kind, id)
 }
 
+func getActorLocateNodeName(ctx context.Context, kind string, id string) (string, error) {
+	key := getActorLocateKey(kind, id)
+	nodeName, err := gxyredis.Redis().Get(ctx, key).Result()
+	if err != nil && err != redis.Nil {
+		return "", gerror.Wrap(err, "redis get failed")
+	}
+	return nodeName, nil
+}
+
 type activatorManager struct {
 	gxymodule.ModuleBase
 	nodeName         string
@@ -243,6 +252,13 @@ type activatorManager struct {
 	activatorMetas   map[string]*activatorMeta
 	routerPID        PID
 	ctx              context.Context
+	serviceLookup    actorServiceLookup
+	spawnActorFunc   func(ctx context.Context, node string, kind string, id string) (PID, error)
+}
+
+type actorServiceLookup interface {
+	GetAddressByNodeName(ctx context.Context, name string, nodeInstanceName string) string
+	GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo
 }
 
 func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorManager {
@@ -251,6 +267,8 @@ func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorMan
 		nodeInstanceName: nodeInstanceName,
 		activatorMetas:   make(map[string]*activatorMeta),
 		ctx:              gxylog.NewContext(context.Background(), "activatorManager"),
+		serviceLookup:    gxyservice.ServiceApp(),
+		spawnActorFunc:   nil,
 	}
 }
 
@@ -390,14 +408,14 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 		gxymetrics.ActorLocate.WithLabelValues(kind, result).Inc()
 	}()
 	key := getActorLocateKey(kind, id)
-	nodeName, err := gxyredis.Redis().Get(ctx, key).Result()
-	if err != nil && err != redis.Nil {
-		return nil, gerror.Wrap(err, "redis get failed")
+	nodeName, err := getActorLocateNodeName(ctx, kind, id)
+	if err != nil {
+		return nil, err
 	}
 
 	if nodeName != "" {
 		// Redis 中存的是 nodeInstanceName（game-2@uid），直接传给 Consul 查地址
-		nodeHost := gxyservice.ServiceApp().GetAddressByNodeName(ctx, kind, nodeName)
+		nodeHost := g.serviceLookup.GetAddressByNodeName(ctx, kind, nodeName)
 		if nodeHost != "" {
 			result = "hit"
 			return actor.NewPID(nodeHost, id), nil
@@ -412,11 +430,15 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 		return nil, gerror.Newf("actor kind:%s, id:%s not found", kind, id)
 	}
 
-	serviceInfo := gxyservice.ServiceApp().GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
+	serviceInfo := g.serviceLookup.GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
 	if serviceInfo == nil || serviceInfo.NodeHost == "" {
 		return nil, gerror.Newf("find actor node failed, kind: %s, id: %s", kind, id)
 	}
-	pid, err := g.spawnActor(ctx, serviceInfo.NodeHost, kind, id)
+	spawnActor := g.spawnActor
+	if g.spawnActorFunc != nil {
+		spawnActor = g.spawnActorFunc
+	}
+	pid, err := spawnActor(ctx, serviceInfo.NodeHost, kind, id)
 	if err != nil {
 		return nil, err
 	}

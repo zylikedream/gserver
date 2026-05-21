@@ -10,6 +10,12 @@ up: cli.install
 build: cli.install
 	@gf build -ew
 
+# Simulate a large number of role nodes in the registry.
+# Usage: make role-node-sim ARGS="--count 1000"
+.PHONY: role-node-sim
+role-node-sim:
+	@go run ./cmd/role-node-sim $(ARGS)
+
 # Parse api and generate controller/sdk.
 .PHONY: ctrl
 ctrl: cli.install

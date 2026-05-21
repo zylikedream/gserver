@@ -2,12 +2,14 @@ package gxyactor
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
 	"go.opentelemetry.io/otel/propagation"
 
+	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
 )
 
@@ -168,6 +170,78 @@ func TestGetActorLocateKey_EmptyKind(t *testing.T) {
 	expected := "gserver:locate:node:actor::456"
 	if key != expected {
 		t.Fatalf("expected %s, got %s", expected, key)
+	}
+}
+
+func TestRegisterActorLocate(t *testing.T) {
+	if os.Getenv("RUN_REDIS_TESTS") != "1" {
+		t.Skip("set RUN_REDIS_TESTS=1 to run Redis integration tests")
+	}
+	redisApp := gxyredis.NewRedisApp()
+	if err := redisApp.OnModInit(context.Background()); err != nil {
+		t.Skipf("redis test config unavailable: %v", err)
+	}
+	if err := redisApp.OnModStart(context.Background()); err != nil {
+		t.Skipf("redis unavailable: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = redisApp.OnModStop(context.Background())
+	})
+
+	mgr := NewActivatorManager("node", "node@1")
+	act := NewActorActivator("role", mgr)
+	act.ctx = context.Background()
+	key := getActorLocateKey("role", "player-1")
+
+	if err := act.registerActorLocate(context.Background(), key); err != nil {
+		t.Fatalf("registerActorLocate() error = %v", err)
+	}
+	t.Cleanup(func() {
+		gxyredis.Redis().Del(context.Background(), key)
+	})
+
+	got, err := gxyredis.Redis().Get(context.Background(), key).Result()
+	if err != nil {
+		t.Fatalf("redis get key %s error = %v", key, err)
+	}
+	if got != mgr.nodeInstanceName {
+		t.Fatalf("redis value = %q, want %q", got, mgr.nodeInstanceName)
+	}
+}
+
+func TestGetActorLocateNodeName(t *testing.T) {
+	if os.Getenv("RUN_REDIS_TESTS") != "1" {
+		t.Skip("set RUN_REDIS_TESTS=1 to run Redis integration tests")
+	}
+	redisApp := gxyredis.NewRedisApp()
+	if err := redisApp.OnModInit(context.Background()); err != nil {
+		t.Skipf("redis test config unavailable: %v", err)
+	}
+	if err := redisApp.OnModStart(context.Background()); err != nil {
+		t.Skipf("redis unavailable: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = redisApp.OnModStop(context.Background())
+	})
+
+	key := getActorLocateKey("role", "player-1")
+	if err := gxyredis.Redis().Set(context.Background(), key, "role@node-1", ActorLocateTTL).Err(); err != nil {
+		t.Fatalf("setup redis locate key error = %v", err)
+	}
+	t.Cleanup(func() {
+		gxyredis.Redis().Del(context.Background(), key)
+	})
+
+	got, err := getActorLocateNodeName(context.Background(), "role", "player-1")
+	if err != nil {
+		t.Fatalf("getActorLocateNodeName() error = %v", err)
+	}
+	if got != "role@node-1" {
+		t.Fatalf("getActorLocateNodeName() = %q, want %q", got, "role@node-1")
+	}
+
+	if _, err := getActorLocateNodeName(context.Background(), "role", "missing"); err != nil {
+		t.Fatalf("getActorLocateNodeName() missing error = %v", err)
 	}
 }
 
