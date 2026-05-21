@@ -1,0 +1,91 @@
+apiVersion: game.kruise.io/v1alpha1
+kind: GameServerSet
+metadata:
+  name: chat
+  labels:
+    app.kubernetes.io/part-of: gserver
+spec:
+  serviceName: chat-svc
+  replicas: 2
+  updateStrategy:
+    rollingUpdate:
+      podUpdatePolicy: InPlaceIfPossible
+  gameServerTemplate:
+    metadata:
+      labels:
+        app: chat
+        app.kubernetes.io/part-of: gserver
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+    spec:
+      hostAliases:
+        - ip: "172.18.0.1"
+          hostnames:
+            - "host.docker.internal"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: chat
+          image: game-server:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/config/chat.toml"]
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: GS_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: actor
+              containerPort: 19001
+            - name: chat
+              containerPort: 19003
+            - name: metrics
+              containerPort: 9091
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: log
+              mountPath: /var/log/game
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9091
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: 9091
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "2"
+              memory: "1Gi"
+      volumes:
+        - name: config
+          configMap:
+            name: chat-config
+        - name: log
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-svc
+  labels:
+    app: chat
+spec:
+  clusterIP: None
+  selector:
+    game.kruise.io/owner-gss: chat
+  ports:
+    - name: actor
+      port: 19001

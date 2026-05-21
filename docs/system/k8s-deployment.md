@@ -81,6 +81,111 @@ kubectl apply -f deploy/k8s/gate-service.yaml
 kubectl apply -f deploy/k8s/headless-service.yaml
 ```
 
+### OpenKruiseGame
+
+OKG 路径用于把 `role`、`chat`、`friend`、`guild` 从原生 `StatefulSet` 迁移到 `GameServerSet`。`gate` 仍然保持 `Deployment + NodePort`，Redis 注册发现、PostgreSQL、Prometheus、Grafana 先不改。
+
+OKG 官方推荐用 Helm 安装。若本机还没有 Helm，可以先安装：
+
+```bash
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+```
+
+如果 Helm 不在 `PATH` 里，可以通过 `HELM` 变量指定：
+
+```bash
+make install-okg HELM=/path/to/helm
+```
+
+先安装 OpenKruise 和 OpenKruiseGame：
+
+```bash
+make install-okg
+```
+
+等价 Helm 命令：
+
+```bash
+helm repo add openkruise https://openkruise.github.io/charts/ || true
+helm repo update
+helm upgrade --install kruise openkruise/kruise --version 1.8.0 \
+  --set manager.image.repository=openkruise-registry.cn-shanghai.cr.aliyuncs.com/openkruise/kruise-manager
+helm upgrade --install kruise-game openkruise/kruise-game --version 1.0.0 \
+  --set prometheus.enabled=false \
+  --set image.repository=registry-cn-hangzhou.ack.aliyuncs.com/acs/kruise-game-manager \
+  --set image.pullPolicy=IfNotPresent
+kubectl patch deployment kruise-controller-manager -n kruise-system --type='json' \
+  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+kubectl patch daemonset kruise-daemon -n kruise-system --type='json' \
+  -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+```
+
+`make install-okg` 默认使用上面的国内镜像。如果要切回 Docker Hub，可以覆盖变量：
+
+```bash
+make install-okg \
+  KRUISE_IMAGE_REPO=openkruise/kruise-manager \
+  OKG_IMAGE_REPO=openkruise/kruise-game-manager
+```
+
+部署 OKG 版本：
+
+```bash
+make deploy-k8s-okg
+```
+
+这个目标会做几件事：
+
+- 构建并导入 `game-server:latest` 到 Kind。
+- 应用 `deploy/k8s/config/`、`prometheus.yaml`、`gate-service.yaml`。
+- 删除旧的 `role/chat/friend/guild` StatefulSet，避免和 OKG Pod 双跑。
+- 应用 `role/chat/friend/guild` 的 `GameServerSet`。
+- 应用 `gate-deployment.yaml`。
+
+如果本地已经有可用的 `game-server:latest`，或者 Docker Hub 基础镜像拉取很慢，可以跳过构建，只导入并应用：
+
+```bash
+kind load docker-image game-server:latest --name game-cluster
+make apply-k8s-okg
+```
+
+OKG 版本新增的 manifest：
+
+```text
+deploy/k8s/role-gameserverset.yaml
+deploy/k8s/chat-gameserverset.yaml
+deploy/k8s/friend-gameserverset.yaml
+deploy/k8s/guild-gameserverset.yaml
+```
+
+查看 OKG 状态：
+
+```bash
+make status-k8s-okg
+```
+
+也可以直接执行：
+
+```bash
+kubectl get crd | grep -E 'gameserver|gameserverset|kruise'
+kubectl get gss
+kubectl get gs
+kubectl get pods -l app=role
+kubectl get pods -l app=chat
+kubectl get pods -l app=friend
+kubectl get pods -l app=guild
+```
+
+删除 OKG 游戏服节点池：
+
+```bash
+make delete-k8s-okg
+```
+
+如果要回到 StatefulSet 路径，先执行 `make delete-k8s-okg`，再重新 apply 原来的 `*-statefulset.yaml`。
+
+> **注意：** 不要同时运行同一组服务的 StatefulSet 和 GameServerSet。它们会使用相同的 `app` 标签，容易造成 Redis 注册、Prometheus 目标和网关路由混乱。
+
 ## 可观测性
 
 ### Prometheus

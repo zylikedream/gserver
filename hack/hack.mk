@@ -1,5 +1,9 @@
 .DEFAULT_GOAL := build
 
+HELM ?= helm
+KRUISE_IMAGE_REPO ?= openkruise-registry.cn-shanghai.cr.aliyuncs.com/openkruise/kruise-manager
+OKG_IMAGE_REPO ?= registry-cn-hangzhou.ack.aliyuncs.com/acs/kruise-game-manager
+
 # Update GoFrame and its CLI to latest stable version.
 .PHONY: up
 up: cli.install
@@ -71,6 +75,76 @@ deploy-k8s:
 		kubectl rollout status $$s --timeout=120s; \
 	done
 	@echo "=== Done ==="
+
+# Install OpenKruise and OpenKruiseGame into the current Kubernetes cluster.
+# Usage: make install-okg
+.PHONY: install-okg
+install-okg:
+	@echo "=== Installing OpenKruiseGame dependencies ==="
+	$(HELM) repo add openkruise https://openkruise.github.io/charts/ || true
+	$(HELM) repo update
+	$(HELM) upgrade --install kruise openkruise/kruise --version 1.8.0 --set manager.image.repository=$(KRUISE_IMAGE_REPO)
+	$(HELM) upgrade --install kruise-game openkruise/kruise-game --version 1.0.0 --set prometheus.enabled=false --set image.repository=$(OKG_IMAGE_REPO) --set image.pullPolicy=IfNotPresent
+	kubectl patch deployment kruise-controller-manager -n kruise-system --type='json' -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+	kubectl patch daemonset kruise-daemon -n kruise-system --type='json' -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+	@echo "=== Waiting for OKG CRDs ==="
+	kubectl wait --for=condition=Established crd/gameserversets.game.kruise.io --timeout=120s
+	kubectl wait --for=condition=Established crd/gameservers.game.kruise.io --timeout=120s
+
+# Build, load into kind, and deploy game service pools through OpenKruiseGame.
+# Usage: make deploy-k8s-okg
+.PHONY: deploy-k8s-okg
+deploy-k8s-okg: install-okg
+	@echo "=== Building docker image ==="
+	docker build -f deploy/Dockerfile -t game-server:latest .
+	@echo ""
+	@echo "=== Loading image into kind ==="
+	kind load docker-image game-server:latest
+	@echo ""
+	@$(MAKE) apply-k8s-okg
+
+# Apply OpenKruiseGame manifests using the image already loaded into kind.
+# Usage: make apply-k8s-okg
+.PHONY: apply-k8s-okg
+apply-k8s-okg:
+	@echo "=== Applying shared K8s manifests ==="
+	kubectl apply -f deploy/k8s/config/
+	kubectl apply -f deploy/k8s/prometheus.yaml
+	kubectl apply -f deploy/k8s/gate-service.yaml
+	@echo ""
+	@echo "=== Removing old StatefulSet game service pools to avoid double-running ==="
+	kubectl delete statefulset role chat friend guild --ignore-not-found
+	@echo ""
+	@echo "=== Applying OKG GameServerSets ==="
+	kubectl apply -f deploy/k8s/role-gameserverset.yaml
+	kubectl apply -f deploy/k8s/chat-gameserverset.yaml
+	kubectl apply -f deploy/k8s/friend-gameserverset.yaml
+	kubectl apply -f deploy/k8s/guild-gameserverset.yaml
+	kubectl apply -f deploy/k8s/gate-deployment.yaml
+	@echo ""
+	@echo "=== Waiting for gate rollout ==="
+	kubectl rollout status deployment/gate --timeout=120s
+	@echo ""
+	@$(MAKE) status-k8s-okg
+
+# Delete OpenKruiseGame game service pools while leaving shared services intact.
+# Usage: make delete-k8s-okg
+.PHONY: delete-k8s-okg
+delete-k8s-okg:
+	kubectl delete gameserverset role chat friend guild --ignore-not-found
+
+# Show OpenKruiseGame resources and current game service pods.
+# Usage: make status-k8s-okg
+.PHONY: status-k8s-okg
+status-k8s-okg:
+	@echo "=== GameServerSets ==="
+	kubectl get gss
+	@echo ""
+	@echo "=== GameServers ==="
+	kubectl get gs
+	@echo ""
+	@echo "=== Game service pods ==="
+	kubectl get pods -l app.kubernetes.io/part-of=gserver -o wide
 
 # Build docker image.
 .PHONY: image
