@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -25,6 +26,18 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
+
+const gateMaintenanceEnv = "GATE_MAINTENANCE"
+
+var gateMaintenanceEnabled = func() bool {
+	return os.Getenv(gateMaintenanceEnv) == "true" || os.Getenv(gateMaintenanceEnv) == "1"
+}
+
+var getRoleIDByAccount = role.GetRoleIDByAccount
+
+var activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+	return lib.ActivateRole(ctx, roleID)
+}
 
 const (
 	SESSION_MSG_STOP            = "stop"
@@ -136,15 +149,18 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	if !ok {
 		return gerror.Newf("first packet is not pb.ReqHandShake, msg: %v", msg)
 	}
+	if gateMaintenanceEnabled() {
+		return gerror.New("gate maintenance")
+	}
 	s.Span().SetName(fmt.Sprintf("%T", firstpacket))
 
 	s.sessionInfo.AccountUid = firstpacket.AccountUid
-	roleID, err := role.GetRoleIDByAccount(ctx, firstpacket.AccountUid)
+	roleID, err := getRoleIDByAccount(ctx, firstpacket.AccountUid)
 	if err != nil {
 		return gerror.Wrapf(err, "get role id error, account: %s", firstpacket.AccountUid)
 	}
 	s.SetLogValue(gxylog.ContextKeyRoleID, roleID)
-	rolePid, err := lib.ActivateRole(ctx, roleID)
+	rolePid, err := activateRole(ctx, roleID)
 	if err != nil {
 		return gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
 	}
