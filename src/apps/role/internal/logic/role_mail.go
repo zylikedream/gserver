@@ -3,176 +3,294 @@ package logic
 import (
 	"context"
 	"errors"
+	"sort"
+	"strconv"
 	"time"
 
-	"gserver/core/gxylog"
 	"gserver/core/gxypgx"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 )
 
-// MailEntry 单封邮件（role_mail_items 表）
-type MailEntry struct {
-	RoleID      int64      `gorm:"primaryKey;column:role_id"`
-	MailID      int64      `gorm:"primaryKey;column:mail_id"`
+// PersonalMailItem 个人邮件内容，状态保存在 RoleMailState.States。
+type PersonalMailItem struct {
+	ID          int64      `gorm:"primaryKey;column:id;type:bigint;default:nextval('mail_global_id_seq');autoIncrement:false"`
+	RoleID      int64      `gorm:"column:role_id;index"`
 	Title       string     `gorm:"column:title"`
 	Summary     string     `gorm:"column:summary"`
 	Content     string     `gorm:"column:content"`
 	Attachments []bag.Good `gorm:"column:attachments;type:jsonb;serializer:json"`
 	SendAt      int64      `gorm:"column:send_at"`
 	ExpireAt    int64      `gorm:"column:expire_at"`
-	IsRead      bool       `gorm:"column:is_read"`
-	IsClaimed   bool       `gorm:"column:is_claimed"`
-	IsSysMail   bool       `gorm:"column:is_sys_mail"`
-	IsDeleted   bool       `gorm:"column:is_deleted"`
 }
 
-func (MailEntry) TableName() string { return "role_mail_items" }
+func (PersonalMailItem) TableName() string { return "personal_mail" }
 
-// RoleMailMeta 角色邮件元数据
-type RoleMailMeta struct {
+type MailState struct {
+	MailID    int64 `json:"mail_id"`
+	IsSysMail bool  `json:"is_sys_mail,omitempty"`
+	IsRead    bool  `json:"read,omitempty"`
+	IsClaimed bool  `json:"claimed,omitempty"`
+	IsDeleted bool  `json:"deleted,omitempty"`
+}
+
+type MailStateMap map[string]MailState
+
+// RoleMailState 角色邮件状态，按全局邮件 ID 存 read/claimed/deleted。
+type RoleMailState struct {
 	RolePersistState
-	MaxID             int64 `gorm:"column:max_id"`
-	LastExpandSysMail int64 `gorm:"column:last_expand_sys_mail_id"`
+	LastSysMailID int64        `gorm:"column:last_sys_mail_id"`
+	States        MailStateMap `gorm:"column:states;type:jsonb;serializer:json"`
 }
 
-func (RoleMailMeta) TableName() string { return "role_mail_meta" }
+func (RoleMailState) TableName() string { return "role_mail_state" }
 
-func (r *RoleMailMeta) GetIndexes() []string {
+func (r *RoleMailState) GetIndexes() []string {
 	return []string{"update_at"}
 }
 
 // SysMailItem 全服邮件
 type SysMailItem struct {
-	ID          int64      `gorm:"primaryKey;autoIncrement"`
+	ID          int64      `gorm:"primaryKey;column:id;type:bigint;default:nextval('mail_global_id_seq');autoIncrement:false"`
 	Title       string     `gorm:"column:title"`
+	Summary     string     `gorm:"column:summary"`
 	Content     string     `gorm:"column:content"`
 	Attachments []bag.Good `gorm:"column:attachments;type:jsonb;serializer:json"`
+	SendAt      int64      `gorm:"column:create_at"`
 	ExpireAt    int64      `gorm:"column:expire_at"`
-	CreateAt    int64      `gorm:"column:create_at"`
 }
 
 func (SysMailItem) TableName() string { return "sys_mail" }
 
+type MailView struct {
+	ID          int64
+	Title       string
+	Summary     string
+	Content     string
+	Attachments []bag.Good
+	SendAt      int64
+	ExpireAt    int64
+	IsRead      bool
+	IsClaimed   bool
+	IsDeleted   bool
+}
+
+func mailRuntimeConfig() *gamecfg.GardenMailConfig {
+	return gameconfig.GameConfig().TbMailConfig.Get()
+}
+
 // RoleMail 模块
 type RoleMail struct {
 	RoleModule
-	mailCache []MailEntry
-	meta      RoleMailMeta
+	mailCache []MailView
+	state     RoleMailState
 }
 
 var _ IRoleModule = (*RoleMail)(nil)
 
 func (r *RoleMail) PersistState() IPersistState {
-	return &r.meta
-}
-
-func (r *RoleMail) OnModInit(ctx context.Context) error {
-	roleID := r.RoleID
-
-	// 1. 加载玩家邮件列表（不含已删除）
-	//    元数据由 role_main.loadModules 统一加载
-	var mails []MailEntry
-	if err := gxypgx.DB().WithContext(ctx).
-		Where("role_id = ? AND is_deleted = false", roleID).
-		Order("mail_id DESC").
-		Find(&mails).Error; err != nil {
-		return err
-	}
-	r.mailCache = mails
-
-	// 3. 确保 MaxID >= 已有邮件的最大 ID（处理外部发信）
-	for _, m := range mails {
-		if m.MailID > r.meta.MaxID {
-			r.meta.MaxID = m.MailID
-		}
-	}
-
-	// 4. 清理过期邮件
-	r.cleanExpired(ctx)
-
-	// 4. 展开全服邮件
-	if err := r.expandSysMail(ctx); err != nil {
-		gxylog.Warn(ctx, "expand sys mail failed", gxylog.Err(err))
-	}
-
-	return nil
+	return &r.state
 }
 
 func (r *RoleMail) AfterLogin(ctx context.Context) {
-	if err := r.expandSysMail(ctx); err != nil {
-		gxylog.Warn(ctx, "after login expand sys mail failed", gxylog.Err(err))
+	if err := r.RefreshMailCache(ctx); err != nil {
+		return
 	}
 }
 
-func (r *RoleMail) cleanExpired(ctx context.Context) {
+func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
+	roleID := r.RoleID
+	if r.state.States == nil {
+		r.state.States = make(MailStateMap)
+	}
+
 	now := time.Now().Unix()
-	var expiredIDs []int64
-	var kept []MailEntry
-	for _, m := range r.mailCache {
-		if m.ExpireAt > 0 && m.ExpireAt < now {
-			expiredIDs = append(expiredIDs, m.MailID)
-		} else {
-			kept = append(kept, m)
-		}
-	}
-	if len(expiredIDs) > 0 {
-		gxypgx.DB().WithContext(ctx).
-			Model(&MailEntry{}).
-			Where("role_id = ? AND mail_id IN ?", r.RoleID, expiredIDs).
-			Update("is_deleted", true)
-	}
-	r.mailCache = kept
-}
-
-func (r *RoleMail) expandSysMail(ctx context.Context) error {
-	var maxID int64
+	config := mailRuntimeConfig()
+	var personal []PersonalMailItem
 	if err := gxypgx.DB().WithContext(ctx).
-		Model(&SysMailItem{}).
-		Select("COALESCE(MAX(id), 0)").
-		Scan(&maxID).Error; err != nil {
+		Where("role_id = ?", roleID).
+		Order("id DESC").
+		Limit(int(config.MailMaxCount)).
+		Find(&personal).Error; err != nil {
 		return err
 	}
+	receivePersonalMails(&r.state, personal)
 
-	if r.meta.LastExpandSysMail >= maxID {
-		return nil
-	}
-
-	var sysMails []SysMailItem
+	var system []SysMailItem
 	if err := gxypgx.DB().WithContext(ctx).
-		Where("id > ?", r.meta.LastExpandSysMail).
-		Find(&sysMails).Error; err != nil {
+		Where("id > ? AND (expire_at = 0 OR expire_at >= ?)", r.state.LastSysMailID, now).
+		Order("id ASC").
+		Limit(int(config.MailMaxCount)).
+		Find(&system).Error; err != nil {
 		return err
 	}
+	receiveSystemMails(&r.state, system)
 
-	for _, sm := range sysMails {
-		entry := MailEntry{
-			RoleID:      r.RoleID,
-			Title:       sm.Title,
-			Content:     sm.Content,
-			Attachments: sm.Attachments,
-			SendAt:      sm.CreateAt,
-			ExpireAt:    sm.ExpireAt,
-			IsSysMail:   true,
-		}
-		r.meta.MaxID++
-		entry.MailID = r.meta.MaxID
-
-		if err := gxypgx.DB().WithContext(ctx).Create(&entry).Error; err != nil {
+	visibleSystemIDs := systemMailIDsFromState(r.state.States)
+	if len(visibleSystemIDs) > 0 {
+		if err := gxypgx.DB().WithContext(ctx).
+			Where("id IN ? AND (expire_at = 0 OR expire_at >= ?)", visibleSystemIDs, now).
+			Find(&system).Error; err != nil {
 			return err
 		}
-		r.mailCache = append(r.mailCache, entry)
 	}
 
-	r.meta.LastExpandSysMail = maxID
-	r.meta.MarkDirty()
+	r.mailCache = buildMailViews(personal, system, r.state.States, now)
 	return nil
 }
 
 func (r *RoleMail) OnCreate(ctx context.Context) {}
 
 func (r *RoleMail) OnModStop(ctx context.Context) error { return nil }
+
+func mailStateKey(id int64) string {
+	return strconv.FormatInt(id, 10)
+}
+
+func applyMailState(view *MailView, states MailStateMap) {
+	if states == nil {
+		return
+	}
+	state := states[mailStateKey(view.ID)]
+	view.IsRead = state.IsRead
+	view.IsClaimed = state.IsClaimed
+	view.IsDeleted = state.IsDeleted
+}
+
+func receiveSystemMails(state *RoleMailState, sysMails []SysMailItem) {
+	if state.States == nil {
+		state.States = make(MailStateMap)
+	}
+	for _, mail := range sysMails {
+		if mail.ID <= state.LastSysMailID {
+			continue
+		}
+		state.States[mailStateKey(mail.ID)] = MailState{
+			MailID:    mail.ID,
+			IsSysMail: true,
+		}
+		state.LastSysMailID = mail.ID
+		state.MarkDirty()
+	}
+}
+
+func receivePersonalMails(state *RoleMailState, personal []PersonalMailItem) {
+	if state.States == nil {
+		state.States = make(MailStateMap)
+	}
+	for _, mail := range personal {
+		key := mailStateKey(mail.ID)
+		mailState, ok := state.States[key]
+		if ok {
+			if mailState.MailID == 0 {
+				mailState.MailID = mail.ID
+				state.States[key] = mailState
+				state.MarkDirty()
+			}
+			continue
+		}
+		state.States[key] = MailState{MailID: mail.ID}
+		state.MarkDirty()
+	}
+}
+
+func systemMailIDsFromState(states MailStateMap) []int64 {
+	ids := make([]int64, 0, len(states))
+	for _, state := range states {
+		if state.IsSysMail && !state.IsDeleted {
+			ids = append(ids, state.MailID)
+		}
+	}
+	return ids
+}
+
+func buildMailViews(personal []PersonalMailItem, system []SysMailItem, states MailStateMap, now int64) []MailView {
+	views := make([]MailView, 0, len(personal)+len(system))
+	for _, m := range personal {
+		view := MailView{
+			ID:          m.ID,
+			Title:       m.Title,
+			Summary:     m.Summary,
+			Content:     m.Content,
+			Attachments: m.Attachments,
+			SendAt:      m.SendAt,
+			ExpireAt:    m.ExpireAt,
+		}
+		applyMailState(&view, states)
+		if view.IsDeleted || (view.ExpireAt > 0 && view.ExpireAt < now) {
+			continue
+		}
+		views = append(views, view)
+	}
+	for _, m := range system {
+		view := MailView{
+			ID:          m.ID,
+			Title:       m.Title,
+			Summary:     m.Summary,
+			Content:     m.Content,
+			Attachments: m.Attachments,
+			SendAt:      m.SendAt,
+			ExpireAt:    m.ExpireAt,
+		}
+		applyMailState(&view, states)
+		if view.IsDeleted || (view.ExpireAt > 0 && view.ExpireAt < now) {
+			continue
+		}
+		views = append(views, view)
+	}
+	sort.Slice(views, func(i, j int) bool {
+		if views[i].SendAt == views[j].SendAt {
+			return views[i].ID > views[j].ID
+		}
+		return views[i].SendAt > views[j].SendAt
+	})
+	return trimMailViews(views, int(mailRuntimeConfig().MailMaxCount))
+}
+
+func trimMailViews(views []MailView, limit int) []MailView {
+	if limit <= 0 || len(views) <= limit {
+		return views
+	}
+
+	protected := make([]MailView, 0, limit)
+	ordinary := make([]MailView, 0, len(views))
+	for _, mail := range views {
+		if len(mail.Attachments) > 0 && !mail.IsClaimed {
+			protected = append(protected, mail)
+			continue
+		}
+		ordinary = append(ordinary, mail)
+	}
+
+	if len(protected) >= limit {
+		return protected[:limit]
+	}
+
+	trimmed := make([]MailView, 0, limit)
+	trimmed = append(trimmed, protected...)
+	remain := limit - len(trimmed)
+	if len(ordinary) > remain {
+		ordinary = ordinary[:remain]
+	}
+	trimmed = append(trimmed, ordinary...)
+	return trimmed
+}
+
+func (r *RoleMail) saveMailState(mail *MailView) {
+	if r.state.States == nil {
+		r.state.States = make(MailStateMap)
+	}
+	key := mailStateKey(mail.ID)
+	state := r.state.States[key]
+	state.MailID = mail.ID
+	state.IsRead = mail.IsRead
+	state.IsClaimed = mail.IsClaimed
+	state.IsDeleted = mail.IsDeleted
+	r.state.States[key] = state
+	r.state.MarkDirty()
+}
 
 func (r *RoleMail) calcRedDot() (unread, unclaimed int32) {
 	now := time.Now().Unix()
@@ -190,9 +308,9 @@ func (r *RoleMail) calcRedDot() (unread, unclaimed int32) {
 	return
 }
 
-func (r *RoleMail) findMail(id int64) *MailEntry {
+func (r *RoleMail) findMail(id int64) *MailView {
 	for i := range r.mailCache {
-		if r.mailCache[i].MailID == id {
+		if r.mailCache[i].ID == id {
 			return &r.mailCache[i]
 		}
 	}
@@ -207,7 +325,7 @@ func (r *RoleMail) ReqMailList(ctx context.Context, req *pb.ReqMailList) (*pb.Rs
 			continue
 		}
 		items = append(items, &pb.PMailItem{
-			Id:            m.MailID,
+			Id:            m.ID,
 			Title:         m.Title,
 			Summary:       m.Summary,
 			SendAt:        m.SendAt,
@@ -233,10 +351,7 @@ func (r *RoleMail) ReqMailDetail(ctx context.Context, req *pb.ReqMailDetail) (*p
 
 	if !mail.IsRead {
 		mail.IsRead = true
-		gxypgx.DB().WithContext(ctx).
-			Model(&MailEntry{}).
-			Where("role_id = ? AND mail_id = ?", r.RoleID, req.MailId).
-			Update("is_read", true)
+		r.saveMailState(mail)
 	}
 
 	attachments := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
@@ -249,7 +364,7 @@ func (r *RoleMail) ReqMailDetail(ctx context.Context, req *pb.ReqMailDetail) (*p
 
 	return &pb.RspMailDetail{
 		Mail: &pb.PMailDetail{
-			Id:          mail.MailID,
+			Id:          mail.ID,
 			Title:       mail.Title,
 			Content:     mail.Content,
 			SendAt:      mail.SendAt,
@@ -284,10 +399,7 @@ func (r *RoleMail) ReqMailClaim(ctx context.Context, req *pb.ReqMailClaim) (*pb.
 	}
 
 	mail.IsClaimed = true
-	gxypgx.DB().WithContext(ctx).
-		Model(&MailEntry{}).
-		Where("role_id = ? AND mail_id = ?", r.RoleID, req.MailId).
-		Update("is_claimed", true)
+	r.saveMailState(mail)
 
 	rewards := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
 	for _, a := range mail.Attachments {
@@ -307,9 +419,13 @@ func (r *RoleMail) ReqMailClaim(ctx context.Context, req *pb.ReqMailClaim) (*pb.
 func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll) (*pb.RspMailClaimAll, error) {
 	now := time.Now().Unix()
 	var allGoods []*gamecfg.GardenGoodStack
-	var claimedIDs []int64
+	var claimedMails []*MailView
+	claimLimit := int(mailRuntimeConfig().OneKeyClaimLimit)
 
 	for i := range r.mailCache {
+		if claimLimit > 0 && len(claimedMails) >= claimLimit {
+			break
+		}
 		m := &r.mailCache[i]
 		if m.ExpireAt > 0 && m.ExpireAt < now {
 			continue
@@ -321,10 +437,10 @@ func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll)
 			allGoods = append(allGoods, bag.MakeGoodStack(a.GoodID, int(a.Num)))
 		}
 		m.IsClaimed = true
-		claimedIDs = append(claimedIDs, m.MailID)
+		claimedMails = append(claimedMails, m)
 	}
 
-	if len(claimedIDs) == 0 {
+	if len(claimedMails) == 0 {
 		return &pb.RspMailClaimAll{}, nil
 	}
 
@@ -332,10 +448,9 @@ func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll)
 		return nil, err
 	}
 
-	gxypgx.DB().WithContext(ctx).
-		Model(&MailEntry{}).
-		Where("role_id = ? AND mail_id IN ?", r.RoleID, claimedIDs).
-		Update("is_claimed", true)
+	for _, mail := range claimedMails {
+		r.saveMailState(mail)
+	}
 
 	rewards := make([]*pb.PGoodInfo, 0, len(allGoods))
 	for _, g := range allGoods {
@@ -358,21 +473,20 @@ func (r *RoleMail) ReqMailDelete(ctx context.Context, req *pb.ReqMailDelete) (*p
 		return nil, errors.New("mail not found")
 	}
 	if len(mail.Attachments) > 0 && !mail.IsClaimed {
-		return nil, errors.New("claim attachments before delete")
+		if !mailRuntimeConfig().AllowDeleteUnclaimed {
+			return nil, errors.New("claim attachments before delete")
+		}
 	}
 
-	var kept []MailEntry
+	var kept []MailView
 	for _, m := range r.mailCache {
-		if m.MailID != req.MailId {
+		if m.ID != req.MailId {
 			kept = append(kept, m)
 		}
 	}
+	mail.IsDeleted = true
+	r.saveMailState(mail)
 	r.mailCache = kept
-
-	gxypgx.DB().WithContext(ctx).
-		Model(&MailEntry{}).
-		Where("role_id = ? AND mail_id = ?", r.RoleID, req.MailId).
-		Update("is_deleted", true)
 
 	unread, unclaimed := r.calcRedDot()
 	return &pb.RspMailDelete{

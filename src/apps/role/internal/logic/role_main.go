@@ -827,6 +827,13 @@ func (r *RoleMain) OnNotifyMessage(ctx context.Context, notify *lib.OnRoleNotify
 		}
 	case *pb.NotifyGuildKicked:
 		r.Guild.SetGuildID(ctx, 0)
+	case *pb.NotifyMailUpdate:
+		if r.Mail != nil {
+			if err := r.Mail.RefreshMailCache(ctx); err != nil {
+				return err
+			}
+			m.UnreadCount, m.UnclaimedCount = r.Mail.calcRedDot()
+		}
 	}
 	r.SendClient(ctx, msg)
 	return nil

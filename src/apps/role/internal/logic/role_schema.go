@@ -10,6 +10,10 @@ import (
 func InitRoleSchema(ctx context.Context) {
 	db := gxypgx.DB()
 
+	if err := db.Exec("CREATE SEQUENCE IF NOT EXISTS mail_global_id_seq").Error; err != nil {
+		gxylog.Fatal(ctx, "mail sequence migration failed", gxylog.Err(err))
+	}
+
 	if err := db.AutoMigrate(
 		&RoleAccount{},
 		&RoleBasicState{},
@@ -23,8 +27,8 @@ func InitRoleSchema(ctx context.Context) {
 		&RoleResidentOrderState{},
 		&StealRecord{},
 		&RoleChatState{},
-		&MailEntry{},
-		&RoleMailMeta{},
+		&PersonalMailItem{},
+		&RoleMailState{},
 		&SysMailItem{},
 	); err != nil {
 		gxylog.Fatal(ctx, "role schema migration failed", gxylog.Err(err))
