@@ -12,23 +12,10 @@ message ReqMailList {
 
 message RspMailList {
     option (msg_id) = 30002;
-    repeated PMailItem mails = 1;
-    int32 unread_count = 2;
-    int32 unclaimed_count = 3;
+    repeated PMailDetail mails = 1;
 }
 
-message PMailItem {
-    int64 id = 1;
-    string title = 2;
-    string summary = 3;
-    int64 send_at = 4;
-    int64 expire_at = 5;
-    bool is_read = 6;
-    bool has_attachment = 7;
-    bool is_claimed = 8;
-}
-
-message ReqMailDetail {
+message ReqMailRead {
     option (msg_id) = 30003;
     int64 mail_id = 1;
 }
@@ -41,11 +28,13 @@ message RspMailDetail {
 message PMailDetail {
     int64 id = 1;
     string title = 2;
-    string content = 3;
-    int64 send_at = 4;
-    int64 expire_at = 5;
-    repeated PGoodInfo attachments = 6;
-    bool is_claimed = 7;
+    string summary = 3;
+    string content = 4;
+    int64 send_at = 5;
+    int64 expire_at = 6;
+    repeated PGoodInfo attachments = 7;
+    bool is_read = 8;
+    bool is_claimed = 9;
 }
 
 message ReqMailClaim {
@@ -55,8 +44,7 @@ message ReqMailClaim {
 
 message RspMailClaim {
     option (msg_id) = 30006;
-    repeated PGoodInfo rewards = 1;
-    int32 unclaimed_count = 2;
+    PMailDetail mail = 1;
 }
 
 message ReqMailClaimAll {
@@ -65,8 +53,7 @@ message ReqMailClaimAll {
 
 message RspMailClaimAll {
     option (msg_id) = 30008;
-    repeated PGoodInfo rewards = 1;
-    int32 unclaimed_count = 2;
+    repeated PMailDetail mails = 1;
 }
 
 message ReqMailDelete {
@@ -76,11 +63,10 @@ message ReqMailDelete {
 
 message RspMailDelete {
     option (msg_id) = 30010;
-    int32 unread_count = 2;
-    int32 unclaimed_count = 3;
+    PMailDetail mail = 1;
 }
 
 message NotifyMailUpdate {
-    int32 unread_count = 1;
-    int32 unclaimed_count = 2;
+    option (msg_id) = 30011;
+    int64 mail_id = 1;
 }
