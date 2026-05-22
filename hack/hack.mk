@@ -13,58 +13,6 @@ OKG_SERVICES ?= role chat friend guild
 OKG_DOCKERFILE ?= deploy/Dockerfile.runtime
 KIND_CLUSTER ?= game-cluster
 
-# Update GoFrame and its CLI to latest stable version.
-.PHONY: up
-up: cli.install
-	@gf up -a
-
-# Build binary using configuration from hack/config.yaml.
-.PHONY: build
-build: cli.install
-	@gf build -ew
-
-# Simulate a large number of role nodes in the registry.
-# Usage: make role-node-sim ARGS="--count 1000"
-.PHONY: role-node-sim
-role-node-sim:
-	@go run ./cmd/role-node-sim $(ARGS)
-
-# Parse api and generate controller/sdk.
-.PHONY: ctrl
-ctrl: cli.install
-	@gf gen ctrl
-
-# Generate Go files for DAO/DO/Entity.
-.PHONY: dao
-dao: cli.install
-	@gf gen dao
-
-# Parse current project go files and generate enums go file.
-.PHONY: enums
-enums: cli.install
-	@gf gen enums
-
-# Generate Go files for Service.
-.PHONY: service
-service: cli.install
-	@gf gen service
-
-
-# Build, load into kind, apply K8s manifests, and rollout restart all services.
-# Usage: make deploy-k8s
-.PHONY: install-okg
-install-okg:
-	@echo "=== Installing OpenKruiseGame dependencies ==="
-	$(HELM) repo add openkruise https://openkruise.github.io/charts/ || true
-	$(HELM) repo update
-	$(HELM) upgrade --install kruise openkruise/kruise --version 1.8.0 --set manager.image.repository=$(KRUISE_IMAGE_REPO)
-	$(HELM) upgrade --install kruise-game openkruise/kruise-game --version 1.0.0 --set prometheus.enabled=false --set image.repository=$(OKG_IMAGE_REPO) --set image.pullPolicy=IfNotPresent
-	kubectl patch deployment kruise-controller-manager -n kruise-system --type='json' -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
-	kubectl patch daemonset kruise-daemon -n kruise-system --type='json' -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
-	@echo "=== Waiting for OKG CRDs ==="
-	kubectl wait --for=condition=Established crd/gameserversets.game.kruise.io --timeout=120s
-	kubectl wait --for=condition=Established crd/gameservers.game.kruise.io --timeout=120s
-
 # Build, load into kind, and deploy game service pools through OpenKruiseGame.
 # Usage: make deploy-k8s-okg [TAG=dev-001]
 .PHONY: deploy-k8s-okg
@@ -102,25 +50,6 @@ apply-k8s-okg:
 	@echo ""
 	@$(MAKE) status-k8s-okg
 
-# Delete OpenKruiseGame game service pools while leaving shared services intact.
-# Usage: make delete-k8s-okg
-.PHONY: delete-k8s-okg
-delete-k8s-okg:
-	kubectl delete gameserverset role chat friend guild --ignore-not-found
-
-# Show OpenKruiseGame resources and current game service pods.
-# Usage: make status-k8s-okg
-.PHONY: status-k8s-okg
-status-k8s-okg:
-	@echo "=== GameServerSets ==="
-	kubectl get gss
-	@echo ""
-	@echo "=== GameServers ==="
-	kubectl get gs
-	@echo ""
-	@echo "=== Game service pods ==="
-	kubectl get pods -l app.kubernetes.io/part-of=gserver -o wide
-
 # Update OpenKruiseGame GameServerSet container images.
 # Usage: make update-okg-image [TAG=dev-001]
 .PHONY: update-okg-image
@@ -155,41 +84,6 @@ build-okg-image:
 	@echo ""
 	@echo "=== Building docker image $(OKG_IMAGE) ==="
 	docker build -f $(OKG_DOCKERFILE) -t $(OKG_IMAGE) .
-
-# Build docker image.
-.PHONY: image
-image: cli.install
-	$(eval _TAG  = $(shell git rev-parse --short HEAD))
-ifneq (, $(shell git status --porcelain 2>/dev/null))
-	$(eval _TAG  = $(_TAG).dirty)
-endif
-	$(eval _TAG  = $(if ${TAG},  ${TAG}, $(_TAG)))
-	$(eval _PUSH = $(if ${PUSH}, ${PUSH}, ))
-	@gf docker ${_PUSH} -tn $(DOCKER_NAME):${_TAG};
-
-
-# Build docker image and automatically push to docker repo.
-.PHONY: image.push
-image.push: cli.install
-	@make image PUSH=-p;
-
-
-# Deploy image and yaml to current kubectl environment.
-.PHONY: deploy
-deploy: cli.install
-	$(eval _TAG = $(if ${TAG},  ${TAG}, develop))
-
-	@set -e; \
-	mkdir -p $(ROOT_DIR)/temp/kustomize;\
-	cd $(ROOT_DIR)/manifest/deploy/kustomize/overlays/${_ENV};\
-	kustomize build > $(ROOT_DIR)/temp/kustomize.yaml;\
-	kubectl   apply -f $(ROOT_DIR)/temp/kustomize.yaml; \
-	if [ $(DEPLOY_NAME) != "" ]; then \
-		kubectl patch \
-		-n $(NAMESPACE) deployment/$(DEPLOY_NAME) \
-		-p "{\"spec\":{\"template\":{\"metadata\":{\"labels\":{\"date\":\"$(shell date +%s)\"}}}}}"; \
-	fi;
-
 
 # Parsing protobuf files and generating go files.
 .PHONY: pbraw

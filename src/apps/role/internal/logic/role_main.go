@@ -369,16 +369,11 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 	gxylog.Debug(ctx, "save mod", gxylog.Str("table", tableName))
 
 	// 第一层：Redis 归属检查
-	phaseStart := time.Now()
-	ok := r.checkRoleSaveOwner(ctx)
-	r.logSlowRoleSavePhase(ctx, rmod, tableName, "redis_owner_check", phaseStart)
-	if !ok {
+	if !r.checkRoleSaveOwner(ctx) {
 		return nil
 	}
 
-	phaseStart = time.Now()
 	release, err := globalRoleSaveLimiter.acquire(ctx)
-	r.logSlowRoleSavePhase(ctx, rmod, tableName, "save_limiter_wait", phaseStart)
 	if err != nil {
 		return err
 	}
@@ -455,21 +450,17 @@ func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IR
 
 	if oldVersion == 0 {
 		// version==0 表示新号，行还不存在，直接 Save（INSERT）
-		phaseStart := time.Now()
 		if err := db.Save(modState).Error; err != nil {
 			return nil, fmt.Errorf("save mod %s failed: %s", tableName, err)
 		}
-		r.logSlowRoleSavePhase(ctx, rmod, tableName, "db_insert", phaseStart)
 		return &savedRoleModule{state: modState}, nil
 	}
 
 	// version>0 表示有已有行，UPDATE + WHERE version 做冲突检测
 	modState.SetVersion(oldVersion + 1)
-	phaseStart := time.Now()
 	result := db.Model(modState).
 		Where("role_id = ? AND version = ?", r.RoleID, oldVersion).
 		Updates(modState)
-	r.logSlowRoleSavePhase(ctx, rmod, tableName, "db_update", phaseStart)
 	if result.Error != nil {
 		modState.SetVersion(oldVersion)
 		return nil, fmt.Errorf("save mod %s failed: %s", tableName, result.Error)
@@ -487,30 +478,21 @@ func (r *RoleMain) save(ctx context.Context) error {
 		return nil
 	}
 
-	phaseStart := time.Now()
 	if !r.checkRoleSaveOwner(ctx) {
-		r.logSlowRoleSaveBatchPhase(ctx, "redis_owner_check", len(dirtyMods), phaseStart)
 		return nil
 	}
-	r.logSlowRoleSaveBatchPhase(ctx, "redis_owner_check", len(dirtyMods), phaseStart)
 
-	phaseStart = time.Now()
 	release, err := globalRoleSaveLimiter.acquire(ctx)
-	r.logSlowRoleSaveBatchPhase(ctx, "save_limiter_wait", len(dirtyMods), phaseStart)
 	if err != nil {
 		return err
 	}
 	defer release()
 
 	var savedMods []*savedRoleModule
-	moduleCosts := make(map[IRoleModule]time.Duration, len(dirtyMods))
-	phaseStart = time.Now()
 	err = gxypgx.DB().Transaction(func(tx *gorm.DB) error {
 		var errStr string
 		for _, rmod := range dirtyMods {
-			start := time.Now()
 			saved, err := r.saveRoleModuleState(ctx, tx, rmod)
-			moduleCosts[rmod] = time.Since(start)
 			if err != nil {
 				errStr += err.Error()
 				continue
@@ -524,7 +506,6 @@ func (r *RoleMain) save(ctx context.Context) error {
 		}
 		return nil
 	})
-	r.logSlowRoleSaveBatchPhase(ctx, "db_transaction", len(dirtyMods), phaseStart)
 	if err != nil {
 		for _, saved := range savedMods {
 			if saved.versionChanged {
@@ -535,9 +516,6 @@ func (r *RoleMain) save(ctx context.Context) error {
 	}
 	for _, saved := range savedMods {
 		saved.state.ClearDirty()
-	}
-	for _, rmod := range dirtyMods {
-		r.logSlowRoleSaveModuleCost(ctx, rmod, true, moduleCosts[rmod])
 	}
 	return nil
 }
@@ -568,49 +546,6 @@ func roleModuleTableName(rmod IRoleModule) string {
 		return t.TableName()
 	}
 	return ""
-}
-
-func (r *RoleMain) logSlowRoleSaveModule(ctx context.Context, rmod IRoleModule, dirtyBefore bool, start time.Time) {
-	r.logSlowRoleSaveModuleCost(ctx, rmod, dirtyBefore, time.Since(start))
-}
-
-func (r *RoleMain) logSlowRoleSaveModuleCost(ctx context.Context, rmod IRoleModule, dirtyBefore bool, cost time.Duration) {
-	if cost >= SLOW_CLIENT_REQUEST {
-		gxylog.Warn(ctx, "slow role save module",
-			gxylog.Str("module", fmt.Sprintf("%T", rmod)),
-			gxylog.Str("table", roleModuleTableName(rmod)),
-			gxylog.Bool("dirty_before", dirtyBefore),
-			gxylog.Bool("dirty_after", roleModuleDirty(rmod)),
-			gxylog.Str("trace_id", gxymetrics.TraceIDFromContext(ctx)),
-			gxylog.Num("roleID", r.RoleID),
-			gxylog.Num("cost_ms", cost.Milliseconds()),
-		)
-	}
-}
-
-func (r *RoleMain) logSlowRoleSavePhase(ctx context.Context, rmod IRoleModule, tableName string, phase string, start time.Time) {
-	if cost := time.Since(start); cost >= SLOW_CLIENT_REQUEST {
-		gxylog.Warn(ctx, "slow role save phase",
-			gxylog.Str("module", fmt.Sprintf("%T", rmod)),
-			gxylog.Str("table", tableName),
-			gxylog.Str("phase", phase),
-			gxylog.Str("trace_id", gxymetrics.TraceIDFromContext(ctx)),
-			gxylog.Num("roleID", r.RoleID),
-			gxylog.Num("cost_ms", cost.Milliseconds()),
-		)
-	}
-}
-
-func (r *RoleMain) logSlowRoleSaveBatchPhase(ctx context.Context, phase string, dirtyCount int, start time.Time) {
-	if cost := time.Since(start); cost >= SLOW_CLIENT_REQUEST {
-		gxylog.Warn(ctx, "slow role save batch phase",
-			gxylog.Str("phase", phase),
-			gxylog.Num("dirty_count", dirtyCount),
-			gxylog.Str("trace_id", gxymetrics.TraceIDFromContext(ctx)),
-			gxylog.Num("roleID", r.RoleID),
-			gxylog.Num("cost_ms", cost.Milliseconds()),
-		)
-	}
 }
 
 func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
@@ -681,43 +616,23 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 
 func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	for _, mod := range r.Modules() {
-		rmod := mod.(IRoleModule)
-		start := time.Now()
-		rmod.OnCreate(ctx)
-		r.logSlowRoleCreateStep(ctx, fmt.Sprintf("module_on_create:%T", rmod), start)
+		mod.(IRoleModule).OnCreate(ctx)
 	}
 
-	start := time.Now()
 	r.Public.UpdateRolePublic(ctx)
-	r.logSlowRoleCreateStep(ctx, "update_role_public", start)
 
 	// 发放初始物品
 	initItems := gameconfig.GameConfig().TbGlobalConfig.Get().InitItems
 	if len(initItems) > 0 {
-		start = time.Now()
 		if err := r.Bag.SaveGoods(ctx, nil, initItems, "", bag.OptSilent()); err != nil {
 			return err
 		}
-		r.logSlowRoleCreateStep(ctx, "save_initial_items", start)
 	}
 	// 建号强制保存一次
-	start = time.Now()
 	if err := r.save(ctx); err != nil {
 		return err
 	}
-	r.logSlowRoleCreateStep(ctx, "force_save", start)
 	return nil
-}
-
-func (r *RoleMain) logSlowRoleCreateStep(ctx context.Context, step string, start time.Time) {
-	if cost := time.Since(start); cost >= SLOW_CLIENT_REQUEST {
-		gxylog.Warn(ctx, "slow role create step",
-			gxylog.Str("step", step),
-			gxylog.Str("trace_id", gxymetrics.TraceIDFromContext(ctx)),
-			gxylog.Num("roleID", r.RoleID),
-			gxylog.Num("cost_ms", cost.Milliseconds()),
-		)
-	}
 }
 
 func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
