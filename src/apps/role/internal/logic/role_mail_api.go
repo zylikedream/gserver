@@ -58,7 +58,7 @@ func SendMail(ctx context.Context, roleID int64, opts SendMailOpts) error {
 		return err
 	}
 
-	notifyMailUpdate(ctx, roleID)
+	notifyMailUpdate(ctx, roleID, entry.ID)
 	return nil
 }
 
@@ -88,7 +88,7 @@ func SendMailBatch(ctx context.Context, roleIDs []int64, opts SendMailOpts) erro
 			continue
 		}
 
-		notifyMailUpdate(ctx, roleID)
+		notifyMailUpdate(ctx, roleID, entry.ID)
 	}
 	return nil
 }
@@ -115,8 +115,8 @@ func SendMailToAll(ctx context.Context, opts SendMailOpts) error {
 }
 
 // notifyMailUpdate 通知在线玩家（不强制激活 actor）
-func notifyMailUpdate(ctx context.Context, roleID int64) {
-	if err := lib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{}); err != nil {
+func notifyMailUpdate(ctx context.Context, roleID int64, mailID int64) {
+	if err := lib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{MailId: mailID}); err != nil {
 		gxylog.Warn(ctx, "notify mail update failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 	}
 }

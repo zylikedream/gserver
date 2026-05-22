@@ -292,6 +292,26 @@ func (r *RoleMail) saveMailState(mail *MailView) {
 	r.state.MarkDirty()
 }
 
+func toMailDetailPB(mail *MailView) *pb.PMailDetail {
+	attachments := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
+	for _, a := range mail.Attachments {
+		attachments = append(attachments, &pb.PGoodInfo{
+			PropId: int32(a.GoodID),
+			Num:    int64(a.Num),
+		})
+	}
+	return &pb.PMailDetail{
+		Id:          mail.ID,
+		Title:       mail.Title,
+		Summary:     mail.Summary,
+		SendAt:      mail.SendAt,
+		ExpireAt:    mail.ExpireAt,
+		Attachments: attachments,
+		IsRead:      mail.IsRead,
+		IsClaimed:   mail.IsClaimed,
+	}
+}
+
 func (r *RoleMail) calcRedDot() (unread, unclaimed int32) {
 	now := time.Now().Unix()
 	for _, m := range r.mailCache {
@@ -319,31 +339,27 @@ func (r *RoleMail) findMail(id int64) *MailView {
 
 func (r *RoleMail) ReqMailList(ctx context.Context, req *pb.ReqMailList) (*pb.RspMailList, error) {
 	now := time.Now().Unix()
-	items := make([]*pb.PMailItem, 0, len(r.mailCache))
+	items := make([]*pb.PMailDetail, 0, len(r.mailCache))
 	for _, m := range r.mailCache {
 		if m.ExpireAt > 0 && m.ExpireAt < now {
 			continue
 		}
-		items = append(items, &pb.PMailItem{
-			Id:            m.ID,
-			Title:         m.Title,
-			Summary:       m.Summary,
-			SendAt:        m.SendAt,
-			ExpireAt:      m.ExpireAt,
-			IsRead:        m.IsRead,
-			HasAttachment: len(m.Attachments) > 0,
-			IsClaimed:     m.IsClaimed,
+		items = append(items, &pb.PMailDetail{
+			Id:        m.ID,
+			Title:     m.Title,
+			Summary:   m.Summary,
+			SendAt:    m.SendAt,
+			ExpireAt:  m.ExpireAt,
+			IsRead:    m.IsRead,
+			IsClaimed: m.IsClaimed,
 		})
 	}
-	unread, unclaimed := r.calcRedDot()
 	return &pb.RspMailList{
-		Mails:          items,
-		UnreadCount:    unread,
-		UnclaimedCount: unclaimed,
+		Mails: items,
 	}, nil
 }
 
-func (r *RoleMail) ReqMailDetail(ctx context.Context, req *pb.ReqMailDetail) (*pb.RspMailDetail, error) {
+func (r *RoleMail) ReqMailRead(ctx context.Context, req *pb.ReqMailRead) (*pb.RspMailDetail, error) {
 	mail := r.findMail(req.MailId)
 	if mail == nil {
 		return nil, errors.New("mail not found")
@@ -354,24 +370,8 @@ func (r *RoleMail) ReqMailDetail(ctx context.Context, req *pb.ReqMailDetail) (*p
 		r.saveMailState(mail)
 	}
 
-	attachments := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
-	for _, a := range mail.Attachments {
-		attachments = append(attachments, &pb.PGoodInfo{
-			PropId: int32(a.GoodID),
-			Num:    int64(a.Num),
-		})
-	}
-
 	return &pb.RspMailDetail{
-		Mail: &pb.PMailDetail{
-			Id:          mail.ID,
-			Title:       mail.Title,
-			Content:     mail.Content,
-			SendAt:      mail.SendAt,
-			ExpireAt:    mail.ExpireAt,
-			Attachments: attachments,
-			IsClaimed:   mail.IsClaimed,
-		},
+		Mail: toMailDetailPB(mail),
 	}, nil
 }
 
@@ -401,18 +401,8 @@ func (r *RoleMail) ReqMailClaim(ctx context.Context, req *pb.ReqMailClaim) (*pb.
 	mail.IsClaimed = true
 	r.saveMailState(mail)
 
-	rewards := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
-	for _, a := range mail.Attachments {
-		rewards = append(rewards, &pb.PGoodInfo{
-			PropId: int32(a.GoodID),
-			Num:    int64(a.Num),
-		})
-	}
-
-	_, unclaimed := r.calcRedDot()
 	return &pb.RspMailClaim{
-		Rewards:        rewards,
-		UnclaimedCount: unclaimed,
+		Mail: toMailDetailPB(mail),
 	}, nil
 }
 
@@ -452,18 +442,13 @@ func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll)
 		r.saveMailState(mail)
 	}
 
-	rewards := make([]*pb.PGoodInfo, 0, len(allGoods))
-	for _, g := range allGoods {
-		rewards = append(rewards, &pb.PGoodInfo{
-			PropId: g.Id,
-			Num:    int64(g.Num),
-		})
+	mails := make([]*pb.PMailDetail, 0, len(claimedMails))
+	for _, claimed := range claimedMails {
+		mails = append(mails, toMailDetailPB(claimed))
 	}
 
-	_, unclaimed := r.calcRedDot()
 	return &pb.RspMailClaimAll{
-		Rewards:        rewards,
-		UnclaimedCount: unclaimed,
+		Mails: mails,
 	}, nil
 }
 
@@ -488,9 +473,7 @@ func (r *RoleMail) ReqMailDelete(ctx context.Context, req *pb.ReqMailDelete) (*p
 	r.saveMailState(mail)
 	r.mailCache = kept
 
-	unread, unclaimed := r.calcRedDot()
 	return &pb.RspMailDelete{
-		UnreadCount:    unread,
-		UnclaimedCount: unclaimed,
+		Mail: toMailDetailPB(mail),
 	}, nil
 }

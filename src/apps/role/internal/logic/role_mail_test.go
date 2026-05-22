@@ -348,11 +348,7 @@ func TestRoleMainOnNotifyMessage_RefreshesMailBeforeNotify(t *testing.T) {
 	if !refreshCalled {
 		t.Fatal("expected mail cache refresh before notify")
 	}
-	notify, ok := sent.(*pb.NotifyMailUpdate)
-	if !ok {
+	if _, ok := sent.(*pb.NotifyMailUpdate); !ok {
 		t.Fatalf("expected NotifyMailUpdate sent, got %T", sent)
-	}
-	if notify.UnreadCount != 1 || notify.UnclaimedCount != 1 {
-		t.Fatalf("unexpected notify counts: %+v", notify)
 	}
 }
