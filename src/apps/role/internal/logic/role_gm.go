@@ -345,7 +345,6 @@ func (r *RoleGM) StopRole(roleID int64) error {
 func (r *RoleGM) SendMail(roleID int64, title string, content string) error {
 	return SendMail(r.ctx, roleID, SendMailOpts{
 		Title:   title,
-		Summary: content,
 		Content: content,
 	})
 }
@@ -386,7 +385,6 @@ func (r *RoleGM) SendMailGoods(roleID int64, title string, content string, goods
 	}
 	return SendMail(r.ctx, roleID, SendMailOpts{
 		Title:       title,
-		Summary:     content,
 		Content:     content,
 		Attachments: goods,
 	})

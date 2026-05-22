@@ -16,7 +16,6 @@ import (
 // SendMailOpts 发邮件选项
 type SendMailOpts struct {
 	Title       string
-	Summary     string
 	Content     string
 	Attachments []bag.Good
 	ExpireAt    int64 // 0 表示使用默认过期天数
@@ -48,7 +47,6 @@ func SendMail(ctx context.Context, roleID int64, opts SendMailOpts) error {
 	entry := PersonalMailItem{
 		RoleID:      roleID,
 		Title:       opts.Title,
-		Summary:     opts.Summary,
 		Content:     opts.Content,
 		Attachments: opts.Attachments,
 		SendAt:      time.Now().Unix(),
@@ -77,7 +75,6 @@ func SendMailBatch(ctx context.Context, roleIDs []int64, opts SendMailOpts) erro
 		entry := PersonalMailItem{
 			RoleID:      roleID,
 			Title:       opts.Title,
-			Summary:     opts.Summary,
 			Content:     opts.Content,
 			Attachments: opts.Attachments,
 			SendAt:      now,
@@ -105,7 +102,6 @@ func SendMailToAll(ctx context.Context, opts SendMailOpts) error {
 
 	sysMail := SysMailItem{
 		Title:       opts.Title,
-		Summary:     opts.Summary,
 		Content:     opts.Content,
 		Attachments: opts.Attachments,
 		ExpireAt:    opts.ExpireAt,

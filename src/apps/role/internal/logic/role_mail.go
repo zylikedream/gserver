@@ -19,7 +19,6 @@ type PersonalMailItem struct {
 	ID          int64      `gorm:"primaryKey;column:id;type:bigint;default:nextval('mail_global_id_seq');autoIncrement:false"`
 	RoleID      int64      `gorm:"column:role_id;index"`
 	Title       string     `gorm:"column:title"`
-	Summary     string     `gorm:"column:summary"`
 	Content     string     `gorm:"column:content"`
 	Attachments []bag.Good `gorm:"column:attachments;type:jsonb;serializer:json"`
 	SendAt      int64      `gorm:"column:send_at"`
@@ -55,7 +54,6 @@ func (r *RoleMailState) GetIndexes() []string {
 type SysMailItem struct {
 	ID          int64      `gorm:"primaryKey;column:id;type:bigint;default:nextval('mail_global_id_seq');autoIncrement:false"`
 	Title       string     `gorm:"column:title"`
-	Summary     string     `gorm:"column:summary"`
 	Content     string     `gorm:"column:content"`
 	Attachments []bag.Good `gorm:"column:attachments;type:jsonb;serializer:json"`
 	SendAt      int64      `gorm:"column:create_at"`
@@ -67,7 +65,6 @@ func (SysMailItem) TableName() string { return "sys_mail" }
 type MailView struct {
 	ID          int64
 	Title       string
-	Summary     string
 	Content     string
 	Attachments []bag.Good
 	SendAt      int64
@@ -212,7 +209,6 @@ func buildMailViews(personal []PersonalMailItem, system []SysMailItem, states Ma
 		view := MailView{
 			ID:          m.ID,
 			Title:       m.Title,
-			Summary:     m.Summary,
 			Content:     m.Content,
 			Attachments: m.Attachments,
 			SendAt:      m.SendAt,
@@ -228,7 +224,6 @@ func buildMailViews(personal []PersonalMailItem, system []SysMailItem, states Ma
 		view := MailView{
 			ID:          m.ID,
 			Title:       m.Title,
-			Summary:     m.Summary,
 			Content:     m.Content,
 			Attachments: m.Attachments,
 			SendAt:      m.SendAt,
@@ -303,7 +298,7 @@ func toMailDetailPB(mail *MailView) *pb.PMailDetail {
 	return &pb.PMailDetail{
 		Id:          mail.ID,
 		Title:       mail.Title,
-		Summary:     mail.Summary,
+		Content:     mail.Content,
 		SendAt:      mail.SendAt,
 		ExpireAt:    mail.ExpireAt,
 		Attachments: attachments,
@@ -344,15 +339,8 @@ func (r *RoleMail) ReqMailList(ctx context.Context, req *pb.ReqMailList) (*pb.Rs
 		if m.ExpireAt > 0 && m.ExpireAt < now {
 			continue
 		}
-		items = append(items, &pb.PMailDetail{
-			Id:        m.ID,
-			Title:     m.Title,
-			Summary:   m.Summary,
-			SendAt:    m.SendAt,
-			ExpireAt:  m.ExpireAt,
-			IsRead:    m.IsRead,
-			IsClaimed: m.IsClaimed,
-		})
+		item := toMailDetailPB(&m)
+		items = append(items, item)
 	}
 	return &pb.RspMailList{
 		Mails: items,
@@ -399,6 +387,7 @@ func (r *RoleMail) ReqMailClaim(ctx context.Context, req *pb.ReqMailClaim) (*pb.
 	}
 
 	mail.IsClaimed = true
+	mail.IsRead = true
 	r.saveMailState(mail)
 
 	return &pb.RspMailClaim{

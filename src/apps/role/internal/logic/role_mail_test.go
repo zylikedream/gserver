@@ -127,11 +127,11 @@ func TestBuildMailViews_MergesContentWithPlayerState(t *testing.T) {
 	initMailTestConfig(t)
 	now := time.Now().Unix()
 	personal := []PersonalMailItem{
-		{ID: 11, RoleID: 1001, Title: "personal", Summary: "p", Content: "pc", SendAt: now, ExpireAt: now + 100},
+		{ID: 11, RoleID: 1001, Title: "personal", Content: "pc", SendAt: now, ExpireAt: now + 100},
 	}
 	system := []SysMailItem{
-		{ID: 12, Title: "system", Summary: "s", Content: "sc", SendAt: now + 1, ExpireAt: now + 100},
-		{ID: 13, Title: "deleted", Summary: "d", Content: "dc", SendAt: now + 2, ExpireAt: now + 100},
+		{ID: 12, Title: "system", Content: "sc", SendAt: now + 1, ExpireAt: now + 100},
+		{ID: 13, Title: "deleted", Content: "dc", SendAt: now + 2, ExpireAt: now + 100},
 	}
 	states := MailStateMap{
 		"11": {MailID: 11, IsRead: true},
