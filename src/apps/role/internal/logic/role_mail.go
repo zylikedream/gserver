@@ -14,8 +14,8 @@ import (
 
 // MailEntry 单封邮件（role_mail_items 表）
 type MailEntry struct {
-	ID          int64      `gorm:"primaryKey"`
-	RoleID      int64      `gorm:"column:role_id;index:idx_mail_role_id"`
+	RoleID      int64      `gorm:"primaryKey;column:role_id"`
+	MailID      int64      `gorm:"primaryKey;column:mail_id"`
 	Title       string     `gorm:"column:title"`
 	Summary     string     `gorm:"column:summary"`
 	Content     string     `gorm:"column:content"`
@@ -76,7 +76,7 @@ func (r *RoleMail) OnModInit(ctx context.Context) error {
 	var mails []MailEntry
 	if err := gxypgx.DB().WithContext(ctx).
 		Where("role_id = ? AND is_deleted = false", roleID).
-		Order("id DESC").
+		Order("mail_id DESC").
 		Find(&mails).Error; err != nil {
 		return err
 	}
@@ -84,8 +84,8 @@ func (r *RoleMail) OnModInit(ctx context.Context) error {
 
 	// 3. 确保 MaxID >= 已有邮件的最大 ID（处理外部发信）
 	for _, m := range mails {
-		if m.ID > r.meta.MaxID {
-			r.meta.MaxID = m.ID
+		if m.MailID > r.meta.MaxID {
+			r.meta.MaxID = m.MailID
 		}
 	}
 
@@ -112,7 +112,7 @@ func (r *RoleMail) cleanExpired(ctx context.Context) {
 	var kept []MailEntry
 	for _, m := range r.mailCache {
 		if m.ExpireAt > 0 && m.ExpireAt < now {
-			expiredIDs = append(expiredIDs, m.ID)
+			expiredIDs = append(expiredIDs, m.MailID)
 		} else {
 			kept = append(kept, m)
 		}
@@ -120,7 +120,7 @@ func (r *RoleMail) cleanExpired(ctx context.Context) {
 	if len(expiredIDs) > 0 {
 		gxypgx.DB().WithContext(ctx).
 			Model(&MailEntry{}).
-			Where("id IN ?", expiredIDs).
+			Where("role_id = ? AND mail_id IN ?", r.RoleID, expiredIDs).
 			Update("is_deleted", true)
 	}
 	r.mailCache = kept
@@ -157,7 +157,7 @@ func (r *RoleMail) expandSysMail(ctx context.Context) error {
 			IsSysMail:   true,
 		}
 		r.meta.MaxID++
-		entry.ID = r.meta.MaxID
+		entry.MailID = r.meta.MaxID
 
 		if err := gxypgx.DB().WithContext(ctx).Create(&entry).Error; err != nil {
 			return err
@@ -192,7 +192,7 @@ func (r *RoleMail) calcRedDot() (unread, unclaimed int32) {
 
 func (r *RoleMail) findMail(id int64) *MailEntry {
 	for i := range r.mailCache {
-		if r.mailCache[i].ID == id {
+		if r.mailCache[i].MailID == id {
 			return &r.mailCache[i]
 		}
 	}
@@ -207,7 +207,7 @@ func (r *RoleMail) ReqMailList(ctx context.Context, req *pb.ReqMailList) (*pb.Rs
 			continue
 		}
 		items = append(items, &pb.PMailItem{
-			Id:            m.ID,
+			Id:            m.MailID,
 			Title:         m.Title,
 			Summary:       m.Summary,
 			SendAt:        m.SendAt,
@@ -235,7 +235,7 @@ func (r *RoleMail) ReqMailDetail(ctx context.Context, req *pb.ReqMailDetail) (*p
 		mail.IsRead = true
 		gxypgx.DB().WithContext(ctx).
 			Model(&MailEntry{}).
-			Where("id = ?", req.MailId).
+			Where("role_id = ? AND mail_id = ?", r.RoleID, req.MailId).
 			Update("is_read", true)
 	}
 
@@ -249,7 +249,7 @@ func (r *RoleMail) ReqMailDetail(ctx context.Context, req *pb.ReqMailDetail) (*p
 
 	return &pb.RspMailDetail{
 		Mail: &pb.PMailDetail{
-			Id:          mail.ID,
+			Id:          mail.MailID,
 			Title:       mail.Title,
 			Content:     mail.Content,
 			SendAt:      mail.SendAt,
@@ -286,7 +286,7 @@ func (r *RoleMail) ReqMailClaim(ctx context.Context, req *pb.ReqMailClaim) (*pb.
 	mail.IsClaimed = true
 	gxypgx.DB().WithContext(ctx).
 		Model(&MailEntry{}).
-		Where("id = ?", req.MailId).
+		Where("role_id = ? AND mail_id = ?", r.RoleID, req.MailId).
 		Update("is_claimed", true)
 
 	rewards := make([]*pb.PGoodInfo, 0, len(mail.Attachments))
@@ -321,7 +321,7 @@ func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll)
 			allGoods = append(allGoods, bag.MakeGoodStack(a.GoodID, int(a.Num)))
 		}
 		m.IsClaimed = true
-		claimedIDs = append(claimedIDs, m.ID)
+		claimedIDs = append(claimedIDs, m.MailID)
 	}
 
 	if len(claimedIDs) == 0 {
@@ -334,7 +334,7 @@ func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll)
 
 	gxypgx.DB().WithContext(ctx).
 		Model(&MailEntry{}).
-		Where("id IN ?", claimedIDs).
+		Where("role_id = ? AND mail_id IN ?", r.RoleID, claimedIDs).
 		Update("is_claimed", true)
 
 	rewards := make([]*pb.PGoodInfo, 0, len(allGoods))
@@ -363,7 +363,7 @@ func (r *RoleMail) ReqMailDelete(ctx context.Context, req *pb.ReqMailDelete) (*p
 
 	var kept []MailEntry
 	for _, m := range r.mailCache {
-		if m.ID != req.MailId {
+		if m.MailID != req.MailId {
 			kept = append(kept, m)
 		}
 	}
@@ -371,7 +371,7 @@ func (r *RoleMail) ReqMailDelete(ctx context.Context, req *pb.ReqMailDelete) (*p
 
 	gxypgx.DB().WithContext(ctx).
 		Model(&MailEntry{}).
-		Where("id = ?", req.MailId).
+		Where("role_id = ? AND mail_id = ?", r.RoleID, req.MailId).
 		Update("is_deleted", true)
 
 	unread, unclaimed := r.calcRedDot()

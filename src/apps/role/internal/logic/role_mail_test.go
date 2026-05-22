@@ -20,10 +20,10 @@ func TestCalcRedDot_Empty(t *testing.T) {
 func TestCalcRedDot_Basic(t *testing.T) {
 	mail := &RoleMail{
 		mailCache: []MailEntry{
-			{ID: 1, IsRead: false},
-			{ID: 2, IsRead: true},
-			{ID: 3, IsRead: false, Attachments: []bag.Good{{GoodID: 101, Num: 5}}},
-			{ID: 4, IsRead: true, Attachments: []bag.Good{{GoodID: 102, Num: 1}}, IsClaimed: true},
+			{MailID: 1, IsRead: false},
+			{MailID: 2, IsRead: true},
+			{MailID: 3, IsRead: false, Attachments: []bag.Good{{GoodID: 101, Num: 5}}},
+			{MailID: 4, IsRead: true, Attachments: []bag.Good{{GoodID: 102, Num: 1}}, IsClaimed: true},
 		},
 	}
 	unread, unclaimed := mail.calcRedDot()
@@ -39,9 +39,9 @@ func TestCalcRedDot_Expired(t *testing.T) {
 	now := time.Now().Unix()
 	mail := &RoleMail{
 		mailCache: []MailEntry{
-			{ID: 1, IsRead: false, ExpireAt: now - 100},
-			{ID: 2, IsRead: false, ExpireAt: now + 1000},
-			{ID: 3, IsRead: false, Attachments: []bag.Good{{GoodID: 101, Num: 5}}, ExpireAt: now - 100},
+			{MailID: 1, IsRead: false, ExpireAt: now - 100},
+			{MailID: 2, IsRead: false, ExpireAt: now + 1000},
+			{MailID: 3, IsRead: false, Attachments: []bag.Good{{GoodID: 101, Num: 5}}, ExpireAt: now - 100},
 		},
 	}
 	unread, unclaimed := mail.calcRedDot()
@@ -56,7 +56,7 @@ func TestCalcRedDot_Expired(t *testing.T) {
 func TestCalcRedDot_ExpireAtZero(t *testing.T) {
 	mail := &RoleMail{
 		mailCache: []MailEntry{
-			{ID: 1, IsRead: false, ExpireAt: 0},
+			{MailID: 1, IsRead: false, ExpireAt: 0},
 		},
 	}
 	unread, unclaimed := mail.calcRedDot()
@@ -73,9 +73,9 @@ func TestCalcRedDot_ExpireAtZero(t *testing.T) {
 func TestFindMail(t *testing.T) {
 	mail := &RoleMail{
 		mailCache: []MailEntry{
-			{ID: 1, Title: "first"},
-			{ID: 2, Title: "second"},
-			{ID: 3, Title: "third"},
+			{MailID: 1, Title: "first"},
+			{MailID: 2, Title: "second"},
+			{MailID: 3, Title: "third"},
 		},
 	}
 	m := mail.findMail(2)
@@ -87,8 +87,8 @@ func TestFindMail(t *testing.T) {
 func TestFindMail_NotFound(t *testing.T) {
 	mail := &RoleMail{
 		mailCache: []MailEntry{
-			{ID: 1},
-			{ID: 2},
+			{MailID: 1},
+			{MailID: 2},
 		},
 	}
 	m := mail.findMail(999)

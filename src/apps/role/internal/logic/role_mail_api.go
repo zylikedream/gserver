@@ -31,14 +31,14 @@ func SendMail(ctx context.Context, roleID int64, opts SendMailOpts) error {
 	var maxID int64
 	if err := gxypgx.DB().WithContext(ctx).
 		Model(&MailEntry{}).
-		Select("COALESCE(MAX(id), 0)").
+		Select("COALESCE(MAX(mail_id), 0)").
 		Where("role_id = ?", roleID).
 		Scan(&maxID).Error; err != nil {
 		return err
 	}
 
 	entry := MailEntry{
-		ID:          maxID + 1,
+		MailID:      maxID + 1,
 		RoleID:      roleID,
 		Title:       opts.Title,
 		Summary:     opts.Summary,
@@ -66,7 +66,7 @@ func SendMailBatch(ctx context.Context, roleIDs []int64, opts SendMailOpts) erro
 		var maxID int64
 		if err := gxypgx.DB().WithContext(ctx).
 			Model(&MailEntry{}).
-			Select("COALESCE(MAX(id), 0)").
+			Select("COALESCE(MAX(mail_id), 0)").
 			Where("role_id = ?", roleID).
 			Scan(&maxID).Error; err != nil {
 			gxylog.Warn(ctx, "send mail batch failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
@@ -74,7 +74,7 @@ func SendMailBatch(ctx context.Context, roleIDs []int64, opts SendMailOpts) erro
 		}
 
 		entry := MailEntry{
-			ID:          maxID + 1,
+			MailID:      maxID + 1,
 			RoleID:      roleID,
 			Title:       opts.Title,
 			Summary:     opts.Summary,
