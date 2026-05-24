@@ -62,16 +62,20 @@
 - Redis
 - Consul（服务发现）
 
-### 启动
+### 本地环境启动
 
 ```bash
+# 1. 拉取子模块
+git submodule update --init --recursive
+
 # 1. 安装依赖
 go mod download
 
 # 2. 初始化环境（生成配置、脚本）
-./build/script/svr_init.sh dev
+./build/script/svr_init.sh dev_xx(你自己的环境)
 
-# 3. 启动单节点（包含 gate + role 等全部模块）
+# 3. 启动gate+单节点（包含 role 等全部模块）
+go run node/main.go --config config/gate.toml
 go run node/main.go --config config/all.toml
 ```
 
