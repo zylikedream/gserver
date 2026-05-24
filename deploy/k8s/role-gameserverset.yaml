@@ -9,7 +9,6 @@ spec:
   replicas: 2
   updateStrategy:
     rollingUpdate:
-      maxUnavailable: 1
       podUpdatePolicy: InPlaceIfPossible
   gameServerTemplate:
     metadata:
