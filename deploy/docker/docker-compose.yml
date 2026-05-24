@@ -1,4 +1,52 @@
 services:
+  # ==================== 基础设施 ====================
+
+  postgres:
+    image: postgres:18
+    container_name: gserver-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "@zyc0131"
+      POSTGRES_DB: gserver
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/pg_hba.conf:/var/lib/postgresql/18/docker/pg_hba.conf
+      - ./postgres/postgresql.conf:/var/lib/postgresql/18/docker/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: gserver-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  consul:
+    image: consul:1.15
+    container_name: gserver-consul
+    command: ["agent", "-dev", "-client=0.0.0.0"]
+    ports:
+      - "8500:8500"
+    volumes:
+      - consul-data:/consul/data
+    restart: unless-stopped
+
+  # ==================== 可观测性 ====================
+
   prometheus:
     image: prom/prometheus:latest
     container_name: gserver-prometheus
@@ -45,6 +93,9 @@ services:
     restart: unless-stopped
 
 volumes:
+  pgdata:
+  redis-data:
+  consul-data:
   prometheus-data:
   grafana-data:
   tempo-data:
