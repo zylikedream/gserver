@@ -1220,8 +1220,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "GServer P0 Metrics",
-  "uid": "gserver-p0-metrics",
+  "title": "GServer Metrics",
+  "uid": "gserver-metrics",
   "version": 1,
   "weekStart": ""
 }
