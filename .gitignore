@@ -23,6 +23,7 @@ graphify-out/
 __debug_*
 .letta/
 .codegraph
+.trae/
 CLAUDE.md
 AGENTS.md
 docs/*
