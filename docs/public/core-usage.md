@@ -279,5 +279,7 @@ type GameProgressState struct {
     Data ProgressData `gorm:"column:data;type:jsonb;serializer:json"`
 }
 ```
-
+# 创建新协议
+手动创建容易造成协议ID冲突，建议使用 `make newproto MOD=MyModule` 生成新协议。
+`make newproto MOD=MyModule` 会根据已有协议id，自动往后顺延为新模块创建协议
 ---

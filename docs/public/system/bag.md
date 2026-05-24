@@ -193,12 +193,3 @@ message PBagGoodUpdate {
 | `ErrGoodNotEnough` | 物品数量不足 |
 | `ErrGoodConfigNotFound` | 配置表未找到该物品 |
 | `ErrGoodExceedMaxStack` | 超出最大堆叠数 |
-
-## MVP 未实现
-
-- 物品使用逻辑（宝箱/加能量/加经验/加 Buff）
-- 物品出售
-- 格子上限检查
-- 批量使用
-- 操作日志持久化（`saveGoodOps` 仅打 log）
-- 物品变更事件分发（`onGoodUpdateEvent` 为空）

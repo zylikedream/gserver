@@ -42,17 +42,14 @@ kind load docker-image gserver:latest
 
 ## 基础服务部署
 
-### PostgreSQL
+PostgreSQL 和 Redis 由 `deploy/docker/docker-compose.yml` 统一管理，不在 K8s 集群内部署。
 
 ```bash
-kubectl apply -f deploy/k8s/postgres.yaml
+# 在宿主机启动基础服务
+docker compose -f deploy/docker/docker-compose.yml up -d postgres redis consul
 ```
 
-### Redis
-
-```bash
-kubectl apply -f deploy/k8s/redis.yaml
-```
+K8s 内的游戏服务通过 `host.docker.internal` 或 Gateway IP 连接宿主机上的这些服务。
 
 ### ConfigMap
 
@@ -66,24 +63,9 @@ kubectl apply -f deploy/k8s/config/
 
 ## 游戏服务部署
 
-### StatefulSet
+### OpenKruiseGame（推荐）
 
-```bash
-# 有状态服务（每个角色有独立身份）
-kubectl apply -f deploy/k8s/role-statefulset.yaml
-kubectl apply -f deploy/k8s/chat-statefulset.yaml
-kubectl apply -f deploy/k8s/friend-statefulset.yaml
-kubectl apply -f deploy/k8s/guild-statefulset.yaml
-
-# 无状态网关
-kubectl apply -f deploy/k8s/gate-deployment.yaml
-kubectl apply -f deploy/k8s/gate-service.yaml
-kubectl apply -f deploy/k8s/headless-service.yaml
-```
-
-### OpenKruiseGame
-
-OKG 路径用于把 `role`、`chat`、`friend`、`guild` 从原生 `StatefulSet` 迁移到 `GameServerSet`。`gate` 仍然保持 `Deployment + NodePort`。K8s 环境当前使用 Consul 做服务注册发现，Redis 仍然保留给 actor locate、分布式锁和业务缓存。
+游戏服务使用 OpenKruiseGame `GameServerSet` 管理有状态节点（role/chat/friend/guild），网关用原生 `Deployment + NodePort`。
 
 OKG 官方推荐用 Helm 安装。若本机还没有 Helm，可以先安装：
 
@@ -220,10 +202,6 @@ kubectl get pods -l app=guild
 make delete-k8s-okg
 ```
 
-如果要回到 StatefulSet 路径，先执行 `make delete-k8s-okg`，再重新 apply 原来的 `*-statefulset.yaml`。
-
-> **注意：** 不要同时运行同一组服务的 StatefulSet 和 GameServerSet。它们会使用相同的 `app` 标签，容易造成 Consul 注册、Prometheus 目标和网关路由混乱。
-
 ## 可观测性
 
 ### Prometheus
@@ -260,7 +238,7 @@ K8s Prometheus 暴露在 `NodePort:30999`，并通过 kind 的 `extraPortMapping
 
 ## 注册中心：Consul
 
-K8s ConfigMap 当前使用 Consul 做 `role`、`chat`、`friend`、`guild`、`gate` 的服务注册发现。详见 `docs/system/gxyregistery-architecture.md`。
+K8s ConfigMap 使用 Consul 做 `role`、`chat`、`friend`、`guild`、`gate` 的服务注册发现。Consul 由宿主机 docker-compose 启动。
 
 Redis 仍然是必需依赖，但不再承担服务注册发现：
 
@@ -332,30 +310,7 @@ subjects:
 
 ### 5. 镜像更新后如何重启服务
 
-StatefulSet 旧路径使用原生 `rollout restart`：
-
-```bash
-# 1. 构建
-docker build -f deploy/Dockerfile -t gserver:latest .
-
-# 2. 导入 Kind
-kind load docker-image gserver:latest
-
-# 3. 滚动重启所有服务
-kubectl rollout restart deployment/gate -n gserver
-kubectl rollout restart statefulset/role -n gserver
-kubectl rollout restart statefulset/chat -n gserver
-kubectl rollout restart statefulset/friend -n gserver
-kubectl rollout restart statefulset/guild -n gserver
-
-# 4. 查看状态
-kubectl rollout status deployment/gate -n gserver
-kubectl rollout status statefulset/role -n gserver
-```
-
-> `rollout restart` 会触发 Pod 滚动更新，新 Pod 拉取镜像时因为 `imagePullPolicy: IfNotPresent` 会直接用本地已导入的版本。
-
-OKG 路径不要使用 `kubectl rollout restart gss/...`，kubectl 的 rollout 子命令不支持 `GameServerSet` 这种 CRD。应该更新 `GameServerSet` 模板里的镜像：
+OKG 路径下，不要使用 `kubectl rollout restart gss/...`，kubectl 的 rollout 子命令不支持 `GameServerSet` 这种 CRD。应该更新 `GameServerSet` 模板里的镜像：
 
 ```bash
 make build-update-okg-image TAG=dev-001

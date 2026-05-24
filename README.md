@@ -1,6 +1,26 @@
 # GServer
 
 基于 **Actor 模型**的分布式游戏服务器框架，使用 [protoactor-go](https://github.com/asynkron/protoactor-go) 运行时和 [GoFrame v2](https://goframe.org) 工具库。
+服务器中以开发种花游戏为例，展示如何使用 Actor 模型实现分布式游戏逻辑。
+配置系统使用luban来管理, 前后端通信使用protobuf
+
+## 已有功能
+| 功能 | 描述 |
+|------|------|
+| 角色系统 | 角色创建、登录、注销、角色数据持久化 |
+| 背包系统 | 背包创建、物品添加、物品移除 |
+| 地块系统 | 地块创建 |
+| 花系统 | 花创建、收获、花产量 |
+| 任务系统 | 任务创建、任务完成、任务奖励 |
+| 鲜花订单系统 | 订单创建、订单完成 |
+| 好友系统 | 好友关系、好友列表、好友申请 |
+| 公会系统 | 公会创建、加入会员、会员管理 |
+| 聊天系统 | 群聊、私聊、聊天记录 |
+| 偷花系统 | 偷花、查看花、花产量 |
+| 邮件系统 | 发送邮件、接收邮件 |
+
+**Notice: 功能只做了简单的自测，可能会包含未知的bug**
+
 
 ## 架构概览
 
@@ -208,5 +228,14 @@ docker build -t gserver .
 | 协议 | Protocol Buffers |
 
 ## License
+MIT
+
+## 更多文档docs/public/
+
+- [服务器初始化指南](docs/public/svr_init.md)
+- [核心使用指南](docs/public/core-usage.md)
+- [本地kindk8s部署指南](docs/public/k8s-kind-deploy.md)
+- [通信格式](docs/public/protocol.md)
+- **功能文档** 在docs/public/system/目录下
 
 [MIT](LICENSE)

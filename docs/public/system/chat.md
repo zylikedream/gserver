@@ -161,16 +161,6 @@ ID 段 `28001~28099`，文件 `protocol/client/chat.proto`。
 | NotifyChannelChat | 28022 | S→C | 频道消息推送 |
 | ReqChannelHistory / RspChannelHistory | 28023-28024 | C→S / S→C | 拉取频道历史 |
 
-### 移除的旧协议
-
-移除的旧协议（已被统一频道消息取代）：
-
-- `ReqSendWorldChat / RspSendWorldChat` (28003-28004)
-- `ReqWorldChatHistory / RspWorldChatHistory` (28005-28006)
-- `NotifyWorldChat` (28007)
-- `ReqSendGuildChat / RspSendGuildChat` (28016-28017)
-- `ReqGuildChatHistory / RspGuildChatHistory` (28018-28019)
-
 ## HTTP 接口
 
 Chat HTTP 服务（`chat-http`），所有 POST。
