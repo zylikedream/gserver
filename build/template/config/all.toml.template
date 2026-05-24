@@ -13,7 +13,7 @@
 [redis]
 	addr = "{{ redis.host }}:{{ redis.port }}"
 	password = "{{ redis.password }}"
-	db = 1
+	db = {{ redis.db }}
 	dial_timeout = "5s"
 [log]
 	path = "{{ log.path }}"
