@@ -24,5 +24,6 @@ __debug_*
 .letta/
 .codegraph
 CLAUDE.md
+AGENTS.md
 docs/*
 !docs/public/
