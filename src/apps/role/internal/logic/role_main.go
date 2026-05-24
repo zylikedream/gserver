@@ -16,7 +16,7 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 	"reflect"
 	"strings"
@@ -390,7 +390,7 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 }
 
 func (r *RoleMain) checkRoleSaveOwner(ctx context.Context) bool {
-	key := lib.GetRoleLocateKey(r.RoleID)
+	key := rolelib.GetRoleLocateKey(r.RoleID)
 	owner, err := gxyredis.Redis().Get(ctx, key).Result()
 	if err == redis.Nil || owner == "" {
 		gxylog.Warn(ctx, "actor not claimed in redis, skip save", gxylog.Num("roleID", r.RoleID))
@@ -730,7 +730,7 @@ func (r *RoleMain) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleMain) OnNotifyMessage(ctx context.Context, notify *lib.OnRoleNotifyMsg) error {
+func (r *RoleMain) OnNotifyMessage(ctx context.Context, notify *rolelib.OnRoleNotifyMsg) error {
 	msg := notify.Msg
 	if msg == nil {
 		return nil

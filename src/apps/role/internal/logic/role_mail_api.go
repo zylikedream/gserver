@@ -10,7 +10,7 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 )
 
 // SendMailOpts 发邮件选项
@@ -112,7 +112,7 @@ func SendMailToAll(ctx context.Context, opts SendMailOpts) error {
 
 // notifyMailUpdate 通知在线玩家（不强制激活 actor）
 func notifyMailUpdate(ctx context.Context, roleID int64, mailID int64) {
-	if err := lib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{MailId: mailID}); err != nil {
+	if err := rolelib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{MailId: mailID}); err != nil {
 		gxylog.Warn(ctx, "notify mail update failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 	}
 }

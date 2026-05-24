@@ -14,7 +14,7 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role"
-	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 	"gserver/src/util"
 
@@ -123,7 +123,7 @@ func (g *GuildActor) addLog(ctx context.Context, content string) {
 // ===== 通知（携带数据） =====
 
 func (g *GuildActor) notifyPlayer(ctx context.Context, roleID int64, msg proto.Message) {
-	lib.PublishRoleNotify(ctx, roleID, msg)
+	rolelib.PublishRoleNotify(ctx, roleID, msg)
 }
 
 func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {

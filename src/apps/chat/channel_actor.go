@@ -12,7 +12,7 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
-	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 
 	"github.com/asynkron/protoactor-go/actor"
 )
@@ -158,7 +158,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		}
 		// 通知所有成员
 		for _, mbr := range a.members {
-			lib.PublishRoleNotify(ctx, mbr.RoleID, notify)
+			rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
 		}
 
 	case *pb.ReqChatChannelHistory:

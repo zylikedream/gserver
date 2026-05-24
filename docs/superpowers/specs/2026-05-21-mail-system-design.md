@@ -273,7 +273,7 @@ type SendMailOpts struct {
 ```go
 func notifyMailUpdate(ctx context.Context, roleID int64) {
     // 发给 role actor，不强制激活
-    lib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{
+    rolelib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{
         // 在线玩家收到后刷新红点
     })
 }

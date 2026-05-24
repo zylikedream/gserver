@@ -14,6 +14,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/protocol/pb"
 	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -213,7 +214,7 @@ func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPr
 	}
 
 	// 私聊正文已由 chat-http 持久化；在线通知走 RoleNotify，避免 role 节点互相直连。
-	if err := lib.PublishRoleNotify(ctx, req.TargetId, &pb.NotifyChatPrivate{
+	if err := rolelib.PublishRoleNotify(ctx, req.TargetId, &pb.NotifyChatPrivate{
 		Message: &pb.PChatMsg{
 			Sender:    r.Role.Public.GetRolePublic(ctx),
 			Content:   strings.TrimSpace(req.Content),

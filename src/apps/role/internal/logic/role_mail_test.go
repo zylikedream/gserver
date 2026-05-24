@@ -7,14 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
-	"gorm.io/gorm/schema"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
+
+	"github.com/agiledragon/gomonkey/v2"
+	proto "google.golang.org/protobuf/proto"
+	"gorm.io/gorm/schema"
 )
 
 func initMailTestConfig(t *testing.T, rows ...map[string]any) {
@@ -341,7 +342,7 @@ func TestRoleMainOnNotifyMessage_RefreshesMailBeforeNotify(t *testing.T) {
 	)
 	defer patchSend.Reset()
 
-	if err := role.OnNotifyMessage(ctx, &lib.OnRoleNotifyMsg{Msg: &pb.NotifyMailUpdate{}}); err != nil {
+	if err := role.OnNotifyMessage(ctx, &rolelib.OnRoleNotifyMsg{Msg: &pb.NotifyMailUpdate{}}); err != nil {
 		t.Fatal(err)
 	}
 

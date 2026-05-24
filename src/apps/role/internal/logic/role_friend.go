@@ -10,7 +10,7 @@ import (
 	"gserver/core/gxypgx"
 	"gserver/protocol/pb"
 	"gserver/src/apps/api"
-	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -20,6 +20,7 @@ import (
 
 type RoleFriend struct {
 	RoleModule
+	cache []*FriendEntryJson
 }
 
 // ---- write operations (call friend service via HTTP) ----
@@ -36,7 +37,7 @@ func (r *RoleFriend) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriend
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
-		lib.PublishRoleNotify(ctx, id, &pb.NotifyFriendNewRequest{
+		rolelib.PublishRoleNotify(ctx, id, &pb.NotifyFriendNewRequest{
 			ApplyInfo: &pb.PApplyInfo{
 				PlayerInfo: GetRolePublic(ctx, r.RoleID),
 			},
@@ -57,7 +58,7 @@ func (r *RoleFriend) ReqFriendAcceptRequest(ctx context.Context, req *pb.ReqFrie
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
-		lib.PublishRoleNotify(ctx, id, &pb.NotifyNewFriend{
+		rolelib.PublishRoleNotify(ctx, id, &pb.NotifyNewFriend{
 			FriendInfo: &pb.PFriendInfo{PlayerInfo: GetRolePublic(ctx, r.RoleID)},
 		})
 	}

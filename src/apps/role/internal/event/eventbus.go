@@ -37,7 +37,6 @@ type EventBus struct {
 }
 
 func NewEventBus() *EventBus {
-	guid.S()
 	return &EventBus{
 		eventHandlers: make(map[EventType][]eventHandler),
 	}

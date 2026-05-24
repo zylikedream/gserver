@@ -1,4 +1,4 @@
-package lib
+package rolelib
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
 	"gserver/core/gxyredis"
+	"gserver/src/lib"
 
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
@@ -75,7 +76,7 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 }
 
 func notifyLocal(ctx context.Context, targetRoleID int64, msg proto.Message) error {
-	pid := gxyactor.GetLocalActor(ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
+	pid := gxyactor.GetLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
 	if pid == nil {
 		gxylog.Debug(ctx, "role notify target not local online", gxylog.Num("roleID", targetRoleID))
 		return nil
@@ -145,11 +146,11 @@ func GetRoleLocateKey(roleID int64) string {
 }
 
 func GetRolePid(RoleID int64) gxyactor.PID {
-	return gxyactor.GetLocalActor(ROLE_ACTOR_TYPE, strconv.FormatInt(RoleID, 10))
+	return gxyactor.GetLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(RoleID, 10))
 }
 
 func NotifyLocalAll(ctx context.Context, msg proto.Message) error {
-	pids := gxyactor.GetLocalActorAll(ROLE_ACTOR_TYPE)
+	pids := gxyactor.GetLocalActorAll(lib.ROLE_ACTOR_TYPE)
 	for _, pid := range pids {
 		gxyactor.LocalSend(ctx, pid, &OnRoleNotifyMsg{Msg: msg})
 	}

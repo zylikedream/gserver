@@ -8,6 +8,7 @@ import (
 	"go/doc"
 	"go/parser"
 	"go/token"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
@@ -15,10 +16,11 @@ import (
 	"unicode"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxyhttp"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/util/gconv"
@@ -322,14 +324,20 @@ func (r *RoleGM) UnlockPlot(plotID int) error {
 // 用法: send_system_msg [消息内容]
 // 示例: send_system_msg 服务器即将维护，请及时下线
 func (r *RoleGM) SendSystemMsg(content string) error {
-	return lib.SendSystemMsg(r.ctx, content)
+	return SendSystemMsg(r.ctx, content)
+}
+
+func SendSystemMsg(ctx context.Context, content string) error {
+	_, err := gxyhttp.HttpSystem().PostService(ctx, "chat-http",
+		fmt.Sprintf("store_system?content=%s", url.QueryEscape(content)))
+	return err
 }
 
 // StopRole 停止指定角色的会话（从内存驱逐)
 // 用法: stop_role [RoleID]
 // 示例: stop_role 1001 从内存驱逐
 func (r *RoleGM) StopRole(roleID int64) error {
-	rolePid := lib.GetRolePid(roleID)
+	rolePid := rolelib.GetRolePid(roleID)
 	if rolePid == nil {
 		return fmt.Errorf("role %d not found ", roleID)
 	}

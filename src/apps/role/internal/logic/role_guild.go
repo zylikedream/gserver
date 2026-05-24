@@ -10,6 +10,7 @@ import (
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/protocol/pb"
+	"gserver/src/lib/guildlib"
 	"gserver/src/pkg/gameconfig"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -79,7 +80,7 @@ func (r *RoleGuild) SetGuildID(ctx context.Context, guildID int64) {
 }
 
 func (r *RoleGuild) ReloadGuildID(ctx context.Context) error {
-	guildID, err := lib.GetGuildIDByRoleID(ctx, r.RoleID)
+	guildID, err := guildlib.GetGuildIDByRoleID(ctx, r.RoleID)
 	if err != nil {
 		return err
 	}

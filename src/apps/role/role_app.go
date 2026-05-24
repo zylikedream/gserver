@@ -9,6 +9,7 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic"
 	"gserver/src/lib"
+	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 )
 
@@ -20,25 +21,27 @@ func NewRoleApp() *roleApp {
 	return &roleApp{}
 }
 
+func onBroadcast(ctx context.Context, _topic string, msg *lib.BroadcastMsg) *lib.BroadcastMsg {
+	switch msg.MsgType {
+	case lib.BroadCastTypeSystemMsg:
+		rolelib.NotifyLocalAll(ctx, &pb.NotifyChatSystem{
+			Message: &pb.PChatMsg{
+				Content:   msg.Data,
+				Timestamp: time.Now().Unix(),
+			},
+		})
+	}
+	return nil
+}
+
 func (r *roleApp) OnModInit(ctx context.Context) error {
 	r.AddModule(ctx, gameconfig.NewGameConfig())
 	logic.InitRoleSchema(ctx)
 	gxyservice.ServiceApp().LoadService(ctx, NewRoleActorService())
 
-	r.AddModule(ctx, lib.NewRoleNotify())
+	r.AddModule(ctx, rolelib.NewRoleNotify())
 	// 广播模块：订阅系统消息，持久化后推送给所有在线玩家
-	r.AddModule(ctx, lib.NewBroadcast("role", func(ctx context.Context, topic string, msg *lib.BroadcastMsg) *lib.BroadcastMsg {
-		switch msg.MsgType {
-		case lib.BroadCastTypeSystemMsg:
-			lib.NotifyLocalAll(ctx, &pb.NotifyChatSystem{
-				Message: &pb.PChatMsg{
-					Content:   msg.Data,
-					Timestamp: time.Now().Unix(),
-				},
-			})
-		}
-		return nil
-	}))
+	r.AddModule(ctx, lib.NewBroadcast("role", onBroadcast))
 
 	return nil
 }

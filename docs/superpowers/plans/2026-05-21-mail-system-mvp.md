@@ -768,7 +768,7 @@ func SendMailToAll(ctx context.Context, opts SendMailOpts) error {
 }
 
 func notifyMailUpdate(ctx context.Context, roleID int64) {
-    lib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{})
+    rolelib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{})
 }
 ```
 

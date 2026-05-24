@@ -1,7 +1,7 @@
 package logic
 
 import (
-	"gserver/src/lib"
+	"gserver/src/lib/guildlib"
 	"time"
 )
 
@@ -50,4 +50,4 @@ type GuildLog struct {
 }
 
 // GuildRoleState 映射 role_guild 表，供 guild actor 原子操作（独立表不走 JSONB）
-type GuildRoleState = lib.RoleGuildRecord
+type GuildRoleState = guildlib.RoleGuildRecord
