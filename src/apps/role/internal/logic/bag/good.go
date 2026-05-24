@@ -40,8 +40,8 @@ type Good struct {
 }
 
 type SaveGoodsOpts struct {
-	NotifyChange bool
-	NotifyReward bool
+	NotifyChange bool // 是否通知变更事件
+	NotifyReward bool // 是否通知奖励事件(客户端弹出奖励展示)
 }
 
 func DefaultSaveGoodsOpts() SaveGoodsOpts {

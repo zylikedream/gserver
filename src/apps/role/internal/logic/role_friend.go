@@ -20,7 +20,7 @@ import (
 
 type RoleFriend struct {
 	RoleModule
-	cache []*FriendEntryJson
+	cache []friendEntryJSON
 }
 
 // ---- write operations (call friend service via HTTP) ----

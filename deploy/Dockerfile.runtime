@@ -1,6 +1,0 @@
-FROM alpine:3.20
-
-COPY temp/docker/server /server
-COPY gameconfig/json /gameconfig/json
-EXPOSE 10086 19001 9091
-ENTRYPOINT ["/server"]
