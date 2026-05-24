@@ -1,8 +1,4 @@
-.buildpath
-.hgignore.swp
 .project
-.orig
-.swp
 .idea/
 .settings/
 bin/
@@ -13,10 +9,8 @@ main.exe
 output/
 manifest/output/
 temp/
-temp.yaml
 bin
 **/config/config.yaml
-.planning/
 .worktrees/
 log/
 *.test.toml
@@ -29,3 +23,6 @@ graphify-out/
 __debug_*
 .letta/
 .codegraph
+CLAUDE.md
+docs/*
+!docs/public/
