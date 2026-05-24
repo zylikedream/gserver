@@ -1,0 +1,25 @@
+[node]
+    name = "friend"
+    host = "{{ env.host | default('127.0.0.1') }}"
+	apps = ["friend"]
+[port]
+	actor = 25021
+	friend = 25022
+[postgres]
+	url = "postgresql://{{ postgres.user }}:{{ postgres.password | urlencode }}@{{ postgres.host }}:{{ postgres.port }}/{{ postgres.database }}?sslmode={{ postgres.sslmode }}"
+[redis]
+	addr = "{{ redis.host }}:{{ redis.port }}"
+	password = "{{ redis.password }}"
+	db = 0
+	dial_timeout = "5s"
+[log]
+	path = "{{ log.path }}"
+	level = "{{ log.level }}"
+	file = "{Y-m-d}.log"
+	stStatus = {{ log.stStatus }}
+[registery]
+	type = "consul"
+[registery.consul]
+	address = "{{ consul.host }}:{{ consul.port }}"
+	ttl = "10s"
+	refresh_ttl = "10s"

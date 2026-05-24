@@ -28,3 +28,13 @@ CLAUDE.md
 AGENTS.md
 docs/*
 !docs/public/
+
+# Generated config files
+config/*.toml
+
+# User-specific env files (copy from dev.env.toml)
+build/env/dev_*.env.toml
+
+# Generated scripts
+hack/db_reset.sh
+hack/k8s-toggle.sh

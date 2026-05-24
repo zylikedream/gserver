@@ -141,8 +141,3 @@ newproto:
 docker: cli.install
 	@docker build -t game-server:latest .
 
-
-# Generate protobuf files for database tables.
-.PHONY: pbentity
-pbentity: cli.install
-	@gf gen pbentity
