@@ -38,3 +38,6 @@ build/env/dev_*.env.toml
 # Generated scripts
 hack/db_reset.sh
 hack/k8s-toggle.sh
+
+# Generated deploy config
+deploy/docker/docker-compose.yml

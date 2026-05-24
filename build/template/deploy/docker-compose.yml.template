@@ -7,9 +7,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "@zyc0131"
-      POSTGRES_DB: gserver
+      POSTGRES_USER: {{ postgres.user }}
+      POSTGRES_PASSWORD: "{{ postgres.password }}"
+      POSTGRES_DB: {{ postgres.database }}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./postgres/pg_hba.conf:/var/lib/postgresql/18/docker/pg_hba.conf
@@ -28,8 +28,9 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    command: redis-server --requirepass "{{ redis.password }}"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "{{ redis.password }}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5

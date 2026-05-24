@@ -4,6 +4,7 @@
 模板目录结构:
   template/config/   → config/   (服务器配置 .toml)
   template/script/   → hack/     (脚本)
+  template/deploy/   → deploy/docker/ (部署配置)
 """
 
 import os
@@ -20,6 +21,7 @@ TEMPLATE_DIR = os.path.join(BASE_DIR, "template")
 OUTPUT_MAP = {
     "config": os.path.join(PROJECT_DIR, "config"),
     "script": os.path.join(PROJECT_DIR, "hack"),
+    "deploy": os.path.join(PROJECT_DIR, "deploy", "docker"),
 }
 
 
