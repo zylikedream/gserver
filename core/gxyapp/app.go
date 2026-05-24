@@ -1,6 +1,8 @@
 package gxyapp
 
 import (
+	"context"
+
 	"gserver/core/gxymodule"
 )
 
@@ -40,6 +42,10 @@ func (a *App) SetDeps(deps []string) {
 
 func (a *App) AppName() string {
 	return a.appName
+}
+
+func (a *App) OnModStartAfter(ctx context.Context) error {
+	return nil
 }
 
 func (a *App) SetAppName(name string) {

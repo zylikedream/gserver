@@ -11,7 +11,7 @@ import (
 
 // enable Zap logging
 func glogAdapterLogging(system *actor.ActorSystem) *slog.Logger {
-	handler := (*actorLogAdapter)(gxylog.NewLogAdapter(context.Background(), "actor_sys", glog.LEVEL_DEBU))
+	handler := (*actorLogAdapter)(gxylog.NewLogAdapter(context.Background(), "actor_sys", glog.LEVEL_ERRO))
 	return slog.New(handler).
 		With("lib", "Proto.Actor").
 		With("system", system.ID)

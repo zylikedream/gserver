@@ -24,6 +24,7 @@ import (
 	"gserver/src/apps/gateway"
 	"gserver/src/apps/guild"
 	"gserver/src/apps/role"
+	"gserver/src/apps/thanks"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -86,12 +87,15 @@ func (n *node) OnModStart(ctx context.Context) error {
 		if err := n.loadApp(ctx, dep, loaded); err != nil {
 			return err
 		}
+		gxylog.Info(context.Background(), "app loaded success", gxylog.Str("app", dep))
 	}
 	for _, appName := range n.apps {
 		if err := n.loadApp(ctx, appName, loaded); err != nil {
 			return err
 		}
+		gxylog.Info(context.Background(), "app loaded success", gxylog.Str("app", appName))
 	}
+	n.loadApp(ctx, "thanks", loaded)
 	return nil
 }
 
@@ -106,7 +110,10 @@ func (n *node) loadApp(ctx context.Context, appName string, loaded map[string]bo
 	}
 
 	loaded[appName] = true
-	return n.AddModule(ctx, app)
+	if err := n.AddModule(ctx, app); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (n *node) OnModStartAfter(ctx context.Context) error {
@@ -137,5 +144,6 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("friend", friend.NewFriendApp(n.Host))
 	gxyapp.RegisterApp("role", role.NewRoleApp())
 	gxyapp.RegisterApp("gate", gateway.NewGateApp())
+	gxyapp.RegisterApp("thanks", thanks.NewThanksApp())
 	gxyapp.RegisterApp("guild", guild.NewGuildApp(n.Host))
 }
