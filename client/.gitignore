@@ -12,3 +12,5 @@ pb/
 .letta/
 docs/
 .claude-trace
+.codegraph/
+.remember/
