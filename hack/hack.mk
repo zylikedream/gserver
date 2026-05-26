@@ -92,11 +92,8 @@ build-update-okg-image:
 .PHONY: build-okg-image
 build-okg-image:
 	@echo "=== Building linux server binary ==="
-	mkdir -p temp/docker
-	CGO_ENABLED=0 GOOS=linux GOARCH=$$(go env GOARCH) go build -o temp/docker/server ./node/
-	@echo ""
 	@echo "=== Building docker image $(OKG_IMAGE) ==="
-	docker build -f $(OKG_DOCKERFILE) -t $(OKG_IMAGE) .
+	docker build --build-arg HTTP_PROXY= --build-arg HTTPS_PROXY= --build-arg http_proxy= --build-arg https_proxy= -f $(OKG_DOCKERFILE) -t $(OKG_IMAGE) .
 
 # Parsing protobuf files and generating go files.
 .PHONY: pbraw
@@ -152,5 +149,5 @@ newproto:
 
 .PHONY: docker
 docker: cli.install
-	@docker build -t game-server:latest .
+	@docker build --build-arg HTTP_PROXY= --build-arg HTTPS_PROXY= --build-arg http_proxy= --build-arg https_proxy= -t game-server:latest .
 
