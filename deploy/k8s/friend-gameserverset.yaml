@@ -27,7 +27,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: friend
-          image: game-server:latest
+          image: gserver:latest
           imagePullPolicy: IfNotPresent
           args: ["--config", "/config/friend.toml"]
           env:

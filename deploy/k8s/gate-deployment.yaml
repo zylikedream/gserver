@@ -25,7 +25,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: gate
-          image: game-server:latest
+          image: gserver:latest
           imagePullPolicy: IfNotPresent
           args: ["--config", "/config/gate.toml"]
           env:
