@@ -10,7 +10,7 @@ endif
 OKG_IMAGE_TAG := $(if $(TAG),$(TAG),$(OKG_IMAGE_TAG))
 OKG_IMAGE ?= game-server:$(OKG_IMAGE_TAG)
 OKG_SERVICES ?= role chat friend guild
-OKG_DOCKERFILE ?= deploy/Dockerfile.runtime
+OKG_DOCKERFILE ?= deploy/Dockerfile
 KIND_CLUSTER ?= game-cluster
 
 .PHONY: install-okg

@@ -5,7 +5,7 @@
 本文档记录 GServer 在 K8s（Kind）上的部署方式、踩过的坑和注意事项。
 
 ## 环境搭建
-使用cluade code 安装kind
+使用cluade code 安装kind, helm, kubectl
 
 ### Kind 集群
 
