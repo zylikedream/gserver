@@ -10,7 +10,7 @@
 ### Kind 集群
 
 ```bash
-kind create cluster --config deploy/k8s/kind-config.yaml
+kind create cluster --name game-cluster --config deploy/k8s/kind-config.yaml
 ```
 
 `kind-config.yaml` 内容：

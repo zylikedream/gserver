@@ -65,6 +65,9 @@
 ### 本地环境启动
 
 ```bash
+# 1. 启动docker环境
+docker compose -f deploy/docker/docker-compose.yml up -d 
+
 # 1. 拉取子模块
 git submodule update --init --recursive
 
@@ -77,6 +80,19 @@ go mod download
 # 3. 启动gate+单节点（包含 role 等全部模块）
 go run node/main.go --config config/gate.toml
 go run node/main.go --config config/all.toml
+```
+
+### 部署到 K8s
+
+```bash
+# 1. 启动 K8s 集群
+kind create cluster --name game-cluster --config deploy/k8s/kind-config.yaml
+
+# 2. 安装 OpenKruiseGame
+make install-okg
+
+# 3. 部署 OKG 版本
+make deploy-k8s-okg
 ```
 
 ### 运行测试
@@ -199,17 +215,6 @@ app.RegisterModule(&MyModule{})
 3. 运行 `make pb` 生成 Go 代码
 4. 在对应 Module 上实现 `ReqXxx(ctx, req) (rsp, error)` 方法，框架自动路由
 
-## 构建
-
-```bash
-go build ./...
-
-# 构建可执行文件
-go build -o gserver node/main.go
-
-# Docker 构建
-docker build -t gserver .
-```
 
 ### 可观测性
 - **Prometheus** — 指标采集

@@ -3,12 +3,8 @@
 HELM ?= helm
 KRUISE_IMAGE_REPO ?= openkruise-registry.cn-shanghai.cr.aliyuncs.com/openkruise/kruise-manager
 OKG_IMAGE_REPO ?= registry-cn-hangzhou.ack.aliyuncs.com/acs/kruise-game-manager
-OKG_IMAGE_TAG ?= $(shell git rev-parse --short HEAD 2>/dev/null)
-ifneq (, $(shell git status --porcelain 2>/dev/null))
-OKG_IMAGE_TAG := $(OKG_IMAGE_TAG).dirty
-endif
-OKG_IMAGE_TAG := $(if $(TAG),$(TAG),$(OKG_IMAGE_TAG))
-OKG_IMAGE ?= game-server:$(OKG_IMAGE_TAG)
+OKG_IMAGE_TAG := $(if $(TAG),$(TAG),latest)
+OKG_IMAGE ?= gserver:$(OKG_IMAGE_TAG)
 OKG_SERVICES ?= role chat friend guild
 OKG_DOCKERFILE ?= deploy/Dockerfile
 KIND_CLUSTER ?= game-cluster
@@ -146,8 +142,4 @@ newproto:
 	echo 'import "msg_options.proto";' >> $$file; \
 	echo "" >> $$file; \
 	echo "created: $$file (ID range: $${prefix}01~$${prefix}99)"
-
-.PHONY: docker
-docker: cli.install
-	@docker build --build-arg HTTP_PROXY= --build-arg HTTPS_PROXY= --build-arg http_proxy= --build-arg https_proxy= -t game-server:latest .
 
