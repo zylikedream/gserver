@@ -13,6 +13,19 @@ OKG_SERVICES ?= role chat friend guild
 OKG_DOCKERFILE ?= deploy/Dockerfile.runtime
 KIND_CLUSTER ?= game-cluster
 
+.PHONY: install-okg
+install-okg:
+	@echo "=== Installing OpenKruiseGame dependencies ==="
+	$(HELM) repo add openkruise https://openkruise.github.io/charts/ || true
+	$(HELM) repo update
+	$(HELM) upgrade --install kruise openkruise/kruise --version 1.8.0 --set manager.image.repository=$(KRUISE_IMAGE_REPO)
+	$(HELM) upgrade --install kruise-game openkruise/kruise-game --version 1.0.0 --set prometheus.enabled=false --set image.repository=$(OKG_IMAGE_REPO) --set image.pullPolicy=IfNotPresent
+	kubectl patch deployment kruise-controller-manager -n kruise-system --type='json' -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+	kubectl patch daemonset kruise-daemon -n kruise-system --type='json' -p='[{"op":"replace","path":"/spec/template/spec/containers/0/imagePullPolicy","value":"IfNotPresent"}]'
+	@echo "=== Waiting for OKG CRDs ==="
+	kubectl wait --for=condition=Established crd/gameserversets.game.kruise.io --timeout=120s
+	kubectl wait --for=condition=Established crd/gameservers.game.kruise.io --timeout=120s
+
 # Build, load into kind, and deploy game service pools through OpenKruiseGame.
 # Usage: make deploy-k8s-okg [TAG=dev-001]
 .PHONY: deploy-k8s-okg
