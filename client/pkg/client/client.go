@@ -44,6 +44,9 @@ func NewClient(cfg Config) *Client {
 }
 
 func (c *Client) Connect() error {
+	if c.conn != nil {
+		c.conn.Close()
+	}
 	c.conn = NewConn(c.handleMessage)
 	return c.conn.Connect(c.cfg.Addr)
 }
@@ -126,7 +129,17 @@ func (c *Client) Request(msg proto.Message) error {
 }
 
 func (c *Client) RequestWithResponse(msg proto.Message) (proto.Message, error) {
-	return c.doRequest(msg, c.conn.Send)
+	rsp, err := c.doRequest(msg, c.conn.Send)
+	if err != nil {
+		return nil, err
+	}
+	if ack, ok := rsp.(*pb.Ack); ok && ack.Code != 0 {
+		if c.onMessage != nil {
+			c.onMessage(ack)
+		}
+		return nil, fmt.Errorf("ack error: code=%d id=%s reason=%s", ack.Code, ack.Id, ack.Reason)
+	}
+	return rsp, nil
 }
 
 func (c *Client) OnMessage(handler func(msg proto.Message)) {

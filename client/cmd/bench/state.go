@@ -4,9 +4,14 @@ import (
 	pb "hy_client/pb"
 )
 
+type mainTask struct {
+	ID     int32
+	Status int32
+}
+
 type BotState struct {
 	Inventory map[int32]int64        // prop_id -> count
-	Tasks     map[int32]int32        // task_id -> status (0=progress, 1=claimable, 2=finished)
+	MainTask  mainTask               // task_id -> status (0=progress, 1=claimable, 2=finished)
 	Plots     map[int32]*PlotState   // plot_id -> plot state
 	Flowers   map[int32]*FlowerState // flower_id -> flower state
 }
@@ -29,7 +34,6 @@ type FlowerState struct {
 func NewBotState() *BotState {
 	return &BotState{
 		Inventory: make(map[int32]int64),
-		Tasks:     make(map[int32]int32),
 		Plots:     make(map[int32]*PlotState),
 		Flowers:   make(map[int32]*FlowerState),
 	}
@@ -52,7 +56,10 @@ func (s *BotState) UpdateBagNotify(notify *pb.NotifyBagUpdate) {
 }
 
 func (s *BotState) UpdateTask(task *pb.PMainTaskInfo) {
-	s.Tasks[task.TaskId] = int32(task.Status)
+	s.MainTask = mainTask{
+		ID:     task.TaskId,
+		Status: int32(task.Status),
+	}
 }
 
 func (s *BotState) UpdatePlots(plots []*pb.PPlotInfo) {
@@ -106,4 +113,11 @@ func (s *BotState) IsBreedDone(flowerID int32) bool {
 func (s *BotState) IsFlowerBreeding(flowerID int32) bool {
 	f, ok := s.Flowers[flowerID]
 	return ok && f.State == 1 // BREEDING
+}
+
+func (s *BotState) FindClaimableTask() int32 {
+	if s.MainTask.Status == 1 { // MAIN_TASK_CLAIMABLE
+		return s.MainTask.ID
+	}
+	return 0
 }

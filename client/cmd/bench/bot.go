@@ -1,6 +1,8 @@
 package main
 
 import (
+	"sync"
+
 	"hy_client/pkg/client"
 )
 
@@ -45,13 +47,19 @@ func (b *Bot) Run() {
 	})
 	defer b.cl.Close()
 
+	disconnected := make(chan struct{})
+	var once sync.Once
+	b.cl.OnDisconnect(func(reason error) {
+		once.Do(func() { close(disconnected) })
+	})
+
 	b.state = NewBotState()
 	b.log = NewBotLogger(b.index, b.botTypeCfg.ID)
 
 	actions := NewBotActions(b.cl, b.state, b.log)
 	actions.RegisterOnMessage()
 
-	runner := NewScriptRunner(actions, b.cl, b.state, b.index, b.botTypeCfg.ID, b.log, b.cfg.ChatMixin)
+	runner := NewScriptRunner(actions, b.cl, b.state, b.index, b.botTypeCfg.ID, b.log, b.cfg.ChatMixin, b.cfg.Silent, b.stopCh)
 
 	done := make(chan error, 1)
 	go func() {
@@ -60,6 +68,9 @@ func (b *Bot) Run() {
 
 	select {
 	case <-b.stopCh:
+		return
+	case <-disconnected:
+		b.log.Printf("server disconnected")
 		return
 	case err := <-done:
 		if err != nil {

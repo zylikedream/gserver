@@ -1,4 +1,4 @@
-addr: "127.0.0.1:11086"
+addr: "127.0.0.1:10086"
 account_pattern: "benchiii_%d"
 total_bots: 2000
 startup_rate: 50

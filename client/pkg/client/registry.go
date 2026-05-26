@@ -131,3 +131,14 @@ func RangeReqMessages(fn func(msgID, name string, md protoreflect.MessageDescrip
 		}
 	}
 }
+
+func RangeNotifyMessages(fn func(msgID, name string, md protoreflect.MessageDescriptor) bool) {
+	for id, meta := range metaByID {
+		if !strings.HasPrefix(meta.name, "Notify") {
+			continue
+		}
+		if !fn(id, meta.name, meta.md) {
+			break
+		}
+	}
+}

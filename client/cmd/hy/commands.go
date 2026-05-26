@@ -28,31 +28,9 @@ func register(cmd *Command) {
 	commandOrder = append(commandOrder, cmd.Name)
 }
 
-var groupDefs = []struct {
-	prefix, label string
-}{
-	{"basic", "角色"},
-	{"bag", "背包"},
-	{"flower", "花园"},
-	{"breed", "花园"},
-	{"plot", "花园"},
-	{"maintask", "任务"},
-	{"residentorder", "任务"},
-	{"order", "任务"},
-	{"friend", "好友"},
-	{"chat", "聊天"},
-	{"guild", "公会"},
-	{"gm", "GM"},
-}
-
 func groupOf(name string) string {
 	prefix := strings.SplitN(name, ".", 2)[0]
-	for _, g := range groupDefs {
-		if prefix == g.prefix {
-			return g.label
-		}
-	}
-	return "其他"
+	return prefix
 }
 
 func init() {

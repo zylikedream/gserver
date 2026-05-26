@@ -23,3 +23,5 @@ make test           # run tests
 ## Protocol
 
 LTIV: `[Size:2B LE][Type:1B][ID:2B LE][Payload:protobuf]`
+
+如果协议缺少什么字段，不要自己改，告诉我，我让服务器端去改

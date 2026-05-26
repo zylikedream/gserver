@@ -73,7 +73,7 @@ func TestBotStateTasks(t *testing.T) {
 	s.UpdateTask(&pb.PMainTaskInfo{
 		TaskId: 1003, Status: pb.MainTaskStatus_MAIN_TASK_CLAIMABLE,
 	})
-	if s.Tasks[1003] != 1 {
+	if s.MainTask.ID != 1003 || s.MainTask.Status != 1 {
 		t.Error("task 1003 should be claimable (status=1)")
 	}
 }

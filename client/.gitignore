@@ -10,3 +10,5 @@ pb/
 *.test
 *.out
 .letta/
+docs/
+.claude-trace

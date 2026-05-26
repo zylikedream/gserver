@@ -10,16 +10,19 @@ import (
 )
 
 type ScriptRunner struct {
-	actions *BotActions
-	client  *client.Client
-	state   *BotState
-	botID   int
-	botType string
-	log     *BotLogger
-	mixin   *ChatMixinConfig
+	actions  *BotActions
+	client   *client.Client
+	state    *BotState
+	botID    int
+	botType  string
+	log      *BotLogger
+	mixin    *ChatMixinConfig
+	silent   bool
+	stopCh   chan struct{}
+	lastChat time.Time
 }
 
-func NewScriptRunner(actions *BotActions, cl *client.Client, state *BotState, botID int, botType string, log *BotLogger, mixin *ChatMixinConfig) *ScriptRunner {
+func NewScriptRunner(actions *BotActions, cl *client.Client, state *BotState, botID int, botType string, log *BotLogger, mixin *ChatMixinConfig, silent bool, stopCh chan struct{}) *ScriptRunner {
 	return &ScriptRunner{
 		actions: actions,
 		client:  cl,
@@ -28,11 +31,18 @@ func NewScriptRunner(actions *BotActions, cl *client.Client, state *BotState, bo
 		botType: botType,
 		log:     log,
 		mixin:   mixin,
+		silent:  silent,
+		stopCh:  stopCh,
 	}
 }
 
 func (r *ScriptRunner) RunScript(script []ScriptStep) error {
 	for _, step := range script {
+		select {
+		case <-r.stopCh:
+			return nil
+		default:
+		}
 		if err := r.executeStep(step); err != nil {
 			return err
 		}
@@ -74,6 +84,8 @@ func (r *ScriptRunner) dispatch(do string, args map[string]interface{}) func() e
 		return func() error { return r.actions.WaitForHarvest(args) }
 	case "harvest":
 		return func() error { return r.actions.Harvest(args) }
+	case "gm":
+		return func() error { return r.actions.GM(args) }
 	case "plant_cycle":
 		return func() error { return r.actions.PlantCycle(args) }
 	case "check_orders":
@@ -121,6 +133,11 @@ func (r *ScriptRunner) buildLoop(args map[string]interface{}) func() error {
 	return func() error {
 		if count == 0 {
 			for {
+				select {
+				case <-r.stopCh:
+					return nil
+				default:
+				}
 				if err := r.RunScript(subScript); err != nil {
 					return err
 				}
@@ -142,20 +159,26 @@ func (r *ScriptRunner) retryable(name string, fn func() error) error {
 	if name == "login" {
 		maxRetries = 3
 	}
+	start := time.Now()
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			time.Sleep(time.Second)
 		}
-		start := time.Now()
+		start = time.Now()
 		err := fn()
 		lat := time.Since(start)
 		if err != nil {
 			lastErr = err
-			r.log.Printf("action=%s lat=%v error=%v", name, lat, err)
+			r.log.Printf("action=%s lat=%v ok=false error=%v", name, lat, err)
 			continue
 		}
-		r.log.Printf("action=%s lat=%v ok=true", name, lat)
+		if !r.silent {
+			r.log.Printf("action=%s lat=%v ok=true", name, lat)
+		}
 		return nil
+	}
+	if !r.silent {
+		r.log.Printf("action=%s lat=%v ok=false error=%v", name, time.Since(start), lastErr)
 	}
 	return fmt.Errorf("%s failed after %d retries: %v", name, maxRetries, lastErr)
 }
@@ -164,8 +187,16 @@ func (r *ScriptRunner) maybeChat() {
 	if r.mixin == nil {
 		return
 	}
+	if time.Since(r.lastChat) < 6*time.Second {
+		return
+	}
 	if rand.Float64() >= r.mixin.Chance {
 		return
+	}
+	select {
+	case <-r.stopCh:
+		return
+	default:
 	}
 	msgText := r.mixin.Messages[rand.Intn(len(r.mixin.Messages))]
 	err := r.client.Send(&pb.ReqChatSendChannel{
@@ -175,6 +206,9 @@ func (r *ScriptRunner) maybeChat() {
 	if err != nil {
 		r.log.Printf("action=chat error=%v", err)
 	} else {
-		r.log.Printf("action=chat channel=%d ok=true", r.mixin.Channel)
+		r.lastChat = time.Now()
+		if !r.silent {
+			r.log.Printf("action=chat channel=%d ok=true", r.mixin.Channel)
+		}
 	}
 }

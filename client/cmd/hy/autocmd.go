@@ -55,30 +55,43 @@ func registerAutoCommands() {
 func deriveCommandName(protoName string) string {
 	rest := protoName[3:] // strip "Req"
 
-	domainPrefixes := []struct{ pascal, lower string }{
+	// Multi-word domain exceptions (2+ PascalCase words forming a single domain)
+	multiWord := []struct{ pascal, lower string }{
 		{"ResidentOrder", "residentorder"},
 		{"MainTask", "maintask"},
-		{"Friend", "friend"},
-		{"Guild", "guild"},
-		{"Chat", "chat"},
-		{"Flower", "flower"},
-		{"Plot", "plot"},
-		{"Basic", "basic"},
-		{"Bag", "bag"},
-		{"GM", "gm"},
 	}
-
-	for _, dp := range domainPrefixes {
-		if strings.HasPrefix(rest, dp.pascal) {
-			action := rest[len(dp.pascal):]
+	for _, mw := range multiWord {
+		if strings.HasPrefix(rest, mw.pascal) {
+			action := rest[len(mw.pascal):]
 			if action == "" {
-				return dp.lower + ".info"
+				return mw.lower + ".info"
 			}
-			return dp.lower + "." + pascalToSnake(action)
+			return mw.lower + "." + pascalToSnake(action)
 		}
 	}
 
-	return strings.ToLower(rest[:1]) + "." + pascalToSnake(rest[1:])
+	// Auto-detect: first PascalCase word is the domain,
+	// remainder is the action in snake_case
+	for i := 1; i < len(rest); i++ {
+		if !unicode.IsUpper(rune(rest[i])) {
+			continue
+		}
+		if unicode.IsUpper(rune(rest[i-1])) {
+			// Consecutive uppercase — possible acronym
+			if i+1 < len(rest) && !unicode.IsUpper(rune(rest[i+1])) {
+				// i is first letter of new word, domain is before it
+				domain := strings.ToLower(rest[:i])
+				action := pascalToSnake(rest[i:])
+				return domain + "." + action
+			}
+			continue
+		}
+		// Word boundary: "Mail" | "Claim"
+		domain := strings.ToLower(rest[:i])
+		action := pascalToSnake(rest[i:])
+		return domain + "." + action
+	}
+	return strings.ToLower(rest) + ".info"
 }
 
 func pascalToSnake(s string) string {

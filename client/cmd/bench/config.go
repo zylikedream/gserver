@@ -16,6 +16,7 @@ type Config struct {
 	StartupRate    int              `yaml:"startup_rate"`
 	ReportInterval time.Duration    `yaml:"report_interval"`
 	LogFile        string           `yaml:"log_file"`
+	Silent         bool             `yaml:"silent"`
 	BotTypes       []BotTypeConfig  `yaml:"bot_types"`
 	ChatMixin      *ChatMixinConfig `yaml:"chat_mixin,omitempty"`
 }
@@ -107,6 +108,9 @@ func LoadConfig(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	if cfg.TotalBots <= 5 {
+		cfg.Silent = false
+	}
 	if cfg.Addr == "" {
 		return nil, fmt.Errorf("addr is required")
 	}
@@ -121,9 +125,6 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	totalWeight := 0
 	for _, bt := range cfg.BotTypes {
-		if bt.Weight <= 0 {
-			return nil, fmt.Errorf("bot_type %q: weight must be > 0", bt.ID)
-		}
 		if len(bt.Script) == 0 {
 			return nil, fmt.Errorf("bot_type %q: script is empty", bt.ID)
 		}

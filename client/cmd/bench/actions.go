@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"hy_client/pb"
 	"hy_client/pkg/client"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type BotActions struct {
@@ -177,6 +179,10 @@ func (a *BotActions) EnsureBreed(args map[string]interface{}) error {
 }
 
 func (a *BotActions) ClaimTask(args map[string]interface{}) error {
+	taskID := a.state.FindClaimableTask()
+	if taskID == 0 {
+		return nil
+	}
 	_, err := a.client.RequestWithResponse(&pb.ReqMainTaskClaim{})
 	if err != nil {
 		return fmt.Errorf("claim_task: %w", err)
@@ -331,5 +337,38 @@ func (a *BotActions) RegisterOnMessage() {
 		case *pb.NotifyMainTaskUpdate:
 			a.state.UpdateTask(m.Task)
 		}
+
+		// Auto-register: log unknown Notify messages for debugging
+		shortName := strings.TrimPrefix(string(proto.MessageName(msg)), "galaxy.protocol.")
+		if !strings.HasPrefix(shortName, "Notify") {
+			return
+		}
+		switch msg.(type) {
+		case *pb.NotifyBagUpdate, *pb.NotifyMainTaskUpdate:
+			return
+		}
+		mr := msg.ProtoReflect()
+		fields := mr.Descriptor().Fields()
+		var parts []string
+		for i := 0; i < fields.Len(); i++ {
+			fd := fields.Get(i)
+			if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.BytesKind {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("%s=%v", fd.Name(), mr.Get(fd)))
+		}
+		a.log.Printf("notify %s(%s)", shortName, strings.Join(parts, " "))
 	})
+}
+
+func (a *BotActions) GM(args map[string]interface{}) error {
+	cmd := getStringArg(args, "cmd")
+	if cmd == "" {
+		return nil
+	}
+	_, err := a.client.RequestWithResponse(&pb.ReqGMCommand{Cmd: cmd})
+	if err != nil {
+		return fmt.Errorf("gm: %w", err)
+	}
+	return nil
 }
