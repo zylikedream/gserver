@@ -1,9 +1,10 @@
 [node]
-    name = "gate"
+    name = "account"
     host = "{{ env.host | default('127.0.0.1') }}"
-	apps = ["gate"]
+	apps = ["account"]
 [port]
-	actor = 25001
+	actor = {{ account.actor_port | default(25106) }}
+	account = {{ account.http_port | default(18080) }}
 [postgres]
 	url = "postgresql://{{ postgres.user }}:{{ postgres.password | urlencode }}@{{ postgres.host }}:{{ postgres.port }}/{{ postgres.database }}?sslmode={{ postgres.sslmode }}"
 [redis]
@@ -25,6 +26,14 @@
 [trace]
 	endpoint = "{{ trace.host }}:{{ trace.port }}"
 
+[gate.public]
+	host = "{{ gate.public_host | default(env.host | default('127.0.0.1')) }}"
+	port = {{ gate.tcp_port }}
+
+[version]
+	min = "{{ version.min | default('1.0.0') }}"
+	latest = "{{ version.latest | default(version.min | default('1.0.0')) }}"
+
 [token]
 	algorithm = "{{ token.algorithm | default('hs256') }}"
 	issuer = "{{ token.issuer | default('account-service') }}"
@@ -35,18 +44,3 @@
 [token.ed25519]
 	private_key = "{{ token.ed25519.private_key | default('') }}"
 	public_key = "{{ token.ed25519.public_key | default('') }}"
-
-# 网络配置
-[gxynet]
-	peer = "tcp_server"
-[peer.tcp_server]
-	addr = ":{{ gate.tcp_port }}"
-[processor]
-	packet = "ltiv"
-	codec = "protobuf"
-[packet.ltiv]
-	size_length = 2
-	type_length = 1
-	id_length = 2
-	byte_order = "little"
-	max_size = 3145728

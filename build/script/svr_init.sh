@@ -34,4 +34,6 @@ python3 "$SCRIPT_DIR/gen_config.py" "$ENV_NAME"
 
 echo ""
 echo "=== 完成 ==="
+echo "运行: go run node/main.go --config config/account.toml"
+echo "运行: go run node/main.go --config config/gate.toml"
 echo "运行: go run node/main.go --config config/all.toml"
