@@ -53,7 +53,3 @@ func (r *roleApp) OnModStop(ctx context.Context) error {
 func GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
 	return logic.GetRolePublic(ctx, roleID)
 }
-
-func GetRoleIDByAccount(ctx context.Context, account string) (int64, error) {
-	return logic.GetRoleIDByAccount(ctx, account)
-}

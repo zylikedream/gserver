@@ -7,5 +7,5 @@ import (
 )
 
 func InitAccountSchema(ctx context.Context) error {
-	return gxypgx.DB().WithContext(ctx).AutoMigrate(&AccountMapping{}, &legacyRoleAccount{})
+	return gxypgx.DB().WithContext(ctx).AutoMigrate(&Account{}, &AccountIdentity{})
 }

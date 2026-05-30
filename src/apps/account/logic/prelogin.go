@@ -58,14 +58,14 @@ func BuildPreloginResponse(ctx context.Context, cfg PreloginConfig, signer gatet
 	if err := validateClientVersion(clientVersion, cfg.MinVersion); err != nil {
 		return nil, err
 	}
-	mapping, isNewRole, err := LoadOrCreateAccountMapping(ctx, platform, platformUID)
+	account, isNewRole, err := CreateAccountWithIdentity(ctx, platform, platformUID)
 	if err != nil {
 		return nil, err
 	}
 	now := preloginTimeNow()
 	token, err := signer.Sign(&gatetoken.Claims{
-		AccountID: mapping.AccountID,
-		RoleID:    mapping.RoleID,
+		AccountID: account.AccountID,
+		RoleID:    account.RoleID,
 		Platform:  platform,
 		Env:       cfg.Env,
 		IssuedAt:  now,
@@ -77,8 +77,8 @@ func BuildPreloginResponse(ctx context.Context, cfg PreloginConfig, signer gatet
 	}
 
 	return &PreloginResponse{
-		AccountID: mapping.AccountID,
-		RoleID:    mapping.RoleID,
+		AccountID: account.AccountID,
+		RoleID:    account.RoleID,
 		IsNewRole: isNewRole,
 		AccountInfo: map[string]any{
 			"platform":     platform,
@@ -95,8 +95,15 @@ func BuildPreloginResponse(ctx context.Context, cfg PreloginConfig, signer gatet
 			Port: cfg.GatePort,
 		},
 		GateToken: token,
-		ExpiresIn: int64(cfg.TokenTTL / time.Second),
+		ExpiresIn: ttlSeconds(cfg.TokenTTL),
 	}, nil
+}
+
+func ttlSeconds(ttl time.Duration) int64 {
+	if ttl <= 0 {
+		return 0
+	}
+	return int64((ttl + time.Second - 1) / time.Second)
 }
 
 func validateClientVersion(clientVersion string, minVersion string) error {

@@ -32,96 +32,58 @@ func (s stubSigner) Verify(token string) (*gatetoken.Claims, error) {
 	return s.claims, nil
 }
 
-type inMemoryAccountMappingStore struct {
-	byPlatformUID map[string]*AccountMapping
-}
-
-func newInMemoryAccountMappingStore() *inMemoryAccountMappingStore {
-	return &inMemoryAccountMappingStore{
-		byPlatformUID: make(map[string]*AccountMapping),
-	}
-}
-
-func (s *inMemoryAccountMappingStore) FindByPlatformUID(_ context.Context, platform string, platformUID string) (*AccountMapping, error) {
-	mapping, ok := s.byPlatformUID[platform+":"+platformUID]
-	if !ok {
-		return nil, nil
-	}
-	cloned := *mapping
-	return &cloned, nil
-}
-
-func (s *inMemoryAccountMappingStore) Create(_ context.Context, mapping *AccountMapping) error {
-	key := mapping.Platform + ":" + mapping.PlatformUID
-	cloned := *mapping
-	s.byPlatformUID[key] = &cloned
-	return nil
-}
-
-func swapAccountMappingStore(t *testing.T, store accountMappingStore) {
-	t.Helper()
-	oldStore := accountMappings
-	accountMappings = store
-	t.Cleanup(func() {
-		accountMappings = oldStore
-	})
-}
-
 func swapIDGenerators(t *testing.T, accountID string, roleID int64) {
 	t.Helper()
 	oldAccountID := generateAccountID
 	oldRoleID := generateRoleID
-	oldEnsureLegacy := ensureLegacyRoleAccount
 	generateAccountID = func() (string, error) { return accountID, nil }
 	generateRoleID = func() (int64, error) { return roleID, nil }
-	ensureLegacyRoleAccount = func(_ context.Context, _ *AccountMapping) error { return nil }
 	t.Cleanup(func() {
 		generateAccountID = oldAccountID
 		generateRoleID = oldRoleID
-		ensureLegacyRoleAccount = oldEnsureLegacy
 	})
 }
 
-func TestLoadOrCreateAccountMappingCreatesFirstLogin(t *testing.T) {
-	swapAccountMappingStore(t, newInMemoryAccountMappingStore())
+func TestCreateAccountWithIdentityCreatesFirstLogin(t *testing.T) {
+	swapAccountStore(t, newInMemoryAccountStore())
 	swapIDGenerators(t, "acc_1001", 10001)
 
-	mapping, isNew, err := LoadOrCreateAccountMapping(context.Background(), "guest", "u_1001")
+	account, isNew, err := CreateAccountWithIdentity(context.Background(), "guest", "u_1001")
 	if err != nil {
-		t.Fatalf("load or create failed: %v", err)
+		t.Fatalf("create account with identity failed: %v", err)
 	}
 	if !isNew {
-		t.Fatalf("expected new mapping")
+		t.Fatalf("expected new account")
 	}
-	if mapping.AccountID == "" || mapping.RoleID == 0 {
-		t.Fatalf("unexpected mapping: %+v", mapping)
+	if account.AccountID == "" || account.RoleID == 0 {
+		t.Fatalf("unexpected account: %+v", account)
 	}
 }
 
-func TestLoadOrCreateAccountMappingReturnsExistingRecord(t *testing.T) {
-	store := newInMemoryAccountMappingStore()
-	swapAccountMappingStore(t, store)
+func TestCreateAccountWithIdentityReturnsExistingRecord(t *testing.T) {
+	store := newInMemoryAccountStore()
+	swapAccountStore(t, store)
 	swapIDGenerators(t, "acc_1002", 10002)
 
-	first, _, err := LoadOrCreateAccountMapping(context.Background(), "guest", "u_1002")
+	first, _, err := CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
 	if err != nil {
 		t.Fatalf("initial create failed: %v", err)
 	}
 
-	second, isNew, err := LoadOrCreateAccountMapping(context.Background(), "guest", "u_1002")
+	second, isNew, err := CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
 	if err != nil {
 		t.Fatalf("second load failed: %v", err)
 	}
 	if isNew {
-		t.Fatalf("expected existing mapping")
+		t.Fatalf("expected existing account")
 	}
 	if first.AccountID != second.AccountID || first.RoleID != second.RoleID {
-		t.Fatalf("mapping mismatch: first=%+v second=%+v", first, second)
+		t.Fatalf("account mismatch: first=%+v second=%+v", first, second)
 	}
 }
 
 func TestBuildPreloginResponseRejectsOldVersion(t *testing.T) {
-	swapAccountMappingStore(t, newInMemoryAccountMappingStore())
+	swapAccountStore(t, newInMemoryAccountStore())
 	swapIDGenerators(t, "acc_2001", 20001)
 
 	cfg := PreloginConfig{
@@ -140,7 +102,7 @@ func TestBuildPreloginResponseRejectsOldVersion(t *testing.T) {
 }
 
 func TestBuildPreloginResponseReturnsGateAndToken(t *testing.T) {
-	swapAccountMappingStore(t, newInMemoryAccountMappingStore())
+	swapAccountStore(t, newInMemoryAccountStore())
 	swapIDGenerators(t, "acc_2002", 20002)
 	now := time.Unix(1710000000, 0)
 	preloginTimeNow = func() time.Time { return now }
@@ -167,8 +129,33 @@ func TestBuildPreloginResponseReturnsGateAndToken(t *testing.T) {
 	}
 }
 
+func TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond(t *testing.T) {
+	swapAccountStore(t, newInMemoryAccountStore())
+	swapIDGenerators(t, "acc_2003", 20003)
+	now := time.Unix(1710000000, 0)
+	preloginTimeNow = func() time.Time { return now }
+	defer func() { preloginTimeNow = time.Now }()
+
+	cfg := PreloginConfig{
+		MinVersion:    "1.0.0",
+		LatestVersion: "1.0.0",
+		GateHost:      "gate.example.com",
+		GatePort:      20001,
+		Env:           "dev",
+		TokenTTL:      500 * time.Millisecond,
+		Issuer:        "account-service",
+	}
+	rsp, err := BuildPreloginResponse(context.Background(), cfg, stubSigner{token: "signed-token"}, "guest", "u_2003", "1.0.0")
+	if err != nil {
+		t.Fatalf("build response failed: %v", err)
+	}
+	if rsp.ExpiresIn != 1 {
+		t.Fatalf("expected ExpiresIn=1, got %d", rsp.ExpiresIn)
+	}
+}
+
 func TestAccountHandlerPreloginReturnsPayload(t *testing.T) {
-	swapAccountMappingStore(t, newInMemoryAccountMappingStore())
+	swapAccountStore(t, newInMemoryAccountStore())
 	swapIDGenerators(t, "acc_3001", 30001)
 	now := time.Unix(1710000000, 0)
 	preloginTimeNow = func() time.Time { return now }

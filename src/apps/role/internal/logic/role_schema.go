@@ -15,7 +15,6 @@ func InitRoleSchema(ctx context.Context) {
 	}
 
 	if err := db.AutoMigrate(
-		&RoleAccount{},
 		&RoleBasicState{},
 		&RoleBagState{},
 		&RoleExtraPersistState{},

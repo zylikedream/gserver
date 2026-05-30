@@ -119,7 +119,11 @@ func (r *RoleMain) Init(ctx context.Context, args []any) error {
 	}
 	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
 	// 验证角色账号是否存在
-	if account := GetAccountByRoleID(r.RoleID); account == "" {
+	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
+	if err != nil {
+		return err
+	}
+	if accountID == "" {
 		return gerror.Newf("role account not exist, roleID: %d", r.RoleID)
 	}
 

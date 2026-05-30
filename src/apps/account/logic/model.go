@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,49 +15,55 @@ import (
 	"gorm.io/gorm"
 )
 
-type AccountMapping struct {
-	ID          int64     `gorm:"column:id;primaryKey;autoIncrement"`
-	Platform    string    `gorm:"column:platform;size:32;not null;uniqueIndex:uk_platform_uid"`
-	PlatformUID string    `gorm:"column:platform_uid;size:128;not null;uniqueIndex:uk_platform_uid"`
-	AccountID   string    `gorm:"column:account_id;size:64;not null;uniqueIndex"`
-	RoleID      int64     `gorm:"column:role_id;not null;uniqueIndex"`
+type Account struct {
+	AccountID string    `gorm:"column:account_id;primaryKey"`
+	RoleID    int64     `gorm:"column:role_id;not null;uniqueIndex"`
+	CreatedAt time.Time `gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt time.Time `gorm:"column:updated_at;autoUpdateTime"`
+}
+
+func (Account) TableName() string {
+	return "account"
+}
+
+type AccountIdentity struct {
+	Platform    string    `gorm:"column:platform;primaryKey"`
+	PlatformUID string    `gorm:"column:platform_uid;primaryKey"`
+	AccountID   string    `gorm:"column:account_id;not null;index"`
 	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime"`
 }
 
-func (AccountMapping) TableName() string {
-	return "account_mapping"
+func (AccountIdentity) TableName() string {
+	return "account_identity"
 }
 
-type legacyRoleAccount struct {
-	RoleID  int64  `gorm:"column:role_id;uniqueIndex"`
-	Account string `gorm:"column:account;primaryKey"`
+type accountStore interface {
+	FindAccountByIdentity(ctx context.Context, platform string, platformUID string) (*Account, error)
+	CreateAccountWithIdentity(ctx context.Context, account *Account, identity *AccountIdentity) error
 }
 
-func (legacyRoleAccount) TableName() string {
-	return "role_account"
-}
-
-type accountMappingStore interface {
-	FindByPlatformUID(ctx context.Context, platform string, platformUID string) (*AccountMapping, error)
-	Create(ctx context.Context, mapping *AccountMapping) error
-}
-
-type gormAccountMappingStore struct{}
+type gormAccountStore struct{}
 
 var (
-	accountMappings  accountMappingStore = gormAccountMappingStore{}
-	generateAccountID                    = defaultGenerateAccountID
-	generateRoleID                       = defaultGenerateRoleID
-	ensureLegacyRoleAccount              = defaultEnsureLegacyRoleAccount
+	accounts         accountStore = gormAccountStore{}
+	generateAccountID             = defaultGenerateAccountID
+	generateRoleID                = defaultGenerateRoleID
 )
 
-func LoadOrCreateAccountMapping(ctx context.Context, platform string, platformUID string) (*AccountMapping, bool, error) {
+func LoadAccountByIdentity(ctx context.Context, platform string, platformUID string) (*Account, error) {
+	if platform == "" || platformUID == "" {
+		return nil, gerror.New("platform and platform_uid are required")
+	}
+	return accounts.FindAccountByIdentity(ctx, platform, platformUID)
+}
+
+func CreateAccountWithIdentity(ctx context.Context, platform string, platformUID string) (*Account, bool, error) {
 	if platform == "" || platformUID == "" {
 		return nil, false, gerror.New("platform and platform_uid are required")
 	}
 
-	existing, err := accountMappings.FindByPlatformUID(ctx, platform, platformUID)
+	existing, err := LoadAccountByIdentity(ctx, platform, platformUID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -73,15 +80,18 @@ func LoadOrCreateAccountMapping(ctx context.Context, platform string, platformUI
 		return nil, false, err
 	}
 
-	mapping := &AccountMapping{
+	account := &Account{
+		AccountID: accountID,
+		RoleID:    roleID,
+	}
+	identity := &AccountIdentity{
 		Platform:    platform,
 		PlatformUID: platformUID,
 		AccountID:   accountID,
-		RoleID:      roleID,
 	}
-	if err := accountMappings.Create(ctx, mapping); err != nil {
+	if err := accounts.CreateAccountWithIdentity(ctx, account, identity); err != nil {
 		if isUniqueConstraintError(err) {
-			reloaded, reloadErr := accountMappings.FindByPlatformUID(ctx, platform, platformUID)
+			reloaded, reloadErr := LoadAccountByIdentity(ctx, platform, platformUID)
 			if reloadErr != nil {
 				return nil, false, reloadErr
 			}
@@ -91,26 +101,26 @@ func LoadOrCreateAccountMapping(ctx context.Context, platform string, platformUI
 		}
 		return nil, false, err
 	}
-	if err := ensureLegacyRoleAccount(ctx, mapping); err != nil {
-		return nil, false, err
-	}
 
-	gxylog.Info(ctx, "create account mapping",
+	gxylog.Info(ctx, "create account",
 		gxylog.Str("platform", platform),
 		gxylog.Str("platform_uid", platformUID),
-		gxylog.Str("account_id", mapping.AccountID),
-		gxylog.Num("role_id", mapping.RoleID),
+		gxylog.Str("account_id", account.AccountID),
+		gxylog.Num("role_id", account.RoleID),
 	)
-	return mapping, true, nil
+	return account, true, nil
 }
 
-func (gormAccountMappingStore) FindByPlatformUID(ctx context.Context, platform string, platformUID string) (*AccountMapping, error) {
-	var mapping AccountMapping
+func (gormAccountStore) FindAccountByIdentity(ctx context.Context, platform string, platformUID string) (*Account, error) {
+	var account Account
 	err := gxypgx.DB().WithContext(ctx).
-		Where("platform = ? AND platform_uid = ?", platform, platformUID).
-		First(&mapping).Error
+		Table(account.TableName()).
+		Select("account.*").
+		Joins("JOIN account_identity ON account_identity.account_id = account.account_id").
+		Where("account_identity.platform = ? AND account_identity.platform_uid = ?", platform, platformUID).
+		First(&account).Error
 	if err == nil {
-		return &mapping, nil
+		return &account, nil
 	}
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
@@ -118,8 +128,16 @@ func (gormAccountMappingStore) FindByPlatformUID(ctx context.Context, platform s
 	return nil, err
 }
 
-func (gormAccountMappingStore) Create(ctx context.Context, mapping *AccountMapping) error {
-	return gxypgx.DB().WithContext(ctx).Create(mapping).Error
+func (gormAccountStore) CreateAccountWithIdentity(ctx context.Context, account *Account, identity *AccountIdentity) error {
+	return gxypgx.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(account).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(identity).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func defaultGenerateAccountID() (string, error) {
@@ -135,16 +153,12 @@ func defaultGenerateRoleID() (int64, error) {
 	return id + offset, nil
 }
 
-func defaultEnsureLegacyRoleAccount(ctx context.Context, mapping *AccountMapping) error {
-	return gxypgx.DB().WithContext(ctx).Save(&legacyRoleAccount{
-		RoleID:  mapping.RoleID,
-		Account: mapping.AccountID,
-	}).Error
-}
-
 func isUniqueConstraintError(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
 	}
 	lowered := strings.ToLower(err.Error())
 	return strings.Contains(lowered, "duplicate") || strings.Contains(lowered, "unique")
