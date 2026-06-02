@@ -52,6 +52,7 @@ message ReqHandShake {
 - `gate_token` 由账号服预登录接口签发
 - 客户端在连接 `gate` 前必须先请求账号服
 - `gate` 本地验签后，从 token claims 中提取 `account_id` 和 `role_id`
+- 客户端登录接入说明见 `docs/public/client-login.md`
 - 详细机制见 `docs/public/token-auth.md`
 
 客户端生成代码后，通过 message descriptor 读取 `msg_id` option 获取消息ID。不同语言示例：
