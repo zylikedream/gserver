@@ -37,6 +37,8 @@ vim build/env/dev_<your-name>.env.toml
 ./build/script/svr_init.sh dev_<your-name>
 
 # 7. 启动服务
+go run node/main.go --config config/account.toml
+go run node/main.go --config config/gate.toml
 go run node/main.go --config config/all.toml
 ```
 
@@ -76,33 +78,39 @@ bash hack/db_reset.sh
 
 ## 启动服务
 
-**最少需要 2 个节点：gate（网关）+ game（逻辑服），gate 是客户端入口，必须先启动。**
+**最少需要 3 个节点：account（预登录）+ gate（网关）+ all（逻辑服）。**
 
-### 开发常用（gate + 单节点 all）
+### 开发常用（account + gate + 单节点 all）
 
 ```bash
-# 终端 1: 启动网关（TCP 连接入口，必须第一个启动）
+# 终端 1: 启动账号服（HTTP 预登录入口）
+go run node/main.go --config config/account.toml
+
+# 终端 2: 启动网关（TCP 连接入口）
 go run node/main.go --config config/gate.toml
 
-# 终端 2: 启动所有逻辑服务（role/chat/friend/guild 在同一个节点）
+# 终端 3: 启动所有逻辑服务（role/chat/friend/guild 在同一个节点）
 go run node/main.go --config config/all.toml
 ```
 
-### 分开部署（gate + 独立节点）
+### 分开部署（account + gate + 独立逻辑节点）
 
 ```bash
-# 终端 1: 启动网关
+# 终端 1: 启动账号服
+go run node/main.go --config config/account.toml
+
+# 终端 2: 启动网关
 go run node/main.go --config config/gate.toml
 
-# 终端 2: 启动 role
+# 终端 3: 启动 role
 go run node/main.go --config config/role.toml
 
-# 终端 3: 启动 chat
+# 终端 4: 启动 chat
 go run node/main.go --config config/chat.toml
 
-# 终端 4: 启动 friend
+# 终端 5: 启动 friend
 go run node/main.go --config config/friend.toml
 
-# 终端 5: 启动 guild
+# 终端 6: 启动 guild
 go run node/main.go --config config/guild.toml
 ```

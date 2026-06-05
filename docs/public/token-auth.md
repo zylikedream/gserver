@@ -2,6 +2,20 @@
 
 本文说明客户端进入 `gate` 前使用的 `gate_token` 是如何签发、携带和校验的。
 
+## 服务端前提
+
+当前登录链路至少需要这 3 个节点同时运行：
+
+1. `account`
+2. `gate`
+3. `all`
+
+其中：
+
+- `account` 负责预登录和签发 token
+- `gate` 负责握手验签
+- `all` 负责角色和后续业务逻辑
+
 ## 目的
 
 `gate_token` 的作用不是维持长期登录态，而是作为客户端建立新 `gate` 连接时的短期凭证。
@@ -17,22 +31,23 @@
 
 完整流程如下：
 
-1. 客户端先调用账号服 HTTP 接口
-2. 账号服完成：
+1. 服务端先启动 `account + gate + all`
+2. 客户端先调用账号服 HTTP 接口
+3. 账号服完成：
    - 平台身份接入
    - 版本校验
    - 账号映射 / 建号
    - 生成 `gate_token`
-3. 账号服返回：
+4. 账号服返回：
    - `account_id`
    - `role_id`
    - 公共 `gate` 地址
    - `gate_token`
-4. 客户端连接 `gate`
-5. 客户端首包 `ReqHandShake` 携带 `gate_token`
-6. `gate` 本地验签
-7. `gate` 从 token claims 中取出 `account_id` 和 `role_id`
-8. `gate` 激活对应 `role actor`，建立 session
+5. 客户端连接 `gate`
+6. 客户端首包 `ReqHandShake` 携带 `gate_token`
+7. `gate` 本地验签
+8. `gate` 从 token claims 中取出 `account_id` 和 `role_id`
+9. `gate` 激活对应 `role actor`，建立 session
 
 ## 为什么需要 token
 

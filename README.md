@@ -91,7 +91,7 @@ go mod download
 # 2. 初始化环境（生成配置、脚本）
 ./build/script/svr_init.sh dev_xx(你自己的环境)
 
-# 3. 启动账号服 + gate + 单节点（包含 role 等全部模块）
+# 3. 启动最小三节点：账号服 + gate + 单节点（包含 role 等全部模块）
 go run node/main.go --config config/account.toml
 go run node/main.go --config config/gate.toml
 go run node/main.go --config config/all.toml
