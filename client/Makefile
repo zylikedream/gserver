@@ -1,4 +1,4 @@
-PROTO_INCLUDE ?= $(shell pkg-config --variable=includedir protobuf 2>/dev/null || echo "/usr/include")
+PROTO_INCLUDE ?= $(shell pkg-config --variable=includedir protobuf 2>/dev/null || echo "$(HOME)/.local/include")
 
 .PHONY: build proto proto-update test clean
 

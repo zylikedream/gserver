@@ -10,6 +10,7 @@ type mainTask struct {
 }
 
 type BotState struct {
+	GateToken string
 	Inventory map[int32]int64        // prop_id -> count
 	MainTask  mainTask               // task_id -> status (0=progress, 1=claimable, 2=finished)
 	Plots     map[int32]*PlotState   // plot_id -> plot state

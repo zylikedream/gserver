@@ -56,7 +56,7 @@ func TestClientHandshakeLogin(t *testing.T) {
 		conn.Write(data)
 	}()
 
-	cfg := Config{Addr: listener.Addr().String(), AccountUID: "test"}
+	cfg := Config{Addr: listener.Addr().String()}
 	c := NewClient(cfg)
 
 	err = c.Connect()
@@ -65,7 +65,7 @@ func TestClientHandshakeLogin(t *testing.T) {
 	}
 	defer c.Close()
 
-	rsp, err := c.Handshake()
+	rsp, err := c.Handshake("test_gate_token")
 	if err != nil {
 		t.Fatalf("handshake failed: %v", err)
 	}

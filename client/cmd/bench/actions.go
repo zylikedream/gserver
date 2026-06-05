@@ -88,8 +88,10 @@ func (a *BotActions) Login(args map[string]interface{}) error {
 	if err := a.client.Connect(); err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}
-	if _, err := a.client.Handshake(); err != nil {
-		return fmt.Errorf("handshake: %w", err)
+	if a.state.GateToken != "" {
+		if _, err := a.client.Handshake(a.state.GateToken); err != nil {
+			return fmt.Errorf("handshake: %w", err)
+		}
 	}
 	if _, err := a.client.Login(); err != nil {
 		return fmt.Errorf("login: %w", err)

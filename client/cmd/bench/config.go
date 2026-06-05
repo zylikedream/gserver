@@ -10,15 +10,17 @@ import (
 )
 
 type Config struct {
-	Addr           string           `yaml:"addr"`
-	AccountPattern string           `yaml:"account_pattern"`
-	TotalBots      int              `yaml:"total_bots"`
-	StartupRate    int              `yaml:"startup_rate"`
-	ReportInterval time.Duration    `yaml:"report_interval"`
-	LogFile        string           `yaml:"log_file"`
-	Silent         bool             `yaml:"silent"`
-	BotTypes       []BotTypeConfig  `yaml:"bot_types"`
-	ChatMixin      *ChatMixinConfig `yaml:"chat_mixin,omitempty"`
+	Addr            string           `yaml:"addr"`
+	AccountPattern  string           `yaml:"account_pattern"`
+	AccountServer   string           `yaml:"account_server,omitempty"`
+	Platform        string           `yaml:"platform,omitempty"`
+	TotalBots       int              `yaml:"total_bots"`
+	StartupRate     int              `yaml:"startup_rate"`
+	ReportInterval  time.Duration    `yaml:"report_interval"`
+	LogFile         string           `yaml:"log_file"`
+	Silent          bool             `yaml:"silent"`
+	BotTypes        []BotTypeConfig  `yaml:"bot_types"`
+	ChatMixin       *ChatMixinConfig `yaml:"chat_mixin,omitempty"`
 }
 
 type BotTypeConfig struct {

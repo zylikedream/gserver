@@ -1,3 +1,3 @@
 [submodule "proto/client"]
 	path = proto/client
-	url = git@gitee.com:zylikedream/mahong-protocol.git
+	url = https://github.com/zylikedream/gserver_protocol.git

@@ -12,19 +12,19 @@ import (
 )
 
 type REPL struct {
-	client *client.Client
-	line   *liner.State
-}
-
-func historyFile() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ".hy_history"
-	}
-	return filepath.Join(home, ".hy_history")
+	client       *client.Client
+	line         *liner.State
+	acctServer   string
+	platform     string
+	platformUID  string
+	clientVer    string
 }
 
 func NewREPL(c *client.Client) *REPL {
+	return newREPL(c, "", "", "", "")
+}
+
+func newREPL(c *client.Client, acctServer, platform, platformUID, clientVer string) *REPL {
 	line := liner.NewLiner()
 	line.SetCtrlCAborts(true)
 
@@ -34,9 +34,21 @@ func NewREPL(c *client.Client) *REPL {
 	}
 
 	return &REPL{
-		client: c,
-		line:   line,
+		client:       c,
+		line:         line,
+		acctServer:   acctServer,
+		platform:     platform,
+		platformUID:  platformUID,
+		clientVer:    clientVer,
 	}
+}
+
+func historyFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".hy_history"
+	}
+	return filepath.Join(home, ".hy_history")
 }
 
 func (r *REPL) Run() {
@@ -161,9 +173,9 @@ func (r *REPL) printHelp(filter string) {
 			cmd := commands[name]
 			paramsStr := strings.Join(cmd.Params, " ")
 			if paramsStr != "" {
-				fmt.Printf("  %-25s %s (%s)\n", name, cmd.Help, paramsStr)
+				fmt.Printf("\t%-25s %s (%s)\n", name, cmd.Help, paramsStr)
 			} else {
-				fmt.Printf("  %-25s %s\n", name, cmd.Help)
+				fmt.Printf("\t%-25s %s\n", name, cmd.Help)
 			}
 			matches++
 		}
@@ -196,31 +208,48 @@ func (r *REPL) printHelp(filter string) {
 			cmd := commands[name]
 			paramsStr := strings.Join(cmd.Params, " ")
 			if paramsStr != "" {
-				fmt.Printf("  %-25s %s (%s)\n", name, cmd.Help, paramsStr)
+				fmt.Printf("\t%-25s %s (%s)\n", name, cmd.Help, paramsStr)
 			} else {
-				fmt.Printf("  %-25s %s\n", name, cmd.Help)
+				fmt.Printf("\t%-25s %s\n", name, cmd.Help)
 			}
 		}
 	}
 }
 
 func (r *REPL) reconnect() {
-	r.client.Close()
 	fmt.Println("disconnected. reconnecting...")
+
+	var gateAddr, gateToken string
+
+	if r.acctServer != "" && r.platformUID != "" {
+		fmt.Printf("prelogin to %s ...\n", r.acctServer)
+		preloginData, err := client.AccountServerPrelogin(r.acctServer, r.platform, r.platformUID, r.clientVer)
+		if err != nil {
+			fmt.Printf("prelogin failed: %v\n", err)
+			return
+		}
+		gateAddr = fmt.Sprintf("%s:%d", preloginData.Gate.Host, preloginData.Gate.Port)
+		gateToken = preloginData.GateToken
+		r.client.SetAddr(gateAddr)
+	}
+
+	r.client.Close()
 	if err := r.client.Connect(); err != nil {
 		fmt.Printf("connect failed: %v\n", err)
 		return
 	}
 	fmt.Println("connected.")
 
-	rsp, err := r.client.Handshake()
-	if err != nil {
-		fmt.Printf("handshake failed: %v\n", err)
-		return
+	if gateToken != "" {
+		rsp, err := r.client.Handshake(gateToken)
+		if err != nil {
+			fmt.Printf("handshake failed: %v\n", err)
+			return
+		}
+		fmt.Printf("handshake ok, role_id=%d\n", rsp.RoleId)
 	}
-	fmt.Printf("handshake ok, role_id=%d\n", rsp.RoleId)
 
-	_, err = r.client.Login()
+	_, err := r.client.Login()
 	if err != nil {
 		fmt.Printf("login failed: %v\n", err)
 		return

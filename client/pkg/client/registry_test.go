@@ -60,8 +60,8 @@ func TestRegistryNewInstance(t *testing.T) {
 	if !ok {
 		t.Fatal("expected *pb.ReqHandShake")
 	}
-	handshake.AccountUid = "test"
-	if handshake.AccountUid != "test" {
+	handshake.GateToken = "test_token"
+	if handshake.GateToken != "test_token" {
 		t.Error("failed to set field on new instance")
 	}
 }

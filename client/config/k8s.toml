@@ -1,3 +1,7 @@
 [server]
 addr = "127.0.0.1:10086"
-account = "zhangyi6"
+
+[account_server]
+url = "http://127.0.0.1:8080"
+platform = "guest"
+platform_uid = "zhangyi6"

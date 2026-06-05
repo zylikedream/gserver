@@ -18,11 +18,20 @@ type fileConfig struct {
 		Addr    string `toml:"addr"`
 		Account string `toml:"account"`
 	} `toml:"server"`
+	AccountServer struct {
+		URL          string `toml:"url"`
+		Platform     string `toml:"platform"`
+		PlatformUID  string `toml:"platform_uid"`
+		ClientVersion string `toml:"client_version"`
+	} `toml:"account_server"`
 }
 
 func main() {
-	addr := flag.String("addr", "", "server address (host:port)")
-	account := flag.String("account", "", "account uid")
+	addr := flag.String("addr", "", "gate server address (host:port)")
+	accountServer := flag.String("account-server", "", "account server URL (e.g. http://account.example.com)")
+	platform := flag.String("platform", "guest", "platform identifier (guest/wechat/apple)")
+	platformUID := flag.String("platform-uid", "", "platform user ID")
+	clientVersion := flag.String("client-version", "", "client version")
 	configFile := flag.String("config", "", "config file path")
 	flag.Parse()
 
@@ -38,27 +47,57 @@ func main() {
 	if *addr != "" {
 		serverAddr = *addr
 	}
-	defaultAccount := cfg.Server.Account
-	if *account != "" {
-		defaultAccount = *account
-	}
 
-	if serverAddr == "" {
-		fmt.Println("error: server address required (--addr or config file)")
-		os.Exit(1)
+	acctServer := cfg.AccountServer.URL
+	if *accountServer != "" {
+		acctServer = *accountServer
+	}
+	plat := cfg.AccountServer.Platform
+	if *platform != "guest" || plat == "" {
+		plat = *platform
+	}
+	pUID := cfg.AccountServer.PlatformUID
+	if *platformUID != "" {
+		pUID = *platformUID
+	}
+	cliVer := cfg.AccountServer.ClientVersion
+	if *clientVersion != "" {
+		cliVer = *clientVersion
 	}
 
 	client.RegisterMessages()
 
-	accountUID := promptAccount(defaultAccount)
+	var gateAddr string
+	var gateToken string
+
+	if acctServer != "" {
+		pUID = promptPlatformUID(pUID)
+		fmt.Printf("prelogin to %s ...\n", acctServer)
+		preloginData, err := client.AccountServerPrelogin(acctServer, plat, pUID, cliVer)
+		if err != nil {
+			fmt.Printf("prelogin failed: %v\n", err)
+			os.Exit(1)
+		}
+		if preloginData.IsNewRole {
+			fmt.Println("new account created!")
+		}
+		gateAddr = fmt.Sprintf("%s:%d", preloginData.Gate.Host, preloginData.Gate.Port)
+		gateToken = preloginData.GateToken
+		fmt.Printf("prelogin ok, role_id=%d, gate=%s\n", preloginData.RoleID, gateAddr)
+	} else {
+		gateAddr = serverAddr
+		if gateAddr == "" {
+			fmt.Println("error: server address required (--addr or config file), or use --account-server for prelogin")
+			os.Exit(1)
+		}
+	}
 
 	c := client.NewClient(client.Config{
-		Addr:       serverAddr,
-		AccountUID: accountUID,
+		Addr: gateAddr,
 	})
 
 	c.OnMessage(func(msg proto.Message) {
-		fmt.Println() // newline after prompt
+		fmt.Println()
 		printProtoJSON("[push]", msg)
 	})
 
@@ -73,19 +112,21 @@ func main() {
 		fmt.Printf("\n⚠ disconnected: %v\n", reason)
 	})
 
-	fmt.Printf("connecting to %s...\n", serverAddr)
+	fmt.Printf("connecting to %s...\n", gateAddr)
 	if err := c.Connect(); err != nil {
 		fmt.Printf("connect failed: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println("connected.")
 
-	rsp, err := c.Handshake()
-	if err != nil {
-		fmt.Printf("handshake failed: %v\n", err)
-		os.Exit(1)
+	if gateToken != "" {
+		rsp, err := c.Handshake(gateToken)
+		if err != nil {
+			fmt.Printf("handshake failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("handshake ok, role_id=%d\n", rsp.RoleId)
 	}
-	fmt.Printf("handshake ok, role_id=%d\n", rsp.RoleId)
 
 	loginRsp, err := c.Login()
 	if err != nil {
@@ -97,17 +138,17 @@ func main() {
 	}
 	fmt.Println("login ok.")
 
-	repl := NewREPL(c)
+	repl := newREPL(c, acctServer, plat, pUID, cliVer)
 	repl.Run()
 
 	c.Close()
 }
 
-func promptAccount(defaultAccount string) string {
-	if defaultAccount != "" {
-		fmt.Printf("Account [%s]: ", defaultAccount)
+func promptPlatformUID(defaultUID string) string {
+	if defaultUID != "" {
+		fmt.Printf("Platform UID [%s]: ", defaultUID)
 	} else {
-		fmt.Print("Account: ")
+		fmt.Print("Platform UID: ")
 	}
 
 	reader := bufio.NewReader(os.Stdin)
@@ -115,11 +156,11 @@ func promptAccount(defaultAccount string) string {
 	input = strings.TrimSpace(input)
 
 	if input == "" {
-		if defaultAccount == "" {
-			fmt.Println("error: account required")
+		if defaultUID == "" {
+			fmt.Println("error: platform_uid required")
 			os.Exit(1)
 		}
-		return defaultAccount
+		return defaultUID
 	}
 	return input
 }

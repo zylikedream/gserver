@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sync"
 
 	"hy_client/pkg/client"
@@ -41,9 +42,25 @@ func (b *Bot) Run() {
 	b.metrics.alive.Add(1)
 	defer b.metrics.alive.Add(-1)
 
+	gateAddr := b.cfg.Addr
+	gateToken := ""
+
+	if b.cfg.AccountServer != "" {
+		platform := b.cfg.Platform
+		if platform == "" {
+			platform = "guest"
+		}
+		preloginData, err := client.AccountServerPrelogin(b.cfg.AccountServer, platform, b.uid, "")
+		if err != nil {
+			b.log.Printf("prelogin failed: %v", err)
+			return
+		}
+		gateAddr = fmt.Sprintf("%s:%d", preloginData.Gate.Host, preloginData.Gate.Port)
+		gateToken = preloginData.GateToken
+	}
+
 	b.cl = client.NewClient(client.Config{
-		Addr:       b.cfg.Addr,
-		AccountUID: b.uid,
+		Addr: gateAddr,
 	})
 	defer b.cl.Close()
 
@@ -54,6 +71,7 @@ func (b *Bot) Run() {
 	})
 
 	b.state = NewBotState()
+	b.state.GateToken = gateToken
 	b.log = NewBotLogger(b.index, b.botTypeCfg.ID)
 
 	actions := NewBotActions(b.cl, b.state, b.log)

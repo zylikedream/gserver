@@ -14,8 +14,7 @@ import (
 const requestTimeout = 10 * time.Second
 
 type Config struct {
-	Addr       string
-	AccountUID string
+	Addr string
 }
 
 type pendingRequest struct {
@@ -62,16 +61,16 @@ func (c *Client) IsConnected() bool {
 	return c.conn != nil && !c.conn.closed
 }
 
-func (c *Client) SetAccountUID(uid string) {
-	c.cfg.AccountUID = uid
+func (c *Client) SetAddr(addr string) {
+	c.cfg.Addr = addr
 }
 
 func (c *Client) RoleID() int64 {
 	return c.roleID
 }
 
-func (c *Client) Handshake() (*pb.RspHandShake, error) {
-	req := &pb.ReqHandShake{AccountUid: c.cfg.AccountUID}
+func (c *Client) Handshake(gateToken string) (*pb.RspHandShake, error) {
+	req := &pb.ReqHandShake{GateToken: gateToken}
 
 	rspMsg, err := c.doRequest(req, c.conn.SendFirst)
 	if err != nil {
