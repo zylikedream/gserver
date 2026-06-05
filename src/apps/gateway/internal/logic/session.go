@@ -17,7 +17,7 @@ import (
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"gserver/src/apps/role"
+	"gserver/src/lib/gatetoken"
 	"gserver/src/lib"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -33,7 +33,13 @@ var gateMaintenanceEnabled = func() bool {
 	return os.Getenv(gateMaintenanceEnv) == "true" || os.Getenv(gateMaintenanceEnv) == "1"
 }
 
-var getRoleIDByAccount = role.GetRoleIDByAccount
+var verifyGateToken = func(token string) (*gatetoken.Claims, error) {
+	return nil, gerror.New("gate token verifier not configured")
+}
+
+func SetGateTokenVerifier(verifier func(token string) (*gatetoken.Claims, error)) {
+	verifyGateToken = verifier
+}
 
 var activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 	return lib.ActivateRole(ctx, roleID)
@@ -59,7 +65,7 @@ const (
 
 // SessionInfo 会话信息
 type SessionInfo struct {
-	AccountUid       string       // 账号ID
+	AccountID        string       // 账号ID
 	RoleID           int64        // 玩家ID（认证后才有）
 	ConnectTime      time.Time    // 连接时间
 	ClientLastActive time.Time    // 客户端最后活跃时间
@@ -154,36 +160,56 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	}
 	s.Span().SetName(fmt.Sprintf("%T", firstpacket))
 
-	s.sessionInfo.AccountUid = firstpacket.AccountUid
-	roleID, err := getRoleIDByAccount(ctx, firstpacket.AccountUid)
+	identity, err := resolveHandshakeIdentity(firstpacket.GetGateToken())
 	if err != nil {
-		return gerror.Wrapf(err, "get role id error, account: %s", firstpacket.AccountUid)
+		return gerror.Wrap(err, "resolve handshake identity failed")
 	}
-	s.SetLogValue(gxylog.ContextKeyRoleID, roleID)
-	rolePid, err := activateRole(ctx, roleID)
+	s.sessionInfo.AccountID = identity.AccountID
+	s.sessionInfo.RoleID = identity.RoleID
+
+	s.SetLogValue(gxylog.ContextKeyRoleID, identity.RoleID)
+	rolePid, err := activateRole(ctx, identity.RoleID)
 	if err != nil {
-		return gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
+		return gerror.Wrapf(err, "activate role actor error, role: %d", identity.RoleID)
 	}
 	gxylog.Info(ctx, "get role pid", gxylog.Any("rolePid", rolePid))
 	s.sessionInfo.RolePid = rolePid
-	s.sessionInfo.RoleID = roleID
 
 	s.Actx.Watch(rolePid)
 	rsp := &pb.RspHandShake{
-		AccountUid: firstpacket.AccountUid,
-		RoleId:     roleID,
+		AccountUid: identity.AccountID,
+		RoleId:     identity.RoleID,
 	}
 	if err := s.sendClientMsg(ctx, rsp); err != nil {
 		return err
 	}
-	SessionMgr().Add(roleID, s.Self())
+	SessionMgr().Add(identity.RoleID, s.Self())
 	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
 	s.state = StateHandshake
 	s.Span().SetAttributes(
-		attribute.String("accountUid", firstpacket.AccountUid),
-		attribute.Int64("roleID", roleID),
+		attribute.String("accountUid", identity.AccountID),
+		attribute.Int64("roleID", identity.RoleID),
 	)
 	return nil
+}
+
+type handshakeIdentity struct {
+	AccountID string
+	RoleID    int64
+}
+
+func resolveHandshakeIdentity(token string) (*handshakeIdentity, error) {
+	if token == "" {
+		return nil, gerror.New("gate token required")
+	}
+	claims, err := verifyGateToken(token)
+	if err != nil {
+		return nil, gerror.Wrap(err, "verify gate token failed")
+	}
+	return &handshakeIdentity{
+		AccountID: claims.AccountID,
+		RoleID:    claims.RoleID,
+	}, nil
 }
 
 // OnHandleMessage 处理异步消息

@@ -30,3 +30,22 @@
 	addr = ":{{ metrics.port }}"
 [trace]
 	endpoint = "{{ trace.host }}:{{ trace.port }}"
+
+[gate.public]
+	host = "{{ gate.public_host | default(env.host | default('127.0.0.1')) }}"
+	port = {{ gate.tcp_port }}
+
+[version]
+	min = "{{ version.min | default('1.0.0') }}"
+	latest = "{{ version.latest | default(version.min | default('1.0.0')) }}"
+
+[token]
+	algorithm = "{{ token.algorithm | default('hs256') }}"
+	issuer = "{{ token.issuer | default('account-service') }}"
+	expire_seconds = {{ token.expire_seconds | default(300) }}
+	env = "{{ token.env | default(env.name) }}"
+[token.hs256]
+	secret = "{{ token.hs256.secret | default(token.secret | default('replace-me')) }}"
+[token.ed25519]
+	private_key = "{{ token.ed25519.private_key | default('') }}"
+	public_key = "{{ token.ed25519.public_key | default('') }}"

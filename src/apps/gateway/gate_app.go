@@ -8,6 +8,7 @@ import (
 	"gserver/core/gxynet/endpoint"
 	"gserver/protocol/pb"
 	"gserver/src/apps/gateway/internal/logic"
+	"gserver/src/lib/gatetoken"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -24,6 +25,15 @@ func NewGateApp() *gateApp {
 }
 
 func (s *gateApp) OnModInit(ctx context.Context) error {
+	tokenCfg, err := gatetoken.LoadConfigFromGF(ctx)
+	if err != nil {
+		return err
+	}
+	signer, err := gatetoken.LoadSigner(*tokenCfg)
+	if err != nil {
+		return err
+	}
+	logic.SetGateTokenVerifier(signer.Verify)
 	network := gxynet.NewNetwork(g.Cfg(), NewGateHandler())
 	s.AddModule(ctx, network)
 	logic.NewSessionMgr()

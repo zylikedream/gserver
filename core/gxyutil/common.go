@@ -25,20 +25,22 @@ func CfgToViper(ctx context.Context, c *gcfg.Config) *viper.Viper {
 
 func CfgUnmarshal(ctx context.Context, c *gcfg.Config, data any) error {
 	vp := CfgToViper(ctx, c)
-	return vp.Unmarshal(data)
+	return vp.Unmarshal(data, cfgDecoderConfigOption(c))
 }
 
 func CfgUnmarshalKey(ctx context.Context, c *gcfg.Config, key string, data any) error {
-	adapter, ok := c.GetAdapter().(*gcfg.AdapterFile)
-	var opt viper.DecoderConfigOption = nil
-	if ok {
-		opt = func(c *mapstructure.DecoderConfig) {
-			c.TagName = gfile.ExtName(adapter.GetFileName())
-		}
-	}
 	vp := CfgToViper(ctx, c)
+	return vp.UnmarshalKey(key, data, cfgDecoderConfigOption(c))
+}
 
-	return vp.UnmarshalKey(key, data, opt)
+func cfgDecoderConfigOption(c *gcfg.Config) viper.DecoderConfigOption {
+	adapter, ok := c.GetAdapter().(*gcfg.AdapterFile)
+	if !ok {
+		return nil
+	}
+	return func(c *mapstructure.DecoderConfig) {
+		c.TagName = gfile.ExtName(adapter.GetFileName())
+	}
 }
 
 func GetCurrenDir() string {
