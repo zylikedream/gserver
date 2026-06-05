@@ -8,7 +8,7 @@ import "msg_options.proto";
 // 握手协议，玩家登录的第一个协议
 message ReqHandShake{
    option (msg_id) = 10001;
-   string account_uid = 1; // 账号
+   string gate_token = 1; // gate token
 }
 
 message RspHandShake{
