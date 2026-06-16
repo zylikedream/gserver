@@ -62,20 +62,6 @@
 - Redis
 - Consul（服务发现）
 
-### 拉取代码
-
-建议直接带 submodule 拉取：
-
-```bash
-git clone --recurse-submodules <repo>
-```
-
-如果已经拉过父仓库，再补一次：
-
-```bash
-git submodule update --init --recursive
-```
-
 ### 本地环境启动
 
 ```bash
@@ -91,24 +77,22 @@ go mod download
 # 2. 初始化环境（生成配置、脚本）
 ./build/script/svr_init.sh dev_xx(你自己的环境)
 
+# 3. 启动gate+单节点（包含 role 等全部模块）
 # 3. 启动最小三节点：账号服 + gate + 单节点（包含 role 等全部模块）
 go run node/main.go --config config/account.toml
 go run node/main.go --config config/gate.toml
 go run node/main.go --config config/all.toml
 ```
 
-### 部署到 K8s
-
+### 本地kind部署到K8s
 ```bash
 # 1. 启动 K8s 集群
 kind create cluster --name game-cluster --config deploy/k8s/kind-config.yaml
 
-# 2. 安装 OpenKruiseGame
-make install-okg
-
-# 3. 部署 OKG 版本
+# 3. 第一次部署 OKG 版本, 下面的命令会自动下载okg, 并部署到k8s集群
 make deploy-k8s-okg
 ```
+更多命令和文档见 [docs/public/k8s-kind-deploy.md](docs/public/k8s-kind-deploy.md)
 
 ### 运行测试
 
@@ -261,5 +245,9 @@ MIT
 - [本地kindk8s部署指南](docs/public/k8s-kind-deploy.md)
 - [通信格式](docs/public/protocol.md)
 - **功能文档** 在docs/public/system/目录下
+
+## todo
+1. gate和role限流
+2. http的账号服务器和token认证
 
 [MIT](LICENSE)

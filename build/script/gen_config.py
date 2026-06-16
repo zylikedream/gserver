@@ -11,7 +11,7 @@ import os
 import sys
 import toml
 import urllib.parse
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import ChainableUndefined, Environment, FileSystemLoader
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECT_DIR = os.path.dirname(BASE_DIR)  # 项目根目录
@@ -30,7 +30,7 @@ def urlencode_filter(s):
 
 
 def render_templates(env_data, template_subdir, output_dir):
-    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), undefined=ChainableUndefined)
     env.filters["urlencode"] = urlencode_filter
 
     template_path = os.path.join(TEMPLATE_DIR, template_subdir)

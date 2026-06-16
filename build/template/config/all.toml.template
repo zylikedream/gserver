@@ -3,11 +3,16 @@
     host = "{{ env.host | default('127.0.0.1') }}"
 	apps = ["chat", "role", "friend", "guild"]
 [port]
-	actor = 25101
-	chat = 25102
-	role = 25103
-	friend = 25104
-	guild = 25105
+	# Actor系统节点间通信端口（protoactor-go remoting）
+	actor = {{ port.actor | default(25101) }}
+	# 聊天服务HTTP端口
+	chat = {{ port.chat | default(25102) }}
+	# 角色服务HTTP端口
+	role = {{ port.role | default(25103) }}
+	# 好友服务HTTP端口
+	friend = {{ port.friend | default(25104) }}
+	# 公会服务HTTP端口
+	guild = {{ port.guild | default(25105) }}
 [postgres]
 	url = "postgresql://{{ postgres.user }}:{{ postgres.password | urlencode }}@{{ postgres.host }}:{{ postgres.port }}/{{ postgres.database }}?sslmode={{ postgres.sslmode }}"
 [redis]

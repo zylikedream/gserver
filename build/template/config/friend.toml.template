@@ -3,8 +3,10 @@
     host = "{{ env.host | default('127.0.0.1') }}"
 	apps = ["friend"]
 [port]
-	actor = 25021
-	friend = 25022
+	# Actor系统节点间通信端口（protoactor-go remoting）
+	actor = {{ port.actor | default(25021) }}
+	# 好友服务HTTP端口
+	friend = {{ port.friend | default(25022) }}
 [postgres]
 	url = "postgresql://{{ postgres.user }}:{{ postgres.password | urlencode }}@{{ postgres.host }}:{{ postgres.port }}/{{ postgres.database }}?sslmode={{ postgres.sslmode }}"
 [redis]

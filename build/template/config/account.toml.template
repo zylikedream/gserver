@@ -3,8 +3,10 @@
     host = "{{ env.host | default('127.0.0.1') }}"
 	apps = ["account"]
 [port]
-	actor = {{ account.actor_port | default(25106) }}
-	account = {{ account.http_port | default(18080) }}
+	# Actor系统节点间通信端口（protoactor-go remoting）
+	actor = {{ port.actor | default(25106) }}
+	# 账号服务HTTP端口
+	account = {{ port.account | default(18080) }}
 [postgres]
 	url = "postgresql://{{ postgres.user }}:{{ postgres.password | urlencode }}@{{ postgres.host }}:{{ postgres.port }}/{{ postgres.database }}?sslmode={{ postgres.sslmode }}"
 [redis]
