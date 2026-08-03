@@ -249,5 +249,7 @@ MIT
 ## todo
 1. gate和role限流
 2. http的账号服务器和token认证
+3. CI:合入前自动验证(make test + k8s 冒烟闸门)
+4. 告警:开发阶段看日志为主;稳定后接 Grafana Alerting(本地)+ Alertmanager(k8s)
 
 [MIT](LICENSE)
