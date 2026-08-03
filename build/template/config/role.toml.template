@@ -23,3 +23,6 @@
 	address = "{{ consul.host }}:{{ consul.port }}"
 	ttl = "10s"
 	refresh_ttl = "10s"
+
+[metrics]
+	addr = ":{{ metrics_role.port }}"

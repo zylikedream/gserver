@@ -51,3 +51,6 @@
 	id_length = 2
 	byte_order = "little"
 	max_size = 3145728
+
+[metrics]
+	addr = ":{{ metrics_gate.port }}"

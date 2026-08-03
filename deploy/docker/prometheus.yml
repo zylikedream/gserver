@@ -2,11 +2,20 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'gserver'
+  - job_name: 'game-services'
     static_configs:
       - targets: ['host.docker.internal:9090']
         labels:
           node: 'gate'
       - targets: ['host.docker.internal:9091']
         labels:
-          node: 'game'
+          node: 'role'
+      - targets: ['host.docker.internal:9093']
+        labels:
+          node: 'chat'
+      - targets: ['host.docker.internal:9094']
+        labels:
+          node: 'friend'
+      - targets: ['host.docker.internal:9095']
+        labels:
+          node: 'guild'
