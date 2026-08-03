@@ -5,6 +5,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"runtime"
+	"time"
 
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
@@ -77,9 +78,16 @@ func (m *metricsApp) OnModStart(ctx context.Context) error {
 		EnableOpenMetrics: true,
 	}))
 	go func() {
-		if err := http.ListenAndServe(m.conf.Addr, nil); err != nil {
-			gxylog.Error(ctx, "metrics server error", gxylog.Err(err))
+		// 端口冲突等瞬时错误:重试 5 次(间隔 2s),仍失败则降级(metrics 不可用,不影响游戏进程)
+		for i := range 5 {
+			if err := http.ListenAndServe(m.conf.Addr, nil); err != nil {
+				gxylog.Error(ctx, "metrics server error, retrying", gxylog.Err(err), gxylog.Num("retry", int64(i+1)))
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			return
 		}
+		gxylog.Warn(ctx, "metrics server failed after retries, metrics disabled", gxylog.Str("addr", m.conf.Addr))
 	}()
 	gxylog.Info(ctx, "metrics server started", gxylog.Str("addr", m.conf.Addr), gxylog.Str("path", m.conf.Path))
 	return nil

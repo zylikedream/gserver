@@ -1,5 +1,5 @@
 [node]
-    name = "game"
+    name = "chat"
     host = "{{ env.host | default('127.0.0.1') }}"
 	apps = ["chat"]
 [port]
