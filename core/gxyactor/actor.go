@@ -116,7 +116,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 			a.timer.Active(a.ctx, msg)
 		})
 		if err != nil {
-			gxylog.Error(a.ctx, "timer active error", gxylog.Str("msg", msg.Name), gxylog.Err(err))
+			gxylog.Error(a.ctx, "timer active error", gxylog.Str("timer", msg.Name), gxylog.Err(err))
 		}
 	case *pb.ActorStop:
 		a.Stop(errors.New(msg.Reason))
@@ -173,7 +173,7 @@ func (a *ActorBase) initSpan(msg any) trace.Span {
 func (a *ActorBase) handleMessage(msg any) error {
 	start := time.Now()
 	if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
-		gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
+		gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("payload", msg), gxylog.Err(err))
 		return err
 	}
 	gxymetrics.ActorMessages.WithLabelValues(a.ActorKind()).Inc()
@@ -184,7 +184,7 @@ func (a *ActorBase) handleMessage(msg any) error {
 func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 	rsp, err := a.callMsgHandler(a.ctx, msg)
 	if err != nil {
-		gxylog.Error(a.ctx, "handle rpc msg failed", gxylog.Any("msg", msg), gxylog.Err(err))
+		gxylog.Error(a.ctx, "handle rpc msg failed", gxylog.Any("payload", msg), gxylog.Err(err))
 		Respond(ctx, a.Actx, &pb.ActorError{
 			Reason: err.Error(),
 		})
@@ -198,10 +198,10 @@ func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 
 func (a *ActorBase) callMsgHandler(ctx context.Context, msg any) (any, error) {
 	tm := time.Now()
-	gxylog.Debug(ctx, "handle msg start, msg", gxylog.Str("msg", gxyutil.FormatObject(msg)))
+	gxylog.Debug(ctx, "handle msg start, msg", gxylog.Str("payload", gxyutil.FormatObject(msg)))
 	result, err := a.DoCallMsgHandler(ctx, msg)
 	gxylog.Debug(ctx, "handle msg end, msg",
-		gxylog.Str("msg", gxyutil.FormatObject(msg)),
+		gxylog.Str("payload", gxyutil.FormatObject(msg)),
 		gxylog.Str("result", gxyutil.FormatObject(result)),
 		gxylog.Err(err),
 		gxylog.Num("cost", time.Since(tm).Milliseconds()))

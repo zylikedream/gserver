@@ -98,6 +98,30 @@ services:
       - tempo-data:/var/tempo
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.4.2
+    container_name: gserver-loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki.yaml:/etc/loki/local-config.yaml
+      - loki-data:/loki
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    container_name: gserver-promtail
+    user: root
+    command: ["-config.file=/etc/promtail/config.yml"]
+    volumes:
+      # compose 文件在 deploy/docker/,相对项目根 log/ 需两级:../../log(一级会指向不存在的 deploy/log)
+      - ../../log:/var/log/gameserver
+      - ./promtail.yaml:/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redis-data:
@@ -105,3 +129,4 @@ volumes:
   prometheus-data:
   grafana-data:
   tempo-data:
+  loki-data:

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"gserver/core/gxyapp"
-	"gserver/core/gxylog"
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/ghttp"
+	"github.com/gogf/gf/v2/os/glog"
 )
 
 var app *httpApp
@@ -39,7 +39,7 @@ func (h *httpApp) NewHttpServer(addr string) *ghttp.Server {
 	seq := atomic.AddInt64(&httpServerSeq, 1)
 	svr := ghttp.GetServer(fmt.Sprintf("gserver-%d", seq))
 	svr.SetAddr(addr)
-	svr.SetLogger(gxylog.GetLogger().Clone())
+	svr.SetLogger(glog.New())
 	svr.SetLogLevel("debug")
 	return svr
 }

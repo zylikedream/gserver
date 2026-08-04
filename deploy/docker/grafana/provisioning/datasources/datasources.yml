@@ -12,6 +12,24 @@ datasources:
     url: http://host.docker.internal:30999
 
   - name: Tempo
+    uid: tempo
     type: tempo
     access: proxy
     url: http://tempo:3200
+    jsonData:
+      tracesToLogs:
+        datasourceUid: loki
+        tags: ['job']
+        filterByTraceID: true
+
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"trace_id":"([0-9a-f]+)"'
+          datasourceUid: tempo
+          url: '$${__value.raw}'

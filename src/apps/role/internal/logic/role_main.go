@@ -262,7 +262,6 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 				gxylog.Str("msg_id", msgID),
 				gxylog.Str("msg_name", msgName),
 				gxylog.Str("result", result),
-				gxylog.Str("trace_id", gxymetrics.TraceIDFromContext(ctx)),
 				gxylog.Num("cost_ms", cost.Milliseconds()),
 			)
 		}
@@ -279,7 +278,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	)
 	r.sessionActiveTime = time.Now()
 	if !canHandleMsg(r.state, pbmsg) {
-		gxylog.Warn(ctx, "role recv msg in wrong state, ignore", gxylog.Num("state", int(r.state)), gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
+		gxylog.Warn(ctx, "role recv msg in wrong state, ignore", gxylog.Num("state", int(r.state)), gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
 		result = "ignored"
 		return nil, nil
 	}
@@ -654,7 +653,6 @@ func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
 		if cost := time.Since(start); cost >= SLOW_CLIENT_REQUEST {
 			gxylog.Warn(ctx, "slow role module after login",
 				gxylog.Str("module", fmt.Sprintf("%T", rmod)),
-				gxylog.Str("trace_id", gxymetrics.TraceIDFromContext(ctx)),
 				gxylog.Num("roleID", r.RoleID),
 				gxylog.Num("cost_ms", cost.Milliseconds()),
 			)

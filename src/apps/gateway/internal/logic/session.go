@@ -94,7 +94,7 @@ func NewSession(ep endpoint.Endpoint) *Session {
 func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *message.Message:
-		gxylog.Debug(ctx, "handle client msg", gxylog.Str("msg", gxyutil.FormatObject(msg)))
+		gxylog.Debug(ctx, "handle client msg", gxylog.Str("payload", gxyutil.FormatObject(msg)))
 		if err := s.OnHandleClientMessage(ctx, msg); err != nil {
 			return gerror.Wrap(err, "handle client message error")
 		}
@@ -234,7 +234,7 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		case *pb.ReqAccountLogout:
 			s.Stop(gerror.New("client account logout"))
 		default:
-			gxylog.Debug(ctx, "recv client msg", gxylog.Str("path", msg.Path), gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
+			gxylog.Debug(ctx, "recv client msg", gxylog.Str("path", msg.Path), gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
 			if err := s.SendRoleMsg(ctx, pbmsg, msg.Path); err != nil {
 				return gerror.Wrap(err, "send data msg error")
 			}
@@ -274,10 +274,10 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 		s.state = StateLogin
 	}
 	if s.state == StateDisconnected {
-		gxylog.Debug(ctx, "session disconnected, skip send", gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
+		gxylog.Debug(ctx, "session disconnected, skip send", gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
 		return nil
 	}
-	gxylog.Debug(ctx, "send client msg", gxylog.Str("msg", gxyutil.FormatObject(pbmsg)))
+	gxylog.Debug(ctx, "send client msg", gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
 	if err := s.sendClientMsg(ctx, pbmsg); err != nil {
 		return err
 	}

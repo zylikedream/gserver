@@ -45,6 +45,41 @@ journalctl --user -u gserver@role -f
 - **job 名约定**: `game-services`(与 k8s prometheus.yaml 及 dashboard 变量一致,勿改)
 - 排障提示:多次登录失败会触发 Grafana 登录封禁(`docker logs gserver-grafana | grep login`),封禁在 `grafana.db` 的 `login_attempt` 表,清理需停容器改库并 `chown 472:472`
 
+## 日志链路(Loki)
+
+```
+gxylog(zap) → JSON 文件 log/<app>/<app>.log → promtail → Loki(:3100) → Grafana Explore
+```
+
+- **Loki**: `http://localhost:3100`,容器 `gserver-loki` + `gserver-promtail`
+- **promtail** 采集 `../log` 挂载:compose 在 `deploy/docker/`,相对路径用 **`../../log`**(一级会指向不存在的 `deploy/log`)
+- **数据源**: Grafana 4 个(Prometheus / Prometheus-K8s / Tempo / Loki),provisioning 在 `deploy/docker/grafana/provisioning/datasources/datasources.yml`
+- **日志↔trace 联动**:Loki derivedFields(`trace_id` 正则 → Tempo)+ Tempo tracesToLogs,双向
+- 日志字段规范、反模式:`docs/public/logging.md`
+
+### 排查命令
+
+```bash
+# 日志文件(JSON 行)
+tail -f log/role/role.log | jq
+# Loki 查询(注意时间范围,默认 1h 窗口查不到旧日志)
+curl -sG 'http://localhost:3100/loki/api/v1/query_range' \
+  --data-urlencode 'query={job="gserver"} | json | level="error"' \
+  --data-urlencode "start=$(date -d '6 hours ago' +%s000000000)" --data-urlencode "end=$(date +%s000000000)"
+# Tempo trace 存在性(经 grafana 容器)
+docker exec gserver-grafana curl -s "http://tempo:3200/api/traces/<traceID>?start=$(date -d '6 hours ago' +%s)&end=$(date +%s)"
+```
+
+### Grafana provisioning 的坑(都踩过)
+
+1. **`${}` 环境变量插值吞模板**:derivedFields 的 `url: '${__value.raw}'` 会被 provisioning 当成环境变量解析为空 → 点击 Tempo 跳转 `query:""` 无数据。**必须写成 `url: '$${__value.raw}'`**($$ 转义)。
+2. **变更 provisioned 数据源 uid 导致启动崩溃**:`Datasource provisioning error: data source not found` 循环重启。改了 uid 需清 `grafana-data` 卷重建(数据源/面板全由 provisioning 重建;admin 密码回落环境变量需重置)。
+3. **uid 交叉引用**:derivedFields/tracesToLogs 的 `datasourceUid` 引用需要目标数据源已存在——首次配置联动时,先建 uid 再加重用引用,或清卷一次性重建。
+
+### 已知限制
+
+- **启动日志孤儿 trace_id**:`server started` 等启动日志(用 goframe gctx 的 ctx)带 trace_id,但启动 span 不导出 Tempo——点击跳转 404。业务日志(actor 消息)全部正常。仅影响启动时几条日志。
+
 ## 配置生成(重要)
 
 `config/*.toml` 是**生成文件**(svr_init.sh 渲染模板产出),**不要直接修改**——重新生成会覆盖。

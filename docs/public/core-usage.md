@@ -1,5 +1,7 @@
 # Core Framework Usage Guide
 
+> 日志使用规范见 [logging.md](logging.md)(字段命名、级别、上下文注入、反模式)。
+
 ## App
 
 App 是进程内的顶层功能单元，在 `core/gxyapp/` 定义。每个 App 是一个 Module，有自己的生命周期。

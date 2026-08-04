@@ -91,7 +91,7 @@ func New(opts ...Option) (gsvc.Registry, error) {
 		healthCheckInterval: DefaultHealthCheckInterval,
 		ttl:                 DefaultTTL,
 		stopHealthCheck:     make(map[string]context.CancelFunc),
-		logger:              glog.DefaultLogger(),
+		logger:              glog.New(),
 	}
 
 	// Apply options
