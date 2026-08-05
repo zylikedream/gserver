@@ -35,7 +35,9 @@ func run() {
 			if err = rootModule.AddModule(context.Background(), node); err != nil {
 				gxylog.Fatal(ctx, "init node failed", gxylog.Err(err))
 			}
-			if err = rootModule.StartModule(ctx); err != nil {
+			// 不用 gcmd 的 ctx:gcmd.doRun 会创建根 span(挂 goframe 默认 provider,
+			// 无导出器,永不导出到 Tempo),继承它会让启动日志带上孤儿 trace_id。
+			if err = rootModule.StartModule(context.Background()); err != nil {
 				gxylog.Fatal(ctx, "start game failed", gxylog.Err(err))
 			}
 			if _, ok := parser.GetOptAll()["pressure"]; ok {

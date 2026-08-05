@@ -76,9 +76,13 @@ docker exec gserver-grafana curl -s "http://tempo:3200/api/traces/<traceID>?star
 2. **变更 provisioned 数据源 uid 导致启动崩溃**:`Datasource provisioning error: data source not found` 循环重启。改了 uid 需清 `grafana-data` 卷重建(数据源/面板全由 provisioning 重建;admin 密码回落环境变量需重置)。
 3. **uid 交叉引用**:derivedFields/tracesToLogs 的 `datasourceUid` 引用需要目标数据源已存在——首次配置联动时,先建 uid 再加重用引用,或清卷一次性重建。
 
-### 已知限制
+### 已修复:启动日志孤儿 trace_id
 
-- **启动日志孤儿 trace_id**:`server started` 等启动日志(用 goframe gctx 的 ctx)带 trace_id,但启动 span 不导出 Tempo——点击跳转 404。业务日志(actor 消息)全部正常。仅影响启动时几条日志。
+**现象(已修复)**:`server started` 等启动日志带 trace_id,但 Tempo 查不到对应 trace——点击跳转 404。
+
+**根因**:goframe `gcmd.doRun` 会给命令执行创建根 span,并把带 span 的 ctx 传入命令 Func;main.go 若把该 ctx 传给 `StartModule`,启动链上所有 app 日志都会继承这个根 span 的 trace_id。而该 span 创建时全局 provider 还是 goframe 默认的(gtrace `init()` 设置的、**无 SpanProcessor 不导出**),因此 trace_id 是孤儿。
+
+**修复**:`node/main.go` 的 `StartModule` 改用 `context.Background()`,不继承 gcmd 的 span(与 `AddModule` 一致)。启动日志不再带 trace_id;业务日志(actor/ghttp span,创建于 OTLP provider 就绪后)不受影响,仍正常导出 Tempo。
 
 ## 配置生成(重要)
 

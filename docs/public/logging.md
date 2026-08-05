@@ -109,4 +109,4 @@ Grafana(`localhost:3000`):Explore → Loki 数据源,可过滤 `{job="gserver"}`
 
 Loki 日志行点 TraceID 跳转 Tempo 时,**时间范围继承当前 Explore 的窗口**——日志/trace 在窗口外会显示无数据(404)。排查历史日志前,先把时间范围切到覆盖目标时间(如 Last 6 hours),再点跳转。
 
-验证链路:`log/role/role.log` 业务行(带 `trace_id` 且非启动日志)→ Loki 查 `{job="gserver"} | json | trace_id!=""` → 展开行 → Links → Tempo → trace 详情(span 列表)。启动日志的 trace_id 是孤儿(span 不导出 Tempo),跳转会 404,属已知限制。
+验证链路:`log/role/role.log` 业务行(带 `trace_id` 且非启动日志)→ Loki 查 `{job="gserver"} | json | trace_id!=""` → 展开行 → Links → Tempo → trace 详情(span 列表)。启动日志不带 trace_id(启动链不继承 gcmd 的幽灵 span,详见 dev-ops.md),不存在孤儿跳转。
