@@ -14,7 +14,8 @@ bin
 .worktrees/
 log/
 *.test.toml
-.claude/
+.claude/*
+!.claude/skills/
 graphify-out/
 .playwright/
 .playwright-cli/
