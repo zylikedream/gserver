@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: account
+  labels:
+    app.kubernetes.io/part-of: gserver
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: account
+  template:
+    metadata:
+      labels:
+        app: account
+        app.kubernetes.io/part-of: gserver
+    spec:
+      hostAliases:
+        - ip: "172.18.0.1"
+          hostnames:
+            - "host.docker.internal"
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: account
+          image: gserver:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/config/account.toml"]
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - name: http
+              containerPort: 18080
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: log
+              mountPath: /var/log/game
+          readinessProbe:
+            tcpSocket:
+              port: 18080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 18080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "2"
+              memory: "1Gi"
+      volumes:
+        - name: config
+          configMap:
+            name: account-config
+        - name: log
+          emptyDir: {}

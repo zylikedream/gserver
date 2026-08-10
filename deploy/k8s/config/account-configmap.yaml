@@ -1,16 +1,17 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: gate-config
+  name: account-config
 data:
-  gate.toml: |
+  account.toml: |
     [node]
-        name = "gate"
+        name = "account"
         host = "0.0.0.0"
-        apps = ["gate"]
-    
+        apps = ["account"]
+
     [port]
-        actor = 19001
+        actor = 25106
+        account = 18080
 
     [postgres]
         url = "postgresql://postgres:%40zyc0131@host.docker.internal:5432/postgres?sslmode=disable"
@@ -37,19 +38,13 @@ data:
     [trace]
         endpoint = "host.docker.internal:4317"
 
-    [gxynet]
-        peer = "tcp_server"
-    [peer.tcp_server]
-        addr = ":10086"
-    [processor]
-        packet = "ltiv"
-        codec = "protobuf"
-    [packet.ltiv]
-        size_length = 2
-        type_length = 1
-        id_length = 2
-        byte_order = "little"
-        max_size = 3145728
+    [gate.public]
+        host = "127.0.0.1"
+        port = 10086
+
+    [version]
+        min = "1.0.0"
+        latest = "1.0.0"
 
     [token]
         algorithm = "hs256"
@@ -58,6 +53,6 @@ data:
         env = "dev"
     [token.hs256]
         secret = "replace-me"
-
-    [metrics]
-        addr = ":9091"
+    [token.ed25519]
+        private_key = ""
+        public_key = ""
