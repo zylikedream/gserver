@@ -277,6 +277,11 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		attribute.Int64("roleID", r.RoleID),
 	)
 	r.sessionActiveTime = time.Now()
+	gxylog.Debug(ctx, "role recv client msg",
+		gxylog.Str("msg_id", msgID),
+		gxylog.Str("msg_name", msgName),
+		gxylog.Num("role_id", r.RoleID),
+	)
 	if !canHandleMsg(r.state, pbmsg) {
 		gxylog.Warn(ctx, "role recv msg in wrong state, ignore", gxylog.Num("state", int(r.state)), gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
 		result = "ignored"
