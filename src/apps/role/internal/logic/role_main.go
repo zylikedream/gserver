@@ -17,6 +17,7 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
+	"gserver/src/pkg/deps"
 	"gserver/src/pkg/gameconfig"
 	"reflect"
 	"strings"
@@ -92,6 +93,8 @@ type RoleMain struct {
 	roleModules
 	*gxyactor.ActorBase
 	RoleID int64
+
+	deps deps.Deps
 
 	modsHash          map[string]uint64
 	session           gxyactor.PID
@@ -630,7 +633,7 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	r.Public.UpdateRolePublic(ctx)
 
 	// 发放初始物品
-	initItems := gameconfig.GameConfig().TbGlobalConfig.Get().InitItems
+	initItems := gameconfig.Get().TbGlobalConfig.Get().InitItems
 	if len(initItems) > 0 {
 		if err := r.Bag.SaveGoods(ctx, nil, initItems, "", bag.OptSilent()); err != nil {
 			return err

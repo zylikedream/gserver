@@ -36,7 +36,7 @@ func (r *RoleMainTask) PersistState() IPersistState {
 }
 
 func (r *RoleMainTask) OnCreate(ctx context.Context) {
-	r.acceptTask(gameconfig.GameConfig().GetFirstMainTask())
+	r.acceptTask(gameconfig.Get().GetFirstMainTask())
 }
 
 func (r *RoleMainTask) OnModInit(ctx context.Context) error {
@@ -46,7 +46,7 @@ func (r *RoleMainTask) OnModInit(ctx context.Context) error {
 func (r *RoleMainTask) OnModStart(ctx context.Context) error {
 	r.subscribeEvents()
 	if r.CurrentTaskID == 0 && r.Status != int32(pb.MainTaskStatus_MAIN_TASK_FINISHED) {
-		r.acceptTask(gameconfig.GameConfig().GetFirstMainTask())
+		r.acceptTask(gameconfig.Get().GetFirstMainTask())
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (r *RoleMainTask) ReqMainTaskClaim(ctx context.Context, req *pb.ReqMainTask
 		Progress: cfg.TargetNum,
 		Status:   pb.MainTaskStatus_MAIN_TASK_FINISHED,
 	}
-	r.acceptTask(gameconfig.GameConfig().GetNextMainTask(cfg.Id))
+	r.acceptTask(gameconfig.Get().GetNextMainTask(cfg.Id))
 	r.notifyMainTaskUpdate(ctx)
 	return &pb.RspMainTaskClaim{Task: claimedTask}, nil
 }
@@ -139,10 +139,10 @@ func (r *RoleMainTask) refreshCurrentStateTask() bool {
 }
 
 func (r *RoleMainTask) currentTaskConfig() *gamecfg.GardenMainTask {
-	if r.CurrentTaskID == 0 || gameconfig.GameConfig() == nil || gameconfig.GameConfig().TbMainTask == nil {
+	if r.CurrentTaskID == 0 || gameconfig.Get() == nil || gameconfig.Get().TbMainTask == nil {
 		return nil
 	}
-	return gameconfig.GameConfig().TbMainTask.Get(r.CurrentTaskID)
+	return gameconfig.Get().TbMainTask.Get(r.CurrentTaskID)
 }
 
 func (r *RoleMainTask) notifyMainTaskUpdate(ctx context.Context) {

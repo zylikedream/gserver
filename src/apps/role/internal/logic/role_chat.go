@@ -134,7 +134,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 			return nil, errors.New("聊天未初始化")
 		}
 		channelID = r.lastLobbyID
-		if time.Since(r.lastWorldChatTime) < time.Duration(gameconfig.GameConfig().TbChatChannel.Get(1).Cooldown)*time.Second {
+		if time.Since(r.lastWorldChatTime) < time.Duration(gameconfig.Get().TbChatChannel.Get(1).Cooldown)*time.Second {
 			return nil, ErrChatCooldown
 		}
 		r.lastWorldChatTime = time.Now()
@@ -146,7 +146,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 	default:
 		return nil, errors.New("不支持的频道类型")
 	}
-	if err := validateChatMsg(req.Content, int(gameconfig.GameConfig().TbChatChannel.Get(1).MessageLimit)); err != nil {
+	if err := validateChatMsg(req.Content, int(gameconfig.Get().TbChatChannel.Get(1).MessageLimit)); err != nil {
 		return nil, err
 	}
 	channelType := req.ChannelType
@@ -199,7 +199,7 @@ func (r *RoleChat) ReqChatChannelHistory(ctx context.Context, req *pb.ReqChatCha
 }
 
 func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPrivate) (*pb.RspChatSendPrivate, error) {
-	if err := validateChatMsg(req.Content, int(gameconfig.GameConfig().TbChatChannel.Get(2).MessageLimit)); err != nil {
+	if err := validateChatMsg(req.Content, int(gameconfig.Get().TbChatChannel.Get(2).MessageLimit)); err != nil {
 		return nil, err
 	}
 
@@ -242,7 +242,7 @@ func (r *RoleChat) ReqChatPrivateHistory(ctx context.Context, req *pb.ReqChatPri
 func (r *RoleChat) ReqChatSystemHistory(ctx context.Context, req *pb.ReqChatSystemHistory) (*pb.RspChatSystemHistory, error) {
 	count := int(req.Count)
 	if count <= 0 {
-		count = int(gameconfig.GameConfig().TbChatChannel.Get(3).HistoryLimit)
+		count = int(gameconfig.Get().TbChatChannel.Get(3).HistoryLimit)
 	}
 	msgs, err := callChatSystemHistory(ctx, count)
 	if err != nil {

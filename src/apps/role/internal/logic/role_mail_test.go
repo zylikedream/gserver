@@ -140,7 +140,7 @@ func TestBuildMailViews_MergesContentWithPlayerState(t *testing.T) {
 		"13": {MailID: 13, IsSysMail: true, IsDeleted: true},
 	}
 
-	views := buildMailViews(personal, system, states, now)
+	views := buildMailViews(personal, system, states, now, 10)
 
 	if len(views) != 2 {
 		t.Fatalf("expected 2 visible mails, got %d", len(views))
@@ -260,7 +260,7 @@ func TestMailRuntimeConfig_UsesGameConfig(t *testing.T) {
 	})
 	initMailTestConfig(t, mailConfigRows[len(mailConfigRows)-1])
 
-	cfg := mailRuntimeConfig()
+	cfg := mailRuntimeConfig(gameconfig.Get())
 
 	if cfg.MailMaxCount != 3 || cfg.DefaultExpireDays != 7 || cfg.OneKeyClaimLimit != 2 || !cfg.AllowDeleteUnclaimed {
 		t.Fatalf("unexpected mail config: %+v", cfg)
@@ -280,7 +280,7 @@ func TestMailRuntimeConfig_RequiresMailConfig(t *testing.T) {
 		}
 	}()
 
-	_ = mailRuntimeConfig()
+	_ = mailRuntimeConfig(nil)
 }
 
 func TestValidateSendMailOpts_RejectsOverLimitText(t *testing.T) {

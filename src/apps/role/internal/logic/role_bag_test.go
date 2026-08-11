@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
 	proto "google.golang.org/protobuf/proto"
 
@@ -70,7 +70,7 @@ func testGoodStack(id, num int32) *gamecfg.GardenGoodStack {
 
 func itemConfig(t *testing.T, goodID int32) *gamecfg.GardenItem {
 	t.Helper()
-	cfg := gameconfig.GameConfig().TbItem.Get(goodID)
+	cfg := gameconfig.Get().TbItem.Get(goodID)
 	if cfg == nil {
 		t.Fatalf("item config not found: %d", goodID)
 	}

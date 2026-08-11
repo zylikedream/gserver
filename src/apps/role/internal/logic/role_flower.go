@@ -71,7 +71,7 @@ func (r *RoleFlower) onGoodChangeEvent(ctx context.Context, param event.EventPar
 		return
 	}
 	for _, change := range data.Changes {
-		item := gameconfig.GameConfig().TbItem.Get(int32(change.GoodID))
+		item := gameconfig.Get().TbItem.Get(int32(change.GoodID))
 		if item == nil || item.SubType != gamecfg.GardenEItemSubType_SEED {
 			continue
 		}
@@ -165,7 +165,7 @@ func (r *RoleFlower) ReqFlowerStartBreed(ctx context.Context, req *pb.ReqFlowerS
 		return nil, ErrFlowerWrongState
 	}
 
-	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	cfg := gameconfig.Get().TbFlower.Get(flowerID)
 	if cfg == nil {
 		return nil, errors.Errorf("flower config not found: %d", flowerID)
 	}
@@ -212,7 +212,7 @@ func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgr
 		return nil, ErrFlowerLocked
 	}
 
-	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	cfg := gameconfig.Get().TbFlower.Get(flowerID)
 	if cfg == nil {
 		return nil, errors.Errorf("flower config not found: %d", flowerID)
 	}
@@ -223,7 +223,7 @@ func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgr
 	}
 
 	nextLevel := flower.Level + 1
-	levelCfg := gameconfig.GameConfig().GetFlowerLevelByGroup(cfg.LevelGroup, nextLevel)
+	levelCfg := gameconfig.Get().GetFlowerLevelByGroup(cfg.LevelGroup, nextLevel)
 	if levelCfg == nil {
 		return nil, ErrFlowerMaxLevel
 	}
@@ -234,7 +234,7 @@ func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgr
 	}
 
 	// Check breakthrough gate
-	nextBreak := gameconfig.GameConfig().GetFlowerBreakByGroup(cfg.LevelGroup, flower.BreakStage+1)
+	nextBreak := gameconfig.Get().GetFlowerBreakByGroup(cfg.LevelGroup, flower.BreakStage+1)
 	if nextBreak != nil && nextLevel > nextBreak.NeedLevel {
 		return nil, ErrFlowerNeedBreak
 	}
@@ -274,13 +274,13 @@ func (r *RoleFlower) ReqFlowerBreak(ctx context.Context, req *pb.ReqFlowerBreak)
 		return nil, ErrFlowerLocked
 	}
 
-	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	cfg := gameconfig.Get().TbFlower.Get(flowerID)
 	if cfg == nil {
 		return nil, errors.Errorf("flower config not found: %d", flowerID)
 	}
 
 	nextBreakStage := flower.BreakStage + 1
-	breakCfg := gameconfig.GameConfig().GetFlowerBreakByGroup(cfg.LevelGroup, nextBreakStage)
+	breakCfg := gameconfig.Get().GetFlowerBreakByGroup(cfg.LevelGroup, nextBreakStage)
 	if breakCfg == nil {
 		return nil, ErrFlowerBreakMax
 	}

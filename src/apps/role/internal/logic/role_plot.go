@@ -65,7 +65,7 @@ func (r *RolePlot) OnModInit(ctx context.Context) error {
 func (r *RolePlot) OnCreate(ctx context.Context) {
 	// 遍历配置表，初始化所有地块为锁定状态
 	level := r.Role.Basic.Level
-	for _, cfg := range gameconfig.GameConfig().TbGardenPlot.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbGardenPlot.GetDataList() {
 		if level >= cfg.UnlockLevel {
 			r.UnlockPlot(cfg.Id)
 		}
@@ -128,7 +128,7 @@ func (r *RolePlot) ReqPlotInfo(ctx context.Context, req *pb.ReqPlotInfo) (*pb.Rs
 func (r *RolePlot) ReqPlotUnlock(ctx context.Context, req *pb.ReqPlotUnlock) (*pb.RspPlotUnlock, error) {
 	plotID := req.PlotId
 
-	cfg := gameconfig.GameConfig().TbGardenPlot.Get(plotID)
+	cfg := gameconfig.Get().TbGardenPlot.Get(plotID)
 	if cfg == nil {
 		return nil, errors.Errorf("plot config not found: %d", plotID)
 	}
@@ -214,7 +214,7 @@ func (r *RolePlot) ReqPlotWater(ctx context.Context, req *pb.ReqPlotWater) (*pb.
 		if getPlotState(plot) != int32(pb.PlotState_PLOT_PLANTED) {
 			return nil, ErrPlotNotPlanted
 		}
-		flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+		flowerCfg := gameconfig.Get().TbFlower.Get(plot.FlowerID)
 		if flowerCfg == nil {
 			return nil, errors.Errorf("flower config not found: %d", plot.FlowerID)
 		}
@@ -236,7 +236,7 @@ func (r *RolePlot) ReqPlotWater(ctx context.Context, req *pb.ReqPlotWater) (*pb.
 	now := time.Now()
 	for _, plotID := range req.PlotIds {
 		plot := r.Plots[plotID]
-		flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+		flowerCfg := gameconfig.Get().TbFlower.Get(plot.FlowerID)
 		plot.State = int32(pb.PlotState_PLOT_GROWING)
 		plot.StateTime = now.Add(time.Duration(flowerCfg.GrowTime) * time.Second)
 	}
@@ -278,13 +278,13 @@ func (r *RolePlot) ReqPlotHarvest(ctx context.Context, req *pb.ReqPlotHarvest) (
 
 		for _, plotID := range req.PlotIds {
 			plot := r.Plots[plotID]
-			flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+			flowerCfg := gameconfig.Get().TbFlower.Get(plot.FlowerID)
 			if flowerCfg == nil {
 				return errors.Errorf("flower config not found: %d", plot.FlowerID)
 			}
 
 			level, _ := r.Role.Flower.GetFlowerLevel(plot.FlowerID)
-			levelCfg := gameconfig.GameConfig().GetFlowerLevelByGroup(flowerCfg.LevelGroup, level)
+			levelCfg := gameconfig.Get().GetFlowerLevelByGroup(flowerCfg.LevelGroup, level)
 
 			finalNum := flowerCfg.HarvestNum
 			if levelCfg != nil {
@@ -292,7 +292,7 @@ func (r *RolePlot) ReqPlotHarvest(ctx context.Context, req *pb.ReqPlotHarvest) (
 			}
 
 			stolenCount, _ := countPlotStolen(ctx, r.RoleID, plotID)
-			minKeep := gameconfig.GameConfig().TbFriendConfig.Get().OwnerMinKeepNum
+			minKeep := gameconfig.Get().TbFriendConfig.Get().OwnerMinKeepNum
 			if int64(finalNum)-stolenCount > int64(minKeep) {
 				finalNum = finalNum - int32(stolenCount)
 			} else {
@@ -335,10 +335,10 @@ func (r *RolePlot) ReqPlotHarvest(ctx context.Context, req *pb.ReqPlotHarvest) (
 
 		for _, plotID := range req.PlotIds {
 			plot := r.Plots[plotID]
-			flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+			flowerCfg := gameconfig.Get().TbFlower.Get(plot.FlowerID)
 
 			level, _ := r.Role.Flower.GetFlowerLevel(plot.FlowerID)
-			levelCfg := gameconfig.GameConfig().GetFlowerLevelByGroup(flowerCfg.LevelGroup, level)
+			levelCfg := gameconfig.Get().GetFlowerLevelByGroup(flowerCfg.LevelGroup, level)
 
 			finalTimes := flowerCfg.HarvestTimes
 			if levelCfg != nil {

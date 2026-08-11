@@ -120,7 +120,7 @@ func TestMainTaskInitFirstTask(t *testing.T) {
 
 func TestMainTaskAfterAcceptGoodEvent(t *testing.T) {
 	main, mt, _ := setupTestMainTask(t)
-	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1007))
+	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1007))
 
 	main.PublishRoleEvent(context.Background(), event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{
 		Changes: []event.GoodChange{{GoodID: 10001, PreNum: 0, Num: 2, AddNum: 2}},
@@ -164,7 +164,7 @@ func TestMainTaskClaimAdvancesAndNotifiesNextTask(t *testing.T) {
 func TestMainTaskCurrentStateCompletesOnAccept(t *testing.T) {
 	_, mt, _ := setupTestMainTask(t)
 	mt.Role.Basic.Level = 3
-	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1009))
+	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1009))
 
 	if mt.Progress != 3 {
 		t.Fatalf("expected progress 3, got %d", mt.Progress)
@@ -177,7 +177,7 @@ func TestMainTaskCurrentStateCompletesOnAccept(t *testing.T) {
 func TestMainTaskCurrentStateRefreshesOnEvent(t *testing.T) {
 	main, mt, sent := setupTestMainTask(t)
 	mt.Role.Basic.Level = 1
-	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1009))
+	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1009))
 
 	mt.Role.Basic.Level = 3
 	main.PublishRoleEvent(context.Background(), event.EVENT_PLAYER_LEVEL, event.PlayerLevelEventData{

@@ -131,7 +131,7 @@ func goodNum(f *RoleFlower, goodID int) uint64 {
 
 func flowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 	t.Helper()
-	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	cfg := gameconfig.Get().TbFlower.Get(flowerID)
 	if cfg == nil {
 		t.Fatalf("flower config not found: %d", flowerID)
 	}
@@ -140,7 +140,7 @@ func flowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 
 func flowerLevelConfig(t *testing.T, levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
 	t.Helper()
-	cfg := gameconfig.GameConfig().GetFlowerLevelByGroup(levelGroup, level)
+	cfg := gameconfig.Get().GetFlowerLevelByGroup(levelGroup, level)
 	if cfg == nil {
 		t.Fatalf("flower level config not found: group=%d level=%d", levelGroup, level)
 	}
@@ -149,7 +149,7 @@ func flowerLevelConfig(t *testing.T, levelGroup int32, level int32) *gamecfg.Gar
 
 func flowerBreakConfig(t *testing.T, levelGroup int32, breakStage int32) *gamecfg.GardenFlowerBreak {
 	t.Helper()
-	cfg := gameconfig.GameConfig().GetFlowerBreakByGroup(levelGroup, breakStage)
+	cfg := gameconfig.Get().GetFlowerBreakByGroup(levelGroup, breakStage)
 	if cfg == nil {
 		t.Fatalf("flower break config not found: group=%d break_stage=%d", levelGroup, breakStage)
 	}
@@ -159,7 +159,7 @@ func flowerBreakConfig(t *testing.T, levelGroup int32, breakStage int32) *gamecf
 func maxFlowerLevel(t *testing.T, levelGroup int32) int32 {
 	t.Helper()
 	var maxLevel int32
-	for _, cfg := range gameconfig.GameConfig().TbFlowerLevel.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbFlowerLevel.GetDataList() {
 		if cfg.LevelGroup == levelGroup && cfg.Level > maxLevel {
 			maxLevel = cfg.Level
 		}

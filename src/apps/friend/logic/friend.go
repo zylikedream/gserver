@@ -27,7 +27,7 @@ type Config struct {
 }
 
 func LoadConfig() *Config {
-	tb := gameconfig.GameConfig().TbFriendConfig.Get()
+	tb := gameconfig.Get().TbFriendConfig.Get()
 	return &Config{
 		FriendMaxCount:    tb.FriendMaxCount,
 		ApplySendLimit:    tb.ApplySendLimit,

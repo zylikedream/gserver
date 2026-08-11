@@ -264,7 +264,7 @@ func (g *GuildActor) getPendingApplies() []*GuildApply {
 }
 
 func getLevelConfig(level int32) *gamecfg.GardenGuildLevel {
-	return gameconfig.GameConfig().TbGuildLevel.Get(level)
+	return gameconfig.Get().TbGuildLevel.Get(level)
 }
 
 // ===== 错误变量 =====
@@ -320,7 +320,7 @@ func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ReqGuildApply) (*pb
 
 // createApply — 创建申请
 func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
-	cfg := gameconfig.GameConfig().TbGuildConfig.Get()
+	cfg := gameconfig.Get().TbGuildConfig.Get()
 	if cfg == nil {
 		return nil, errors.New("公会配置未找到")
 	}
@@ -339,7 +339,7 @@ func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqGuildApply) (*p
 
 // addMember — 原子操作：核验成员上限 → 原子门 → 追加成员 → 通知
 func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
-	levelCfg := gameconfig.GameConfig().TbGuildLevel.Get(g.Data.Level)
+	levelCfg := gameconfig.Get().TbGuildLevel.Get(g.Data.Level)
 	if levelCfg == nil {
 		return errors.New("公会等级配置未找到")
 	}

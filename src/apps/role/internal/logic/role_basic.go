@@ -3,9 +3,9 @@ package logic
 import (
 	"context"
 	"fmt"
-	"gserver/src/pkg/gameconfig"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"gserver/src/pkg/gameconfig"
 	"time"
 )
 
@@ -136,7 +136,7 @@ func (r *RoleBasic) RefreshLevelByExp(ctx context.Context, oldExp int64, newExp 
 }
 
 func (r *RoleBasic) getLevelByExp(Exp int64) int32 {
-	gc := gameconfig.GameConfig()
+	gc := gameconfig.Get()
 	if gc == nil {
 		return 1
 	}
@@ -159,7 +159,7 @@ func (r *RoleBasic) notifyRoleLevelUp(ctx context.Context, oldLevel int32, newLe
 	if r.Role == nil {
 		return
 	}
-	gc := gameconfig.GameConfig()
+	gc := gameconfig.Get()
 	var unlockDesc []string
 	if gc != nil {
 		unlockDesc = gc.GetPlayerLevelUnlockDescs(oldLevel, newLevel)

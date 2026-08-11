@@ -3,6 +3,7 @@ module gserver
 go 1.25.1
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/agiledragon/gomonkey/v2 v2.14.0
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/asynkron/protoactor-go v0.0.0-20250909165758-e952b3c0850e

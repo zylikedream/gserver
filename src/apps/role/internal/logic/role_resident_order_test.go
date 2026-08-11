@@ -133,7 +133,7 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 // 获取第一张订单的需求物品ID和数量
 func firstSlotDemand(t *testing.T, orderMod *RoleResidentOrder) (slotID int32, itemID, needNum int32) {
 	t.Helper()
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 		slot := orderMod.Slots[cfg.Id]
 		if slot != nil && len(slot.Demands) > 0 {
 			return slot.SlotID, int32(slot.Demands[0].GoodID), int32(slot.Demands[0].Num)
@@ -372,11 +372,11 @@ func TestOrderGeneration_ResidentFromConfig(t *testing.T) {
 
 	for slotID, slot := range orderMod.Slots {
 		// 验证居民存在于模板配置中
-		slotCfg := gameconfig.GameConfig().TbResidentOrderSlot.Get(slotID)
+		slotCfg := gameconfig.Get().TbResidentOrderSlot.Get(slotID)
 		if slotCfg == nil {
 			continue
 		}
-		tpl := gameconfig.GameConfig().TbResidentOrder.Get(slotCfg.OrderId)
+		tpl := gameconfig.Get().TbResidentOrder.Get(slotCfg.OrderId)
 		if tpl == nil {
 			continue
 		}
@@ -432,7 +432,7 @@ func TestSlotLocking_Level1(t *testing.T) {
 	_, orderMod := setupTestOrder(t, 101)
 
 	activeCount := 0
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 		if orderMod.Slots[cfg.Id] != nil {
 			activeCount++
 		}
@@ -471,7 +471,7 @@ func TestSlotLocking_LevelUp(t *testing.T) {
 
 	checkActive := func(expected int) map[int32]bool {
 		active := make(map[int32]bool)
-		for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+		for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 			if orderMod.Slots[cfg.Id] != nil {
 				active[cfg.Id] = true
 			}
@@ -518,7 +518,7 @@ func TestSlotLocking_NoNewUnlock(t *testing.T) {
 	orderMod.ensureUnlockedSlots()
 
 	activeCount := 0
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 		if orderMod.Slots[cfg.Id] != nil {
 			activeCount++
 		}

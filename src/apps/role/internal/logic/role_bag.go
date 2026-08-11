@@ -62,7 +62,7 @@ func (r *RoleBag) addGoods(goodsMap GoodsMap, goods []bag.Good, reason string) (
 }
 
 func (r *RoleBag) addSingleGood(goodsMap GoodsMap, good bag.Good) (bag.GoodOp, error) {
-	cfg := gameconfig.GameConfig().TbItem.Get(int32(good.GoodID))
+	cfg := gameconfig.Get().TbItem.Get(int32(good.GoodID))
 	if cfg == nil {
 		return bag.GoodOp{}, ErrGoodConfigNotFound
 	}

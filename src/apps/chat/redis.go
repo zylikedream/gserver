@@ -48,7 +48,7 @@ return 1`)
 // ===== 大厅操作 =====
 
 func JoinLobby(ctx context.Context, roleID int64) (int64, error) {
-	maxCap := int(gameconfig.GameConfig().TbGlobalConfig.Get().WorldChatLobbyMaxPlayers)
+	maxCap := int(gameconfig.Get().TbGlobalConfig.Get().WorldChatLobbyMaxPlayers)
 	cmd := luaJoinLobby.Run(ctx, gxyredis.Redis(), []string{"chat:lobby:sizes"},
 		maxCap, strconv.FormatInt(roleID, 10))
 	lobbyStr, err := cmd.Text()

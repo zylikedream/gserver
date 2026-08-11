@@ -111,7 +111,7 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 		return &pb.RspPlotFriendInfo{}, nil
 	}
 
-	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
+	cfg := gameconfig.Get().TbFriendConfig.Get()
 	dailyCount := r.getDailyCount(friendID)
 
 	rsp := &pb.RspPlotFriendInfo{
@@ -145,7 +145,7 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb.RspPlotSteal, error) {
 	friendID := req.FriendId
 	plotID := req.PlotId
-	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
+	cfg := gameconfig.Get().TbFriendConfig.Get()
 
 	if !isFriend(ctx, r.RoleID, friendID) {
 		return nil, ErrNotFriend
@@ -195,7 +195,7 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 
 		r.incDailyCount(friendID)
 
-		flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+		flowerCfg := gameconfig.Get().TbFlower.Get(plot.FlowerID)
 		if flowerCfg == nil {
 			return errors.New("flower config not found")
 		}

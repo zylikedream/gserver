@@ -78,7 +78,7 @@ func (r *RoleFriend) ReqFriendRemove(ctx context.Context, req *pb.ReqFriendRemov
 // ---- read operations ----
 
 func (r *RoleFriend) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (*pb.RspFriendList, error) {
-	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
+	cfg := gameconfig.Get().TbFriendConfig.Get()
 
 	friendIDs, err := callFriendList(ctx, r.RoleID)
 	if err != nil {
@@ -135,7 +135,7 @@ func (r *RoleFriend) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendAp
 }
 
 func (r *RoleFriend) ReqFriendSearchPlayer(ctx context.Context, req *pb.ReqFriendSearchPlayer) (*pb.RspFriendSearchPlayer, error) {
-	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
+	cfg := gameconfig.Get().TbFriendConfig.Get()
 
 	publics := []RolePublicState{}
 	err := gxypgx.DB().WithContext(ctx).

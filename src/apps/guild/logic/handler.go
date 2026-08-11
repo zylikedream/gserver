@@ -91,7 +91,7 @@ func (h *GuildHandler) Search(ctx context.Context, req *SearchGuildReq) (any, er
 
 	result := make([]*pb.PGuildBasic, 0, len(guilds))
 	for _, guild := range guilds {
-		cfg := gameconfig.GameConfig().TbGuildLevel.Get(guild.Level)
+		cfg := gameconfig.Get().TbGuildLevel.Get(guild.Level)
 		memberLimit := int32(30)
 		if cfg != nil {
 			memberLimit = cfg.MemberLimit

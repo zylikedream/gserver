@@ -197,7 +197,7 @@ func setupTestPlotWithMaterials(t *testing.T) *RolePlot {
 
 func plotFlowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 	t.Helper()
-	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	cfg := gameconfig.Get().TbFlower.Get(flowerID)
 	if cfg == nil {
 		t.Fatalf("flower config not found: %d", flowerID)
 	}
@@ -206,7 +206,7 @@ func plotFlowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 
 func plotLevelConfig(t *testing.T, levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
 	t.Helper()
-	cfg := gameconfig.GameConfig().GetFlowerLevelByGroup(levelGroup, level)
+	cfg := gameconfig.Get().GetFlowerLevelByGroup(levelGroup, level)
 	if cfg == nil {
 		t.Fatalf("flower level config not found: group=%d level=%d", levelGroup, level)
 	}
@@ -248,7 +248,7 @@ func TestUnlockPlot_Success(t *testing.T) {
 
 func TestReqPlotUnlock_PlayerLevelNotEnough(t *testing.T) {
 	p := setupTestPlot(t)
-	cfg := gameconfig.GameConfig().TbGardenPlot.Get(13)
+	cfg := gameconfig.Get().TbGardenPlot.Get(13)
 	for _, cost := range cfg.Cost {
 		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
 	}
@@ -262,7 +262,7 @@ func TestReqPlotUnlock_PlayerLevelNotEnough(t *testing.T) {
 
 func TestReqPlotUnlock_WithRequiredPlayerLevel(t *testing.T) {
 	p := setupTestPlot(t)
-	cfg := gameconfig.GameConfig().TbGardenPlot.Get(13)
+	cfg := gameconfig.Get().TbGardenPlot.Get(13)
 	for _, cost := range cfg.Cost {
 		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
 	}

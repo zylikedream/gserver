@@ -226,10 +226,10 @@ func getItemProgressAdd(role *RoleMain, targetParam int32, data event.GoodChange
 }
 
 func isFlowerProduct(role *RoleMain, goodID int32) bool {
-	if role == nil || gameconfig.GameConfig() == nil || gameconfig.GameConfig().TbFlower == nil {
+	if role == nil || gameconfig.Get() == nil || gameconfig.Get().TbFlower == nil {
 		return false
 	}
-	for _, cfg := range gameconfig.GameConfig().TbFlower.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbFlower.GetDataList() {
 		if cfg.HarvestItemId == goodID {
 			return true
 		}
