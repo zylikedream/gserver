@@ -58,8 +58,7 @@ func (g *GuildActor) Init(ctx context.Context, args []any) error {
 }
 
 func (g *GuildActor) DelayInit(ctx context.Context) error {
-	g.Data = &Guild{}
-	if err := g.db.First(g.Data, g.GuildID).Error; err != nil {
+	if err := g.loadFromDB(ctx); err != nil {
 		return err
 	}
 
@@ -67,6 +66,15 @@ func (g *GuildActor) DelayInit(ctx context.Context) error {
 	g.Timer().AddCron(ctx, gxytimer.DayRefresh, g.onDayRefresh)
 
 	gxylog.Info(ctx, "guild actor started", gxylog.Num("guildID", g.GuildID), gxylog.Num("members", len(g.Data.Members)), gxylog.Num("applies", len(g.Data.ApplyList)))
+	return nil
+}
+
+// loadFromDB 从数据库加载公会数据(与 timer 启动解耦,便于测试)。
+func (g *GuildActor) loadFromDB(ctx context.Context) error {
+	g.Data = &Guild{}
+	if err := g.db.First(g.Data, g.GuildID).Error; err != nil {
+		return err
+	}
 	return nil
 }
 

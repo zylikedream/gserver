@@ -4,11 +4,31 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// scanJSONBytes 兼容 driver 返回 []byte 或 string 的 JSON 反序列化。
+// 注意: PG 驱动返回 []byte, 但其他驱动/中间层(mock、代理)可能返回 string,
+// 类型断言过死会导致 panic(且 panic 在 database/sql 持锁期会死锁)。
+func scanJSONBytes(val interface{}, dst any) error {
+	if val == nil {
+		return nil
+	}
+	var bytes []byte
+	switch v := val.(type) {
+	case []byte:
+		bytes = v
+	case string:
+		bytes = []byte(v)
+	default:
+		return fmt.Errorf("unsupported scan type %T", val)
+	}
+	return json.Unmarshal(bytes, dst)
+}
 
 // FriendEntry 好友记录
 type FriendEntry struct {
@@ -20,10 +40,7 @@ type FriendList []FriendEntry
 
 func (l FriendList) Value() (driver.Value, error) { return json.Marshal(l) }
 func (l *FriendList) Scan(val interface{}) error {
-	if val == nil {
-		return nil
-	}
-	return json.Unmarshal(val.([]byte), l)
+	return scanJSONBytes(val, l)
 }
 func (l FriendList) Has(id int64) bool {
 	for _, v := range l {
@@ -52,10 +69,7 @@ type ApplyList []ApplyEntry
 
 func (l ApplyList) Value() (driver.Value, error) { return json.Marshal(l) }
 func (l *ApplyList) Scan(val interface{}) error {
-	if val == nil {
-		return nil
-	}
-	return json.Unmarshal(val.([]byte), l)
+	return scanJSONBytes(val, l)
 }
 func (l ApplyList) Has(id int64) bool {
 	for _, v := range l {
@@ -84,10 +98,7 @@ type CooldownList []CooldownEntry
 
 func (l CooldownList) Value() (driver.Value, error) { return json.Marshal(l) }
 func (l *CooldownList) Scan(val interface{}) error {
-	if val == nil {
-		return nil
-	}
-	return json.Unmarshal(val.([]byte), l)
+	return scanJSONBytes(val, l)
 }
 
 // FriendData 单行全量玩家好友数据
