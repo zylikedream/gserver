@@ -3,16 +3,12 @@ package logic
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/pkg/gameconfig"
-
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
 )
 
 // ========== test setup ==========
@@ -26,57 +22,12 @@ const (
 
 func initFlowerTestConfig(t *testing.T) {
 	t.Helper()
-	if flowerCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	levels := loadTestTable(t, "garden_tbflowerlevel")
-	tbFlowerLevel, err := gamecfg.NewGardenTbFlowerLevel(levels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	breaks := loadTestTable(t, "garden_tbflowerbreak")
-	tbFlowerBreak, err := gamecfg.NewGardenTbFlowerBreak(breaks)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{
-		TbItem: tbItem, TbFlower: tbFlower,
-		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak,
-		TbPlayerLevel: tbPlayerLevel,
-	}
-	flowerCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestFlower(t *testing.T) *RoleFlower {
 	t.Helper()
 	initFlowerTestConfig(t)
-
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
 
 	main := &RoleMain{}
 	basicMod := &RoleBasic{
@@ -131,7 +82,7 @@ func goodNum(f *RoleFlower, goodID int) uint64 {
 
 func flowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 	t.Helper()
-	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	cfg := gameconfig.Get().TbFlower.Get(flowerID)
 	if cfg == nil {
 		t.Fatalf("flower config not found: %d", flowerID)
 	}
@@ -140,7 +91,7 @@ func flowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 
 func flowerLevelConfig(t *testing.T, levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
 	t.Helper()
-	cfg := gameconfig.GameConfig().GetFlowerLevelByGroup(levelGroup, level)
+	cfg := gameconfig.Get().GetFlowerLevelByGroup(levelGroup, level)
 	if cfg == nil {
 		t.Fatalf("flower level config not found: group=%d level=%d", levelGroup, level)
 	}
@@ -149,7 +100,7 @@ func flowerLevelConfig(t *testing.T, levelGroup int32, level int32) *gamecfg.Gar
 
 func flowerBreakConfig(t *testing.T, levelGroup int32, breakStage int32) *gamecfg.GardenFlowerBreak {
 	t.Helper()
-	cfg := gameconfig.GameConfig().GetFlowerBreakByGroup(levelGroup, breakStage)
+	cfg := gameconfig.Get().GetFlowerBreakByGroup(levelGroup, breakStage)
 	if cfg == nil {
 		t.Fatalf("flower break config not found: group=%d break_stage=%d", levelGroup, breakStage)
 	}
@@ -159,7 +110,7 @@ func flowerBreakConfig(t *testing.T, levelGroup int32, breakStage int32) *gamecf
 func maxFlowerLevel(t *testing.T, levelGroup int32) int32 {
 	t.Helper()
 	var maxLevel int32
-	for _, cfg := range gameconfig.GameConfig().TbFlowerLevel.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbFlowerLevel.GetDataList() {
 		if cfg.LevelGroup == levelGroup && cfg.Level > maxLevel {
 			maxLevel = cfg.Level
 		}

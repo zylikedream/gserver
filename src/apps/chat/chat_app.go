@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gserver/core/gxyapp"
+	"gserver/core/gxypgx"
 	"gserver/core/gxyservice"
 	"gserver/src/pkg/gameconfig"
 )
@@ -21,7 +22,7 @@ func NewChatApp(host string) *chatApp {
 
 func (c *chatApp) OnModInit(ctx context.Context) error {
 	c.AddModule(ctx, gameconfig.NewGameConfig())
-	InitChatSchema(ctx)
+	InitChatSchema(ctx, gxypgx.DB())
 	gxyservice.ServiceApp().LoadService(ctx, NewChatService())
 	gxyservice.ServiceApp().LoadService(ctx, NewChatHttpService(c.host))
 

@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"gserver/core/gxypgx"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
@@ -74,8 +73,8 @@ type MailView struct {
 	IsDeleted   bool
 }
 
-func mailRuntimeConfig() *gamecfg.GardenMailConfig {
-	return gameconfig.GameConfig().TbMailConfig.Get()
+func mailRuntimeConfig(c *gameconfig.GameConfig) *gamecfg.GardenMailConfig {
+	return c.TbMailConfig.Get()
 }
 
 // RoleMail 模块
@@ -97,16 +96,19 @@ func (r *RoleMail) AfterLogin(ctx context.Context) {
 	}
 }
 
-func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
+// refreshMailCache 可替换函数变量:测试可拦截刷新(编译期安全)。
+var refreshMailCache = defaultRefreshMailCache
+
+func defaultRefreshMailCache(r *RoleMail, ctx context.Context) error {
 	roleID := r.RoleID
 	if r.state.States == nil {
 		r.state.States = make(MailStateMap)
 	}
 
 	now := time.Now().Unix()
-	config := mailRuntimeConfig()
+	config := r.Cfg().TbMailConfig.Get()
 	var personal []PersonalMailItem
-	if err := gxypgx.DB().WithContext(ctx).
+	if err := r.DB().WithContext(ctx).
 		Where("role_id = ?", roleID).
 		Order("id DESC").
 		Limit(int(config.MailMaxCount)).
@@ -116,7 +118,7 @@ func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
 	receivePersonalMails(&r.state, personal)
 
 	var system []SysMailItem
-	if err := gxypgx.DB().WithContext(ctx).
+	if err := r.DB().WithContext(ctx).
 		Where("id > ? AND (expire_at = 0 OR expire_at >= ?)", r.state.LastSysMailID, now).
 		Order("id ASC").
 		Limit(int(config.MailMaxCount)).
@@ -127,15 +129,19 @@ func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
 
 	visibleSystemIDs := systemMailIDsFromState(r.state.States)
 	if len(visibleSystemIDs) > 0 {
-		if err := gxypgx.DB().WithContext(ctx).
+		if err := r.DB().WithContext(ctx).
 			Where("id IN ? AND (expire_at = 0 OR expire_at >= ?)", visibleSystemIDs, now).
 			Find(&system).Error; err != nil {
 			return err
 		}
 	}
 
-	r.mailCache = buildMailViews(personal, system, r.state.States, now)
+	r.mailCache = buildMailViews(personal, system, r.state.States, now, int(r.Cfg().TbMailConfig.Get().MailMaxCount))
 	return nil
+}
+
+func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
+	return refreshMailCache(r, ctx)
 }
 
 func (r *RoleMail) OnCreate(ctx context.Context) {}
@@ -203,7 +209,7 @@ func systemMailIDsFromState(states MailStateMap) []int64 {
 	return ids
 }
 
-func buildMailViews(personal []PersonalMailItem, system []SysMailItem, states MailStateMap, now int64) []MailView {
+func buildMailViews(personal []PersonalMailItem, system []SysMailItem, states MailStateMap, now int64, limit int) []MailView {
 	views := make([]MailView, 0, len(personal)+len(system))
 	for _, m := range personal {
 		view := MailView{
@@ -241,7 +247,7 @@ func buildMailViews(personal []PersonalMailItem, system []SysMailItem, states Ma
 		}
 		return views[i].SendAt > views[j].SendAt
 	})
-	return trimMailViews(views, int(mailRuntimeConfig().MailMaxCount))
+	return trimMailViews(views, limit)
 }
 
 func trimMailViews(views []MailView, limit int) []MailView {
@@ -399,7 +405,7 @@ func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll)
 	now := time.Now().Unix()
 	var allGoods []*gamecfg.GardenGoodStack
 	var claimedMails []*MailView
-	claimLimit := int(mailRuntimeConfig().OneKeyClaimLimit)
+	claimLimit := int(r.Cfg().TbMailConfig.Get().OneKeyClaimLimit)
 
 	for i := range r.mailCache {
 		if claimLimit > 0 && len(claimedMails) >= claimLimit {
@@ -447,7 +453,7 @@ func (r *RoleMail) ReqMailDelete(ctx context.Context, req *pb.ReqMailDelete) (*p
 		return nil, errors.New("mail not found")
 	}
 	if len(mail.Attachments) > 0 && !mail.IsClaimed {
-		if !mailRuntimeConfig().AllowDeleteUnclaimed {
+		if !r.Cfg().TbMailConfig.Get().AllowDeleteUnclaimed {
 			return nil, errors.New("claim attachments before delete")
 		}
 	}

@@ -15,6 +15,9 @@ import (
 	"github.com/gogf/gf/v2/net/gsvc"
 )
 
+// getRedis 可替换函数变量:测试可注入 mock 客户端(编译期安全,非 gomonkey)。
+var getRedis = gxyredis.Redis
+
 const (
 	redisServiceKeyPrefix = "gserver:svc"
 	defaultPollInterval   = 10 * time.Second
@@ -54,7 +57,7 @@ func hashKey(svcName string) string {
 func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Service, error) {
 	key := hashKey(service.GetName())
 	field := service.GetKey()
-	if err := gxyredis.Redis().HSet(ctx, key, field, service.GetValue()).Err(); err != nil {
+	if err := getRedis().HSet(ctx, key, field, service.GetValue()).Err(); err != nil {
 		return nil, err
 	}
 	r.setFieldTTL(ctx, key, field)
@@ -67,13 +70,13 @@ func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 	key := hashKey(service.GetName())
 	field := service.GetKey()
 	r.untrackHeartbeat(key, field)
-	return gxyredis.Redis().HDel(ctx, key, field).Err()
+	return getRedis().HDel(ctx, key, field).Err()
 }
 
 // Search returns all services of the given name from Redis Hash.
 func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Service, error) {
 	key := hashKey(in.Name)
-	fields, err := gxyredis.Redis().HGetAll(ctx, key).Result()
+	fields, err := getRedis().HGetAll(ctx, key).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +122,7 @@ func (r *Registry) Type() string {
 // setFieldTTL sets field-level TTL on the hash field (Redis 7.4+ HEXPIRE).
 func (r *Registry) setFieldTTL(ctx context.Context, key, field string) {
 	ttl := int(defaultFieldTTL.Seconds())
-	if err := gxyredis.Redis().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
+	if err := getRedis().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
 		gxylog.Warn(context.Background(), "redis set field ttl failed",
 			gxylog.Str("key", key), gxylog.Str("field", field), gxylog.Err(err))
 	}
@@ -188,7 +191,7 @@ func (r *Registry) renewHeartbeats() {
 		for i, f := range fieldSlice {
 			args[5+i] = f
 		}
-		if err := gxyredis.Redis().Do(context.Background(), args...).Err(); err != nil {
+		if err := getRedis().Do(context.Background(), args...).Err(); err != nil {
 			gxylog.Warn(context.Background(), "redis heartbeat renew failed",
 				gxylog.Str("key", key), gxylog.Err(err))
 		}

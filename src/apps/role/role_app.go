@@ -5,11 +5,14 @@ import (
 	"time"
 
 	"gserver/core/gxyapp"
+	"gserver/core/gxypgx"
+	"gserver/core/gxyredis"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic"
 	"gserver/src/lib"
 	"gserver/src/lib/rolelib"
+	"gserver/src/pkg/deps"
 	"gserver/src/pkg/gameconfig"
 )
 
@@ -36,7 +39,7 @@ func onBroadcast(ctx context.Context, _topic string, msg *lib.BroadcastMsg) *lib
 
 func (r *roleApp) OnModInit(ctx context.Context) error {
 	r.AddModule(ctx, gameconfig.NewGameConfig())
-	logic.InitRoleSchema(ctx)
+	logic.InitRoleSchema(ctx, gxypgx.DB())
 	gxyservice.ServiceApp().LoadService(ctx, NewRoleActorService())
 
 	r.AddModule(ctx, rolelib.NewRoleNotify())
@@ -51,5 +54,5 @@ func (r *roleApp) OnModStop(ctx context.Context) error {
 }
 
 func GetRolePublic(ctx context.Context, roleID int64) *pb.PRolePublic {
-	return logic.GetRolePublic(ctx, roleID)
+	return logic.GetRolePublic(ctx, deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()}, roleID)
 }

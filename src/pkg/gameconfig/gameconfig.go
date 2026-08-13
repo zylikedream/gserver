@@ -10,27 +10,28 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 )
 
-type gameConfig struct {
+type GameConfig struct {
 	gxymodule.ModuleBase
 	*gamecfg.Tables
 }
 
-var gameCfg *gameConfig
+var gameCfg *GameConfig
 
-func GameConfig() *gameConfig {
+// Get 返回全局配表实例(进程内只读单例,由模块启动时 New 初始化)。
+func Get() *GameConfig {
 	return gameCfg
 }
 
-func NewGameConfig() *gameConfig {
-	gameCfg = &gameConfig{}
+func NewGameConfig() *GameConfig {
+	gameCfg = &GameConfig{}
 	return gameCfg
 }
 
-func (c *gameConfig) OnModInit(ctx context.Context) error {
+func (c *GameConfig) OnModInit(ctx context.Context) error {
 	return c.initTables()
 }
 
-func (gc *gameConfig) initTables() error {
+func (gc *GameConfig) initTables() error {
 	tables, err := gamecfg.NewTables(loader)
 	if err != nil {
 		panic(err)
@@ -39,7 +40,7 @@ func (gc *gameConfig) initTables() error {
 	return nil
 }
 
-func (gc *gameConfig) GetFlowerLevelByGroup(levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
+func (gc *GameConfig) GetFlowerLevelByGroup(levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
 	for _, v := range gc.TbFlowerLevel.GetDataList() {
 		if v.LevelGroup == levelGroup && v.Level == level {
 			return v
@@ -48,7 +49,7 @@ func (gc *gameConfig) GetFlowerLevelByGroup(levelGroup int32, level int32) *game
 	return nil
 }
 
-func (gc *gameConfig) GetFlowerBreakByGroup(levelGroup int32, breakStage int32) *gamecfg.GardenFlowerBreak {
+func (gc *GameConfig) GetFlowerBreakByGroup(levelGroup int32, breakStage int32) *gamecfg.GardenFlowerBreak {
 	for _, v := range gc.TbFlowerBreak.GetDataList() {
 		if v.LevelGroup == levelGroup && v.BreakStage == breakStage {
 			return v
@@ -57,7 +58,7 @@ func (gc *gameConfig) GetFlowerBreakByGroup(levelGroup int32, breakStage int32) 
 	return nil
 }
 
-func (gc *gameConfig) GetPlayerLevelByTotalExp(totalExp int64) *gamecfg.GardenPlayerLevel {
+func (gc *GameConfig) GetPlayerLevelByTotalExp(totalExp int64) *gamecfg.GardenPlayerLevel {
 	if gc == nil || gc.TbPlayerLevel == nil {
 		return nil
 	}
@@ -72,7 +73,7 @@ func (gc *gameConfig) GetPlayerLevelByTotalExp(totalExp int64) *gamecfg.GardenPl
 	return result
 }
 
-func (gc *gameConfig) GetMaxPlayerLevel() *gamecfg.GardenPlayerLevel {
+func (gc *GameConfig) GetMaxPlayerLevel() *gamecfg.GardenPlayerLevel {
 	levels := gc.sortedPlayerLevels()
 	if len(levels) == 0 {
 		return nil
@@ -80,7 +81,7 @@ func (gc *gameConfig) GetMaxPlayerLevel() *gamecfg.GardenPlayerLevel {
 	return levels[len(levels)-1]
 }
 
-func (gc *gameConfig) GetNextPlayerLevel(level int32) *gamecfg.GardenPlayerLevel {
+func (gc *GameConfig) GetNextPlayerLevel(level int32) *gamecfg.GardenPlayerLevel {
 	levels := gc.sortedPlayerLevels()
 	for _, cfg := range levels {
 		if cfg.Level > level {
@@ -90,7 +91,7 @@ func (gc *gameConfig) GetNextPlayerLevel(level int32) *gamecfg.GardenPlayerLevel
 	return nil
 }
 
-func (gc *gameConfig) GetPlayerLevelUnlockDescs(oldLevel int32, newLevel int32) []string {
+func (gc *GameConfig) GetPlayerLevelUnlockDescs(oldLevel int32, newLevel int32) []string {
 	if newLevel <= oldLevel {
 		return nil
 	}
@@ -103,7 +104,7 @@ func (gc *gameConfig) GetPlayerLevelUnlockDescs(oldLevel int32, newLevel int32) 
 	return descs
 }
 
-func (gc *gameConfig) GetFirstMainTask() *gamecfg.GardenMainTask {
+func (gc *GameConfig) GetFirstMainTask() *gamecfg.GardenMainTask {
 	tasks := gc.sortedMainTasks()
 	for _, cfg := range tasks {
 		if cfg.PreTaskId == 0 {
@@ -113,7 +114,7 @@ func (gc *gameConfig) GetFirstMainTask() *gamecfg.GardenMainTask {
 	return nil
 }
 
-func (gc *gameConfig) GetNextMainTask(taskID int32) *gamecfg.GardenMainTask {
+func (gc *GameConfig) GetNextMainTask(taskID int32) *gamecfg.GardenMainTask {
 	tasks := gc.sortedMainTasks()
 	for _, cfg := range tasks {
 		if cfg.PreTaskId == taskID {
@@ -123,7 +124,7 @@ func (gc *gameConfig) GetNextMainTask(taskID int32) *gamecfg.GardenMainTask {
 	return nil
 }
 
-func (gc *gameConfig) sortedPlayerLevels() []*gamecfg.GardenPlayerLevel {
+func (gc *GameConfig) sortedPlayerLevels() []*gamecfg.GardenPlayerLevel {
 	if gc == nil || gc.TbPlayerLevel == nil {
 		return nil
 	}
@@ -134,7 +135,7 @@ func (gc *gameConfig) sortedPlayerLevels() []*gamecfg.GardenPlayerLevel {
 	return levels
 }
 
-func (gc *gameConfig) sortedMainTasks() []*gamecfg.GardenMainTask {
+func (gc *GameConfig) sortedMainTasks() []*gamecfg.GardenMainTask {
 	if gc == nil || gc.TbMainTask == nil {
 		return nil
 	}

@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -10,81 +9,21 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
 )
 
 func initOrderTestConfig(t *testing.T) {
 	t.Helper()
-	gc := gameconfig.NewGameConfig()
-
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plots := loadTestTable(t, "garden_tbgardenplot")
-	tbPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mainTasks := loadTestTable(t, "garden_tbmaintask")
-	tbMainTask, err := gamecfg.NewGardenTbMainTask(mainTasks)
-	if err != nil {
-		t.Fatal(err)
-	}
-	orderTpls := loadTestTable(t, "garden_tbresidentorder")
-	tbOrder, err := gamecfg.NewGardenTbResidentOrder(orderTpls)
-	if err != nil {
-		t.Fatal(err)
-	}
-	slots := loadTestTable(t, "garden_tbresidentorderslot")
-	tbSlot, err := gamecfg.NewGardenTbResidentOrderSlot(slots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	residents := loadTestTable(t, "garden_tbresident")
-	tbResident, err := gamecfg.NewGardenTbResident(residents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	milestones := loadTestTable(t, "garden_tbresidentorderprogressreward")
-	tbMilestone, err := gamecfg.NewGardenTbResidentOrderProgressReward(milestones)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{
-		TbItem:                        tbItem,
-		TbFlower:                      tbFlower,
-		TbGardenPlot:                  tbPlot,
-		TbPlayerLevel:                 tbPlayerLevel,
-		TbMainTask:                    tbMainTask,
-		TbResidentOrder:               tbOrder,
-		TbResidentOrderSlot:           tbSlot,
-		TbResident:                    tbResident,
-		TbResidentOrderProgressReward: tbMilestone,
-	}
+	initAllTestConfig(t)
 }
 
 func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentOrder) {
 	t.Helper()
 	initOrderTestConfig(t)
 
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {}
+	t.Cleanup(func() { sendClient = origSend })
 
 	main := &RoleMain{eventBus: event.NewEventBus()}
 	basicMod := &RoleBasic{
@@ -133,7 +72,7 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 // 获取第一张订单的需求物品ID和数量
 func firstSlotDemand(t *testing.T, orderMod *RoleResidentOrder) (slotID int32, itemID, needNum int32) {
 	t.Helper()
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 		slot := orderMod.Slots[cfg.Id]
 		if slot != nil && len(slot.Demands) > 0 {
 			return slot.SlotID, int32(slot.Demands[0].GoodID), int32(slot.Demands[0].Num)
@@ -372,11 +311,11 @@ func TestOrderGeneration_ResidentFromConfig(t *testing.T) {
 
 	for slotID, slot := range orderMod.Slots {
 		// 验证居民存在于模板配置中
-		slotCfg := gameconfig.GameConfig().TbResidentOrderSlot.Get(slotID)
+		slotCfg := gameconfig.Get().TbResidentOrderSlot.Get(slotID)
 		if slotCfg == nil {
 			continue
 		}
-		tpl := gameconfig.GameConfig().TbResidentOrder.Get(slotCfg.OrderId)
+		tpl := gameconfig.Get().TbResidentOrder.Get(slotCfg.OrderId)
 		if tpl == nil {
 			continue
 		}
@@ -432,7 +371,7 @@ func TestSlotLocking_Level1(t *testing.T) {
 	_, orderMod := setupTestOrder(t, 101)
 
 	activeCount := 0
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 		if orderMod.Slots[cfg.Id] != nil {
 			activeCount++
 		}
@@ -471,7 +410,7 @@ func TestSlotLocking_LevelUp(t *testing.T) {
 
 	checkActive := func(expected int) map[int32]bool {
 		active := make(map[int32]bool)
-		for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+		for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 			if orderMod.Slots[cfg.Id] != nil {
 				active[cfg.Id] = true
 			}
@@ -518,7 +457,7 @@ func TestSlotLocking_NoNewUnlock(t *testing.T) {
 	orderMod.ensureUnlockedSlots()
 
 	activeCount := 0
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
 		if orderMod.Slots[cfg.Id] != nil {
 			activeCount++
 		}

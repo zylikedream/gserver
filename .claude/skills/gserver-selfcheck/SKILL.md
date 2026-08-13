@@ -26,7 +26,7 @@ description: GServer 核心链路自检——验证"部署→运行→日志→L
 
 ```bash
 go build ./...          # 编译全包
-make test               # 全量测试(gomonkey 需要 -gcflags=-l,make test 已处理)
+make test               # 全量测试
 ```
 
 判定:编译零错误 + 测试无 FAIL。

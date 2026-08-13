@@ -3,7 +3,8 @@ module gserver
 go 1.25.1
 
 require (
-	github.com/agiledragon/gomonkey/v2 v2.14.0
+	github.com/DATA-DOG/go-sqlmock v1.5.2
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/asynkron/protoactor-go v0.0.0-20250909165758-e952b3c0850e
 	github.com/go-viper/mapstructure/v2 v2.4.0
@@ -122,6 +123,7 @@ require (
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.etcd.io/etcd/api/v3 v3.6.5 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.6.5 // indirect
 	go.etcd.io/etcd/client/v3 v3.6.5 // indirect

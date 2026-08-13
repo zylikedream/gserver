@@ -28,7 +28,7 @@ func (s *chatHttpService) ServiceName() string {
 func (s *chatHttpService) OnModStart(ctx context.Context) error {
 	port := g.Cfg().MustGet(ctx, "port.chat").Int()
 	svr := gxyhttp.HttpSystem().NewHttpServer(fmt.Sprintf("%s:%d", s.host, port))
-	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), &ChatHandler{})
+	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), NewChatHandler())
 	gxylog.Info(ctx, "chat http server starting")
 	if err := svr.Start(); err != nil {
 		return err

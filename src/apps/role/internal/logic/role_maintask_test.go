@@ -2,60 +2,21 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
 )
 
 func initMainTaskTestConfig(t *testing.T) {
 	t.Helper()
-	gc := gameconfig.NewGameConfig()
-
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plots := loadTestTable(t, "garden_tbgardenplot")
-	tbPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mainTasks := loadTestTable(t, "garden_tbmaintask")
-	tbMainTask, err := gamecfg.NewGardenTbMainTask(mainTasks)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{
-		TbItem:        tbItem,
-		TbFlower:      tbFlower,
-		TbGardenPlot:  tbPlot,
-		TbPlayerLevel: tbPlayerLevel,
-		TbMainTask:    tbMainTask,
-	}
-	if gc.GetFirstMainTask() == nil {
-		t.Fatal("expected first main task config")
-	}
+	initAllTestConfig(t)
 }
 
 func setupTestMainTask(t *testing.T) (*RoleMain, *RoleMainTask, *[]proto.Message) {
@@ -63,12 +24,11 @@ func setupTestMainTask(t *testing.T) (*RoleMain, *RoleMainTask, *[]proto.Message
 	initMainTaskTestConfig(t)
 
 	var sent []proto.Message
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {
-			sent = append(sent, msg)
-		},
-	)
-	t.Cleanup(patch.Reset)
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
+		sent = append(sent, msg)
+	}
+	t.Cleanup(func() { sendClient = origSend })
 
 	main := &RoleMain{eventBus: event.NewEventBus()}
 	basicMod := &RoleBasic{
@@ -120,7 +80,7 @@ func TestMainTaskInitFirstTask(t *testing.T) {
 
 func TestMainTaskAfterAcceptGoodEvent(t *testing.T) {
 	main, mt, _ := setupTestMainTask(t)
-	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1007))
+	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1007))
 
 	main.PublishRoleEvent(context.Background(), event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{
 		Changes: []event.GoodChange{{GoodID: 10001, PreNum: 0, Num: 2, AddNum: 2}},
@@ -164,7 +124,7 @@ func TestMainTaskClaimAdvancesAndNotifiesNextTask(t *testing.T) {
 func TestMainTaskCurrentStateCompletesOnAccept(t *testing.T) {
 	_, mt, _ := setupTestMainTask(t)
 	mt.Role.Basic.Level = 3
-	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1009))
+	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1009))
 
 	if mt.Progress != 3 {
 		t.Fatalf("expected progress 3, got %d", mt.Progress)
@@ -177,7 +137,7 @@ func TestMainTaskCurrentStateCompletesOnAccept(t *testing.T) {
 func TestMainTaskCurrentStateRefreshesOnEvent(t *testing.T) {
 	main, mt, sent := setupTestMainTask(t)
 	mt.Role.Basic.Level = 1
-	mt.acceptTask(gameconfig.GameConfig().TbMainTask.Get(1009))
+	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1009))
 
 	mt.Role.Basic.Level = 3
 	main.PublishRoleEvent(context.Background(), event.EVENT_PLAYER_LEVEL, event.PlayerLevelEventData{

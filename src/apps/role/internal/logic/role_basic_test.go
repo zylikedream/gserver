@@ -2,44 +2,21 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
-	"gserver/src/pkg/gameconfig"
-	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/apps/role/internal/logic/bag"
-
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
 )
 
 var basicCfgInited bool
 
 func initBasicTestConfig(t *testing.T) {
 	t.Helper()
-	if basicCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{TbPlayerLevel: tbPlayerLevel}
-	basicCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestBasic(t *testing.T) *RoleBasic {
 	t.Helper()
 	initBasicTestConfig(t)
-
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
 
 	main := &RoleMain{}
 	basicMod := &RoleBasic{

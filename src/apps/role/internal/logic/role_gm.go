@@ -21,7 +21,6 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
-	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -237,7 +236,7 @@ func (r *RoleGM) SetPlayerLevel(level int) error {
 	if level < 1 {
 		return fmt.Errorf("level must be >= 1")
 	}
-	cfg := gameconfig.GameConfig().TbPlayerLevel.Get(int32(level))
+	cfg := r.Cfg().TbPlayerLevel.Get(int32(level))
 	if cfg == nil {
 		return fmt.Errorf("player level config not found: %d", level)
 	}
@@ -292,7 +291,7 @@ func (r *RoleGM) AddOrderFlower(flowerID int) error {
 // 用法: add_flower_breed_goods [花ID]
 // 示例: add_flower_breed_goods 101
 func (r *RoleGM) AddFlowerBreedGoods(flowerID int) error {
-	cfg := gameconfig.GameConfig().TbFlower.Get(int32(flowerID))
+	cfg := r.Cfg().TbFlower.Get(int32(flowerID))
 	if cfg == nil {
 		return fmt.Errorf("flower config not found: %d", flowerID)
 	}
@@ -351,7 +350,7 @@ func (r *RoleGM) StopRole(roleID int64) error {
 // 用法: send_mail [RoleID] [标题] [内容]
 // 示例: send_mail 1001 测试邮件 这是一封测试邮件
 func (r *RoleGM) SendMail(roleID int64, title string, content string) error {
-	return SendMail(r.ctx, roleID, SendMailOpts{
+	return SendMail(r.ctx, r.Deps(), roleID, SendMailOpts{
 		Title:   title,
 		Content: content,
 	})
@@ -361,7 +360,7 @@ func (r *RoleGM) SendMail(roleID int64, title string, content string) error {
 // 用法: send_mail_all [标题] [内容]
 // 示例: send_mail_all 系统维护补偿 感谢您的支持
 func (r *RoleGM) SendMailAll(title string, content string) error {
-	return SendMailToAll(r.ctx, SendMailOpts{
+	return SendMailToAll(r.ctx, r.Deps(), SendMailOpts{
 		Title:   title,
 		Content: content,
 	})
@@ -391,7 +390,7 @@ func (r *RoleGM) SendMailGoods(roleID int64, title string, content string, goods
 		}
 		goods = append(goods, bag.Good{GoodID: goodID, Num: uint64(num)})
 	}
-	return SendMail(r.ctx, roleID, SendMailOpts{
+	return SendMail(r.ctx, r.Deps(), roleID, SendMailOpts{
 		Title:       title,
 		Content:     content,
 		Attachments: goods,

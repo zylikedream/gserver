@@ -33,8 +33,9 @@ var app *redisApp
 
 //go:noinline
 func Redis() Client {
-	if app.conf == nil {
+	if app == nil || app.conf == nil {
 		gxylog.Error(context.Background(), "redis not init, miss config")
+		return nil
 	}
 	return app.client
 }

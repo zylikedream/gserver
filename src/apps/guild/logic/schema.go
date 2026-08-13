@@ -4,11 +4,12 @@ import (
 	"context"
 
 	"gserver/core/gxylog"
-	"gserver/core/gxypgx"
+
+	"gorm.io/gorm"
 )
 
-func InitGuildSchema(ctx context.Context) {
-	if err := gxypgx.DB().AutoMigrate(
+func InitGuildSchema(ctx context.Context, db *gorm.DB) {
+	if err := db.AutoMigrate(
 		&Guild{},
 		&GuildRoleState{},
 	); err != nil {

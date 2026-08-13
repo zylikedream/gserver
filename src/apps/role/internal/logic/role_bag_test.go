@@ -3,53 +3,26 @@ package logic
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/gameconfig"
 
 	proto "google.golang.org/protobuf/proto"
-
-	"github.com/agiledragon/gomonkey/v2"
 )
 
 // ========== test setup ==========
 
-var testCfgInited bool
-
 func initTestGameConfig(t *testing.T) {
 	t.Helper()
-	if testCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbPlayerLevel: tbPlayerLevel}
-	testCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestBag(t *testing.T) *RoleBag {
 	t.Helper()
 	initTestGameConfig(t)
-	// 拦截 SendClient，避免 nil session 触发错误日志
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
 	main := &RoleMain{}
 	basicMod := &RoleBasic{
 		RoleModule:     RoleModule{Role: main},
@@ -70,7 +43,7 @@ func testGoodStack(id, num int32) *gamecfg.GardenGoodStack {
 
 func itemConfig(t *testing.T, goodID int32) *gamecfg.GardenItem {
 	t.Helper()
-	cfg := gameconfig.GameConfig().TbItem.Get(goodID)
+	cfg := gameconfig.Get().TbItem.Get(goodID)
 	if cfg == nil {
 		t.Fatalf("item config not found: %d", goodID)
 	}
@@ -526,12 +499,11 @@ func TestBagSaveGoods_NotifyRewardOpts(t *testing.T) {
 	b := setupTestBag(t)
 	ctx := context.Background()
 	var sent []proto.Message
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {
-			sent = append(sent, msg)
-		},
-	)
-	defer patch.Reset()
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
+		sent = append(sent, msg)
+	}
+	t.Cleanup(func() { sendClient = origSend })
 
 	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptNotifyReward())
 	if err != nil {

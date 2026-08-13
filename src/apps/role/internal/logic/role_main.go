@@ -17,6 +17,7 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
+	"gserver/src/pkg/deps"
 	"gserver/src/pkg/gameconfig"
 	"reflect"
 	"strings"
@@ -93,6 +94,8 @@ type RoleMain struct {
 	*gxyactor.ActorBase
 	RoleID int64
 
+	deps deps.Deps
+
 	modsHash          map[string]uint64
 	session           gxyactor.PID
 	state             RoleState
@@ -103,6 +106,8 @@ type RoleMain struct {
 func NewRoleMain() *RoleMain {
 	r := &RoleMain{
 		state: RoleStateInit,
+		// 组装根:填充全局单例;测试可覆盖注入 mock。
+		deps: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()},
 	}
 	ctx := gxylog.NewContext(context.Background(), "role")
 	r.ActorBase = gxyactor.NewActorBase(ctx, r, "role")
@@ -202,7 +207,7 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 		if modState == nil {
 			continue
 		}
-		if err := loadModuleState(ctx, roleID, modState); err != nil {
+		if err := loadModuleState(ctx, r.DB(), roleID, modState); err != nil {
 			return err
 		}
 	}
@@ -217,9 +222,33 @@ type tabler interface {
 	TableName() string
 }
 
-func loadModuleState(_ context.Context, roleID int64, modState IPersistState) error {
+// DB 返回数据库连接,语义同 RoleModule.DB(测试注入 mock 后走 mock)。
+func (r *RoleMain) DB() *gorm.DB {
+	if r.deps.DB != nil {
+		return r.deps.DB
+	}
+	return gxypgx.DB()
+}
+
+// Redis 返回缓存客户端,语义同 DB。
+func (r *RoleMain) Redis() gxyredis.Client {
+	if r.deps.Redis != nil {
+		return r.deps.Redis
+	}
+	return gxyredis.Redis()
+}
+
+// Cfg 返回游戏配表,语义同 DB。
+func (r *RoleMain) Cfg() *gameconfig.GameConfig {
+	if r.deps.Cfg != nil {
+		return r.deps.Cfg
+	}
+	return gameconfig.Get()
+}
+
+func loadModuleState(_ context.Context, db *gorm.DB, roleID int64, modState IPersistState) error {
 	tableName := modState.(tabler).TableName()
-	err := gxypgx.DB().Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).
+	err := db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).
 		Table(tableName).Where("role_id = ?", roleID).First(modState).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		modState.SetRoleID(roleID)
@@ -364,7 +393,10 @@ func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo)
 func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
 }
 
-func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
+// saveRoleModule 可替换函数变量:测试可拦截保存(编译期安全)。
+var saveRoleModule = defaultSaveRoleModule
+
+func defaultSaveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
 	modState := rmod.PersistState()
 	if modState == nil {
 		return nil
@@ -387,7 +419,7 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 	}
 	defer release()
 
-	saved, err := r.saveRoleModuleState(ctx, gxypgx.DB(), rmod)
+	saved, err := r.saveRoleModuleState(ctx, r.DB(), rmod)
 	if err != nil {
 		return err
 	}
@@ -397,9 +429,13 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 	return nil
 }
 
+func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
+	return saveRoleModule(r, ctx, rmod)
+}
+
 func (r *RoleMain) checkRoleSaveOwner(ctx context.Context) bool {
 	key := rolelib.GetRoleLocateKey(r.RoleID)
-	owner, err := gxyredis.Redis().Get(ctx, key).Result()
+	owner, err := r.Redis().Get(ctx, key).Result()
 	if err == redis.Nil || owner == "" {
 		gxylog.Warn(ctx, "actor not claimed in redis, skip save", gxylog.Num("roleID", r.RoleID))
 		return false
@@ -497,7 +533,7 @@ func (r *RoleMain) save(ctx context.Context) error {
 	defer release()
 
 	var savedMods []*savedRoleModule
-	err = gxypgx.DB().Transaction(func(tx *gorm.DB) error {
+	err = r.DB().Transaction(func(tx *gorm.DB) error {
 		var errStr string
 		for _, rmod := range dirtyMods {
 			saved, err := r.saveRoleModuleState(ctx, tx, rmod)
@@ -556,7 +592,10 @@ func roleModuleTableName(rmod IRoleModule) string {
 	return ""
 }
 
-func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
+// sendClient 可替换函数变量:测试可捕获/拦截客户端消息(编译期安全,非 gomonkey 打桩)。
+var sendClient = defaultSendClient
+
+func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
 	if r.session == nil {
 		return
 	}
@@ -566,6 +605,10 @@ func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 		return
 	}
 	gxyactor.Send(ctx, r.session, svrMsg)
+}
+
+func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
+	sendClient(r, ctx, msg)
 }
 
 func (r *RoleMain) PublishRoleEvent(ctx context.Context, eventType event.EventType, data any) {
@@ -630,7 +673,7 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	r.Public.UpdateRolePublic(ctx)
 
 	// 发放初始物品
-	initItems := gameconfig.GameConfig().TbGlobalConfig.Get().InitItems
+	initItems := r.Cfg().TbGlobalConfig.Get().InitItems
 	if len(initItems) > 0 {
 		if err := r.Bag.SaveGoods(ctx, nil, initItems, "", bag.OptSilent()); err != nil {
 			return err

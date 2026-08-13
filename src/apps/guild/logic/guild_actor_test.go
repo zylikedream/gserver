@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/core/gxytimer"
+	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/pkg/gameconfig"
 )
@@ -70,6 +70,7 @@ func initGuildTestConfig(t *testing.T) {
 func newTestGuild() *GuildActor {
 	return &GuildActor{
 		GuildID: 1,
+		cfg:     gameconfig.Get(),
 		Data: &Guild{
 			ID: 1, Name: "TestGuild", Level: 1,
 			LeaderID: 100, MemberCount: 3, NeedApproval: true,

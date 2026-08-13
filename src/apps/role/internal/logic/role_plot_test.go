@@ -3,7 +3,6 @@ package logic
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
@@ -12,8 +11,7 @@ import (
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 )
 
 type memoryRolePlotSnapshotStore struct {
@@ -75,59 +73,7 @@ const (
 
 func initPlotTestConfig(t *testing.T) {
 	t.Helper()
-	if plotCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-
-	// 物品配表从 gameconfig/json/ 加载，自动跟随配表结构变更
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// TbGardenPlot 从配表加载
-	plots := loadTestTable(t, "garden_tbgardenplot")
-	tbGardenPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	levels := loadTestTable(t, "garden_tbflowerlevel")
-	tbFlowerLevel, err := gamecfg.NewGardenTbFlowerLevel(levels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	breaks := loadTestTable(t, "garden_tbflowerbreak")
-	tbFlowerBreak, err := gamecfg.NewGardenTbFlowerBreak(breaks)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	friendConfig := loadTestTable(t, "garden_tbfriendconfig")
-	tbFriendConfig, err := gamecfg.NewGardenTbFriendConfig(friendConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbFlower: tbFlower, TbGardenPlot: tbGardenPlot,
-		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak, TbPlayerLevel: tbPlayerLevel,
-		TbFriendConfig: tbFriendConfig}
-	plotCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestPlot(t *testing.T) *RolePlot {
@@ -141,22 +87,15 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	plotLocks = newMemoryPlotLockManager()
 	t.Cleanup(func() { plotLocks = oldLocks })
 
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
-	patchSave := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SaveRoleModule",
-		func(_ *RoleMain, _ context.Context, _ IRoleModule) error { return nil },
-	)
-	t.Cleanup(patchSave.Reset)
-	patchStolen := gomonkey.ApplyFunc(countPlotStolen,
-		func(_ context.Context, _ int64, _ int32) (int64, error) { return 0, nil },
-	)
-	t.Cleanup(patchStolen.Reset)
-	patchDelSteal := gomonkey.ApplyFunc(deletePlotStealRecords,
-		func(_ context.Context, _ int64, _ int32) error { return nil },
-	)
-	t.Cleanup(patchDelSteal.Reset)
+	origSave := saveRoleModule
+	saveRoleModule = func(_ *RoleMain, _ context.Context, _ IRoleModule) error { return nil }
+	t.Cleanup(func() { saveRoleModule = origSave })
+	origCountStolen := countPlotStolen
+	countPlotStolen = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil }
+	t.Cleanup(func() { countPlotStolen = origCountStolen })
+	origDelSteal := deletePlotStealRecords
+	deletePlotStealRecords = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) error { return nil }
+	t.Cleanup(func() { deletePlotStealRecords = origDelSteal })
 
 	main := &RoleMain{RoleID: 1001}
 	basicMod := &RoleBasic{
@@ -197,7 +136,7 @@ func setupTestPlotWithMaterials(t *testing.T) *RolePlot {
 
 func plotFlowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 	t.Helper()
-	cfg := gameconfig.GameConfig().TbFlower.Get(flowerID)
+	cfg := gameconfig.Get().TbFlower.Get(flowerID)
 	if cfg == nil {
 		t.Fatalf("flower config not found: %d", flowerID)
 	}
@@ -206,7 +145,7 @@ func plotFlowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
 
 func plotLevelConfig(t *testing.T, levelGroup int32, level int32) *gamecfg.GardenFlowerLevel {
 	t.Helper()
-	cfg := gameconfig.GameConfig().GetFlowerLevelByGroup(levelGroup, level)
+	cfg := gameconfig.Get().GetFlowerLevelByGroup(levelGroup, level)
 	if cfg == nil {
 		t.Fatalf("flower level config not found: group=%d level=%d", levelGroup, level)
 	}
@@ -248,7 +187,7 @@ func TestUnlockPlot_Success(t *testing.T) {
 
 func TestReqPlotUnlock_PlayerLevelNotEnough(t *testing.T) {
 	p := setupTestPlot(t)
-	cfg := gameconfig.GameConfig().TbGardenPlot.Get(13)
+	cfg := gameconfig.Get().TbGardenPlot.Get(13)
 	for _, cost := range cfg.Cost {
 		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
 	}
@@ -262,7 +201,7 @@ func TestReqPlotUnlock_PlayerLevelNotEnough(t *testing.T) {
 
 func TestReqPlotUnlock_WithRequiredPlayerLevel(t *testing.T) {
 	p := setupTestPlot(t)
-	cfg := gameconfig.GameConfig().TbGardenPlot.Get(13)
+	cfg := gameconfig.Get().TbGardenPlot.Get(13)
 	for _, cost := range cfg.Cost {
 		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
 	}

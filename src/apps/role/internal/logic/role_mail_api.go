@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"gserver/core/gxylog"
-	"gserver/core/gxypgx"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
+	"gserver/src/pkg/deps"
 )
 
 // SendMailOpts 发邮件选项
@@ -22,9 +22,6 @@ type SendMailOpts struct {
 }
 
 func validateSendMailOpts(opts SendMailOpts, cfg *gamecfg.GardenMailConfig) error {
-	if cfg == nil {
-		cfg = mailRuntimeConfig()
-	}
 	if cfg.TitleLimit > 0 && len([]rune(opts.Title)) > int(cfg.TitleLimit) {
 		return errors.New("mail title too long")
 	}
@@ -34,9 +31,10 @@ func validateSendMailOpts(opts SendMailOpts, cfg *gamecfg.GardenMailConfig) erro
 	return nil
 }
 
-// SendMail 给单个角色发邮件（外部系统调用，直接 INSERT DB）
-func SendMail(ctx context.Context, roleID int64, opts SendMailOpts) error {
-	config := mailRuntimeConfig()
+// SendMail 给单个角色发邮件（外部系统调用，直接 INSERT DB）。
+// d 显式传入依赖，测试可注入 go-sqlmock。
+func SendMail(ctx context.Context, d deps.Deps, roleID int64, opts SendMailOpts) error {
+	config := mailRuntimeConfig(d.Cfg)
 	if err := validateSendMailOpts(opts, config); err != nil {
 		return err
 	}
@@ -52,7 +50,7 @@ func SendMail(ctx context.Context, roleID int64, opts SendMailOpts) error {
 		SendAt:      time.Now().Unix(),
 		ExpireAt:    opts.ExpireAt,
 	}
-	if err := gxypgx.DB().WithContext(ctx).Create(&entry).Error; err != nil {
+	if err := d.DB.WithContext(ctx).Create(&entry).Error; err != nil {
 		return err
 	}
 
@@ -61,8 +59,8 @@ func SendMail(ctx context.Context, roleID int64, opts SendMailOpts) error {
 }
 
 // SendMailBatch 给多个角色发邮件（批量补偿等）
-func SendMailBatch(ctx context.Context, roleIDs []int64, opts SendMailOpts) error {
-	config := mailRuntimeConfig()
+func SendMailBatch(ctx context.Context, d deps.Deps, roleIDs []int64, opts SendMailOpts) error {
+	config := mailRuntimeConfig(d.Cfg)
 	if err := validateSendMailOpts(opts, config); err != nil {
 		return err
 	}
@@ -80,7 +78,7 @@ func SendMailBatch(ctx context.Context, roleIDs []int64, opts SendMailOpts) erro
 			SendAt:      now,
 			ExpireAt:    opts.ExpireAt,
 		}
-		if err := gxypgx.DB().WithContext(ctx).Create(&entry).Error; err != nil {
+		if err := d.DB.WithContext(ctx).Create(&entry).Error; err != nil {
 			gxylog.Warn(ctx, "send mail batch create failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 			continue
 		}
@@ -91,8 +89,8 @@ func SendMailBatch(ctx context.Context, roleIDs []int64, opts SendMailOpts) erro
 }
 
 // SendMailToAll 发全服邮件（写入 sys_mail，玩家登录时展开）
-func SendMailToAll(ctx context.Context, opts SendMailOpts) error {
-	config := mailRuntimeConfig()
+func SendMailToAll(ctx context.Context, d deps.Deps, opts SendMailOpts) error {
+	config := mailRuntimeConfig(d.Cfg)
 	if err := validateSendMailOpts(opts, config); err != nil {
 		return err
 	}
@@ -107,11 +105,14 @@ func SendMailToAll(ctx context.Context, opts SendMailOpts) error {
 		ExpireAt:    opts.ExpireAt,
 		SendAt:      time.Now().Unix(),
 	}
-	return gxypgx.DB().WithContext(ctx).Create(&sysMail).Error
+	return d.DB.WithContext(ctx).Create(&sysMail).Error
 }
 
-// notifyMailUpdate 通知在线玩家（不强制激活 actor）
-func notifyMailUpdate(ctx context.Context, roleID int64, mailID int64) {
+// notifyMailUpdate 通知在线玩家（不强制激活 actor）。
+// 可替换函数变量:测试可替换为 no-op,专注 DB 行为断言。
+var notifyMailUpdate = defaultNotifyMailUpdate
+
+func defaultNotifyMailUpdate(ctx context.Context, roleID int64, mailID int64) {
 	if err := rolelib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{MailId: mailID}); err != nil {
 		gxylog.Warn(ctx, "notify mail update failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 	}

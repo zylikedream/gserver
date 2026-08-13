@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -13,25 +12,20 @@ import (
 	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
 	"gorm.io/gorm/schema"
 )
 
 func initMailTestConfig(t *testing.T, rows ...map[string]any) {
 	t.Helper()
-	gc := gameconfig.NewGameConfig()
-	if len(rows) == 0 {
-		rows = loadTestTable(t, "garden_tbmailconfig")
+	initAllTestConfig(t)
+	if len(rows) > 0 {
+		tbMailConfig, err := gamecfg.NewGardenTbMailConfig(rows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gameconfig.Get().TbMailConfig = tbMailConfig
 	}
-	tbMailConfig, err := gamecfg.NewGardenTbMailConfig(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gc.Tables = &gamecfg.Tables{TbMailConfig: tbMailConfig}
-	t.Cleanup(func() {
-		gameconfig.NewGameConfig()
-	})
 }
 
 // ========== calcRedDot ==========
@@ -140,7 +134,7 @@ func TestBuildMailViews_MergesContentWithPlayerState(t *testing.T) {
 		"13": {MailID: 13, IsSysMail: true, IsDeleted: true},
 	}
 
-	views := buildMailViews(personal, system, states, now)
+	views := buildMailViews(personal, system, states, now, 10)
 
 	if len(views) != 2 {
 		t.Fatalf("expected 2 visible mails, got %d", len(views))
@@ -260,7 +254,7 @@ func TestMailRuntimeConfig_UsesGameConfig(t *testing.T) {
 	})
 	initMailTestConfig(t, mailConfigRows[len(mailConfigRows)-1])
 
-	cfg := mailRuntimeConfig()
+	cfg := mailRuntimeConfig(gameconfig.Get())
 
 	if cfg.MailMaxCount != 3 || cfg.DefaultExpireDays != 7 || cfg.OneKeyClaimLimit != 2 || !cfg.AllowDeleteUnclaimed {
 		t.Fatalf("unexpected mail config: %+v", cfg)
@@ -268,19 +262,14 @@ func TestMailRuntimeConfig_UsesGameConfig(t *testing.T) {
 }
 
 func TestMailRuntimeConfig_RequiresMailConfig(t *testing.T) {
-	t.Cleanup(func() {
-		gameconfig.NewGameConfig()
-	})
-	gc := gameconfig.NewGameConfig()
-	gc.Tables = &gamecfg.Tables{}
-
+	// 本地构造缺失配表实例,不碰全局(避免污染其他测试的配表状态)
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected panic when mail config is missing")
 		}
 	}()
 
-	_ = mailRuntimeConfig()
+	_ = mailRuntimeConfig(&gameconfig.GameConfig{Tables: &gamecfg.Tables{}})
 }
 
 func TestValidateSendMailOpts_RejectsOverLimitText(t *testing.T) {
@@ -322,25 +311,23 @@ func TestRoleMainOnNotifyMessage_RefreshesMailBeforeNotify(t *testing.T) {
 	role.Mail = &RoleMail{}
 
 	refreshCalled := false
-	patchRefresh := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMail{}), "RefreshMailCache",
-		func(mail *RoleMail, _ context.Context) error {
-			refreshCalled = true
-			mail.mailCache = []MailView{
-				{ID: 1, IsRead: false},
-				{ID: 2, IsRead: true, Attachments: []bag.Good{{GoodID: 1, Num: 1}}},
-			}
-			return nil
-		},
-	)
-	defer patchRefresh.Reset()
+	origRefresh := refreshMailCache
+	refreshMailCache = func(mail *RoleMail, _ context.Context) error {
+		refreshCalled = true
+		mail.mailCache = []MailView{
+			{ID: 1, IsRead: false},
+			{ID: 2, IsRead: true, Attachments: []bag.Good{{GoodID: 1, Num: 1}}},
+		}
+		return nil
+	}
+	t.Cleanup(func() { refreshMailCache = origRefresh })
 
 	var sent proto.Message
-	patchSend := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {
-			sent = msg
-		},
-	)
-	defer patchSend.Reset()
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
+		sent = msg
+	}
+	t.Cleanup(func() { sendClient = origSend })
 
 	if err := role.OnNotifyMessage(ctx, &rolelib.OnRoleNotifyMsg{Msg: &pb.NotifyMailUpdate{}}); err != nil {
 		t.Fatal(err)

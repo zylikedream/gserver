@@ -12,11 +12,20 @@ import (
 	"gserver/src/lib"
 	"gserver/src/pkg/gameconfig"
 
+	"gorm.io/gorm"
+
 	"github.com/gogf/gf/v2/frame/g"
 )
 
 type GuildHandler struct {
 	g.Meta `method:"POST"`
+	db     *gorm.DB
+	cfg    *gameconfig.GameConfig
+}
+
+// NewGuildHandler 构造注入依赖(组装根)。
+func NewGuildHandler() *GuildHandler {
+	return &GuildHandler{db: gxypgx.DB(), cfg: gameconfig.Get()}
 }
 
 // ===== 创建公会 =====
@@ -33,7 +42,7 @@ type CreateGuildReq struct {
 func (h *GuildHandler) Create(ctx context.Context, req *CreateGuildReq) (any, error) {
 	// 检查名称唯一性
 	var count int64
-	gxypgx.DB().Model(&Guild{}).Where("name = ?", req.Name).Count(&count)
+	h.db.Model(&Guild{}).Where("name = ?", req.Name).Count(&count)
 	if count > 0 {
 		return nil, gxyhttp.NewErrCode(1, "公会名称已存在")
 	}
@@ -50,24 +59,24 @@ func (h *GuildHandler) Create(ctx context.Context, req *CreateGuildReq) (any, er
 			{Content: "公会创建成功", CreatedAt: time.Now()},
 		},
 	}
-	if err := gxypgx.DB().Create(guild).Error; err != nil {
+	if err := h.db.Create(guild).Error; err != nil {
 		return nil, gxyhttp.NewErrCode(1, "创建公会失败: "+err.Error())
 	}
 
 	// 更新 role_guild
-	if err := gxypgx.DB().Exec(
+	if err := h.db.Exec(
 		"INSERT INTO role_guild (role_id, guild_id) VALUES (?, ?) ON CONFLICT (role_id) DO UPDATE SET guild_id = ?",
 		req.LeaderID, guild.ID, guild.ID,
 	).Error; err != nil {
-		gxypgx.DB().Delete(guild)
+		h.db.Delete(guild)
 		return nil, gxyhttp.NewErrCode(1, "创建公会失败: "+err.Error())
 	}
 
 	// 激活 guild actor（DelayInit 从 DB 加载）
 	_, err := lib.GetGuildActor(ctx, guild.ID)
 	if err != nil {
-		gxypgx.DB().Delete(guild)
-		gxypgx.DB().Delete(GuildRoleState{GuildID: guild.ID})
+		h.db.Delete(guild)
+		h.db.Delete(GuildRoleState{GuildID: guild.ID})
 		return nil, err
 	}
 
@@ -84,14 +93,14 @@ type SearchGuildReq struct {
 func (h *GuildHandler) Search(ctx context.Context, req *SearchGuildReq) (any, error) {
 	var guilds []Guild
 	if id, err := strconv.ParseInt(req.Keyword, 10, 64); err == nil {
-		gxypgx.DB().Where("id = ?", id).Find(&guilds)
+		h.db.Where("id = ?", id).Find(&guilds)
 	} else {
-		gxypgx.DB().Where("name LIKE ?", "%"+req.Keyword+"%").Limit(20).Find(&guilds)
+		h.db.Where("name LIKE ?", "%"+req.Keyword+"%").Limit(20).Find(&guilds)
 	}
 
 	result := make([]*pb.PGuildBasic, 0, len(guilds))
 	for _, guild := range guilds {
-		cfg := gameconfig.GameConfig().TbGuildLevel.Get(guild.Level)
+		cfg := h.cfg.TbGuildLevel.Get(guild.Level)
 		memberLimit := int32(30)
 		if cfg != nil {
 			memberLimit = cfg.MemberLimit

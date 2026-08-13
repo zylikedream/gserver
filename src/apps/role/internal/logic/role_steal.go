@@ -8,7 +8,6 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/pkg/gameconfig"
 )
 
 var (
@@ -102,16 +101,16 @@ func todayStr() string {
 func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriendInfo) (*pb.RspPlotFriendInfo, error) {
 	friendID := req.FriendId
 
-	if !isFriend(ctx, r.RoleID, friendID) {
+	if !isFriend(ctx, r.DB(), r.RoleID, friendID) {
 		return nil, ErrNotFriend
 	}
 
-	plots, ok := getRolePlotSnapshot(ctx, friendID)
+	plots, ok := getRolePlotSnapshot(ctx, r.Deps(), friendID)
 	if !ok {
 		return &pb.RspPlotFriendInfo{}, nil
 	}
 
-	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
+	cfg := r.Cfg().TbFriendConfig.Get()
 	dailyCount := r.getDailyCount(friendID)
 
 	rsp := &pb.RspPlotFriendInfo{
@@ -130,8 +129,8 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 		}
 
 		if state == int32(pb.PlotState_PLOT_HARVESTABLE) {
-			stolen, _ := countPlotStolen(ctx, friendID, plot.PlotID)
-			if stolen < int64(cfg.FlowerMaxBeStolenTimes) && dailyCount < cfg.StealPerFriendDailyLimit && !hasStealRecord(ctx, r.RoleID, friendID, plot.PlotID) {
+			stolen, _ := countPlotStolen(ctx, r.DB(), friendID, plot.PlotID)
+			if stolen < int64(cfg.FlowerMaxBeStolenTimes) && dailyCount < cfg.StealPerFriendDailyLimit && !hasStealRecord(ctx, r.DB(), r.RoleID, friendID, plot.PlotID) {
 				info.CanSteal = true
 			}
 		}
@@ -145,9 +144,9 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb.RspPlotSteal, error) {
 	friendID := req.FriendId
 	plotID := req.PlotId
-	cfg := gameconfig.GameConfig().TbFriendConfig.Get()
+	cfg := r.Cfg().TbFriendConfig.Get()
 
-	if !isFriend(ctx, r.RoleID, friendID) {
+	if !isFriend(ctx, r.DB(), r.RoleID, friendID) {
 		return nil, ErrNotFriend
 	}
 
@@ -158,7 +157,7 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 
 	var rsp *pb.RspPlotSteal
 	err := withPlotLocks(ctx, friendID, []int32{plotID}, func() error {
-		plots, ok := getRolePlotSnapshot(ctx, friendID)
+		plots, ok := getRolePlotSnapshot(ctx, r.Deps(), friendID)
 		if !ok {
 			return ErrStealLocked
 		}
@@ -171,7 +170,7 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 			return ErrStealNotHarvestable
 		}
 
-		stolenCount, err := countPlotStolen(ctx, friendID, plotID)
+		stolenCount, err := countPlotStolen(ctx, r.DB(), friendID, plotID)
 		if err != nil {
 			return err
 		}
@@ -179,11 +178,11 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 			return ErrStealFlowerFull
 		}
 
-		if hasStealRecord(ctx, r.RoleID, friendID, plotID) {
+		if hasStealRecord(ctx, r.DB(), r.RoleID, friendID, plotID) {
 			return ErrStealLocked
 		}
 
-		if err := createStealRecord(ctx, &StealRecord{
+		if err := createStealRecord(ctx, r.DB(), &StealRecord{
 			OwnerID:   friendID,
 			PlotID:    plotID,
 			StealerID: r.RoleID,
@@ -195,7 +194,7 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 
 		r.incDailyCount(friendID)
 
-		flowerCfg := gameconfig.GameConfig().TbFlower.Get(plot.FlowerID)
+		flowerCfg := r.Cfg().TbFlower.Get(plot.FlowerID)
 		if flowerCfg == nil {
 			return errors.New("flower config not found")
 		}

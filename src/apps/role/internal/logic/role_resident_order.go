@@ -9,7 +9,6 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/pkg/gameconfig"
 	"gserver/src/util"
 )
 
@@ -57,7 +56,7 @@ func (r *RoleResidentOrder) OnCreate(ctx context.Context) {
 	if r.Role != nil && r.Role.Basic != nil {
 		playerLevel = r.Role.Basic.Level
 	}
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range r.Cfg().TbResidentOrderSlot.GetDataList() {
 		if cfg.UnlockLevel <= playerLevel {
 			r.refreshSlot(cfg.Id)
 		}
@@ -72,12 +71,12 @@ func (r *RoleResidentOrder) OnModInit(ctx context.Context) error {
 // ========== 订单生成 ==========
 
 func (r *RoleResidentOrder) refreshSlot(slotID int32) {
-	slotCfg := gameconfig.GameConfig().TbResidentOrderSlot.Get(slotID)
+	slotCfg := r.Cfg().TbResidentOrderSlot.Get(slotID)
 	if slotCfg == nil {
 		delete(r.Slots, slotID)
 		return
 	}
-	tpl := gameconfig.GameConfig().TbResidentOrder.Get(slotCfg.OrderId)
+	tpl := r.Cfg().TbResidentOrder.Get(slotCfg.OrderId)
 	if tpl == nil {
 		delete(r.Slots, slotID)
 		return
@@ -123,7 +122,7 @@ func (r *RoleResidentOrder) availableFlowerProducts() []int32 {
 		if flower.State != int32(pb.FlowerState_FLOWER_HARVESTED) {
 			continue
 		}
-		cfg := gameconfig.GameConfig().TbFlower.Get(flower.FlowerID)
+		cfg := r.Cfg().TbFlower.Get(flower.FlowerID)
 		if cfg != nil {
 			products = append(products, cfg.HarvestItemId)
 		}
@@ -177,7 +176,7 @@ func (r *RoleResidentOrder) ensureUnlockedSlots() {
 		playerLevel = r.Role.Basic.Level
 	}
 	dirty := false
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, cfg := range r.Cfg().TbResidentOrderSlot.GetDataList() {
 		if cfg.UnlockLevel <= playerLevel {
 			if _, ok := r.Slots[cfg.Id]; !ok {
 				r.refreshSlot(cfg.Id)
@@ -195,7 +194,7 @@ func (r *RoleResidentOrder) ensureUnlockedSlots() {
 func (r *RoleResidentOrder) ReqResidentOrderInfo(ctx context.Context, req *pb.ReqResidentOrderInfo) (*pb.RspResidentOrderInfo, error) {
 	r.ensureUnlockedSlots()
 	var slots []*pb.PResidentOrderSlot
-	for _, slotCfg := range gameconfig.GameConfig().TbResidentOrderSlot.GetDataList() {
+	for _, slotCfg := range r.Cfg().TbResidentOrderSlot.GetDataList() {
 		slot := r.Slots[slotCfg.Id]
 		if slot == nil {
 			continue
@@ -240,7 +239,7 @@ func (r *RoleResidentOrder) ReqResidentOrderSubmit(ctx context.Context, req *pb.
 		return nil, err
 	}
 
-	slotCfg := gameconfig.GameConfig().TbResidentOrderSlot.Get(slot.SlotID)
+	slotCfg := r.Cfg().TbResidentOrderSlot.Get(slot.SlotID)
 
 	r.refreshSlot(req.SlotId)
 	r.CompletedCount++
@@ -258,7 +257,7 @@ func (r *RoleResidentOrder) ReqResidentOrderSubmit(ctx context.Context, req *pb.
 }
 
 func (r *RoleResidentOrder) ReqResidentOrderClaimMilestone(ctx context.Context, req *pb.ReqResidentOrderClaimMilestone) (*pb.RspResidentOrderClaimMilestone, error) {
-	cfg := gameconfig.GameConfig().TbResidentOrderProgressReward.Get(req.Id)
+	cfg := r.Cfg().TbResidentOrderProgressReward.Get(req.Id)
 	if cfg == nil {
 		return nil, ErrOrderMilestoneNotReached
 	}
@@ -286,7 +285,7 @@ func (r *RoleResidentOrder) toPResidentOrderSlot(slot *OrderSlotData, slotCfg *g
 	if slot == nil {
 		return nil
 	}
-	residentCfg := gameconfig.GameConfig().TbResident.Get(slot.ResidentID)
+	residentCfg := r.Cfg().TbResident.Get(slot.ResidentID)
 	residentName := ""
 	residentDesc := ""
 	if residentCfg != nil {
@@ -319,7 +318,7 @@ func (r *RoleResidentOrder) toPResidentOrderSlot(slot *OrderSlotData, slotCfg *g
 
 func (r *RoleResidentOrder) buildMilestones() []*pb.PResidentOrderMilestone {
 	milestones := make([]*pb.PResidentOrderMilestone, 0)
-	for _, cfg := range gameconfig.GameConfig().TbResidentOrderProgressReward.GetDataList() {
+	for _, cfg := range r.Cfg().TbResidentOrderProgressReward.GetDataList() {
 		claimed := false
 		for _, c := range r.ClaimedMilestones {
 			if c == cfg.Id {

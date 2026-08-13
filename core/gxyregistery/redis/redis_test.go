@@ -7,7 +7,6 @@ import (
 
 	"gserver/core/gxyredis"
 
-	"github.com/agiledragon/gomonkey/v2"
 	"github.com/gogf/gf/v2/net/gsvc"
 	"github.com/redis/go-redis/v9"
 )
@@ -43,11 +42,13 @@ func (m *mockRedisClient) Do(ctx context.Context, args ...any) *redis.Cmd {
 	return cmd
 }
 
-// patchRedis patches gxyredis.Redis to return the mock client.
-func patchRedis(mock *mockRedisClient) *gomonkey.Patches {
-	return gomonkey.ApplyFunc(gxyredis.Redis, func() gxyredis.Client {
+// patchRedis 替换 getRedis 返回 mock 客户端。
+func patchRedis(mock *mockRedisClient) func() {
+	orig := getRedis
+	getRedis = func() gxyredis.Client {
 		return gxyredis.Client(mock)
-	})
+	}
+	return func() { getRedis = orig }
 }
 
 // ---- gsvc.Service stub for tests ----
@@ -101,7 +102,7 @@ func TestRegistry_RegisterAndDeregister(t *testing.T) {
 	}
 
 	p := patchRedis(mock)
-	defer p.Reset()
+	defer p()
 
 	r := New(0)
 	svc := &testService{
@@ -140,7 +141,7 @@ func TestRegistry_Search(t *testing.T) {
 	}
 
 	p := patchRedis(mock)
-	defer p.Reset()
+	defer p()
 
 	services, err := r.Search(context.Background(), gsvc.SearchInput{Name: "role"})
 	if err != nil {
@@ -172,7 +173,7 @@ func TestRegistry_Search_Empty(t *testing.T) {
 	}
 
 	p := patchRedis(mock)
-	defer p.Reset()
+	defer p()
 
 	r := New(0)
 	services, err := r.Search(context.Background(), gsvc.SearchInput{Name: "nonexistent"})
@@ -226,7 +227,7 @@ func TestWatcherHashChangesWhenServiceValueChanges(t *testing.T) {
 	}
 
 	p := patchRedis(mock)
-	defer p.Reset()
+	defer p()
 
 	r := New(0)
 	w := &watcher{registry: r, name: "role"}
