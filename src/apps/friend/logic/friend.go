@@ -26,8 +26,8 @@ type Config struct {
 	DeleteReapplyCD   int32
 }
 
-func LoadConfig() *Config {
-	tb := gameconfig.Get().TbFriendConfig.Get()
+func LoadConfig(c *gameconfig.GameConfig) *Config {
+	tb := c.TbFriendConfig.Get()
 	return &Config{
 		FriendMaxCount:    tb.FriendMaxCount,
 		ApplySendLimit:    tb.ApplySendLimit,
@@ -56,12 +56,12 @@ func lockBoth(tx *gorm.DB, a, b int64) (first, second *FriendData, err error) {
 }
 
 // SendRequest 发起好友申请
-func SendRequest(ctx context.Context, fromID, toID int64, cfg *Config) error {
+func SendRequest(ctx context.Context, fromID, toID int64, cfg *Config, db *gorm.DB) error {
 	if fromID == toID {
 		return ErrSelfAdd
 	}
 
-	tx := openTx(ctx)
+	tx := openTx(ctx, db)
 	defer tx.Rollback()
 
 	a, b, err := lockBoth(tx, fromID, toID)
@@ -108,8 +108,8 @@ func SendRequest(ctx context.Context, fromID, toID int64, cfg *Config) error {
 }
 
 // AcceptRequest 同意好友申请
-func AcceptRequest(ctx context.Context, myID, fromID int64, cfg *Config) error {
-	tx := openTx(ctx)
+func AcceptRequest(ctx context.Context, myID, fromID int64, cfg *Config, db *gorm.DB) error {
+	tx := openTx(ctx, db)
 	defer tx.Rollback()
 
 	a, b, err := lockBoth(tx, myID, fromID)
@@ -152,8 +152,8 @@ func AcceptRequest(ctx context.Context, myID, fromID int64, cfg *Config) error {
 }
 
 // RejectRequest 拒绝好友申请
-func RejectRequest(ctx context.Context, myID, fromID int64) error {
-	tx := openTx(ctx)
+func RejectRequest(ctx context.Context, myID, fromID int64, db *gorm.DB) error {
+	tx := openTx(ctx, db)
 	defer tx.Rollback()
 
 	a, b, err := lockBoth(tx, myID, fromID)
@@ -183,8 +183,8 @@ func RejectRequest(ctx context.Context, myID, fromID int64) error {
 }
 
 // RemoveFriend 删除好友
-func RemoveFriend(ctx context.Context, myID, targetID int64, cfg *Config) error {
-	tx := openTx(ctx)
+func RemoveFriend(ctx context.Context, myID, targetID int64, cfg *Config, db *gorm.DB) error {
+	tx := openTx(ctx, db)
 	defer tx.Rollback()
 
 	a, b, err := lockBoth(tx, myID, targetID)

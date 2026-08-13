@@ -6,10 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"gserver/core/gxypgx"
-	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
-	"gserver/src/pkg/gameconfig"
+	"gserver/src/pkg/deps"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -47,9 +45,9 @@ return 1`)
 
 // ===== 大厅操作 =====
 
-func JoinLobby(ctx context.Context, roleID int64) (int64, error) {
-	maxCap := int(gameconfig.Get().TbGlobalConfig.Get().WorldChatLobbyMaxPlayers)
-	cmd := luaJoinLobby.Run(ctx, gxyredis.Redis(), []string{"chat:lobby:sizes"},
+func JoinLobby(ctx context.Context, d deps.Deps, roleID int64) (int64, error) {
+	maxCap := int(d.Cfg.TbGlobalConfig.Get().WorldChatLobbyMaxPlayers)
+	cmd := luaJoinLobby.Run(ctx, d.Redis, []string{"chat:lobby:sizes"},
 		maxCap, strconv.FormatInt(roleID, 10))
 	lobbyStr, err := cmd.Text()
 	if err != nil {
@@ -62,8 +60,8 @@ func JoinLobby(ctx context.Context, roleID int64) (int64, error) {
 	return lobbyID, nil
 }
 
-func LeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
-	cmd := luaLeaveLobby.Run(ctx, gxyredis.Redis(), nil,
+func LeaveLobby(ctx context.Context, d deps.Deps, roleID, lobbyID int64) error {
+	cmd := luaLeaveLobby.Run(ctx, d.Redis, nil,
 		strconv.FormatInt(roleID, 10), strconv.FormatInt(lobbyID, 10))
 	if _, err := cmd.Int(); err != nil {
 		return fmt.Errorf("chat leave lobby: %w", err)
@@ -73,22 +71,22 @@ func LeaveLobby(ctx context.Context, roleID, lobbyID int64) error {
 
 // ===== 私聊 (PostgreSQL) =====
 
-func StorePrivateMsg(ctx context.Context, senderID, targetID int64, content string) (int64, error) {
+func StorePrivateMsg(ctx context.Context, d deps.Deps, senderID, targetID int64, content string) (int64, error) {
 	minID, maxID := sortIDs(senderID, targetID)
 	msg := &ChatPrivateMessage{
 		MinRoleID: minID, MaxRoleID: maxID,
 		SenderID: senderID, Content: content, CreatedAt: time.Now(),
 	}
-	if err := gxypgx.DB().WithContext(ctx).Create(msg).Error; err != nil {
+	if err := d.DB.WithContext(ctx).Create(msg).Error; err != nil {
 		return 0, fmt.Errorf("chat store private msg: %w", err)
 	}
 	return msg.CreatedAt.Unix(), nil
 }
 
-func GetPrivateHistory(ctx context.Context, roleID, friendID int64, count int) ([]*pb.PChatMsg, error) {
+func GetPrivateHistory(ctx context.Context, d deps.Deps, roleID, friendID int64, count int) ([]*pb.PChatMsg, error) {
 	minID, maxID := sortIDs(roleID, friendID)
 	var msgs []ChatPrivateMessage
-	err := gxypgx.DB().WithContext(ctx).
+	err := d.DB.WithContext(ctx).
 		Where("min_role_id = ? AND max_role_id = ?", minID, maxID).
 		Order("created_at DESC").Limit(count).
 		Find(&msgs).Error
@@ -111,19 +109,19 @@ func GetPrivateHistory(ctx context.Context, roleID, friendID int64, count int) (
 
 // ===== 系统消息 (PostgreSQL) =====
 
-func StoreSystemMsg(ctx context.Context, content string) (int64, error) {
+func StoreSystemMsg(ctx context.Context, d deps.Deps, content string) (int64, error) {
 	msg := &ChatSystemMessage{
 		Content: content, CreatedAt: time.Now(),
 	}
-	if err := gxypgx.DB().WithContext(ctx).Create(msg).Error; err != nil {
+	if err := d.DB.WithContext(ctx).Create(msg).Error; err != nil {
 		return 0, fmt.Errorf("chat store system msg: %w", err)
 	}
 	return msg.CreatedAt.Unix(), nil
 }
 
-func GetSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, error) {
+func GetSystemHistory(ctx context.Context, d deps.Deps, count int) ([]*pb.PChatMsg, error) {
 	var msgs []ChatSystemMessage
-	err := gxypgx.DB().WithContext(ctx).
+	err := d.DB.WithContext(ctx).
 		Order("created_at DESC").Limit(count).
 		Find(&msgs).Error
 	if err != nil {
@@ -148,4 +146,3 @@ func sortIDs(a, b int64) (int64, int64) {
 	}
 	return b, a
 }
-

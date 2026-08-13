@@ -30,7 +30,7 @@ func (s *guildHttpService) ServiceName() string {
 func (s *guildHttpService) OnModStart(ctx context.Context) error {
 	port := g.Cfg().MustGet(ctx, "port.guild").Int()
 	svr := gxyhttp.HttpSystem().NewHttpServer(fmt.Sprintf("%s:%d", s.host, port))
-	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), &guildlogic.GuildHandler{})
+	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), guildlogic.NewGuildHandler())
 	gxylog.Info(ctx, "guild server starting")
 	if err := svr.Start(); err != nil {
 		return err

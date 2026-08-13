@@ -43,12 +43,15 @@ type accountStore interface {
 	CreateAccountWithIdentity(ctx context.Context, account *Account, identity *AccountIdentity) error
 }
 
-type gormAccountStore struct{}
+type gormAccountStore struct {
+	// db 惰性获取:包级初始化不触碰全局,方法调用时才取(测试可注入)。
+	db func() *gorm.DB
+}
 
 var (
-	accounts         accountStore = gormAccountStore{}
-	generateAccountID             = defaultGenerateAccountID
-	generateRoleID                = defaultGenerateRoleID
+	accounts          accountStore = gormAccountStore{db: gxypgx.DB}
+	generateAccountID              = defaultGenerateAccountID
+	generateRoleID                 = defaultGenerateRoleID
 )
 
 func LoadAccountByIdentity(ctx context.Context, platform string, platformUID string) (*Account, error) {
@@ -111,9 +114,9 @@ func CreateAccountWithIdentity(ctx context.Context, platform string, platformUID
 	return account, true, nil
 }
 
-func (gormAccountStore) FindAccountByIdentity(ctx context.Context, platform string, platformUID string) (*Account, error) {
+func (s gormAccountStore) FindAccountByIdentity(ctx context.Context, platform string, platformUID string) (*Account, error) {
 	var account Account
-	err := gxypgx.DB().WithContext(ctx).
+	err := s.db().WithContext(ctx).
 		Table(account.TableName()).
 		Select("account.*").
 		Joins("JOIN account_identity ON account_identity.account_id = account.account_id").
@@ -128,8 +131,8 @@ func (gormAccountStore) FindAccountByIdentity(ctx context.Context, platform stri
 	return nil, err
 }
 
-func (gormAccountStore) CreateAccountWithIdentity(ctx context.Context, account *Account, identity *AccountIdentity) error {
-	return gxypgx.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+func (s gormAccountStore) CreateAccountWithIdentity(ctx context.Context, account *Account, identity *AccountIdentity) error {
+	return s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(account).Error; err != nil {
 			return err
 		}

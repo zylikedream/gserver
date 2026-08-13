@@ -3,9 +3,9 @@ package logic
 import (
 	"context"
 
-	"gserver/core/gxypgx"
+	"gorm.io/gorm"
 )
 
-func InitAccountSchema(ctx context.Context) error {
-	return gxypgx.DB().WithContext(ctx).AutoMigrate(&Account{}, &AccountIdentity{})
+func InitAccountSchema(ctx context.Context, db *gorm.DB) error {
+	return db.WithContext(ctx).AutoMigrate(&Account{}, &AccountIdentity{})
 }

@@ -7,14 +7,24 @@ import (
 	"strings"
 
 	"gserver/core/gxyhttp"
+	"gserver/core/gxypgx"
+	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
 	"gserver/src/lib"
+	"gserver/src/pkg/deps"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
 
 type ChatHandler struct {
 	g.Meta `method:"POST"`
+	d      deps.Deps
+}
+
+// NewChatHandler 构造注入依赖(组装根)。
+func NewChatHandler() *ChatHandler {
+	return &ChatHandler{d: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()}}
 }
 
 // ===== 大厅 =====
@@ -25,7 +35,7 @@ type JoinLobbyReq struct {
 }
 
 func (h *ChatHandler) JoinLobby(ctx context.Context, req *JoinLobbyReq) (any, error) {
-	lobbyID, err := JoinLobby(ctx, req.RoleID)
+	lobbyID, err := JoinLobby(ctx, h.d, req.RoleID)
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
@@ -39,7 +49,7 @@ type LeaveLobbyReq struct {
 }
 
 func (h *ChatHandler) LeaveLobby(ctx context.Context, req *LeaveLobbyReq) (any, error) {
-	if err := LeaveLobby(ctx, req.RoleID, req.LobbyID); err != nil {
+	if err := LeaveLobby(ctx, h.d, req.RoleID, req.LobbyID); err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
 	return nil, nil
@@ -59,7 +69,7 @@ func (h *ChatHandler) StorePrivateMsg(ctx context.Context, req *StorePrivateMsgR
 	if err := json.Unmarshal([]byte(req.Sender), &sender); err != nil {
 		return nil, gxyhttp.NewErrCode(1, "parse sender error")
 	}
-	ts, err := StorePrivateMsg(ctx, sender.GetRoleId(), req.TargetID, strings.TrimSpace(req.Content))
+	ts, err := StorePrivateMsg(ctx, h.d, sender.GetRoleId(), req.TargetID, strings.TrimSpace(req.Content))
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
@@ -78,7 +88,7 @@ func (h *ChatHandler) PrivateHistory(ctx context.Context, req *PrivateHistoryReq
 	if count <= 0 {
 		count = 50
 	}
-	msgs, err := GetPrivateHistory(ctx, req.RoleID, req.FriendID, count)
+	msgs, err := GetPrivateHistory(ctx, h.d, req.RoleID, req.FriendID, count)
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
@@ -94,7 +104,7 @@ type StoreSystemMsgReq struct {
 
 func (h *ChatHandler) StoreSystemMsg(ctx context.Context, req *StoreSystemMsgReq) (any, error) {
 	content := strings.TrimSpace(req.Content)
-	ts, err := StoreSystemMsg(ctx, content)
+	ts, err := StoreSystemMsg(ctx, h.d, content)
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}
@@ -116,7 +126,7 @@ func (h *ChatHandler) SystemHistory(ctx context.Context, req *SystemHistoryReq) 
 	if count <= 0 {
 		count = 50
 	}
-	msgs, err := GetSystemHistory(ctx, count)
+	msgs, err := GetSystemHistory(ctx, h.d, count)
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
 	}

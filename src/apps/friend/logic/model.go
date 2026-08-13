@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"gserver/core/gxypgx"
-
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -115,8 +113,8 @@ func (FriendRelation) TableName() string { return "friend_relation" }
 
 // ---- DB 操作 ----
 
-func openTx(ctx context.Context) *gorm.DB {
-	return gxypgx.DB().WithContext(ctx).Begin()
+func openTx(ctx context.Context, db *gorm.DB) *gorm.DB {
+	return db.WithContext(ctx).Begin()
 }
 
 func lockRow(tx *gorm.DB, playerID int64) (*FriendData, error) {

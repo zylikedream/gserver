@@ -28,7 +28,7 @@ func (s *friendService) ServiceName() string {
 func (s *friendService) OnModStart(ctx context.Context) error {
 	port := g.Cfg().MustGet(ctx, "port.friend").Int()
 	svr := gxyhttp.HttpSystem().NewHttpServer(fmt.Sprintf("%s:%d", s.host, port))
-	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), &fl.FriendHandler{})
+	gxyhttp.SetHandler(svr, ctx, s.ServiceName(), fl.NewFriendHandler())
 	gxylog.Info(ctx, "friend server starting")
 	if err := svr.Start(); err != nil {
 		return err

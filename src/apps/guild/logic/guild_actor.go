@@ -16,6 +16,8 @@ import (
 	"gserver/src/apps/role"
 	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
+
+	"gorm.io/gorm"
 	"gserver/src/util"
 
 	"github.com/gogf/gf/v2/util/gconv"
@@ -30,11 +32,14 @@ type GuildActor struct {
 	*gxyactor.ActorBase
 	GuildID int64
 	Data    *Guild
+
+	db  *gorm.DB
+	cfg *gameconfig.GameConfig
 }
 
 func NewGuildActor() *GuildActor {
 	ctx := gxylog.NewContext(context.Background(), "guild")
-	g := &GuildActor{}
+	g := &GuildActor{db: gxypgx.DB(), cfg: gameconfig.Get()}
 	g.ActorBase = gxyactor.NewActorBase(ctx, g, "guild")
 	return g
 }
@@ -54,7 +59,7 @@ func (g *GuildActor) Init(ctx context.Context, args []any) error {
 
 func (g *GuildActor) DelayInit(ctx context.Context) error {
 	g.Data = &Guild{}
-	if err := gxypgx.DB().First(g.Data, g.GuildID).Error; err != nil {
+	if err := g.db.First(g.Data, g.GuildID).Error; err != nil {
 		return err
 	}
 
@@ -86,7 +91,7 @@ func (g *GuildActor) save(ctx context.Context) {
 	if g.Data == nil {
 		return
 	}
-	gxypgx.DB().Save(g.Data)
+	g.db.Save(g.Data)
 }
 
 func (g *GuildActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo) {
@@ -117,7 +122,7 @@ func (g *GuildActor) addLog(ctx context.Context, content string) {
 	if len(g.Data.Logs) > MaxLogCount {
 		g.Data.Logs = g.Data.Logs[len(g.Data.Logs)-MaxLogCount:]
 	}
-	gxypgx.DB().Save(g.Data)
+	g.db.Save(g.Data)
 }
 
 // ===== 通知（携带数据） =====
@@ -158,7 +163,7 @@ func (g *GuildActor) notifyApplyUpdate(ctx context.Context) {
 
 func (g *GuildActor) buildNotifyGuildInfo(ctx context.Context) *pb.NotifyGuildInfo {
 	guild := g.Data
-	levelCfg := getLevelConfig(guild.Level)
+	levelCfg := getLevelConfig(g.cfg, guild.Level)
 	memberLimit := int32(30)
 	if levelCfg != nil {
 		memberLimit = levelCfg.MemberLimit
@@ -178,7 +183,7 @@ func (g *GuildActor) buildNotifyGuildInfo(ctx context.Context) *pb.NotifyGuildIn
 
 func (g *GuildActor) buildNotifyGuildBasic(_ context.Context) *pb.NotifyGuildBasic {
 	guild := g.Data
-	levelCfg := getLevelConfig(guild.Level)
+	levelCfg := getLevelConfig(g.cfg, guild.Level)
 	memberLimit := int32(30)
 	if levelCfg != nil {
 		memberLimit = levelCfg.MemberLimit
@@ -263,8 +268,8 @@ func (g *GuildActor) getPendingApplies() []*GuildApply {
 	return result
 }
 
-func getLevelConfig(level int32) *gamecfg.GardenGuildLevel {
-	return gameconfig.Get().TbGuildLevel.Get(level)
+func getLevelConfig(cfg *gameconfig.GameConfig, level int32) *gamecfg.GardenGuildLevel {
+	return cfg.TbGuildLevel.Get(level)
 }
 
 // ===== 错误变量 =====
@@ -320,7 +325,7 @@ func (g *GuildActor) ApplyGuild(ctx context.Context, req *pb.ReqGuildApply) (*pb
 
 // createApply — 创建申请
 func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
-	cfg := gameconfig.Get().TbGuildConfig.Get()
+	cfg := g.cfg.TbGuildConfig.Get()
 	if cfg == nil {
 		return nil, errors.New("公会配置未找到")
 	}
@@ -339,7 +344,7 @@ func (g *GuildActor) createApply(ctx context.Context, req *pb.ReqGuildApply) (*p
 
 // addMember — 原子操作：核验成员上限 → 原子门 → 追加成员 → 通知
 func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
-	levelCfg := gameconfig.Get().TbGuildLevel.Get(g.Data.Level)
+	levelCfg := g.cfg.TbGuildLevel.Get(g.Data.Level)
 	if levelCfg == nil {
 		return errors.New("公会等级配置未找到")
 	}
@@ -348,7 +353,7 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 	}
 
 	// 原子门：INSERT OR UPDATE，WHERE guild_id=0 确保只对无公会玩家生效
-	result := gxypgx.DB().Clauses(clause.OnConflict{
+	result := g.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "role_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
 			"guild_id": g.GuildID,
@@ -458,7 +463,7 @@ func (g *GuildActor) KickMember(ctx context.Context, operatorID int64, req *pb.R
 	g.Data.Members = removeMember(g.Data.Members, req.TargetId)
 	g.Data.MemberCount = int32(len(g.Data.Members))
 
-	gxypgx.DB().Model(&GuildRoleState{}).
+	g.db.Model(&GuildRoleState{}).
 		Where("role_id = ?", req.TargetId).Update("guild_id", 0)
 
 	g.notifyPlayer(ctx, req.TargetId, &pb.NotifyGuildKicked{Reason: req.Reason})
@@ -605,7 +610,7 @@ func (g *GuildActor) LeaveGuild(ctx context.Context, req *pb.ReqGuildLeave) (*pb
 	}
 	g.Data.Members = removeMember(g.Data.Members, req.RoleId)
 	g.Data.MemberCount = int32(len(g.Data.Members))
-	gxypgx.DB().Model(&GuildRoleState{}).
+	g.db.Model(&GuildRoleState{}).
 		Where("role_id = ?", req.RoleId).Update("guild_id", 0)
 	g.notifyGuildInfo(ctx)
 	g.addLog(ctx, fmt.Sprintf("玩家 %d 退出公会", req.RoleId))
@@ -626,9 +631,9 @@ func (g *GuildActor) DisbandGuild(ctx context.Context, req *pb.ReqGuildDisband) 
 		g.notifyPlayer(ctx, m.RoleID, &pb.NotifyGuildKicked{Reason: "公会已解散"})
 	}
 	// 删除 guild 记录
-	gxypgx.DB().Delete(g.Data)
+	g.db.Delete(g.Data)
 	// 清理所有 role_guild
-	gxypgx.DB().Model(&GuildRoleState{}).
+	g.db.Model(&GuildRoleState{}).
 		Where("guild_id = ?", g.GuildID).Update("guild_id", 0)
 	// 停止 actor
 	g.Stop(nil)

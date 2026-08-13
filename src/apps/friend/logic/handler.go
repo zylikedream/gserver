@@ -4,13 +4,23 @@ import (
 	"context"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxypgx"
+
+	"gorm.io/gorm"
 	"gserver/src/apps/api"
+	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
 
 type FriendHandler struct {
 	g.Meta `method:"POST"`
+	db     *gorm.DB
+	cfg    *gameconfig.GameConfig
+}
+
+// NewFriendHandler 构造注入依赖(组装根)。
+func NewFriendHandler() *FriendHandler {
+	return &FriendHandler{db: gxypgx.DB(), cfg: gameconfig.Get()}
 }
 
 type SendRequestReq struct {
@@ -20,9 +30,9 @@ type SendRequestReq struct {
 }
 
 func (h *FriendHandler) SendRequest(ctx context.Context, req *SendRequestReq) (any, error) {
-	cfg := LoadConfig()
+	cfg := LoadConfig(h.cfg)
 	return batchResult(req.Bs, func(id int64) error {
-		return SendRequest(ctx, req.A, id, cfg)
+		return SendRequest(ctx, req.A, id, cfg, h.db)
 	})
 }
 
@@ -33,9 +43,9 @@ type AcceptRequestReq struct {
 }
 
 func (h *FriendHandler) AcceptRequest(ctx context.Context, req *AcceptRequestReq) (any, error) {
-	cfg := LoadConfig()
+	cfg := LoadConfig(h.cfg)
 	return batchResult(req.Bs, func(id int64) error {
-		return AcceptRequest(ctx, req.A, id, cfg)
+		return AcceptRequest(ctx, req.A, id, cfg, h.db)
 	})
 }
 
@@ -47,7 +57,7 @@ type RejectRequestReq struct {
 
 func (h *FriendHandler) RejectRequest(ctx context.Context, req *RejectRequestReq) (any, error) {
 	return batchResult(req.Bs, func(id int64) error {
-		return RejectRequest(ctx, req.A, id)
+		return RejectRequest(ctx, req.A, id, h.db)
 	})
 }
 
@@ -58,8 +68,8 @@ type RemoveFriendReq struct {
 }
 
 func (h *FriendHandler) RemoveFriend(ctx context.Context, req *RemoveFriendReq) (any, error) {
-	cfg := LoadConfig()
-	err := RemoveFriend(ctx, req.A, req.B, cfg)
+	cfg := LoadConfig(h.cfg)
+	err := RemoveFriend(ctx, req.A, req.B, cfg, h.db)
 	return nil, mapErr(err)
 }
 
@@ -70,7 +80,7 @@ type ListReq struct {
 
 func (h *FriendHandler) List(ctx context.Context, req *ListReq) (any, error) {
 	var data []FriendData
-	gxypgx.DB().WithContext(ctx).Find(&data, req.PlayerID)
+	h.db.WithContext(ctx).Find(&data, req.PlayerID)
 	if len(data) == 0 {
 		return &FriendData{PlayerID: req.PlayerID}, nil
 	}

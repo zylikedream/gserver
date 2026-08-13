@@ -7,9 +7,9 @@ import (
 )
 
 type inMemoryAccountStore struct {
-	accountsByID          map[string]*Account
-	accountsByRoleID      map[int64]*Account
-	identitiesByPlatform  map[string]*AccountIdentity
+	accountsByID         map[string]*Account
+	accountsByRoleID     map[int64]*Account
+	identitiesByPlatform map[string]*AccountIdentity
 }
 
 func newInMemoryAccountStore() *inMemoryAccountStore {

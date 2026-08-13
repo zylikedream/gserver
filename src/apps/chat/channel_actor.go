@@ -15,6 +15,8 @@ import (
 	"gserver/src/lib/rolelib"
 
 	"github.com/asynkron/protoactor-go/actor"
+
+	"gorm.io/gorm"
 )
 
 const stopTimerName = "channel_stop"
@@ -70,12 +72,14 @@ type ChannelActor struct {
 	members      map[int64]*channelMember
 	buffer       *ringBuffer
 	lastSavedSeq int
+	db           *gorm.DB
 }
 
 func NewChannelActor() *ChannelActor {
 	ctx := gxylog.NewContext(context.Background(), "channel")
 	a := &ChannelActor{
 		members: make(map[int64]*channelMember),
+		db:      gxypgx.DB(),
 	}
 	a.ActorBase = gxyactor.NewActorBase(ctx, a, "channel")
 	return a
@@ -191,7 +195,7 @@ func (a *ChannelActor) save(ctx context.Context) {
 	}
 	msgs := a.buffer.Recent(currentLen - a.lastSavedSeq)
 	for _, msg := range msgs {
-		gxypgx.DB().Table(a.channel.TableName()).Create(map[string]any{
+		a.db.Table(a.channel.TableName()).Create(map[string]any{
 			"channel_type": a.ChannelType,
 			"channel_id":   a.ChannelID,
 			"sender_id":    0,

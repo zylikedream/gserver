@@ -3,6 +3,7 @@ package friend
 import (
 	"context"
 	"gserver/core/gxyapp"
+	"gserver/core/gxypgx"
 	"gserver/core/gxyservice"
 	fl "gserver/src/apps/friend/logic"
 	"gserver/src/pkg/gameconfig"
@@ -25,7 +26,7 @@ func (f *friendApp) ServiceName() string {
 
 func (f *friendApp) OnModInit(ctx context.Context) error {
 	f.AddModule(ctx, gameconfig.NewGameConfig())
-	fl.InitFriendSchema(ctx)
+	fl.InitFriendSchema(ctx, gxypgx.DB())
 	gxyservice.ServiceApp().LoadService(ctx, NewFriendService(f.host))
 	return nil
 }
