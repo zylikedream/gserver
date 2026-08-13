@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -63,12 +61,11 @@ func setupTestMainTask(t *testing.T) (*RoleMain, *RoleMainTask, *[]proto.Message
 	initMainTaskTestConfig(t)
 
 	var sent []proto.Message
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {
-			sent = append(sent, msg)
-		},
-	)
-	t.Cleanup(patch.Reset)
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
+		sent = append(sent, msg)
+	}
+	t.Cleanup(func() { sendClient = origSend })
 
 	main := &RoleMain{eventBus: event.NewEventBus()}
 	basicMod := &RoleBasic{

@@ -3,7 +3,6 @@ package logic
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -12,8 +11,6 @@ import (
 	"gserver/src/pkg/gameconfig"
 
 	proto "google.golang.org/protobuf/proto"
-
-	"github.com/agiledragon/gomonkey/v2"
 )
 
 // ========== test setup ==========
@@ -45,11 +42,6 @@ func initTestGameConfig(t *testing.T) {
 func setupTestBag(t *testing.T) *RoleBag {
 	t.Helper()
 	initTestGameConfig(t)
-	// 拦截 SendClient，避免 nil session 触发错误日志
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
 	main := &RoleMain{}
 	basicMod := &RoleBasic{
 		RoleModule:     RoleModule{Role: main},
@@ -526,12 +518,11 @@ func TestBagSaveGoods_NotifyRewardOpts(t *testing.T) {
 	b := setupTestBag(t)
 	ctx := context.Background()
 	var sent []proto.Message
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {
-			sent = append(sent, msg)
-		},
-	)
-	defer patch.Reset()
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
+		sent = append(sent, msg)
+	}
+	t.Cleanup(func() { sendClient = origSend })
 
 	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptNotifyReward())
 	if err != nil {

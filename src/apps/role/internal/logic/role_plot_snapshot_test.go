@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"gserver/core/gxyredis"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"gserver/core/gxyredis"
 )
 
 func newSnapshotStoreWithMiniRedis(t *testing.T) (redisRolePlotSnapshotStore, *miniredis.Miniredis) {

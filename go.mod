@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/agiledragon/gomonkey/v2 v2.14.0
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/asynkron/protoactor-go v0.0.0-20250909165758-e952b3c0850e
 	github.com/go-viper/mapstructure/v2 v2.4.0
@@ -40,7 +40,6 @@ require (
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/Workiva/go-datastructures v1.1.6 // indirect
-	github.com/alicebob/miniredis/v2 v2.38.0 // indirect
 	github.com/apache/thrift v0.21.0 // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect

@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
 	"gorm.io/gorm/schema"
 )
@@ -322,25 +320,23 @@ func TestRoleMainOnNotifyMessage_RefreshesMailBeforeNotify(t *testing.T) {
 	role.Mail = &RoleMail{}
 
 	refreshCalled := false
-	patchRefresh := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMail{}), "RefreshMailCache",
-		func(mail *RoleMail, _ context.Context) error {
-			refreshCalled = true
-			mail.mailCache = []MailView{
-				{ID: 1, IsRead: false},
-				{ID: 2, IsRead: true, Attachments: []bag.Good{{GoodID: 1, Num: 1}}},
-			}
-			return nil
-		},
-	)
-	defer patchRefresh.Reset()
+	origRefresh := refreshMailCache
+	refreshMailCache = func(mail *RoleMail, _ context.Context) error {
+		refreshCalled = true
+		mail.mailCache = []MailView{
+			{ID: 1, IsRead: false},
+			{ID: 2, IsRead: true, Attachments: []bag.Good{{GoodID: 1, Num: 1}}},
+		}
+		return nil
+	}
+	t.Cleanup(func() { refreshMailCache = origRefresh })
 
 	var sent proto.Message
-	patchSend := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {
-			sent = msg
-		},
-	)
-	defer patchSend.Reset()
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
+		sent = msg
+	}
+	t.Cleanup(func() { sendClient = origSend })
 
 	if err := role.OnNotifyMessage(ctx, &rolelib.OnRoleNotifyMsg{Msg: &pb.NotifyMailUpdate{}}); err != nil {
 		t.Fatal(err)

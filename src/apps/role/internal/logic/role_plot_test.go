@@ -3,18 +3,15 @@ package logic
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
-	"gorm.io/gorm"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 )
 
 type memoryRolePlotSnapshotStore struct {
@@ -142,22 +139,15 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	plotLocks = newMemoryPlotLockManager()
 	t.Cleanup(func() { plotLocks = oldLocks })
 
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
-	patchSave := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SaveRoleModule",
-		func(_ *RoleMain, _ context.Context, _ IRoleModule) error { return nil },
-	)
-	t.Cleanup(patchSave.Reset)
-	patchStolen := gomonkey.ApplyFunc(countPlotStolen,
-		func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil },
-	)
-	t.Cleanup(patchStolen.Reset)
-	patchDelSteal := gomonkey.ApplyFunc(deletePlotStealRecords,
-		func(_ context.Context, _ *gorm.DB, _ int64, _ int32) error { return nil },
-	)
-	t.Cleanup(patchDelSteal.Reset)
+	origSave := saveRoleModule
+	saveRoleModule = func(_ *RoleMain, _ context.Context, _ IRoleModule) error { return nil }
+	t.Cleanup(func() { saveRoleModule = origSave })
+	origCountStolen := countPlotStolen
+	countPlotStolen = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil }
+	t.Cleanup(func() { countPlotStolen = origCountStolen })
+	origDelSteal := deletePlotStealRecords
+	deletePlotStealRecords = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) error { return nil }
+	t.Cleanup(func() { deletePlotStealRecords = origDelSteal })
 
 	main := &RoleMain{RoleID: 1001}
 	basicMod := &RoleBasic{

@@ -393,7 +393,10 @@ func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo)
 func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
 }
 
-func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
+// saveRoleModule 可替换函数变量:测试可拦截保存(编译期安全)。
+var saveRoleModule = defaultSaveRoleModule
+
+func defaultSaveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
 	modState := rmod.PersistState()
 	if modState == nil {
 		return nil
@@ -424,6 +427,10 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 		saved.state.ClearDirty()
 	}
 	return nil
+}
+
+func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
+	return saveRoleModule(r, ctx, rmod)
 }
 
 func (r *RoleMain) checkRoleSaveOwner(ctx context.Context) bool {
@@ -585,7 +592,10 @@ func roleModuleTableName(rmod IRoleModule) string {
 	return ""
 }
 
-func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
+// sendClient 可替换函数变量:测试可捕获/拦截客户端消息(编译期安全,非 gomonkey 打桩)。
+var sendClient = defaultSendClient
+
+func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
 	if r.session == nil {
 		return
 	}
@@ -595,6 +605,10 @@ func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 		return
 	}
 	gxyactor.Send(ctx, r.session, svrMsg)
+}
+
+func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
+	sendClient(r, ctx, msg)
 }
 
 func (r *RoleMain) PublishRoleEvent(ctx context.Context, eventType event.EventType, data any) {

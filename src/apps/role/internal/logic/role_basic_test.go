@@ -2,15 +2,11 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/pkg/gameconfig"
-
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
 )
 
 var basicCfgInited bool
@@ -35,11 +31,6 @@ func initBasicTestConfig(t *testing.T) {
 func setupTestBasic(t *testing.T) *RoleBasic {
 	t.Helper()
 	initBasicTestConfig(t)
-
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
 
 	main := &RoleMain{}
 	basicMod := &RoleBasic{

@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -10,7 +9,6 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/pkg/gameconfig"
 
-	"github.com/agiledragon/gomonkey/v2"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -81,10 +79,9 @@ func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentO
 	t.Helper()
 	initOrderTestConfig(t)
 
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, msg proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
+	origSend := sendClient
+	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {}
+	t.Cleanup(func() { sendClient = origSend })
 
 	main := &RoleMain{eventBus: event.NewEventBus()}
 	basicMod := &RoleBasic{

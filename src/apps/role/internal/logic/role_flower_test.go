@@ -3,16 +3,12 @@ package logic
 import (
 	"context"
 	"errors"
-	"reflect"
 	"testing"
 	"time"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/pkg/gameconfig"
-
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
 )
 
 // ========== test setup ==========
@@ -72,11 +68,6 @@ func initFlowerTestConfig(t *testing.T) {
 func setupTestFlower(t *testing.T) *RoleFlower {
 	t.Helper()
 	initFlowerTestConfig(t)
-
-	patch := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patch.Reset)
 
 	main := &RoleMain{}
 	basicMod := &RoleBasic{

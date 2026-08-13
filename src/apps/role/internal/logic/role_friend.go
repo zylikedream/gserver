@@ -268,7 +268,8 @@ func getRelation(ctx context.Context, myID, targetID int64) (relation, error) {
 	return relationStranger, nil
 }
 
-func isFriend(ctx context.Context, db *gorm.DB, myID, targetID int64) bool {
+// isFriend 可替换函数变量:测试可注入 mock 实现(编译期安全)。
+var isFriend = func(ctx context.Context, db *gorm.DB, myID, targetID int64) bool {
 	var count int64
 	err := db.WithContext(ctx).Table("friend_relation").
 		Where("player_id = ? AND friend_id = ?", myID, targetID).

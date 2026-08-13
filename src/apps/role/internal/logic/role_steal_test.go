@@ -2,15 +2,12 @@ package logic
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
-	"gorm.io/gorm"
 	"gserver/protocol/pb"
 
-	"github.com/agiledragon/gomonkey/v2"
-	proto "google.golang.org/protobuf/proto"
+	"gorm.io/gorm"
 )
 
 func setupTestSteal(t *testing.T) *RoleSteal {
@@ -25,26 +22,18 @@ func setupTestSteal(t *testing.T) *RoleSteal {
 	plotLocks = newMemoryPlotLockManager()
 	t.Cleanup(func() { plotLocks = oldLocks })
 
-	patchSend := gomonkey.ApplyMethod(reflect.TypeOf(&RoleMain{}), "SendClient",
-		func(_ *RoleMain, _ context.Context, _ proto.Message) {},
-	)
-	t.Cleanup(patchSend.Reset)
-	patchFriend := gomonkey.ApplyFunc(isFriend,
-		func(_ context.Context, _ *gorm.DB, _, _ int64) bool { return true },
-	)
-	t.Cleanup(patchFriend.Reset)
-	patchStolen := gomonkey.ApplyFunc(countPlotStolen,
-		func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil },
-	)
-	t.Cleanup(patchStolen.Reset)
-	patchHasStolen := gomonkey.ApplyFunc(hasStealRecord,
-		func(_ context.Context, _ *gorm.DB, _, _ int64, _ int32) bool { return false },
-	)
-	t.Cleanup(patchHasStolen.Reset)
-	patchCreate := gomonkey.ApplyFunc(createStealRecord,
-		func(_ context.Context, _ *gorm.DB, _ *StealRecord) error { return nil },
-	)
-	t.Cleanup(patchCreate.Reset)
+	origIsFriend := isFriend
+	isFriend = func(_ context.Context, _ *gorm.DB, _, _ int64) bool { return true }
+	t.Cleanup(func() { isFriend = origIsFriend })
+	origCountStolen := countPlotStolen
+	countPlotStolen = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil }
+	t.Cleanup(func() { countPlotStolen = origCountStolen })
+	origHasStolen := hasStealRecord
+	hasStealRecord = func(_ context.Context, _ *gorm.DB, _, _ int64, _ int32) bool { return false }
+	t.Cleanup(func() { hasStealRecord = origHasStolen })
+	origCreateSteal := createStealRecord
+	createStealRecord = func(_ context.Context, _ *gorm.DB, _ *StealRecord) error { return nil }
+	t.Cleanup(func() { createStealRecord = origCreateSteal })
 
 	main := &RoleMain{RoleID: 1001}
 	bagMod := &RoleBag{

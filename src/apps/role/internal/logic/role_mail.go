@@ -96,7 +96,10 @@ func (r *RoleMail) AfterLogin(ctx context.Context) {
 	}
 }
 
-func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
+// refreshMailCache 可替换函数变量:测试可拦截刷新(编译期安全)。
+var refreshMailCache = defaultRefreshMailCache
+
+func defaultRefreshMailCache(r *RoleMail, ctx context.Context) error {
 	roleID := r.RoleID
 	if r.state.States == nil {
 		r.state.States = make(MailStateMap)
@@ -135,6 +138,10 @@ func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
 
 	r.mailCache = buildMailViews(personal, system, r.state.States, now, int(r.Cfg().TbMailConfig.Get().MailMaxCount))
 	return nil
+}
+
+func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
+	return refreshMailCache(r, ctx)
 }
 
 func (r *RoleMail) OnCreate(ctx context.Context) {}
