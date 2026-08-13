@@ -73,59 +73,7 @@ const (
 
 func initPlotTestConfig(t *testing.T) {
 	t.Helper()
-	if plotCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-
-	// 物品配表从 gameconfig/json/ 加载，自动跟随配表结构变更
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// TbGardenPlot 从配表加载
-	plots := loadTestTable(t, "garden_tbgardenplot")
-	tbGardenPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	levels := loadTestTable(t, "garden_tbflowerlevel")
-	tbFlowerLevel, err := gamecfg.NewGardenTbFlowerLevel(levels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	breaks := loadTestTable(t, "garden_tbflowerbreak")
-	tbFlowerBreak, err := gamecfg.NewGardenTbFlowerBreak(breaks)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	friendConfig := loadTestTable(t, "garden_tbfriendconfig")
-	tbFriendConfig, err := gamecfg.NewGardenTbFriendConfig(friendConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbFlower: tbFlower, TbGardenPlot: tbGardenPlot,
-		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak, TbPlayerLevel: tbPlayerLevel,
-		TbFriendConfig: tbFriendConfig}
-	plotCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestPlot(t *testing.T) *RolePlot {

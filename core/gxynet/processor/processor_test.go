@@ -7,6 +7,8 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/pkg/errors"
+
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"
 	"gserver/core/gxynet/packet"
@@ -36,6 +38,9 @@ func (c *testPacketCodec) Encode(msg *message.Message) ([]byte, error) {
 }
 
 // ltivHelper 复用 packet 包内未导出的 ltiv 不可行(跨包),这里用等价构造。
+// 注意:错误语义必须与生产 ltiv.Decode 一致——head 不足返回裸哨兵,
+// body 不足返回 errors.WithStack 包装(生产 ltiv.go:75/86)。若漂移,
+// processor 的错误分类路径将失去回归保护。
 type ltivHelper struct{}
 
 func (h *ltivHelper) Decode(data []byte) (uint64, *message.Message, error) {
@@ -44,7 +49,7 @@ func (h *ltivHelper) Decode(data []byte) (uint64, *message.Message, error) {
 	}
 	size := binary.BigEndian.Uint32(data[:4])
 	if len(data) < 4+int(size) {
-		return 0, nil, packet.ErrPkgBodyNotEnough
+		return 0, nil, errors.WithStack(packet.ErrPkgBodyNotEnough)
 	}
 	body := data[4 : 4+size]
 	msg := &message.Message{}
@@ -149,6 +154,23 @@ func TestProcessor_Decode_ShortPacket(t *testing.T) {
 	consumed, msg, err := p.Decode([]byte{0x01})
 	if err != nil {
 		t.Fatalf("short packet should not error, got %v", err)
+	}
+	if consumed != 0 || msg != nil {
+		t.Fatalf("expected (0, nil), got (%d, %+v)", consumed, msg)
+	}
+}
+
+func TestProcessor_Decode_HalfPacket(t *testing.T) {
+	// 回归:生产 ltiv 对 body 不足返回 errors.WithStack 包装,
+	// processor 必须用 errors.Is 分类,否则半包触发 nil 解引用 panic(可被远程触发)。
+	p := newTestProcessor()
+	// 声明 size=100,实际只有 8 字节 body
+	data := make([]byte, 4+8)
+	binary.BigEndian.PutUint32(data[:4], 100)
+
+	consumed, msg, err := p.Decode(data)
+	if err != nil {
+		t.Fatalf("half packet should not error, got %v", err)
 	}
 	if consumed != 0 || msg != nil {
 		t.Fatalf("expected (0, nil), got (%d, %+v)", consumed, msg)

@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"errors"
 
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"
@@ -51,7 +52,9 @@ func NewProcessor(c *gcfg.Config) (Processor, error) {
 
 func (p *processor) Decode(data []byte) (uint64, *message.Message, error) {
 	pkgLen, msg, err := p.pktCodec.Decode(data)
-	if err == packet.ErrPkgBodyNotEnough || err == packet.ErrPkgHeadNotEnough { // 数据不足够，不算错误
+	// 数据不足不算错误。生产 codec 对 body 不足返回 errors.WithStack 包装,
+	// 必须用 errors.Is 而非 == 比较,否则半包/超大包会落到下面 nil 解引用。
+	if errors.Is(err, packet.ErrPkgBodyNotEnough) || errors.Is(err, packet.ErrPkgHeadNotEnough) {
 		return 0, nil, nil
 	}
 	meta := codec.MessageMetaByID(msg.Path)

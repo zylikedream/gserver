@@ -16,44 +16,7 @@ import (
 
 func initMainTaskTestConfig(t *testing.T) {
 	t.Helper()
-	gc := gameconfig.NewGameConfig()
-
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plots := loadTestTable(t, "garden_tbgardenplot")
-	tbPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mainTasks := loadTestTable(t, "garden_tbmaintask")
-	tbMainTask, err := gamecfg.NewGardenTbMainTask(mainTasks)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{
-		TbItem:        tbItem,
-		TbFlower:      tbFlower,
-		TbGardenPlot:  tbPlot,
-		TbPlayerLevel: tbPlayerLevel,
-		TbMainTask:    tbMainTask,
-	}
-	if gc.GetFirstMainTask() == nil {
-		t.Fatal("expected first main task config")
-	}
+	initAllTestConfig(t)
 }
 
 func setupTestMainTask(t *testing.T) (*RoleMain, *RoleMainTask, *[]proto.Message) {

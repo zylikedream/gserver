@@ -60,12 +60,13 @@ func TestRefreshMailCache_SQLMock(t *testing.T) {
 			AddRow(1, 1001, "personal-1", "body", nil, now-10, 0))
 	// 系统邮件查询(初始 LastSysMailID=0)
 	mock.ExpectQuery(`SELECT \* FROM "sys_mail" WHERE id > \$1 AND \(expire_at = 0 OR expire_at >= \$2\) ORDER BY id ASC LIMIT \$3`).
-		WithArgs(0, now, int(mailCfg.MailMaxCount)).
+		// now 由生产代码自行取 time.Now(),测试侧跨秒会导致精确匹配失败 → AnyArg
+		WithArgs(0, sqlmock.AnyArg(), int(mailCfg.MailMaxCount)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "title", "content", "attachments", "create_at", "expire_at"}).
 			AddRow(12, "system-1", "body", nil, now, 0))
 	// 系统邮件状态已填充 → 按 ID 回查可见系统邮件
 	mock.ExpectQuery(`SELECT \* FROM "sys_mail" WHERE id IN \(\$1\) AND \(expire_at = 0 OR expire_at >= \$2\)`).
-		WithArgs(12, now).
+		WithArgs(12, sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "title", "content", "attachments", "create_at", "expire_at"}).
 			AddRow(12, "system-1", "body", nil, now, 0))
 

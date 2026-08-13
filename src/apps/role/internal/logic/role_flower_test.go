@@ -22,47 +22,7 @@ const (
 
 func initFlowerTestConfig(t *testing.T) {
 	t.Helper()
-	if flowerCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	levels := loadTestTable(t, "garden_tbflowerlevel")
-	tbFlowerLevel, err := gamecfg.NewGardenTbFlowerLevel(levels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	breaks := loadTestTable(t, "garden_tbflowerbreak")
-	tbFlowerBreak, err := gamecfg.NewGardenTbFlowerBreak(breaks)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{
-		TbItem: tbItem, TbFlower: tbFlower,
-		TbFlowerLevel: tbFlowerLevel, TbFlowerBreak: tbFlowerBreak,
-		TbPlayerLevel: tbPlayerLevel,
-	}
-	flowerCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestFlower(t *testing.T) *RoleFlower {

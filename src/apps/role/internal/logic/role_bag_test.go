@@ -15,28 +15,9 @@ import (
 
 // ========== test setup ==========
 
-var testCfgInited bool
-
 func initTestGameConfig(t *testing.T) {
 	t.Helper()
-	if testCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{TbItem: tbItem, TbPlayerLevel: tbPlayerLevel}
-	testCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestBag(t *testing.T) *RoleBag {

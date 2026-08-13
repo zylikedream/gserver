@@ -18,18 +18,14 @@ import (
 
 func initMailTestConfig(t *testing.T, rows ...map[string]any) {
 	t.Helper()
-	gc := gameconfig.NewGameConfig()
-	if len(rows) == 0 {
-		rows = loadTestTable(t, "garden_tbmailconfig")
+	initAllTestConfig(t)
+	if len(rows) > 0 {
+		tbMailConfig, err := gamecfg.NewGardenTbMailConfig(rows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gameconfig.Get().TbMailConfig = tbMailConfig
 	}
-	tbMailConfig, err := gamecfg.NewGardenTbMailConfig(rows)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gc.Tables = &gamecfg.Tables{TbMailConfig: tbMailConfig}
-	t.Cleanup(func() {
-		gameconfig.NewGameConfig()
-	})
 }
 
 // ========== calcRedDot ==========
@@ -266,19 +262,14 @@ func TestMailRuntimeConfig_UsesGameConfig(t *testing.T) {
 }
 
 func TestMailRuntimeConfig_RequiresMailConfig(t *testing.T) {
-	t.Cleanup(func() {
-		gameconfig.NewGameConfig()
-	})
-	gc := gameconfig.NewGameConfig()
-	gc.Tables = &gamecfg.Tables{}
-
+	// 本地构造缺失配表实例,不碰全局(避免污染其他测试的配表状态)
 	defer func() {
 		if recover() == nil {
 			t.Fatal("expected panic when mail config is missing")
 		}
 	}()
 
-	_ = mailRuntimeConfig(nil)
+	_ = mailRuntimeConfig(&gameconfig.GameConfig{Tables: &gamecfg.Tables{}})
 }
 
 func TestValidateSendMailOpts_RejectsOverLimitText(t *testing.T) {

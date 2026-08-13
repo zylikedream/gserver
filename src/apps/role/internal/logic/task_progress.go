@@ -85,7 +85,7 @@ func CalcEventProgressAdd(role *RoleMain, currentProgress int32, targetType game
 		if !ok {
 			return 0
 		}
-		return getItemProgressAdd(role, role.deps.Cfg, targetParam, data)
+		return getItemProgressAdd(role, role.Cfg(), targetParam, data)
 	case gamecfg.GardenETaskTargetType_PLAYER_LEVEL:
 		data, ok := param.Data.(event.PlayerLevelEventData)
 		if !ok {

@@ -4,28 +4,14 @@ import (
 	"context"
 	"testing"
 
-	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/pkg/gameconfig"
 )
 
 var basicCfgInited bool
 
 func initBasicTestConfig(t *testing.T) {
 	t.Helper()
-	if basicCfgInited {
-		return
-	}
-	gc := gameconfig.NewGameConfig()
-
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{TbPlayerLevel: tbPlayerLevel}
-	basicCfgInited = true
+	initAllTestConfig(t)
 }
 
 func setupTestBasic(t *testing.T) *RoleBasic {

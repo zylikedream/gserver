@@ -97,11 +97,10 @@ make deploy-k8s-okg
 ### 运行测试
 
 ```bash
-# go test 需要 -gcflags=-l 禁用内联以兼容 gomonkey
 make test
 
 # 单包测试
-go test -gcflags=-l ./src/apps/role/...
+go test ./src/apps/role/...
 ```
 
 ## 项目结构

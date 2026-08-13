@@ -14,65 +14,7 @@ import (
 
 func initOrderTestConfig(t *testing.T) {
 	t.Helper()
-	gc := gameconfig.NewGameConfig()
-
-	items := loadTestTable(t, "garden_tbitem")
-	tbItem, err := gamecfg.NewGardenTbItem(items)
-	if err != nil {
-		t.Fatal(err)
-	}
-	flowers := loadTestTable(t, "garden_tbflower")
-	tbFlower, err := gamecfg.NewGardenTbFlower(flowers)
-	if err != nil {
-		t.Fatal(err)
-	}
-	plots := loadTestTable(t, "garden_tbgardenplot")
-	tbPlot, err := gamecfg.NewGardenTbGardenPlot(plots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	playerLevels := loadTestTable(t, "garden_tbplayerlevel")
-	tbPlayerLevel, err := gamecfg.NewGardenTbPlayerLevel(playerLevels)
-	if err != nil {
-		t.Fatal(err)
-	}
-	mainTasks := loadTestTable(t, "garden_tbmaintask")
-	tbMainTask, err := gamecfg.NewGardenTbMainTask(mainTasks)
-	if err != nil {
-		t.Fatal(err)
-	}
-	orderTpls := loadTestTable(t, "garden_tbresidentorder")
-	tbOrder, err := gamecfg.NewGardenTbResidentOrder(orderTpls)
-	if err != nil {
-		t.Fatal(err)
-	}
-	slots := loadTestTable(t, "garden_tbresidentorderslot")
-	tbSlot, err := gamecfg.NewGardenTbResidentOrderSlot(slots)
-	if err != nil {
-		t.Fatal(err)
-	}
-	residents := loadTestTable(t, "garden_tbresident")
-	tbResident, err := gamecfg.NewGardenTbResident(residents)
-	if err != nil {
-		t.Fatal(err)
-	}
-	milestones := loadTestTable(t, "garden_tbresidentorderprogressreward")
-	tbMilestone, err := gamecfg.NewGardenTbResidentOrderProgressReward(milestones)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	gc.Tables = &gamecfg.Tables{
-		TbItem:                        tbItem,
-		TbFlower:                      tbFlower,
-		TbGardenPlot:                  tbPlot,
-		TbPlayerLevel:                 tbPlayerLevel,
-		TbMainTask:                    tbMainTask,
-		TbResidentOrder:               tbOrder,
-		TbResidentOrderSlot:           tbSlot,
-		TbResident:                    tbResident,
-		TbResidentOrderProgressReward: tbMilestone,
-	}
+	initAllTestConfig(t)
 }
 
 func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentOrder) {

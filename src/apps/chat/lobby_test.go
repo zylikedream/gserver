@@ -4,9 +4,6 @@ package chat
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
@@ -16,26 +13,16 @@ import (
 	"gserver/src/pkg/gameconfig"
 )
 
+// loadGlobalConfig 构造自含配表(单行合成,不依赖仓库 json,配表变更不脆断)。
 func loadGlobalConfig(t *testing.T) *gamecfg.Tables {
 	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			break
-		}
-		dir = filepath.Dir(dir)
-	}
-	raw, err := os.ReadFile(filepath.Join(dir, "gameconfig/json/garden_tbglobalconfig.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var rows []map[string]any
-	if err := json.Unmarshal(raw, &rows); err != nil {
-		t.Fatal(err)
-	}
+	rows := []map[string]any{{
+		"world_chat_lobby_max_players": float64(500),
+		"init_items":                   []any{},
+		"max_energy":                   float64(100),
+		"energy_recover_sec":           float64(60),
+		"bag_max_cells":                float64(100),
+	}}
 	tbGlobal, err := gamecfg.NewGardenTbGlobalConfig(rows)
 	if err != nil {
 		t.Fatal(err)
@@ -82,10 +69,11 @@ func TestJoinLobby_FirstPlayerCreatesLobby(t *testing.T) {
 func TestJoinLobby_SameLobbyUntilFull(t *testing.T) {
 	d, srv := newChatTestDeps(t)
 	ctx := context.Background()
+	maxPlayers := int(d.Cfg.TbGlobalConfig.Get().WorldChatLobbyMaxPlayers)
 
-	// 前 500 人都在 lobby 1(maxPlayers=500)
+	// 前 maxPlayers 人都在 lobby 1
 	var firstID int64 = -1
-	for i := 1; i <= 500; i++ {
+	for i := 1; i <= maxPlayers; i++ {
 		id, err := JoinLobby(ctx, d, int64(i))
 		if err != nil {
 			t.Fatalf("join %d: %v", i, err)
@@ -97,14 +85,14 @@ func TestJoinLobby_SameLobbyUntilFull(t *testing.T) {
 			t.Fatalf("player %d expected lobby %d, got %d", i, firstID, id)
 		}
 	}
-	if size := lobbySize(t, srv, "1"); size != 500 {
-		t.Fatalf("expected lobby 1 size 500, got %d", size)
+	if size := lobbySize(t, srv, "1"); size != maxPlayers {
+		t.Fatalf("expected lobby 1 size %d, got %d", maxPlayers, size)
 	}
 
-	// 第 501 人进新 lobby
-	id, err := JoinLobby(ctx, d, 501)
+	// 溢出玩家进新 lobby
+	id, err := JoinLobby(ctx, d, int64(maxPlayers+1))
 	if err != nil {
-		t.Fatalf("join 501: %v", err)
+		t.Fatalf("join overflow: %v", err)
 	}
 	if id == firstID {
 		t.Fatal("expected new lobby for overflow player")

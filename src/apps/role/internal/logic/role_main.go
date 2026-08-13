@@ -207,7 +207,7 @@ func (r *RoleMain) loadModules(ctx context.Context) error {
 		if modState == nil {
 			continue
 		}
-		if err := loadModuleState(ctx, r.deps.DB, roleID, modState); err != nil {
+		if err := loadModuleState(ctx, r.DB(), roleID, modState); err != nil {
 			return err
 		}
 	}
