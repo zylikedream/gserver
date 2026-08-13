@@ -1,10 +1,10 @@
 include hack/hack-cli.mk
 include hack/hack.mk
 
-# Run all tests (gcflags=-l disables inlining for gomonkey compatibility).
+# Run all tests.
 .PHONY: test
 test:
-	go test -gcflags=-l ./...
+	go test ./...
 
 # Lint Go code using golangci-lint.
 .PHONY: lint
