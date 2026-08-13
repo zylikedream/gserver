@@ -11,7 +11,6 @@ import (
 	"gserver/core/gxylog"
 	"gserver/protocol/pb"
 	"gserver/src/lib/guildlib"
-	"gserver/src/pkg/gameconfig"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/lib"
@@ -122,7 +121,7 @@ func callGuildSearch(ctx context.Context, keyword string) ([]*pb.PGuildBasic, er
 // ===== Proto Handlers =====
 
 func (r *RoleGuild) ReqGuildCreate(ctx context.Context, req *pb.ReqGuildCreate) (*pb.RspGuildCreate, error) {
-	guildCfg := gameconfig.Get().TbGuildConfig.Get()
+	guildCfg := r.Cfg().TbGuildConfig.Get()
 	if guildCfg == nil {
 		return nil, fmt.Errorf("公会配置未找到")
 	}

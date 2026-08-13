@@ -30,13 +30,18 @@ type pgxConfig struct {
 var pgxAppInstance *PGXApp
 
 func PGX() *PGXApp {
-	if pgxAppInstance.db == nil {
+	if pgxAppInstance == nil || pgxAppInstance.db == nil {
 		gxylog.Error(context.Background(), "pgx not init, miss config")
 	}
 	return pgxAppInstance
 }
 
+// DB 返回全局数据库连接;未初始化时返回 nil(生产由模块启动初始化,测试兜底不 panic)。
 func DB() *gorm.DB {
+	if pgxAppInstance == nil || pgxAppInstance.db == nil {
+		gxylog.Error(context.Background(), "pgx not init, miss config")
+		return nil
+	}
 	return pgxAppInstance.db
 }
 

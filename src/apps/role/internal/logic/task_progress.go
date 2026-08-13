@@ -1,10 +1,10 @@
 package logic
 
 import (
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
+	"gserver/src/pkg/gameconfig"
 	"time"
 )
 
@@ -85,7 +85,7 @@ func CalcEventProgressAdd(role *RoleMain, currentProgress int32, targetType game
 		if !ok {
 			return 0
 		}
-		return getItemProgressAdd(role, targetParam, data)
+		return getItemProgressAdd(role, role.deps.Cfg, targetParam, data)
 	case gamecfg.GardenETaskTargetType_PLAYER_LEVEL:
 		data, ok := param.Data.(event.PlayerLevelEventData)
 		if !ok {
@@ -203,7 +203,7 @@ func isBreedFinishedState(flower *FlowerData, now time.Time) bool {
 	return state == int32(pb.FlowerState_FLOWER_BREED_DONE) || state == int32(pb.FlowerState_FLOWER_HARVESTED)
 }
 
-func getItemProgressAdd(role *RoleMain, targetParam int32, data event.GoodChangeEventData) int32 {
+func getItemProgressAdd(role *RoleMain, cfg *gameconfig.GameConfig, targetParam int32, data event.GoodChangeEventData) int32 {
 	if role == nil {
 		return 0
 	}
@@ -218,19 +218,19 @@ func getItemProgressAdd(role *RoleMain, targetParam int32, data event.GoodChange
 			}
 			continue
 		}
-		if isFlowerProduct(role, int32(change.GoodID)) {
+		if isFlowerProduct(role, cfg, int32(change.GoodID)) {
 			total += change.AddNum
 		}
 	}
 	return int32(total)
 }
 
-func isFlowerProduct(role *RoleMain, goodID int32) bool {
-	if role == nil || gameconfig.Get() == nil || gameconfig.Get().TbFlower == nil {
+func isFlowerProduct(role *RoleMain, cfg *gameconfig.GameConfig, goodID int32) bool {
+	if role == nil || cfg == nil || cfg.TbFlower == nil {
 		return false
 	}
-	for _, cfg := range gameconfig.Get().TbFlower.GetDataList() {
-		if cfg.HarvestItemId == goodID {
+	for _, fc := range cfg.TbFlower.GetDataList() {
+		if fc.HarvestItemId == goodID {
 			return true
 		}
 	}

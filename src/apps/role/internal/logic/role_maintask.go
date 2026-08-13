@@ -3,7 +3,6 @@ package logic
 import (
 	"context"
 
-	"gserver/src/pkg/gameconfig"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
@@ -36,7 +35,7 @@ func (r *RoleMainTask) PersistState() IPersistState {
 }
 
 func (r *RoleMainTask) OnCreate(ctx context.Context) {
-	r.acceptTask(gameconfig.Get().GetFirstMainTask())
+	r.acceptTask(r.Cfg().GetFirstMainTask())
 }
 
 func (r *RoleMainTask) OnModInit(ctx context.Context) error {
@@ -46,7 +45,7 @@ func (r *RoleMainTask) OnModInit(ctx context.Context) error {
 func (r *RoleMainTask) OnModStart(ctx context.Context) error {
 	r.subscribeEvents()
 	if r.CurrentTaskID == 0 && r.Status != int32(pb.MainTaskStatus_MAIN_TASK_FINISHED) {
-		r.acceptTask(gameconfig.Get().GetFirstMainTask())
+		r.acceptTask(r.Cfg().GetFirstMainTask())
 	}
 	return nil
 }
@@ -85,7 +84,7 @@ func (r *RoleMainTask) ReqMainTaskClaim(ctx context.Context, req *pb.ReqMainTask
 		Progress: cfg.TargetNum,
 		Status:   pb.MainTaskStatus_MAIN_TASK_FINISHED,
 	}
-	r.acceptTask(gameconfig.Get().GetNextMainTask(cfg.Id))
+	r.acceptTask(r.Cfg().GetNextMainTask(cfg.Id))
 	r.notifyMainTaskUpdate(ctx)
 	return &pb.RspMainTaskClaim{Task: claimedTask}, nil
 }
@@ -139,10 +138,10 @@ func (r *RoleMainTask) refreshCurrentStateTask() bool {
 }
 
 func (r *RoleMainTask) currentTaskConfig() *gamecfg.GardenMainTask {
-	if r.CurrentTaskID == 0 || gameconfig.Get() == nil || gameconfig.Get().TbMainTask == nil {
+	if r.CurrentTaskID == 0 || r.Cfg() == nil || r.Cfg().TbMainTask == nil {
 		return nil
 	}
-	return gameconfig.Get().TbMainTask.Get(r.CurrentTaskID)
+	return r.Cfg().TbMainTask.Get(r.CurrentTaskID)
 }
 
 func (r *RoleMainTask) notifyMainTaskUpdate(ctx context.Context) {

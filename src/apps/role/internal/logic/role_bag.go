@@ -7,10 +7,10 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
-	"gserver/src/pkg/gameconfig"
+
+	"gserver/core/gxylog"
 
 	"github.com/pkg/errors"
-	"gserver/core/gxylog"
 )
 
 var (
@@ -62,7 +62,7 @@ func (r *RoleBag) addGoods(goodsMap GoodsMap, goods []bag.Good, reason string) (
 }
 
 func (r *RoleBag) addSingleGood(goodsMap GoodsMap, good bag.Good) (bag.GoodOp, error) {
-	cfg := gameconfig.Get().TbItem.Get(int32(good.GoodID))
+	cfg := r.Cfg().TbItem.Get(int32(good.GoodID))
 	if cfg == nil {
 		return bag.GoodOp{}, ErrGoodConfigNotFound
 	}

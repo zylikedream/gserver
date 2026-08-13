@@ -5,7 +5,8 @@ import (
 	"time"
 
 	"gserver/core/gxylog"
-	"gserver/core/gxypgx"
+
+	"gorm.io/gorm"
 )
 
 type StealRecord struct {
@@ -19,25 +20,21 @@ type StealRecord struct {
 
 func (StealRecord) TableName() string { return "steal_record" }
 
-func initStealSchema(ctx context.Context) {
-	_ = gxypgx.DB().AutoMigrate(&StealRecord{})
+func createStealRecord(ctx context.Context, db *gorm.DB, record *StealRecord) error {
+	return db.WithContext(ctx).Create(record).Error
 }
 
-func createStealRecord(ctx context.Context, record *StealRecord) error {
-	return gxypgx.DB().WithContext(ctx).Create(record).Error
-}
-
-func countPlotStolen(ctx context.Context, ownerID int64, plotID int32) (int64, error) {
+func countPlotStolen(ctx context.Context, db *gorm.DB, ownerID int64, plotID int32) (int64, error) {
 	var count int64
-	err := gxypgx.DB().WithContext(ctx).Model(&StealRecord{}).
+	err := db.WithContext(ctx).Model(&StealRecord{}).
 		Where("owner_id = ? AND plot_id = ?", ownerID, plotID).
 		Count(&count).Error
 	return count, err
 }
 
-func hasStealRecord(ctx context.Context, stealerID, ownerID int64, plotID int32) bool {
+func hasStealRecord(ctx context.Context, db *gorm.DB, stealerID, ownerID int64, plotID int32) bool {
 	var count int64
-	err := gxypgx.DB().WithContext(ctx).Model(&StealRecord{}).
+	err := db.WithContext(ctx).Model(&StealRecord{}).
 		Where("stealer_id = ? AND owner_id = ? AND plot_id = ?", stealerID, ownerID, plotID).
 		Count(&count).Error
 	if err != nil {
@@ -47,8 +44,8 @@ func hasStealRecord(ctx context.Context, stealerID, ownerID int64, plotID int32)
 	return count > 0
 }
 
-func deletePlotStealRecords(ctx context.Context, ownerID int64, plotID int32) error {
-	return gxypgx.DB().WithContext(ctx).
+func deletePlotStealRecords(ctx context.Context, db *gorm.DB, ownerID int64, plotID int32) error {
+	return db.WithContext(ctx).
 		Where("owner_id = ? AND plot_id = ?", ownerID, plotID).
 		Delete(&StealRecord{}).Error
 }

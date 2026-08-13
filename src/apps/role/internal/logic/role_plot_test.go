@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
@@ -150,11 +151,11 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	)
 	t.Cleanup(patchSave.Reset)
 	patchStolen := gomonkey.ApplyFunc(countPlotStolen,
-		func(_ context.Context, _ int64, _ int32) (int64, error) { return 0, nil },
+		func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil },
 	)
 	t.Cleanup(patchStolen.Reset)
 	patchDelSteal := gomonkey.ApplyFunc(deletePlotStealRecords,
-		func(_ context.Context, _ int64, _ int32) error { return nil },
+		func(_ context.Context, _ *gorm.DB, _ int64, _ int32) error { return nil },
 	)
 	t.Cleanup(patchDelSteal.Reset)
 

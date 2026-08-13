@@ -21,7 +21,6 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
-	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/util/gconv"
 )
@@ -237,7 +236,7 @@ func (r *RoleGM) SetPlayerLevel(level int) error {
 	if level < 1 {
 		return fmt.Errorf("level must be >= 1")
 	}
-	cfg := gameconfig.Get().TbPlayerLevel.Get(int32(level))
+	cfg := r.Cfg().TbPlayerLevel.Get(int32(level))
 	if cfg == nil {
 		return fmt.Errorf("player level config not found: %d", level)
 	}
@@ -292,7 +291,7 @@ func (r *RoleGM) AddOrderFlower(flowerID int) error {
 // 用法: add_flower_breed_goods [花ID]
 // 示例: add_flower_breed_goods 101
 func (r *RoleGM) AddFlowerBreedGoods(flowerID int) error {
-	cfg := gameconfig.Get().TbFlower.Get(int32(flowerID))
+	cfg := r.Cfg().TbFlower.Get(int32(flowerID))
 	if cfg == nil {
 		return fmt.Errorf("flower config not found: %d", flowerID)
 	}

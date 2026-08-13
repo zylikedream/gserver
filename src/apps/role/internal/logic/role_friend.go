@@ -7,15 +7,15 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
-	"gserver/core/gxypgx"
 	"gserver/protocol/pb"
 	"gserver/src/apps/api"
 	"gserver/src/lib/rolelib"
-	"gserver/src/pkg/gameconfig"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
+
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 )
 
 type RoleFriend struct {
@@ -32,14 +32,14 @@ func (r *RoleFriend) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriend
 		return rsp, err
 	}
 	for _, id := range successIDs {
-		public := GetRolePublic(ctx, id)
+		public := GetRolePublic(ctx, r.Deps(), id)
 		if public == nil {
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
 		rolelib.PublishRoleNotify(ctx, id, &pb.NotifyFriendNewRequest{
 			ApplyInfo: &pb.PApplyInfo{
-				PlayerInfo: GetRolePublic(ctx, r.RoleID),
+				PlayerInfo: GetRolePublic(ctx, r.Deps(), r.RoleID),
 			},
 		})
 	}
@@ -53,13 +53,13 @@ func (r *RoleFriend) ReqFriendAcceptRequest(ctx context.Context, req *pb.ReqFrie
 		return rsp, err
 	}
 	for _, id := range successIDs {
-		public := GetRolePublic(ctx, id)
+		public := GetRolePublic(ctx, r.Deps(), id)
 		if public == nil {
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
 		rolelib.PublishRoleNotify(ctx, id, &pb.NotifyNewFriend{
-			FriendInfo: &pb.PFriendInfo{PlayerInfo: GetRolePublic(ctx, r.RoleID)},
+			FriendInfo: &pb.PFriendInfo{PlayerInfo: GetRolePublic(ctx, r.Deps(), r.RoleID)},
 		})
 	}
 	return rsp, nil
@@ -78,7 +78,7 @@ func (r *RoleFriend) ReqFriendRemove(ctx context.Context, req *pb.ReqFriendRemov
 // ---- read operations ----
 
 func (r *RoleFriend) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (*pb.RspFriendList, error) {
-	cfg := gameconfig.Get().TbFriendConfig.Get()
+	cfg := r.Cfg().TbFriendConfig.Get()
 
 	friendIDs, err := callFriendList(ctx, r.RoleID)
 	if err != nil {
@@ -90,7 +90,7 @@ func (r *RoleFriend) ReqFriendList(ctx context.Context, req *pb.ReqFriendList) (
 		Total: int32(len(friendIDs)),
 	}
 	for _, f := range friendIDs {
-		public := GetRolePublic(ctx, f.PlayerID)
+		public := GetRolePublic(ctx, r.Deps(), f.PlayerID)
 		if public == nil {
 			continue
 		}
@@ -110,7 +110,7 @@ func (r *RoleFriend) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendAp
 
 	rsp := &pb.RspFriendApplyList{}
 	for _, a := range data.Incoming {
-		public := GetRolePublic(ctx, a.PlayerID)
+		public := GetRolePublic(ctx, r.Deps(), a.PlayerID)
 		if public == nil {
 			continue
 		}
@@ -121,7 +121,7 @@ func (r *RoleFriend) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendAp
 		})
 	}
 	for _, a := range data.Outgoing {
-		public := GetRolePublic(ctx, a.PlayerID)
+		public := GetRolePublic(ctx, r.Deps(), a.PlayerID)
 		if public == nil {
 			continue
 		}
@@ -135,10 +135,10 @@ func (r *RoleFriend) ReqFriendApplyList(ctx context.Context, req *pb.ReqFriendAp
 }
 
 func (r *RoleFriend) ReqFriendSearchPlayer(ctx context.Context, req *pb.ReqFriendSearchPlayer) (*pb.RspFriendSearchPlayer, error) {
-	cfg := gameconfig.Get().TbFriendConfig.Get()
+	cfg := r.Cfg().TbFriendConfig.Get()
 
 	publics := []RolePublicState{}
-	err := gxypgx.DB().WithContext(ctx).
+	err := r.DB().WithContext(ctx).
 		Table("role_public").
 		Where("name LIKE ?", "%"+req.Name+"%").
 		Limit(int(cfg.SearchResultLimit)).
@@ -268,9 +268,9 @@ func getRelation(ctx context.Context, myID, targetID int64) (relation, error) {
 	return relationStranger, nil
 }
 
-func isFriend(ctx context.Context, myID, targetID int64) bool {
+func isFriend(ctx context.Context, db *gorm.DB, myID, targetID int64) bool {
 	var count int64
-	err := gxypgx.DB().WithContext(ctx).Table("friend_relation").
+	err := db.WithContext(ctx).Table("friend_relation").
 		Where("player_id = ? AND friend_id = ?", myID, targetID).
 		Count(&count).Error
 	if err != nil {

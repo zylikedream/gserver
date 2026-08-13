@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"gserver/core/gxylog"
-	"gserver/core/gxypgx"
+
+	"gorm.io/gorm"
 )
 
-func InitRoleSchema(ctx context.Context) {
-	db := gxypgx.DB()
+func InitRoleSchema(ctx context.Context, db *gorm.DB) {
 
 	if err := db.Exec("CREATE SEQUENCE IF NOT EXISTS mail_global_id_seq").Error; err != nil {
 		gxylog.Fatal(ctx, "mail sequence migration failed", gxylog.Err(err))

@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/pkg/deps"
 	"gserver/src/pkg/gameconfig"
+
+	"github.com/DATA-DOG/go-sqlmock"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

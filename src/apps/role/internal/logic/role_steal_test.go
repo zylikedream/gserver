@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
 	"gserver/protocol/pb"
 
 	"github.com/agiledragon/gomonkey/v2"
@@ -29,19 +30,19 @@ func setupTestSteal(t *testing.T) *RoleSteal {
 	)
 	t.Cleanup(patchSend.Reset)
 	patchFriend := gomonkey.ApplyFunc(isFriend,
-		func(_ context.Context, _, _ int64) bool { return true },
+		func(_ context.Context, _ *gorm.DB, _, _ int64) bool { return true },
 	)
 	t.Cleanup(patchFriend.Reset)
 	patchStolen := gomonkey.ApplyFunc(countPlotStolen,
-		func(_ context.Context, _ int64, _ int32) (int64, error) { return 0, nil },
+		func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil },
 	)
 	t.Cleanup(patchStolen.Reset)
 	patchHasStolen := gomonkey.ApplyFunc(hasStealRecord,
-		func(_ context.Context, _, _ int64, _ int32) bool { return false },
+		func(_ context.Context, _ *gorm.DB, _, _ int64, _ int32) bool { return false },
 	)
 	t.Cleanup(patchHasStolen.Reset)
 	patchCreate := gomonkey.ApplyFunc(createStealRecord,
-		func(_ context.Context, _ *StealRecord) error { return nil },
+		func(_ context.Context, _ *gorm.DB, _ *StealRecord) error { return nil },
 	)
 	t.Cleanup(patchCreate.Reset)
 
