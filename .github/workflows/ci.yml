@@ -25,5 +25,7 @@ jobs:
         run: make test
 
       - name: Lint
-        run: make lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
         continue-on-error: true
