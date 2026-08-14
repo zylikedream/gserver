@@ -2,11 +2,12 @@ package logic
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
@@ -17,8 +18,8 @@ import (
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"gserver/src/lib/gatetoken"
 	"gserver/src/lib"
+	"gserver/src/lib/gatetoken"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -288,7 +289,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
 	if err := s.endpoint.SendMsg(msg); err != nil {
 		gxylog.Debug(ctx, "send client msg failed, stop session", gxylog.Err(err))
-		s.Stop(fmt.Errorf("conn closed: send client msg failed: %w", err))
+		s.Stop(errors.Wrap(err, "conn closed: send client msg failed"))
 		return nil
 	}
 	return nil

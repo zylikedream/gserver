@@ -2,12 +2,12 @@ package lib
 
 import (
 	"context"
-	"fmt"
 
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -67,7 +67,7 @@ func (b *Broadcast) OnModStart(ctx context.Context) error {
 		if err := gxymq.MessageQueue().Subscribe(ctx, t, func(c context.Context, msg string) error {
 			bMsg := &BroadcastMsg{}
 			if err := gjson.Unmarshal([]byte(msg), bMsg); err != nil {
-				return fmt.Errorf("broadcast msg json scan error: %w", err)
+				return errors.Wrap(err, "broadcast msg json scan error")
 			}
 			for _, handler := range b.handlers {
 				bMsg = handler(ctx, t, bMsg)
@@ -77,7 +77,7 @@ func (b *Broadcast) OnModStart(ctx context.Context) error {
 			}
 			return nil
 		}); err != nil {
-			return fmt.Errorf("broadcast subscribe %s: %w", t, err)
+			return errors.Wrapf(err, "broadcast subscribe %s", t)
 		}
 	}
 	return nil
@@ -87,7 +87,7 @@ func (b *Broadcast) OnModStart(ctx context.Context) error {
 func Publish(ctx context.Context, serviceName string, msg *BroadcastMsg) error {
 	msgStr, err := gjson.EncodeString(msg)
 	if err != nil {
-		return fmt.Errorf("broadcast msg json scan error: %w", err)
+		return errors.Wrap(err, "broadcast msg json scan error")
 	}
 	return gxymq.MessageQueue().Publish(ctx, "global:"+serviceName+":broadcast", msgStr)
 }
@@ -96,7 +96,7 @@ func Publish(ctx context.Context, serviceName string, msg *BroadcastMsg) error {
 func PublishToAll(ctx context.Context, msg *BroadcastMsg) error {
 	msgStr, err := gjson.EncodeString(msg)
 	if err != nil {
-		return fmt.Errorf("broadcast msg json scan error: %w", err)
+		return errors.Wrap(err, "broadcast msg json scan error")
 	}
 	return gxymq.MessageQueue().Publish(ctx, "global:all:broadcast", msgStr)
 }

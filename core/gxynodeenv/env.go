@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"gserver/core/gxyregistery"
+
+	"github.com/cockroachdb/errors"
 )
 
 const (
@@ -58,13 +60,13 @@ type K8sNodeEnv struct {
 func NewK8sNodeEnvFromEnv() (*K8sNodeEnv, error) {
 	gsName := os.Getenv("GS_NAME")
 	if gsName == "" {
-		return nil, fmt.Errorf("GS_NAME is empty")
+		return nil, errors.Newf("GS_NAME is empty")
 	}
 	namespace := os.Getenv("POD_NAMESPACE")
 	if namespace == "" {
 		data, err := os.ReadFile(serviceAccountNamespacePath)
 		if err != nil {
-			return nil, fmt.Errorf("read namespace: %w", err)
+			return nil, errors.Wrap(err, "read namespace")
 		}
 		namespace = strings.TrimSpace(string(data))
 	}
@@ -74,11 +76,11 @@ func NewK8sNodeEnvFromEnv() (*K8sNodeEnv, error) {
 		port = "443"
 	}
 	if host == "" {
-		return nil, fmt.Errorf("KUBERNETES_SERVICE_HOST is empty")
+		return nil, errors.Newf("KUBERNETES_SERVICE_HOST is empty")
 	}
 	tokenData, err := os.ReadFile(serviceAccountTokenPath)
 	if err != nil {
-		return nil, fmt.Errorf("read service account token: %w", err)
+		return nil, errors.Wrap(err, "read service account token")
 	}
 	client, err := newK8sHTTPClient()
 	if err != nil {
@@ -96,11 +98,11 @@ func NewK8sNodeEnvFromEnv() (*K8sNodeEnv, error) {
 func newK8sHTTPClient() (*http.Client, error) {
 	caData, err := os.ReadFile(serviceAccountCAPath)
 	if err != nil {
-		return nil, fmt.Errorf("read service account ca: %w", err)
+		return nil, errors.Wrap(err, "read service account ca")
 	}
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caData); !ok {
-		return nil, fmt.Errorf("append service account ca")
+		return nil, errors.Newf("append service account ca")
 	}
 	return &http.Client{
 		Timeout: 2 * time.Second,
@@ -123,7 +125,7 @@ func (e *K8sNodeEnv) State(ctx context.Context) (gxyregistery.ServiceState, erro
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("get gameserver %s/%s: %s", e.namespace, e.gsName, resp.Status)
+		return "", errors.Newf("get gameserver %s/%s: %s", e.namespace, e.gsName, resp.Status)
 	}
 	var gs struct {
 		Spec struct {

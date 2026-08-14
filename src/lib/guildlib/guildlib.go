@@ -2,9 +2,10 @@ package guildlib
 
 import (
 	"context"
-	"fmt"
 
 	"gserver/core/gxypgx"
+
+	"github.com/pkg/errors"
 )
 
 type RoleGuildRecord struct {
@@ -21,7 +22,7 @@ func GetGuildIDByRoleID(ctx context.Context, roleID int64) (int64, error) {
 	state := &RoleGuildRecord{}
 	err := gxypgx.DB().WithContext(ctx).Where("role_id = ?", roleID).Find(state).Error
 	if err != nil {
-		return 0, fmt.Errorf("load role guild state: %w", err)
+		return 0, errors.Wrap(err, "load role guild state")
 	}
 	return state.GuildID, nil
 }

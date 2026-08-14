@@ -4,10 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	mathrand "math/rand"
 	"sort"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -118,7 +119,7 @@ func With(ctx context.Context, mgr Manager, keys []string, ttl time.Duration, fn
 		}
 		if !ok {
 			releaseHeld(ctx, mgr, held)
-			return ErrBusy
+			return errors.WithStack(ErrBusy)
 		}
 		held = append(held, struct {
 			key   string

@@ -2,8 +2,9 @@ package logic
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxylog"
 	gamecfg "gserver/gameconfig/gosrc"

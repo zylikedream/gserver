@@ -2,8 +2,8 @@ package gxytrace
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
@@ -18,7 +18,7 @@ func InitTracerProvider(ctx context.Context, serviceName, endpoint string) (func
 		otlptracegrpc.WithInsecure(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create otlp exporter: %w", err)
+		return nil, errors.Wrap(err, "create otlp exporter")
 	}
 
 	res := resource.NewWithAttributes(semconv.SchemaURL,

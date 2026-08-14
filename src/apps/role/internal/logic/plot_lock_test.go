@@ -4,6 +4,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/cockroachdb/errors"
 )
 
 func TestWithPlotLocksSortsAndReleases(t *testing.T) {
@@ -45,7 +47,7 @@ func TestWithPlotLocksReturnsBusyAndReleasesPartial(t *testing.T) {
 		t.Fatal("callback should not run")
 		return nil
 	})
-	if err != ErrPlotBusy {
+	if !errors.Is(err, ErrPlotBusy) {
 		t.Fatalf("expected ErrPlotBusy, got %v", err)
 	}
 	if len(mem.held) != 0 {

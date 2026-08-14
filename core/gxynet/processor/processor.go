@@ -2,7 +2,8 @@ package processor
 
 import (
 	"context"
-	"errors"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"

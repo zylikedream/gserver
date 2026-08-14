@@ -2,8 +2,8 @@ package packet
 
 import (
 	"encoding/binary"
-	"errors"
-	"fmt"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxynet/message"
 
@@ -11,6 +11,7 @@ import (
 	"github.com/gogf/gf/v2/os/gcfg"
 )
 
+// 哨兵错误:标准库 errors.New(无栈),使用处用 errors.WithStack 补栈指向实际出错点。
 var (
 	ErrPkgHeadNotEnough = errors.New("pkg header not enougth")
 	ErrPkgBodyNotEnough = errors.New("pkg body not enougth")
@@ -47,7 +48,7 @@ func uintDecode(data []byte, byteOrder binary.ByteOrder) (uint64, error) {
 	case 8:
 		return uint64(byteOrder.Uint64(data)), nil
 	}
-	return 0, fmt.Errorf("unsupport byte len:%d", len(data))
+	return 0, errors.Newf("unsupport byte len:%d", len(data))
 }
 
 const (

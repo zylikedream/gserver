@@ -3,11 +3,12 @@ package logic
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxyhttp"
@@ -134,7 +135,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 		}
 		channelID = r.lastLobbyID
 		if time.Since(r.lastWorldChatTime) < time.Duration(r.Cfg().TbChatChannel.Get(1).Cooldown)*time.Second {
-			return nil, ErrChatCooldown
+			return nil, errors.WithStack(ErrChatCooldown)
 		}
 		r.lastWorldChatTime = time.Now()
 	case int32(gamecfg.GardenEChatChannelType_GUILD):
@@ -151,7 +152,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 	channelType := req.ChannelType
 	pid, err := lib.GetChannelActor(ctx, channelType, channelID)
 	if err != nil {
-		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取频道 actor 失败")
 	}
 	err = gxyactor.Send(ctx, pid, &pb.ReqChannelSend{
 		ChannelType: channelType,
@@ -184,7 +185,7 @@ func (r *RoleChat) ReqChatChannelHistory(ctx context.Context, req *pb.ReqChatCha
 	channelType := req.ChannelType
 	pid, err := lib.GetChannelActor(ctx, channelType, channelID)
 	if err != nil {
-		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取频道 actor 失败")
 	}
 	rsp, err := gxyactor.Call(ctx, pid, &pb.ReqChatChannelHistory{
 		ChannelType: channelType,
@@ -203,7 +204,7 @@ func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPr
 	}
 
 	if !isFriend(ctx, r.DB(), r.RoleID, req.TargetId) {
-		return nil, ErrChatNotFriend
+		return nil, errors.WithStack(ErrChatNotFriend)
 	}
 
 	ts, err := callChatStorePrivate(ctx, r.Role.Public.GetRolePublic(ctx),
@@ -284,10 +285,10 @@ func (r *RoleChat) LeaveChannel(ctx context.Context, channelType int32, channelI
 func validateChatMsg(content string, maxLen int) error {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
-		return ErrChatMsgEmpty
+		return errors.WithStack(ErrChatMsgEmpty)
 	}
 	if len([]rune(trimmed)) > maxLen {
-		return ErrChatMsgTooLong
+		return errors.WithStack(ErrChatMsgTooLong)
 	}
 	return nil
 }
@@ -304,7 +305,7 @@ func callChatJoinLobby(ctx context.Context, roleID int64) (int64, error) {
 		LobbyID string `json:"lobby_id"`
 	}{}
 	if err := gconv.Scan(rsp.Data, &data); err != nil {
-		return 0, fmt.Errorf("parse lobby_id: %w", err)
+		return 0, errors.Wrap(err, "parse lobby_id")
 	}
 	return gconv.Int64(data.LobbyID), nil
 }
@@ -327,7 +328,7 @@ func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID 
 		Timestamp int64 `json:"timestamp"`
 	}{}
 	if err := gconv.Scan(rsp.Data, &data); err != nil {
-		return 0, fmt.Errorf("parse timestamp: %w", err)
+		return 0, errors.Wrap(err, "parse timestamp")
 	}
 	return data.Timestamp, nil
 }
@@ -340,7 +341,7 @@ func callChatPrivateHistory(ctx context.Context, roleID, friendID int64, count i
 	}
 	var msgs []*pb.PChatMsg
 	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
-		return nil, fmt.Errorf("parse private history: %w", err)
+		return nil, errors.Wrap(err, "parse private history")
 	}
 	return msgs, nil
 }
@@ -353,7 +354,7 @@ func callChatSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, erro
 	}
 	var msgs []*pb.PChatMsg
 	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
-		return nil, fmt.Errorf("parse system history: %w", err)
+		return nil, errors.Wrap(err, "parse system history")
 	}
 	return msgs, nil
 }

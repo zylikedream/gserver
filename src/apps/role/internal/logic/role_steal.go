@@ -2,8 +2,9 @@ package logic
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
@@ -102,7 +103,7 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 	friendID := req.FriendId
 
 	if !isFriend(ctx, r.DB(), r.RoleID, friendID) {
-		return nil, ErrNotFriend
+		return nil, errors.WithStack(ErrNotFriend)
 	}
 
 	plots, ok := getRolePlotSnapshot(ctx, r.Deps(), friendID)
@@ -147,27 +148,27 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 	cfg := r.Cfg().TbFriendConfig.Get()
 
 	if !isFriend(ctx, r.DB(), r.RoleID, friendID) {
-		return nil, ErrNotFriend
+		return nil, errors.WithStack(ErrNotFriend)
 	}
 
 	dailyCount := r.getDailyCount(friendID)
 	if dailyCount >= cfg.StealPerFriendDailyLimit {
-		return nil, ErrStealDailyFull
+		return nil, errors.WithStack(ErrStealDailyFull)
 	}
 
 	var rsp *pb.RspPlotSteal
 	err := withPlotLocks(ctx, friendID, []int32{plotID}, func() error {
 		plots, ok := getRolePlotSnapshot(ctx, r.Deps(), friendID)
 		if !ok {
-			return ErrStealLocked
+			return errors.WithStack(ErrStealLocked)
 		}
 		plot, ok := plots[plotID]
 		if !ok {
-			return ErrStealLocked
+			return errors.WithStack(ErrStealLocked)
 		}
 		state := getPlotState(plot)
 		if state != int32(pb.PlotState_PLOT_HARVESTABLE) {
-			return ErrStealNotHarvestable
+			return errors.WithStack(ErrStealNotHarvestable)
 		}
 
 		stolenCount, err := countPlotStolen(ctx, r.DB(), friendID, plotID)
@@ -175,11 +176,11 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 			return err
 		}
 		if stolenCount >= int64(cfg.FlowerMaxBeStolenTimes) {
-			return ErrStealFlowerFull
+			return errors.WithStack(ErrStealFlowerFull)
 		}
 
 		if hasStealRecord(ctx, r.DB(), r.RoleID, friendID, plotID) {
-			return ErrStealLocked
+			return errors.WithStack(ErrStealLocked)
 		}
 
 		if err := createStealRecord(ctx, r.DB(), &StealRecord{

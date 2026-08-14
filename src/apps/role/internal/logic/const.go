@@ -1,6 +1,8 @@
 package logic
 
-import "github.com/pkg/errors"
+import (
+	"github.com/cockroachdb/errors"
+)
 
 var (
 	ErrVersionConflict = errors.New("optimistic lock version conflict")

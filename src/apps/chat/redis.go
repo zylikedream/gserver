@@ -2,13 +2,13 @@ package chat
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
 	"gserver/protocol/pb"
 	"gserver/src/pkg/deps"
 
+	"github.com/pkg/errors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -51,11 +51,11 @@ func JoinLobby(ctx context.Context, d deps.Deps, roleID int64) (int64, error) {
 		maxCap, strconv.FormatInt(roleID, 10))
 	lobbyStr, err := cmd.Text()
 	if err != nil {
-		return 0, fmt.Errorf("chat join lobby: %w", err)
+		return 0, errors.Wrap(err, "chat join lobby")
 	}
 	lobbyID, err := strconv.ParseInt(lobbyStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("chat parse lobby id: %w", err)
+		return 0, errors.Wrap(err, "chat parse lobby id")
 	}
 	return lobbyID, nil
 }
@@ -64,7 +64,7 @@ func LeaveLobby(ctx context.Context, d deps.Deps, roleID, lobbyID int64) error {
 	cmd := luaLeaveLobby.Run(ctx, d.Redis, nil,
 		strconv.FormatInt(roleID, 10), strconv.FormatInt(lobbyID, 10))
 	if _, err := cmd.Int(); err != nil {
-		return fmt.Errorf("chat leave lobby: %w", err)
+		return errors.Wrap(err, "chat leave lobby")
 	}
 	return nil
 }
@@ -78,7 +78,7 @@ func StorePrivateMsg(ctx context.Context, d deps.Deps, senderID, targetID int64,
 		SenderID: senderID, Content: content, CreatedAt: time.Now(),
 	}
 	if err := d.DB.WithContext(ctx).Create(msg).Error; err != nil {
-		return 0, fmt.Errorf("chat store private msg: %w", err)
+		return 0, errors.Wrap(err, "chat store private msg")
 	}
 	return msg.CreatedAt.Unix(), nil
 }
@@ -114,7 +114,7 @@ func StoreSystemMsg(ctx context.Context, d deps.Deps, content string) (int64, er
 		Content: content, CreatedAt: time.Now(),
 	}
 	if err := d.DB.WithContext(ctx).Create(msg).Error; err != nil {
-		return 0, fmt.Errorf("chat store system msg: %w", err)
+		return 0, errors.Wrap(err, "chat store system msg")
 	}
 	return msg.CreatedAt.Unix(), nil
 }

@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"gserver/core/gxyapp"
@@ -16,6 +15,7 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
+	"github.com/cockroachdb/errors"
 )
 
 // actorApp 基础Actor模块
@@ -102,7 +102,7 @@ func (a *actorApp) spawnNamed(props *actor.Props, name string, initArgs ...any) 
 
 func (a *actorApp) spawn(props *actor.Props, initArgs ...any) (PID, error) {
 	if a.system == nil {
-		return nil, fmt.Errorf("node not initialized")
+		return nil, errors.Newf("node not initialized")
 	}
 	if len(initArgs) > 0 {
 		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
@@ -113,7 +113,7 @@ func (a *actorApp) spawn(props *actor.Props, initArgs ...any) (PID, error) {
 // Send 发送消息
 func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
 	if a.system == nil {
-		return fmt.Errorf("node not initialized")
+		return errors.Newf("node not initialized")
 	}
 	if env := injectTrace(ctx, message); env != nil {
 		a.system.Root.Send(pid, env)
@@ -172,7 +172,7 @@ func (a *actorApp) GetNodeName() string {
 
 func (a *actorApp) StopActor(pid PID) error {
 	if a.system == nil {
-		return fmt.Errorf("node not initialized")
+		return errors.Newf("node not initialized")
 	}
 	a.system.Root.Stop(pid)
 	return nil

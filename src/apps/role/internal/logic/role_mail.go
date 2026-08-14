@@ -2,10 +2,11 @@ package logic
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"

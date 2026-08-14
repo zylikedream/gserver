@@ -4,6 +4,7 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -72,7 +73,7 @@ func TestSendRequest_SelfAdd(t *testing.T) {
 	gormDB, mock := newFriendDBMock(t)
 
 	err := SendRequest(context.Background(), 100, 100, testFriendConfig(), gormDB)
-	if err != ErrSelfAdd {
+	if !errors.Is(err, ErrSelfAdd) {
 		t.Fatalf("expected ErrSelfAdd, got %v", err)
 	}
 	// 无任何 SQL(事务未开启)
@@ -101,7 +102,7 @@ func TestSendRequest_AlreadyFriend(t *testing.T) {
 	mock.ExpectRollback()
 
 	err := SendRequest(ctx, 100, 200, testFriendConfig(), gormDB)
-	if err != ErrAlreadyFriend {
+	if !errors.Is(err, ErrAlreadyFriend) {
 		t.Fatalf("expected ErrAlreadyFriend, got %v", err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

@@ -2,7 +2,6 @@ package logic
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
@@ -22,6 +21,8 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
@@ -495,7 +496,7 @@ func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IR
 	if oldVersion == 0 {
 		// version==0 表示新号，行还不存在，直接 Save（INSERT）
 		if err := db.Save(modState).Error; err != nil {
-			return nil, fmt.Errorf("save mod %s failed: %s", tableName, err)
+			return nil, errors.Wrap(err, "save mod "+tableName+" failed")
 		}
 		return &savedRoleModule{state: modState}, nil
 	}
@@ -507,7 +508,7 @@ func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IR
 		Updates(modState)
 	if result.Error != nil {
 		modState.SetVersion(oldVersion)
-		return nil, fmt.Errorf("save mod %s failed: %s", tableName, result.Error)
+		return nil, errors.Wrap(result.Error, "save mod "+tableName+" failed")
 	}
 	if result.RowsAffected == 0 {
 		modState.SetVersion(oldVersion) // 不清 dirty，下次重试

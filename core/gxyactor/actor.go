@@ -2,9 +2,10 @@ package gxyactor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxymetrics"

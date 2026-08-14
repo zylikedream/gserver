@@ -2,9 +2,10 @@ package chat
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
@@ -93,7 +94,7 @@ func (a *ChannelActor) Init(ctx context.Context, args []any) error {
 	id := args[0].(string)
 	_, err := fmt.Sscanf(id, "%d_%d", &a.ChannelType, &a.ChannelID)
 	if err != nil {
-		return fmt.Errorf("channel actor init: invalid id %q: %w", id, err)
+		return errors.Wrapf(err, "channel actor init: invalid id %q", id)
 	}
 	ch, ok := GetChannel(a.ChannelType)
 	if !ok {

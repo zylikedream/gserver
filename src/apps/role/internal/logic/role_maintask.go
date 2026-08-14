@@ -3,12 +3,12 @@ package logic
 import (
 	"context"
 
+	"github.com/cockroachdb/errors"
+
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
-
-	"github.com/pkg/errors"
 )
 
 var (
@@ -65,14 +65,14 @@ func (r *RoleMainTask) ReqMainTaskInfo(ctx context.Context, req *pb.ReqMainTaskI
 
 func (r *RoleMainTask) ReqMainTaskClaim(ctx context.Context, req *pb.ReqMainTaskClaim) (*pb.RspMainTaskClaim, error) {
 	if r.Status == int32(pb.MainTaskStatus_MAIN_TASK_FINISHED) {
-		return nil, ErrMainTaskFinished
+		return nil, errors.WithStack(ErrMainTaskFinished)
 	}
 	cfg := r.currentTaskConfig()
 	if cfg == nil {
-		return nil, ErrMainTaskFinished
+		return nil, errors.WithStack(ErrMainTaskFinished)
 	}
 	if r.Status != int32(pb.MainTaskStatus_MAIN_TASK_CLAIMABLE) {
-		return nil, ErrMainTaskNotClaimable
+		return nil, errors.WithStack(ErrMainTaskNotClaimable)
 	}
 	if len(cfg.Reward) > 0 {
 		if err := r.Role.Bag.SaveGoods(ctx, nil, cfg.Reward, "main_task", bag.OptNotifyReward()); err != nil {

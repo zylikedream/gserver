@@ -10,6 +10,8 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/util"
+
+	"github.com/cockroachdb/errors"
 )
 
 // ========== 数据模型 ==========
@@ -212,11 +214,11 @@ func (r *RoleResidentOrder) ReqResidentOrderSubmit(ctx context.Context, req *pb.
 	r.ensureUnlockedSlots()
 	slot := r.Slots[req.SlotId]
 	if slot == nil {
-		return nil, ErrOrderSlotCooldown
+		return nil, errors.WithStack(ErrOrderSlotCooldown)
 	}
 	now := time.Now().Unix()
 	if now < slot.CooldownEnd {
-		return nil, ErrOrderSlotCooldown
+		return nil, errors.WithStack(ErrOrderSlotCooldown)
 	}
 
 	demands := make([]*gamecfg.GardenGoodStack, len(slot.Demands))
@@ -224,7 +226,7 @@ func (r *RoleResidentOrder) ReqResidentOrderSubmit(ctx context.Context, req *pb.
 		demands[i] = bag.MakeGoodStack(d.GoodID, int(d.Num))
 	}
 	if !r.Role.Bag.CheckGoods(demands) {
-		return nil, ErrOrderNotEnough
+		return nil, errors.WithStack(ErrOrderNotEnough)
 	}
 
 	if err := r.Role.Bag.SaveGoods(ctx, demands, nil, "order_submit"); err != nil {
@@ -259,14 +261,14 @@ func (r *RoleResidentOrder) ReqResidentOrderSubmit(ctx context.Context, req *pb.
 func (r *RoleResidentOrder) ReqResidentOrderClaimMilestone(ctx context.Context, req *pb.ReqResidentOrderClaimMilestone) (*pb.RspResidentOrderClaimMilestone, error) {
 	cfg := r.Cfg().TbResidentOrderProgressReward.Get(req.Id)
 	if cfg == nil {
-		return nil, ErrOrderMilestoneNotReached
+		return nil, errors.WithStack(ErrOrderMilestoneNotReached)
 	}
 	if r.CompletedCount < cfg.NeedCount {
-		return nil, ErrOrderMilestoneNotReached
+		return nil, errors.WithStack(ErrOrderMilestoneNotReached)
 	}
 	for _, claimed := range r.ClaimedMilestones {
 		if claimed == req.Id {
-			return nil, ErrOrderMilestoneClaimed
+			return nil, errors.WithStack(ErrOrderMilestoneClaimed)
 		}
 	}
 

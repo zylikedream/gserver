@@ -22,6 +22,7 @@ import (
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/util/gconv"
 )
 
@@ -153,7 +154,7 @@ func (r *RoleGM) execCommand(name string, args []string) error {
 	gmEnsureInited()
 	method, ok := gmCmdMap[name]
 	if !ok {
-		return fmt.Errorf("unknown command: %s", name)
+		return errors.Newf("unknown command: %s", name)
 	}
 	numParams := method.Type.NumIn() - 1 // minus receiver
 	if len(args) > numParams && numParams > 0 {
@@ -234,11 +235,11 @@ func (r *RoleGM) RemoveGoods(itemID int, num int) error {
 // 示例: set_player_level 10
 func (r *RoleGM) SetPlayerLevel(level int) error {
 	if level < 1 {
-		return fmt.Errorf("level must be >= 1")
+		return errors.Newf("level must be >= 1")
 	}
 	cfg := r.Cfg().TbPlayerLevel.Get(int32(level))
 	if cfg == nil {
-		return fmt.Errorf("player level config not found: %d", level)
+		return errors.Newf("player level config not found: %d", level)
 	}
 	oldExp := r.Role.Basic.getPlayerExp()
 	targetExp := int64(cfg.TotalExp)
@@ -267,10 +268,10 @@ func (r *RoleGM) AddFlower(flowerID int) error {
 func (r *RoleGM) AddFlowerLevel(flowerID int, level int) error {
 	flower, ok := r.Role.Flower.Flowers[int32(flowerID)]
 	if !ok {
-		return fmt.Errorf("flower %d not unlocked", flowerID)
+		return errors.Newf("flower %d not unlocked", flowerID)
 	}
 	if level < 1 {
-		return fmt.Errorf("level must be >= 1")
+		return errors.Newf("level must be >= 1")
 	}
 	flower.Level = int32(level)
 	r.Role.Flower.MarkDirty()
@@ -293,7 +294,7 @@ func (r *RoleGM) AddOrderFlower(flowerID int) error {
 func (r *RoleGM) AddFlowerBreedGoods(flowerID int) error {
 	cfg := r.Cfg().TbFlower.Get(int32(flowerID))
 	if cfg == nil {
-		return fmt.Errorf("flower config not found: %d", flowerID)
+		return errors.Newf("flower config not found: %d", flowerID)
 	}
 	return r.Role.Bag.SaveGoods(r.ctx, nil, cfg.BreedCost, "gm")
 }
@@ -304,7 +305,7 @@ func (r *RoleGM) AddFlowerBreedGoods(flowerID int) error {
 func (r *RoleGM) FinishBreed() error {
 	breeding := r.Role.Flower.FindBreeding()
 	if breeding == nil {
-		return fmt.Errorf("no flower is breeding")
+		return errors.Newf("no flower is breeding")
 	}
 	breeding.StateTime = time.Now().Add(-time.Second)
 	r.Role.Flower.MarkDirty()
@@ -338,7 +339,7 @@ func SendSystemMsg(ctx context.Context, content string) error {
 func (r *RoleGM) StopRole(roleID int64) error {
 	rolePid := rolelib.GetRolePid(roleID)
 	if rolePid == nil {
-		return fmt.Errorf("role %d not found ", roleID)
+		return errors.Newf("role %d not found ", roleID)
 	}
 	gxyactor.LocalSend(r.ctx, rolePid, &pb.ActorStop{
 		Reason: "gm stop role",
@@ -378,15 +379,15 @@ func (r *RoleGM) SendMailGoods(roleID int64, title string, content string, goods
 		}
 		kv := strings.Split(part, ":")
 		if len(kv) != 2 {
-			return fmt.Errorf("invalid goods spec: %s", part)
+			return errors.Newf("invalid goods spec: %s", part)
 		}
 		goodID, err := strconv.Atoi(strings.TrimSpace(kv[0]))
 		if err != nil {
-			return fmt.Errorf("invalid good id: %s", kv[0])
+			return errors.Newf("invalid good id: %s", kv[0])
 		}
 		num, err := strconv.Atoi(strings.TrimSpace(kv[1]))
 		if err != nil {
-			return fmt.Errorf("invalid num: %s", kv[1])
+			return errors.Newf("invalid num: %s", kv[1])
 		}
 		goods = append(goods, bag.Good{GoodID: goodID, Num: uint64(num)})
 	}

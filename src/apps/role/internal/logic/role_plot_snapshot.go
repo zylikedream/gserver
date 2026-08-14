@@ -9,6 +9,7 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/src/pkg/deps"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/redis/go-redis/v9"
 
@@ -63,10 +64,10 @@ func (s redisRolePlotSnapshotStore) Set(ctx context.Context, roleID int64, plots
 		UpdatedAt: time.Now(),
 	})
 	if err != nil {
-		return fmt.Errorf("marshal role plot snapshot: %w", err)
+		return errors.Wrap(err, "marshal role plot snapshot")
 	}
 	if err := s.redis().Set(ctx, rolePlotSnapshotKey(roleID), raw, RolePlotSnapshotCacheExpire).Err(); err != nil {
-		return fmt.Errorf("set role plot snapshot: %w", err)
+		return errors.Wrap(err, "set role plot snapshot")
 	}
 	return nil
 }

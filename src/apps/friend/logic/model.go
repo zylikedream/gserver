@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
 	"time"
 
+	"github.com/cockroachdb/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -25,7 +25,7 @@ func scanJSONBytes(val interface{}, dst any) error {
 	case string:
 		bytes = []byte(v)
 	default:
-		return fmt.Errorf("unsupported scan type %T", val)
+		return errors.Newf("unsupported scan type %T", val)
 	}
 	return json.Unmarshal(bytes, dst)
 }

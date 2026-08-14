@@ -9,6 +9,7 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/pkg/gameconfig"
 
+	"github.com/cockroachdb/errors"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -193,7 +194,7 @@ func TestSubmitOrder_Cooldown(t *testing.T) {
 
 	// 第二次提交应被拒绝（冷却中）
 	_, err = orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
-	if err != ErrOrderSlotCooldown {
+	if !errors.Is(err, ErrOrderSlotCooldown) {
 		t.Fatalf("expected ErrOrderSlotCooldown, got %v", err)
 	}
 }
@@ -205,7 +206,7 @@ func TestSubmitOrder_NotEnough(t *testing.T) {
 
 	// 背包为空，提交应失败
 	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
-	if err != ErrOrderNotEnough {
+	if !errors.Is(err, ErrOrderNotEnough) {
 		t.Fatalf("expected ErrOrderNotEnough, got %v", err)
 	}
 }
@@ -215,7 +216,7 @@ func TestSubmitOrder_InvalidSlot(t *testing.T) {
 
 	// 不存在的 slot ID（且没有花产品，slot 已被删除）
 	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: 999})
-	if err != ErrOrderSlotCooldown {
+	if !errors.Is(err, ErrOrderSlotCooldown) {
 		t.Fatalf("expected ErrOrderSlotCooldown for invalid slot, got %v", err)
 	}
 }
@@ -252,7 +253,7 @@ func TestClaimMilestone_NotReached(t *testing.T) {
 	orderMod.CompletedCount = 5
 
 	_, err := orderMod.ReqResidentOrderClaimMilestone(context.Background(), &pb.ReqResidentOrderClaimMilestone{Id: 1})
-	if err != ErrOrderMilestoneNotReached {
+	if !errors.Is(err, ErrOrderMilestoneNotReached) {
 		t.Fatalf("expected ErrOrderMilestoneNotReached, got %v", err)
 	}
 }
@@ -271,7 +272,7 @@ func TestClaimMilestone_AlreadyClaimed(t *testing.T) {
 
 	// 再次领取 milestone 1 应被拒绝
 	_, err = orderMod.ReqResidentOrderClaimMilestone(context.Background(), &pb.ReqResidentOrderClaimMilestone{Id: 1})
-	if err != ErrOrderMilestoneClaimed {
+	if !errors.Is(err, ErrOrderMilestoneClaimed) {
 		t.Fatalf("expected ErrOrderMilestoneClaimed, got %v", err)
 	}
 }

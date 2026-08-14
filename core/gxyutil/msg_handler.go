@@ -8,10 +8,10 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/text/gstr"
 	"github.com/gookit/goutil/reflects"
-	"github.com/pkg/errors"
 	"github.com/smallnest/rpcx/share"
 )
 

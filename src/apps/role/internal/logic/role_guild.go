@@ -15,6 +15,7 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/lib"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 )
@@ -100,7 +101,7 @@ func callGuildCreate(ctx context.Context, leaderID int64, name, declaration, ico
 		GuildID int64 `json:"guild_id"`
 	}{}
 	if err := gconv.Scan(rsp.Data, &data); err != nil {
-		return 0, fmt.Errorf("parse guild_id: %w", err)
+		return 0, errors.Wrap(err, "parse guild_id")
 	}
 	return data.GuildID, nil
 }
@@ -113,7 +114,7 @@ func callGuildSearch(ctx context.Context, keyword string) ([]*pb.PGuildBasic, er
 	}
 	var guilds []*pb.PGuildBasic
 	if err := gconv.Scan(rsp.Data, &guilds); err != nil {
-		return nil, fmt.Errorf("parse search result: %w", err)
+		return nil, errors.Wrap(err, "parse search result")
 	}
 	return guilds, nil
 }
@@ -123,16 +124,16 @@ func callGuildSearch(ctx context.Context, keyword string) ([]*pb.PGuildBasic, er
 func (r *RoleGuild) ReqGuildCreate(ctx context.Context, req *pb.ReqGuildCreate) (*pb.RspGuildCreate, error) {
 	guildCfg := r.Cfg().TbGuildConfig.Get()
 	if guildCfg == nil {
-		return nil, fmt.Errorf("公会配置未找到")
+		return nil, errors.Newf("公会配置未找到")
 	}
 	if r.Role.Basic.Level < guildCfg.UnlockLevel {
-		return nil, fmt.Errorf("等级不足，需要 Lv%d", guildCfg.UnlockLevel)
+		return nil, errors.Newf("等级不足，需要 Lv%d", guildCfg.UnlockLevel)
 	}
 	if r.GuildID > 0 {
-		return nil, fmt.Errorf("你已加入公会")
+		return nil, errors.Newf("你已加入公会")
 	}
 	if !r.Role.Bag.CheckGoods(guildCfg.CreateCost) {
-		return nil, fmt.Errorf("创建公会消耗不足")
+		return nil, errors.Newf("创建公会消耗不足")
 	}
 
 	guildID, err := callGuildCreate(ctx, r.RoleID, req.Name, req.Declaration, req.Icon, req.NeedApproval)
@@ -159,7 +160,7 @@ func (r *RoleGuild) ReqGuildSearch(ctx context.Context, req *pb.ReqGuildSearch) 
 func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any, error) {
 	pid, err := lib.GetGuildActor(ctx, r.GuildID)
 	if err != nil {
-		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取公会 actor 失败")
 	}
 	return gxyactor.Call(ctx, pid, req, 10*time.Second)
 }
@@ -167,7 +168,7 @@ func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any,
 func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
 	pid, err := lib.GetGuildActor(ctx, req.GuildId)
 	if err != nil {
-		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取公会 actor 失败")
 	}
 	rsp, err := gxyactor.Call(ctx, pid, &pb.ReqGuildApply{RoleId: r.RoleID, GuildId: req.GuildId}, 10*time.Second)
 	if err != nil {
@@ -179,7 +180,7 @@ func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*
 
 func (r *RoleGuild) requireGuild() error {
 	if r.GuildID == 0 {
-		return fmt.Errorf("你没有加入公会")
+		return errors.Newf("你没有加入公会")
 	}
 	return nil
 }

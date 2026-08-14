@@ -2,10 +2,11 @@ package logic
 
 import (
 	"context"
-	"fmt"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"time"
+
+	"github.com/cockroachdb/errors"
 )
 
 type RoleBasicState struct {
@@ -73,7 +74,7 @@ func (r *RoleBasic) onGoodChangeEvent(ctx context.Context, param event.EventPara
 
 func (r *RoleBasic) ReqBasicSetName(ctx context.Context, req *pb.ReqBasicSetName) (*pb.RspBasicSetName, error) {
 	if !r.isNameValid(req.Name) {
-		return nil, fmt.Errorf("name unvalid:%s", req.Name)
+		return nil, errors.Newf("name unvalid:%s", req.Name)
 	}
 	rsp := &pb.RspBasicSetName{
 		Name: req.Name,

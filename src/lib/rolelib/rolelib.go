@@ -15,6 +15,7 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/src/lib"
 
+	"github.com/cockroachdb/errors"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -58,14 +59,14 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 	}()
 	msg := &roleNotifyMsg{}
 	if err := json.Unmarshal([]byte(raw), msg); err != nil {
-		return fmt.Errorf("role notify unmarshal: %w", err)
+		return errors.Wrap(err, "role notify unmarshal")
 	}
 	if msg.TargetRoleID <= 0 || msg.Msg == nil {
-		return fmt.Errorf("role notify invalid payload, target: %d", msg.TargetRoleID)
+		return errors.Newf("role notify invalid payload, target: %d", msg.TargetRoleID)
 	}
 	pbmsg, err := msg.Msg.UnmarshalNew()
 	if err != nil {
-		return fmt.Errorf("role notify any unmarshal: %w", err)
+		return errors.Wrap(err, "role notify any unmarshal")
 	}
 	msgType = protoMessageName(pbmsg)
 	if err := notifyLocal(ctx, msg.TargetRoleID, pbmsg); err != nil {
@@ -110,12 +111,12 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 	}
 	if err != nil {
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "unknown").Inc()
-		return fmt.Errorf("get role notify target locate: %w", err)
+		return errors.Wrap(err, "get role notify target locate")
 	}
 	anyMsg := &anypb.Any{}
 	if err := anypb.MarshalFrom(anyMsg, msg, proto.MarshalOptions{}); err != nil {
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "remote").Inc()
-		return fmt.Errorf("role notify marshal: %w", err)
+		return errors.Wrap(err, "role notify marshal")
 	}
 	payload, err := json.Marshal(&roleNotifyMsg{
 		TargetRoleID: targetRoleID,
@@ -124,11 +125,11 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 	})
 	if err != nil {
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "remote").Inc()
-		return fmt.Errorf("role notify json marshal: %w", err)
+		return errors.Wrap(err, "role notify json marshal")
 	}
 	if err := gxymq.MessageQueue().Publish(ctx, roleNotifyTopic(nodeInstanceName), string(payload)); err != nil {
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "remote").Inc()
-		return fmt.Errorf("role notify publish: %w", err)
+		return errors.Wrap(err, "role notify publish")
 	}
 	gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "ok", "remote").Inc()
 	return nil

@@ -7,11 +7,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/container/gmap"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/gsvc"
 	"github.com/gogf/gf/v2/util/gconv"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -49,7 +49,7 @@ func NewRegistery() (*registery, error) {
 	case REGISTERY_TYPE_REDIS:
 		r, err = newRedisRegistery(cfg)
 	default:
-		return nil, errors.Errorf("not support registery type %s", t)
+		return nil, errors.Newf("not support registery type %s", t)
 	}
 	if err != nil {
 		return nil, err
