@@ -9,11 +9,11 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache: true
@@ -25,7 +25,8 @@ jobs:
         run: make test
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          # 需 v2.x(go1.25 构建): v1.latest(1.64.8) 是 go1.24 构建, 不认识 go 1.25.1
+          version: v2.12.2
         continue-on-error: true
