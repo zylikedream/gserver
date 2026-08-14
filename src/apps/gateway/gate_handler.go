@@ -2,12 +2,13 @@ package gateway
 
 import (
 	"context"
-	"fmt"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
+
+	"github.com/olekukonko/errors"
 )
 
 type GateHandler struct {
@@ -53,6 +54,6 @@ func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 		if err != nil {
 			reason = err.Error()
 		}
-		StopSession(sessPid, fmt.Errorf("conn closed: %s", reason))
+		StopSession(sessPid, errors.Newf("conn closed: %s", reason))
 	}
 }

@@ -15,6 +15,7 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/src/lib"
 
+	"github.com/olekukonko/errors"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -61,7 +62,7 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 		return fmt.Errorf("role notify unmarshal: %w", err)
 	}
 	if msg.TargetRoleID <= 0 || msg.Msg == nil {
-		return fmt.Errorf("role notify invalid payload, target: %d", msg.TargetRoleID)
+		return errors.Newf("role notify invalid payload, target: %d", msg.TargetRoleID)
 	}
 	pbmsg, err := msg.Msg.UnmarshalNew()
 	if err != nil {

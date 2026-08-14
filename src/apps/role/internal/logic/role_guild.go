@@ -15,6 +15,7 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/src/lib"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 )
@@ -123,16 +124,16 @@ func callGuildSearch(ctx context.Context, keyword string) ([]*pb.PGuildBasic, er
 func (r *RoleGuild) ReqGuildCreate(ctx context.Context, req *pb.ReqGuildCreate) (*pb.RspGuildCreate, error) {
 	guildCfg := r.Cfg().TbGuildConfig.Get()
 	if guildCfg == nil {
-		return nil, fmt.Errorf("公会配置未找到")
+		return nil, errors.Newf("公会配置未找到")
 	}
 	if r.Role.Basic.Level < guildCfg.UnlockLevel {
-		return nil, fmt.Errorf("等级不足，需要 Lv%d", guildCfg.UnlockLevel)
+		return nil, errors.Newf("等级不足，需要 Lv%d", guildCfg.UnlockLevel)
 	}
 	if r.GuildID > 0 {
-		return nil, fmt.Errorf("你已加入公会")
+		return nil, errors.Newf("你已加入公会")
 	}
 	if !r.Role.Bag.CheckGoods(guildCfg.CreateCost) {
-		return nil, fmt.Errorf("创建公会消耗不足")
+		return nil, errors.Newf("创建公会消耗不足")
 	}
 
 	guildID, err := callGuildCreate(ctx, r.RoleID, req.Name, req.Declaration, req.Icon, req.NeedApproval)
@@ -179,7 +180,7 @@ func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*
 
 func (r *RoleGuild) requireGuild() error {
 	if r.GuildID == 0 {
-		return fmt.Errorf("你没有加入公会")
+		return errors.Newf("你没有加入公会")
 	}
 	return nil
 }

@@ -3,7 +3,8 @@ package packet
 import (
 	"encoding/binary"
 	stderrors "errors"
-	"fmt"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxynet/message"
 
@@ -48,7 +49,7 @@ func uintDecode(data []byte, byteOrder binary.ByteOrder) (uint64, error) {
 	case 8:
 		return uint64(byteOrder.Uint64(data)), nil
 	}
-	return 0, fmt.Errorf("unsupport byte len:%d", len(data))
+	return 0, errors.Newf("unsupport byte len:%d", len(data))
 }
 
 const (

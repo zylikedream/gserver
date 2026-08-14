@@ -19,6 +19,7 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/asynkron/protoactor-go/router"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/olekukonko/errors"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -81,7 +82,7 @@ func (r *activatorRouter) HandleMessage(ctx context.Context, msg any) error {
 		}
 		poolPID := r.GetPool(msg.Kind)
 		if poolPID == nil {
-			return fmt.Errorf("pool %s not registered", msg.Kind)
+			return errors.Newf("pool %s not registered", msg.Kind)
 		}
 		CallSync(ctx, poolPID, wrapped, sender)
 	case *localMsgRegisterPool:
@@ -136,7 +137,7 @@ func NewActorActivator(kind string, manager *activatorManager) *actorActivator {
 func (a *actorActivator) DelayInit(ctx context.Context) error {
 	info, ok := a.manager.activatorMetas[a.kind]
 	if !ok {
-		return fmt.Errorf("actor kind %s not registered", a.kind)
+		return errors.Newf("actor kind %s not registered", a.kind)
 	}
 	a.meta = info
 	return nil
