@@ -2,7 +2,8 @@ package logic
 
 import (
 	"context"
-	"errors"
+	stderrors "errors"
+	"github.com/cockroachdb/errors"
 	"time"
 
 	"gserver/src/pkg/gameconfig"
@@ -11,12 +12,12 @@ import (
 )
 
 var (
-	ErrSelfAdd         = errors.New("不能添加自己为好友")
-	ErrAlreadyFriend   = errors.New("对方已经是好友")
-	ErrFriendFull      = errors.New("好友数量已达上限")
-	ErrApplyDuplicated = errors.New("已申请过，等待对方处理")
-	ErrApplyNotFound   = errors.New("申请不存在或已过期")
-	ErrCooldown        = errors.New("操作过于频繁，请稍后再试")
+	ErrSelfAdd         = stderrors.New("不能添加自己为好友")
+	ErrAlreadyFriend   = stderrors.New("对方已经是好友")
+	ErrFriendFull      = stderrors.New("好友数量已达上限")
+	ErrApplyDuplicated = stderrors.New("已申请过，等待对方处理")
+	ErrApplyNotFound   = stderrors.New("申请不存在或已过期")
+	ErrCooldown        = stderrors.New("操作过于频繁，请稍后再试")
 )
 
 type Config struct {

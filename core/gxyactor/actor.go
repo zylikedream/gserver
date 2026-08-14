@@ -2,7 +2,7 @@ package gxyactor
 
 import (
 	"context"
-	"errors"
+	"github.com/cockroachdb/errors"
 	"fmt"
 	"time"
 

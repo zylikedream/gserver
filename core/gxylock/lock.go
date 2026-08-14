@@ -4,7 +4,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
+	stderrors "errors"
+	"github.com/cockroachdb/errors"
 	mathrand "math/rand"
 	"sort"
 	"time"
@@ -17,7 +18,7 @@ const (
 	defaultRetryBaseDelay  = 30 * time.Millisecond
 )
 
-var ErrBusy = errors.New("lock busy")
+var ErrBusy = stderrors.New("lock busy")
 
 type Manager interface {
 	Acquire(ctx context.Context, key string, ttl time.Duration) (string, bool, error)

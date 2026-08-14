@@ -3,7 +3,7 @@ package codec
 import (
 	"encoding/json"
 
-	"github.com/pkg/errors"
+	"github.com/cockroachdb/errors"
 )
 
 type JsonMessage struct {

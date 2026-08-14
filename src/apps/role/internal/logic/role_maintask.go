@@ -8,12 +8,12 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 
-	"github.com/pkg/errors"
+	stderrors "errors"
 )
 
 var (
-	ErrMainTaskNotClaimable = errors.New("main task not claimable")
-	ErrMainTaskFinished     = errors.New("main task finished")
+	ErrMainTaskNotClaimable = stderrors.New("main task not claimable")
+	ErrMainTaskFinished     = stderrors.New("main task finished")
 )
 
 type RoleMainTaskState struct {

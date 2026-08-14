@@ -3,7 +3,8 @@ package logic
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	stderrors "errors"
+	"github.com/cockroachdb/errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -22,10 +23,10 @@ import (
 )
 
 var (
-	ErrChatCooldown   = errors.New("发言太频繁，请稍后再试")
-	ErrChatMsgEmpty   = errors.New("消息不能为空")
-	ErrChatMsgTooLong = errors.New("消息超过字数限制")
-	ErrChatNotFriend  = errors.New("对方不是你的好友")
+	ErrChatCooldown   = stderrors.New("发言太频繁，请稍后再试")
+	ErrChatMsgEmpty   = stderrors.New("消息不能为空")
+	ErrChatMsgTooLong = stderrors.New("消息超过字数限制")
+	ErrChatNotFriend  = stderrors.New("对方不是你的好友")
 )
 
 type RoleChatState struct {

@@ -1,7 +1,7 @@
 package chat
 
 import (
-	"errors"
+	"github.com/cockroachdb/errors"
 	"time"
 
 	gamecfg "gserver/gameconfig/gosrc"

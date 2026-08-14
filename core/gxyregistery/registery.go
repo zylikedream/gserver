@@ -11,7 +11,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/net/gsvc"
 	"github.com/gogf/gf/v2/util/gconv"
-	"github.com/pkg/errors"
+	"github.com/cockroachdb/errors"
 )
 
 const (

@@ -2,7 +2,7 @@ package logic
 
 import (
 	"context"
-	"errors"
+	"github.com/cockroachdb/errors"
 	"time"
 
 	"gserver/core/gxylog"

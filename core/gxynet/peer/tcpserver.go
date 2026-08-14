@@ -2,7 +2,7 @@ package peer
 
 import (
 	"context"
-	"errors"
+	"github.com/cockroachdb/errors"
 	"fmt"
 	"io"
 

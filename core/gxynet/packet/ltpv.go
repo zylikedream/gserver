@@ -7,10 +7,10 @@ import (
 	"gserver/core/gxynet/message"
 	"gserver/core/gxyutil"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/encoding/gbinary"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/gogf/gf/v2/util/gconv"
-	"github.com/pkg/errors"
 )
 
 // length + type + id + payload
@@ -78,7 +78,7 @@ func (l *ltpv) Decode(data []byte) (uint64, *message.Message, error) {
 		return 0, nil, err
 	}
 	if dataSize > uint64(l.conf.MaxSize) {
-		return 0, nil, errors.WithStack(errors.Errorf("packet too big, %d(%d)", dataSize, l.conf.MaxSize))
+		return 0, nil, errors.Newf("packet too big, %d(%d)", dataSize, l.conf.MaxSize)
 	}
 	data = data[l.conf.SizeLength:]
 	if len(data) < int(dataSize) {

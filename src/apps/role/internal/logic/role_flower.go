@@ -10,14 +10,15 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 
-	"github.com/pkg/errors"
+	stderrors "errors"
+	"github.com/cockroachdb/errors"
 )
 
 var (
-	ErrFlowerLocked       = errors.New("flower not unlocked")
-	ErrFlowerBreedBusy    = errors.New("another flower is breeding")
-	ErrFlowerWrongState   = errors.New("flower is at wrong state")
-	ErrFlowerNotBreedDone = errors.New("breed not finished yet")
+	ErrFlowerLocked       = stderrors.New("flower not unlocked")
+	ErrFlowerBreedBusy    = stderrors.New("another flower is breeding")
+	ErrFlowerWrongState   = stderrors.New("flower is at wrong state")
+	ErrFlowerNotBreedDone = stderrors.New("breed not finished yet")
 )
 
 // ========== 数据模型 ==========

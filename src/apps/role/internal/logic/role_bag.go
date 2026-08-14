@@ -10,13 +10,14 @@ import (
 
 	"gserver/core/gxylog"
 
-	"github.com/pkg/errors"
+	stderrors "errors"
+	"github.com/cockroachdb/errors"
 )
 
 var (
-	ErrGoodNotEnough      = errors.New("good not enough")
-	ErrGoodConfigNotFound = errors.New("good config not found")
-	ErrGoodExceedMaxStack = errors.New("exceed max stack")
+	ErrGoodNotEnough      = stderrors.New("good not enough")
+	ErrGoodConfigNotFound = stderrors.New("good config not found")
+	ErrGoodExceedMaxStack = stderrors.New("exceed max stack")
 )
 
 type GoodsMap map[int]bag.BagGood

@@ -2,7 +2,7 @@ package logic
 
 import (
 	"context"
-	"errors"
+	"github.com/cockroachdb/errors"
 	"sort"
 	"strconv"
 	"time"

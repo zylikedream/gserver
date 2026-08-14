@@ -2,7 +2,7 @@ package packet
 
 import (
 	"encoding/binary"
-	"errors"
+	stderrors "errors"
 	"fmt"
 
 	"gserver/core/gxynet/message"
@@ -11,9 +11,10 @@ import (
 	"github.com/gogf/gf/v2/os/gcfg"
 )
 
+// 哨兵错误:标准库 errors.New(无栈),使用处用 errors.WithStack 补栈指向实际出错点。
 var (
-	ErrPkgHeadNotEnough = errors.New("pkg header not enougth")
-	ErrPkgBodyNotEnough = errors.New("pkg body not enougth")
+	ErrPkgHeadNotEnough = stderrors.New("pkg header not enougth")
+	ErrPkgBodyNotEnough = stderrors.New("pkg body not enougth")
 )
 
 type PacketCodec interface {
