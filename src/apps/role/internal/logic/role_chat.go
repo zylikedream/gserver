@@ -135,7 +135,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 		}
 		channelID = r.lastLobbyID
 		if time.Since(r.lastWorldChatTime) < time.Duration(r.Cfg().TbChatChannel.Get(1).Cooldown)*time.Second {
-			return nil, ErrChatCooldown
+			return nil, errors.WithStack(ErrChatCooldown)
 		}
 		r.lastWorldChatTime = time.Now()
 	case int32(gamecfg.GardenEChatChannelType_GUILD):
@@ -204,7 +204,7 @@ func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPr
 	}
 
 	if !isFriend(ctx, r.DB(), r.RoleID, req.TargetId) {
-		return nil, ErrChatNotFriend
+		return nil, errors.WithStack(ErrChatNotFriend)
 	}
 
 	ts, err := callChatStorePrivate(ctx, r.Role.Public.GetRolePublic(ctx),
@@ -285,10 +285,10 @@ func (r *RoleChat) LeaveChannel(ctx context.Context, channelType int32, channelI
 func validateChatMsg(content string, maxLen int) error {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
-		return ErrChatMsgEmpty
+		return errors.WithStack(ErrChatMsgEmpty)
 	}
 	if len([]rune(trimmed)) > maxLen {
-		return ErrChatMsgTooLong
+		return errors.WithStack(ErrChatMsgTooLong)
 	}
 	return nil
 }

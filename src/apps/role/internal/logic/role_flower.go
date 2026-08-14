@@ -153,15 +153,15 @@ func (r *RoleFlower) ReqFlowerStartBreed(ctx context.Context, req *pb.ReqFlowerS
 
 	flower, ok := r.Flowers[flowerID]
 	if !ok {
-		return nil, ErrFlowerLocked
+		return nil, errors.WithStack(ErrFlowerLocked)
 	}
 
 	if r.FindBreeding() != nil {
-		return nil, ErrFlowerBreedBusy
+		return nil, errors.WithStack(ErrFlowerBreedBusy)
 	}
 	// 只有unlock状态的可以烘焙
 	if flower.State != int32(pb.FlowerState_FLOWER_UNLOCKED) {
-		return nil, ErrFlowerWrongState
+		return nil, errors.WithStack(ErrFlowerWrongState)
 	}
 
 	cfg := r.Cfg().TbFlower.Get(flowerID)
@@ -170,7 +170,7 @@ func (r *RoleFlower) ReqFlowerStartBreed(ctx context.Context, req *pb.ReqFlowerS
 	}
 
 	if !r.Role.Bag.CheckGoods(cfg.BreedCost) {
-		return nil, ErrGoodNotEnough
+		return nil, errors.WithStack(ErrGoodNotEnough)
 	}
 	if err := r.Role.Bag.SaveGoods(ctx, cfg.BreedCost, nil, "breed"); err != nil {
 		return nil, err
@@ -189,10 +189,10 @@ func (r *RoleFlower) ReqFlowerFinishBreed(ctx context.Context, req *pb.ReqFlower
 
 	flower, ok := r.Flowers[flowerID]
 	if !ok {
-		return nil, ErrFlowerLocked
+		return nil, errors.WithStack(ErrFlowerLocked)
 	}
 	if !(flower.State == int32(pb.FlowerState_FLOWER_BREEDING) && time.Now().After(flower.StateTime)) {
-		return nil, ErrFlowerNotBreedDone
+		return nil, errors.WithStack(ErrFlowerNotBreedDone)
 	}
 
 	flower.State = int32(pb.FlowerState_FLOWER_HARVESTED)
@@ -208,7 +208,7 @@ func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgr
 
 	flower, ok := r.Flowers[flowerID]
 	if !ok {
-		return nil, ErrFlowerLocked
+		return nil, errors.WithStack(ErrFlowerLocked)
 	}
 
 	cfg := r.Cfg().TbFlower.Get(flowerID)
@@ -218,24 +218,24 @@ func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgr
 
 	// if flower is not harvested, return error
 	if flower.State != int32(pb.FlowerState_FLOWER_HARVESTED) {
-		return nil, ErrFlowerWrongState
+		return nil, errors.WithStack(ErrFlowerWrongState)
 	}
 
 	nextLevel := flower.Level + 1
 	levelCfg := r.Cfg().GetFlowerLevelByGroup(cfg.LevelGroup, nextLevel)
 	if levelCfg == nil {
-		return nil, ErrFlowerMaxLevel
+		return nil, errors.WithStack(ErrFlowerMaxLevel)
 	}
 
 	// 不能超过玩家等级
 	if r.Role.Basic.Level < nextLevel {
-		return nil, ErrPlayerLevelNotEnough
+		return nil, errors.WithStack(ErrPlayerLevelNotEnough)
 	}
 
 	// Check breakthrough gate
 	nextBreak := r.Cfg().GetFlowerBreakByGroup(cfg.LevelGroup, flower.BreakStage+1)
 	if nextBreak != nil && nextLevel > nextBreak.NeedLevel {
-		return nil, ErrFlowerNeedBreak
+		return nil, errors.WithStack(ErrFlowerNeedBreak)
 	}
 
 	// Check and deduct resources
@@ -246,7 +246,7 @@ func (r *RoleFlower) ReqFlowerUpgrade(ctx context.Context, req *pb.ReqFlowerUpgr
 		essenceCost,
 	}
 	if !r.Role.Bag.CheckGoods(totalCost) {
-		return nil, ErrGoodNotEnough
+		return nil, errors.WithStack(ErrGoodNotEnough)
 	}
 
 	if err := r.Role.Bag.SaveGoods(ctx, totalCost, nil, "flower_upgrade"); err != nil {
@@ -270,7 +270,7 @@ func (r *RoleFlower) ReqFlowerBreak(ctx context.Context, req *pb.ReqFlowerBreak)
 
 	flower, ok := r.Flowers[flowerID]
 	if !ok {
-		return nil, ErrFlowerLocked
+		return nil, errors.WithStack(ErrFlowerLocked)
 	}
 
 	cfg := r.Cfg().TbFlower.Get(flowerID)
@@ -281,15 +281,15 @@ func (r *RoleFlower) ReqFlowerBreak(ctx context.Context, req *pb.ReqFlowerBreak)
 	nextBreakStage := flower.BreakStage + 1
 	breakCfg := r.Cfg().GetFlowerBreakByGroup(cfg.LevelGroup, nextBreakStage)
 	if breakCfg == nil {
-		return nil, ErrFlowerBreakMax
+		return nil, errors.WithStack(ErrFlowerBreakMax)
 	}
 
 	if flower.Level < breakCfg.NeedLevel {
-		return nil, ErrFlowerBreakLevel
+		return nil, errors.WithStack(ErrFlowerBreakLevel)
 	}
 
 	if r.Role.Basic.Level < breakCfg.PlayerLevelLimit {
-		return nil, ErrFlowerBreakPlayerLevel
+		return nil, errors.WithStack(ErrFlowerBreakPlayerLevel)
 	}
 
 	// Build resource deduction list
@@ -305,7 +305,7 @@ func (r *RoleFlower) ReqFlowerBreak(ctx context.Context, req *pb.ReqFlowerBreak)
 	}
 
 	if !r.Role.Bag.CheckGoods(removeGoods) {
-		return nil, ErrGoodNotEnough
+		return nil, errors.WithStack(ErrGoodNotEnough)
 	}
 	if err := r.Role.Bag.SaveGoods(ctx, removeGoods, nil, "flower_break"); err != nil {
 		return nil, err

@@ -133,15 +133,15 @@ func (r *RolePlot) ReqPlotUnlock(ctx context.Context, req *pb.ReqPlotUnlock) (*p
 	}
 
 	if _, ok := r.Plots[plotID]; ok {
-		return nil, ErrPlotNotEmpty
+		return nil, errors.WithStack(ErrPlotNotEmpty)
 	}
 
 	if r.Role.Basic.Level < cfg.UnlockLevel {
-		return nil, ErrPlayerLevelNotEnough
+		return nil, errors.WithStack(ErrPlayerLevelNotEnough)
 	}
 
 	if !r.Role.Bag.CheckGoods(cfg.Cost) {
-		return nil, ErrGoodNotEnough
+		return nil, errors.WithStack(ErrGoodNotEnough)
 	}
 	if err := r.Role.Bag.SaveGoods(ctx, cfg.Cost, nil, "unlock_plot"); err != nil {
 		return nil, err
@@ -162,22 +162,22 @@ func (r *RolePlot) ReqPlotPlant(ctx context.Context, req *pb.ReqPlotPlant) (*pb.
 	// 检查花朵是否已解锁
 	flower, ok := r.Role.Flower.Flowers[flowerID]
 	if !ok {
-		return nil, ErrFlowerLocked
+		return nil, errors.WithStack(ErrFlowerLocked)
 	}
 
 	// 检查花朵是否已收获
 	if flower.State != int32(pb.FlowerState_FLOWER_HARVESTED) {
-		return nil, ErrFlowerLocked
+		return nil, errors.WithStack(ErrFlowerLocked)
 	}
 
 	// 校验所有地块状态
 	for _, plotID := range req.PlotIds {
 		plot, ok := r.Plots[plotID]
 		if !ok {
-			return nil, ErrPlotLocked
+			return nil, errors.WithStack(ErrPlotLocked)
 		}
 		if getPlotState(plot) != int32(pb.PlotState_PLOT_EMPTY) {
-			return nil, ErrPlotNotEmpty
+			return nil, errors.WithStack(ErrPlotNotEmpty)
 		}
 	}
 
@@ -208,10 +208,10 @@ func (r *RolePlot) ReqPlotWater(ctx context.Context, req *pb.ReqPlotWater) (*pb.
 	for _, plotID := range req.PlotIds {
 		plot, ok := r.Plots[plotID]
 		if !ok {
-			return nil, ErrPlotLocked
+			return nil, errors.WithStack(ErrPlotLocked)
 		}
 		if getPlotState(plot) != int32(pb.PlotState_PLOT_PLANTED) {
-			return nil, ErrPlotNotPlanted
+			return nil, errors.WithStack(ErrPlotNotPlanted)
 		}
 		flowerCfg := r.Cfg().TbFlower.Get(plot.FlowerID)
 		if flowerCfg == nil {
@@ -224,7 +224,7 @@ func (r *RolePlot) ReqPlotWater(ctx context.Context, req *pb.ReqPlotWater) (*pb.
 	if totalWaterCost > 0 {
 		waterCost := bag.MakeGoodStack(WATER_ITEM_ID, int(totalWaterCost))
 		if !r.Role.Bag.CheckGoods([]*gamecfg.GardenGoodStack{waterCost}) {
-			return nil, ErrGoodNotEnough
+			return nil, errors.WithStack(ErrGoodNotEnough)
 		}
 		if err := r.Role.Bag.SaveGoods(ctx, []*gamecfg.GardenGoodStack{waterCost}, nil, "water_flower"); err != nil {
 			return nil, err
@@ -264,14 +264,14 @@ func (r *RolePlot) ReqPlotHarvest(ctx context.Context, req *pb.ReqPlotHarvest) (
 		for _, plotID := range req.PlotIds {
 			plot, ok := r.Plots[plotID]
 			if !ok {
-				return ErrPlotLocked
+				return errors.WithStack(ErrPlotLocked)
 			}
 			state := getPlotState(plot)
 			if state != int32(pb.PlotState_PLOT_HARVESTABLE) {
-				return ErrPlotNotReady
+				return errors.WithStack(ErrPlotNotReady)
 			}
 			if plot.State != int32(pb.PlotState_PLOT_GROWING) || !now.After(plot.StateTime) {
-				return ErrPlotNotReady
+				return errors.WithStack(ErrPlotNotReady)
 			}
 		}
 
@@ -383,14 +383,14 @@ func (r *RolePlot) ReqPlotRemove(ctx context.Context, req *pb.ReqPlotRemove) (*p
 	for _, plotID := range req.PlotIds {
 		plot, ok := r.Plots[plotID]
 		if !ok {
-			return nil, ErrPlotLocked
+			return nil, errors.WithStack(ErrPlotLocked)
 		}
 		state := getPlotState(plot)
 		if state == int32(pb.PlotState_PLOT_HARVESTABLE) {
-			return nil, ErrPlotHarvestable
+			return nil, errors.WithStack(ErrPlotHarvestable)
 		}
 		if plot.State != int32(pb.PlotState_PLOT_PLANTED) && plot.State != int32(pb.PlotState_PLOT_GROWING) {
-			return nil, ErrPlotNotPlanted
+			return nil, errors.WithStack(ErrPlotNotPlanted)
 		}
 	}
 

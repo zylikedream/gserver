@@ -65,7 +65,7 @@ func TestWithReturnsBusyAndReleasesPartial(t *testing.T) {
 		t.Fatal("callback should not run")
 		return nil
 	})
-	if err != ErrBusy {
+	if !errors.Is(err, ErrBusy) {
 		t.Fatalf("expected ErrBusy, got %v", err)
 	}
 	if len(mem.held) != 0 {

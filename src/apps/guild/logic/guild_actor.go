@@ -359,7 +359,7 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 		return errors.New("公会等级配置未找到")
 	}
 	if len(g.Data.Members) >= int(levelCfg.MemberLimit) {
-		return ErrGuildFull
+		return errors.WithStack(ErrGuildFull)
 	}
 
 	// 原子门：INSERT OR UPDATE，WHERE guild_id=0 确保只对无公会玩家生效
@@ -379,7 +379,7 @@ func (g *GuildActor) addMember(ctx context.Context, roleID int64) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return ErrPlayerAlreadyInGuild
+		return errors.WithStack(ErrPlayerAlreadyInGuild)
 	}
 
 	member := &GuildMember{RoleID: roleID, Position: int32(gamecfg.GardenEGuildPosition_MEMBER), JoinedAt: time.Now().Unix()}
@@ -419,7 +419,7 @@ func (g *GuildActor) GetGuildApplyList(ctx context.Context, req *pb.ReqGuildAppl
 
 func (g *GuildActor) ApproveApply(ctx context.Context, operatorID int64, req *pb.ReqGuildApproveApply) error {
 	if !g.canApprove(operatorID) {
-		return ErrPermissionDenied
+		return errors.WithStack(ErrPermissionDenied)
 	}
 
 	// 支持批量审批
@@ -446,7 +446,7 @@ func (g *GuildActor) processSingleApply(ctx context.Context, applyID int64, appr
 		}
 	}
 	if apply == nil {
-		return ErrApplyExpired
+		return errors.WithStack(ErrApplyExpired)
 	}
 
 	// 拒绝：仅更新状态
@@ -467,7 +467,7 @@ func (g *GuildActor) processSingleApply(ctx context.Context, applyID int64, appr
 
 func (g *GuildActor) KickMember(ctx context.Context, operatorID int64, req *pb.ReqGuildKickMember) error {
 	if !g.canKick(operatorID, req.TargetId) {
-		return ErrPermissionDenied
+		return errors.WithStack(ErrPermissionDenied)
 	}
 
 	g.Data.Members = removeMember(g.Data.Members, req.TargetId)
@@ -551,19 +551,19 @@ func (g *GuildActor) HandleKickMember(ctx context.Context, req *pb.ReqGuildKickM
 // SetPosition — 设置成员职位（会长操作）
 func (g *GuildActor) SetPosition(ctx context.Context, req *pb.ReqGuildSetPosition) (*pb.RspGuildSetPosition, error) {
 	if req.RoleId == req.TargetId {
-		return nil, ErrCannotSetPositionToSelf
+		return nil, errors.WithStack(ErrCannotSetPositionToSelf)
 	}
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position >= req.Position {
-		return nil, ErrPermissionDenied
+		return nil, errors.WithStack(ErrPermissionDenied)
 	}
 	target := g.getMember(req.TargetId)
 	if target == nil {
-		return nil, ErrMemberNotFound
+		return nil, errors.WithStack(ErrMemberNotFound)
 	}
 	validPostions := []int32{int32(gamecfg.GardenEGuildPosition_VICE_LEADER), int32(gamecfg.GardenEGuildPosition_MEMBER)}
 	if !util.ListMember(validPostions, req.Position) {
-		return nil, ErrInvalidPosition
+		return nil, errors.WithStack(ErrInvalidPosition)
 	}
 
 	target.Position = req.Position
@@ -575,10 +575,10 @@ func (g *GuildActor) SetPosition(ctx context.Context, req *pb.ReqGuildSetPositio
 func (g *GuildActor) TransferLeader(ctx context.Context, req *pb.ReqGuildTransferLeader) (*pb.RspGuildTransferLeader, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
-		return nil, ErrPermissionDenied
+		return nil, errors.WithStack(ErrPermissionDenied)
 	}
 	if req.TargetId == req.RoleId {
-		return nil, ErrCannotTransferToSelf
+		return nil, errors.WithStack(ErrCannotTransferToSelf)
 	}
 	target := g.getMember(req.TargetId)
 	if target == nil {
@@ -596,7 +596,7 @@ func (g *GuildActor) TransferLeader(ctx context.Context, req *pb.ReqGuildTransfe
 func (g *GuildActor) UpdateGuildInfo(ctx context.Context, req *pb.ReqGuildUpdateInfo) (*pb.RspGuildUpdateInfo, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position > int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
-		return nil, ErrPermissionDenied
+		return nil, errors.WithStack(ErrPermissionDenied)
 	}
 	if req.Declaration != "" {
 		g.Data.Declaration = req.Declaration
@@ -631,10 +631,10 @@ func (g *GuildActor) LeaveGuild(ctx context.Context, req *pb.ReqGuildLeave) (*pb
 func (g *GuildActor) DisbandGuild(ctx context.Context, req *pb.ReqGuildDisband) (*pb.RspGuildDisband, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
-		return nil, ErrPermissionDenied
+		return nil, errors.WithStack(ErrPermissionDenied)
 	}
 	if len(g.Data.Members) > 1 {
-		return nil, ErrGuildHasMembers
+		return nil, errors.WithStack(ErrGuildHasMembers)
 	}
 	// 通知成员
 	for _, m := range g.Data.Members {

@@ -59,7 +59,7 @@ func lockBoth(tx *gorm.DB, a, b int64) (first, second *FriendData, err error) {
 // SendRequest 发起好友申请
 func SendRequest(ctx context.Context, fromID, toID int64, cfg *Config, db *gorm.DB) error {
 	if fromID == toID {
-		return ErrSelfAdd
+		return errors.WithStack(ErrSelfAdd)
 	}
 
 	tx := openTx(ctx, db)
@@ -80,14 +80,14 @@ func SendRequest(ctx context.Context, fromID, toID int64, cfg *Config, db *gorm.
 
 	for _, cd := range me.Cooldowns {
 		if cd.TargetID == toID && cd.Until > now {
-			return ErrCooldown
+			return errors.WithStack(ErrCooldown)
 		}
 	}
 	if me.Friends.Has(toID) || target.Friends.Has(fromID) {
-		return ErrAlreadyFriend
+		return errors.WithStack(ErrAlreadyFriend)
 	}
 	if me.Outgoing.Has(toID) {
-		return ErrApplyDuplicated
+		return errors.WithStack(ErrApplyDuplicated)
 	}
 	if len(me.Outgoing) >= int(cfg.ApplySendLimit) {
 		return errors.New("发送申请数量已达上限")
@@ -124,10 +124,10 @@ func AcceptRequest(ctx context.Context, myID, fromID int64, cfg *Config, db *gor
 	me, other := a, b
 
 	if !me.Incoming.Has(fromID) {
-		return ErrApplyNotFound
+		return errors.WithStack(ErrApplyNotFound)
 	}
 	if len(me.Friends) >= int(cfg.FriendMaxCount) {
-		return ErrFriendFull
+		return errors.WithStack(ErrFriendFull)
 	}
 	if len(other.Friends) >= int(cfg.FriendMaxCount) {
 		return errors.New("对方好友数量已达上限")
@@ -168,7 +168,7 @@ func RejectRequest(ctx context.Context, myID, fromID int64, db *gorm.DB) error {
 	me, other := a, b
 
 	if !me.Incoming.Has(fromID) {
-		return ErrApplyNotFound
+		return errors.WithStack(ErrApplyNotFound)
 	}
 
 	me.Incoming = me.Incoming.Remove(fromID)

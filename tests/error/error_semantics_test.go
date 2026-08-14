@@ -76,6 +76,8 @@ func TestStackCount(t *testing.T) {
 		{"fmt.Errorf %w(标准库哨兵)", func() error { return fmt.Errorf("wrap %w", stdSentinel) }, 0},
 	}
 	for _, c := range cases {
+
+		t.Logf("%s: %+v", c.name, c.err())
 		if got := stackCount(c.err()); got != c.want {
 			t.Errorf("%s: 栈段=%d, 期望 %d", c.name, got, c.want)
 		}

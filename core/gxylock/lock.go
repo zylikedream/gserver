@@ -119,7 +119,7 @@ func With(ctx context.Context, mgr Manager, keys []string, ttl time.Duration, fn
 		}
 		if !ok {
 			releaseHeld(ctx, mgr, held)
-			return ErrBusy
+			return errors.WithStack(ErrBusy)
 		}
 		held = append(held, struct {
 			key   string
