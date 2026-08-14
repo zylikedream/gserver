@@ -508,7 +508,7 @@ func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IR
 		Updates(modState)
 	if result.Error != nil {
 		modState.SetVersion(oldVersion)
-		return nil, errors.Newf("save mod %s failed: %s", tableName, result.Error)
+		return nil, errors.Wrap(result.Error, "save mod "+tableName+" failed")
 	}
 	if result.RowsAffected == 0 {
 		modState.SetVersion(oldVersion) // 不清 dirty，下次重试

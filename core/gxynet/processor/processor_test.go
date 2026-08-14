@@ -7,7 +7,7 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/pkg/errors"
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxynet/message"

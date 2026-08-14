@@ -49,7 +49,7 @@ func NewRegistery() (*registery, error) {
 	case REGISTERY_TYPE_REDIS:
 		r, err = newRedisRegistery(cfg)
 	default:
-		return nil, errors.Errorf("not support registery type %s", t)
+		return nil, errors.Newf("not support registery type %s", t)
 	}
 	if err != nil {
 		return nil, err
