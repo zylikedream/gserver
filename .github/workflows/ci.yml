@@ -27,5 +27,6 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          # 需 v2.x(go1.25 构建): v1.latest(1.64.8) 是 go1.24 构建, 不认识 go 1.25.1
+          version: v2.12.2
         continue-on-error: true
