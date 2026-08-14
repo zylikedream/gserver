@@ -2,9 +2,10 @@ package peer
 
 import (
 	"context"
-	"github.com/cockroachdb/errors"
 	"fmt"
 	"io"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxymetrics"

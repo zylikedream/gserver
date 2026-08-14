@@ -2,10 +2,11 @@ package gxylock
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/cockroachdb/errors"
 )
 
 type memoryManager struct {

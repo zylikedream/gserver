@@ -82,7 +82,7 @@ func (l *ltpv) Decode(data []byte) (uint64, *message.Message, error) {
 	}
 	data = data[l.conf.SizeLength:]
 	if len(data) < int(dataSize) {
-		return 0, nil, errors.WithStack(ErrPkgBodyNotEnough)
+		return 0, nil, ErrPkgBodyNotEnough
 	}
 	msg, err := l.decodeBody(data[:dataSize])
 	return dataSize + uint64(l.conf.SizeLength), msg, err

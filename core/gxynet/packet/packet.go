@@ -2,7 +2,6 @@ package packet
 
 import (
 	"encoding/binary"
-	stderrors "errors"
 
 	"github.com/cockroachdb/errors"
 
@@ -14,8 +13,8 @@ import (
 
 // 哨兵错误:标准库 errors.New(无栈),使用处用 errors.WithStack 补栈指向实际出错点。
 var (
-	ErrPkgHeadNotEnough = stderrors.New("pkg header not enougth")
-	ErrPkgBodyNotEnough = stderrors.New("pkg body not enougth")
+	ErrPkgHeadNotEnough = errors.New("pkg header not enougth")
+	ErrPkgBodyNotEnough = errors.New("pkg body not enougth")
 )
 
 type PacketCodec interface {

@@ -2,18 +2,17 @@ package logic
 
 import (
 	"context"
+	"github.com/cockroachdb/errors"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
-
-	stderrors "errors"
 )
 
 var (
-	ErrMainTaskNotClaimable = stderrors.New("main task not claimable")
-	ErrMainTaskFinished     = stderrors.New("main task finished")
+	ErrMainTaskNotClaimable = errors.New("main task not claimable")
+	ErrMainTaskFinished     = errors.New("main task finished")
 )
 
 type RoleMainTaskState struct {

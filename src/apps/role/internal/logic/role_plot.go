@@ -10,17 +10,16 @@ import (
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 
-	stderrors "errors"
 	"github.com/cockroachdb/errors"
 )
 
 var (
-	ErrPlotLocked      = stderrors.New("plot not unlocked")
-	ErrPlotNotEmpty    = stderrors.New("plot is not empty")
-	ErrPlotNotPlanted  = stderrors.New("plot is not planted")
-	ErrPlotNotGrowing  = stderrors.New("plot is not growing")
-	ErrPlotNotReady    = stderrors.New("plot not ready for harvest")
-	ErrPlotHarvestable = stderrors.New("plot is harvestable, harvest first")
+	ErrPlotLocked      = errors.New("plot not unlocked")
+	ErrPlotNotEmpty    = errors.New("plot is not empty")
+	ErrPlotNotPlanted  = errors.New("plot is not planted")
+	ErrPlotNotGrowing  = errors.New("plot is not growing")
+	ErrPlotNotReady    = errors.New("plot not ready for harvest")
+	ErrPlotHarvestable = errors.New("plot is harvestable, harvest first")
 )
 
 // ========== 数据模型 ==========

@@ -1,8 +1,9 @@
 package chat
 
 import (
-	"github.com/cockroachdb/errors"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	gamecfg "gserver/gameconfig/gosrc"
 )
@@ -49,10 +50,11 @@ func (GuildChannel) CanJoin(_ int64) bool { return true }
 
 // channelRegistry channelType → IChannel
 // channelType 枚举值定义见策划配置表 chatchannel.xlsx channel_type 列：
-//   1=世界 2=私聊 3=系统 4=公会
+//
+//	1=世界 2=私聊 3=系统 4=公会
 var channelRegistry = map[int32]IChannel{
-	int32(gamecfg.GardenEChatChannelType_WORLD):  WorldChannel{},
-	int32(gamecfg.GardenEChatChannelType_GUILD):  GuildChannel{},
+	int32(gamecfg.GardenEChatChannelType_WORLD): WorldChannel{},
+	int32(gamecfg.GardenEChatChannelType_GUILD): GuildChannel{},
 }
 
 func GetChannel(channelType int32) (IChannel, bool) {

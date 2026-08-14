@@ -2,9 +2,9 @@ package logic
 
 import (
 	"context"
-	stderrors "errors"
-	"github.com/cockroachdb/errors"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	ErrNotFriend           = stderrors.New("对方不是你的好友")
-	ErrStealNotHarvestable = stderrors.New("该鲜花尚未成熟")
-	ErrStealFlowerFull     = stderrors.New("该鲜花已被摘取完毕")
-	ErrStealDailyFull      = stderrors.New("今日对该好友的摘取次数已用完")
-	ErrStealLocked         = stderrors.New("该鲜花已无法摘取")
+	ErrNotFriend           = errors.New("对方不是你的好友")
+	ErrStealNotHarvestable = errors.New("该鲜花尚未成熟")
+	ErrStealFlowerFull     = errors.New("该鲜花已被摘取完毕")
+	ErrStealDailyFull      = errors.New("今日对该好友的摘取次数已用完")
+	ErrStealLocked         = errors.New("该鲜花已无法摘取")
 )
 
 // ========== 每日偷取计数模型 ==========

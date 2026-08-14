@@ -2,11 +2,12 @@ package logic
 
 import (
 	"context"
-	"github.com/cockroachdb/errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
@@ -17,8 +18,8 @@ import (
 	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"gserver/src/lib/gatetoken"
 	"gserver/src/lib"
+	"gserver/src/lib/gatetoken"
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"

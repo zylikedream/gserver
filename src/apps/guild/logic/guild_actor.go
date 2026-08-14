@@ -2,10 +2,10 @@ package logic
 
 import (
 	"context"
-	stderrors "errors"
-	"github.com/cockroachdb/errors"
 	"fmt"
 	"time"
+
+	"github.com/cockroachdb/errors"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxylog"
@@ -18,8 +18,9 @@ import (
 	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 
-	"gorm.io/gorm"
 	"gserver/src/util"
+
+	"gorm.io/gorm"
 
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
@@ -284,19 +285,19 @@ func getLevelConfig(cfg *gameconfig.GameConfig, level int32) *gamecfg.GardenGuil
 // ===== 错误变量 =====
 
 var (
-	ErrPlayerAlreadyInGuild    = stderrors.New("该玩家已加入公会")
-	ErrGuildFull               = stderrors.New("公会人数已满")
-	ErrPermissionDenied        = stderrors.New("权限不足")
-	ErrGuildNotFound           = stderrors.New("公会不存在")
-	ErrCannotKickLeader        = stderrors.New("不能踢出会长")
-	ErrCannotKickViceLeader    = stderrors.New("不能操作同级副会长")
-	ErrCannotTransferToSelf    = stderrors.New("不能转让给自己")
-	ErrGuildHasMembers         = stderrors.New("公会还有其他成员，请先转让会长")
-	ErrApplyExpired            = stderrors.New("申请已过期或不存在")
-	ErrPositionLimitReached    = stderrors.New("副会长数量已达上限")
-	ErrMemberNotFound          = stderrors.New("成员不存在")
-	ErrCannotSetPositionToSelf = stderrors.New("不能设置自己的职位")
-	ErrInvalidPosition         = stderrors.New("无效的职位")
+	ErrPlayerAlreadyInGuild    = errors.New("该玩家已加入公会")
+	ErrGuildFull               = errors.New("公会人数已满")
+	ErrPermissionDenied        = errors.New("权限不足")
+	ErrGuildNotFound           = errors.New("公会不存在")
+	ErrCannotKickLeader        = errors.New("不能踢出会长")
+	ErrCannotKickViceLeader    = errors.New("不能操作同级副会长")
+	ErrCannotTransferToSelf    = errors.New("不能转让给自己")
+	ErrGuildHasMembers         = errors.New("公会还有其他成员，请先转让会长")
+	ErrApplyExpired            = errors.New("申请已过期或不存在")
+	ErrPositionLimitReached    = errors.New("副会长数量已达上限")
+	ErrMemberNotFound          = errors.New("成员不存在")
+	ErrCannotSetPositionToSelf = errors.New("不能设置自己的职位")
+	ErrInvalidPosition         = errors.New("无效的职位")
 )
 
 // nextApplyID 生成自增 apply_id（基于现有最大 ID + 1）
