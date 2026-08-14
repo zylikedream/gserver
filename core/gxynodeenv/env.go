@@ -66,7 +66,7 @@ func NewK8sNodeEnvFromEnv() (*K8sNodeEnv, error) {
 	if namespace == "" {
 		data, err := os.ReadFile(serviceAccountNamespacePath)
 		if err != nil {
-			return nil, fmt.Errorf("read namespace: %w", err)
+			return nil, errors.Wrap(err, "read namespace")
 		}
 		namespace = strings.TrimSpace(string(data))
 	}
@@ -80,7 +80,7 @@ func NewK8sNodeEnvFromEnv() (*K8sNodeEnv, error) {
 	}
 	tokenData, err := os.ReadFile(serviceAccountTokenPath)
 	if err != nil {
-		return nil, fmt.Errorf("read service account token: %w", err)
+		return nil, errors.Wrap(err, "read service account token")
 	}
 	client, err := newK8sHTTPClient()
 	if err != nil {
@@ -98,7 +98,7 @@ func NewK8sNodeEnvFromEnv() (*K8sNodeEnv, error) {
 func newK8sHTTPClient() (*http.Client, error) {
 	caData, err := os.ReadFile(serviceAccountCAPath)
 	if err != nil {
-		return nil, fmt.Errorf("read service account ca: %w", err)
+		return nil, errors.Wrap(err, "read service account ca")
 	}
 	pool := x509.NewCertPool()
 	if ok := pool.AppendCertsFromPEM(caData); !ok {

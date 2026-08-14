@@ -152,7 +152,7 @@ func (r *RoleChat) ReqChatSendChannel(ctx context.Context, req *pb.ReqChatSendCh
 	channelType := req.ChannelType
 	pid, err := lib.GetChannelActor(ctx, channelType, channelID)
 	if err != nil {
-		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取频道 actor 失败")
 	}
 	err = gxyactor.Send(ctx, pid, &pb.ReqChannelSend{
 		ChannelType: channelType,
@@ -185,7 +185,7 @@ func (r *RoleChat) ReqChatChannelHistory(ctx context.Context, req *pb.ReqChatCha
 	channelType := req.ChannelType
 	pid, err := lib.GetChannelActor(ctx, channelType, channelID)
 	if err != nil {
-		return nil, fmt.Errorf("获取频道 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取频道 actor 失败")
 	}
 	rsp, err := gxyactor.Call(ctx, pid, &pb.ReqChatChannelHistory{
 		ChannelType: channelType,
@@ -305,7 +305,7 @@ func callChatJoinLobby(ctx context.Context, roleID int64) (int64, error) {
 		LobbyID string `json:"lobby_id"`
 	}{}
 	if err := gconv.Scan(rsp.Data, &data); err != nil {
-		return 0, fmt.Errorf("parse lobby_id: %w", err)
+		return 0, errors.Wrap(err, "parse lobby_id")
 	}
 	return gconv.Int64(data.LobbyID), nil
 }
@@ -328,7 +328,7 @@ func callChatStorePrivate(ctx context.Context, sender *pb.PRolePublic, targetID 
 		Timestamp int64 `json:"timestamp"`
 	}{}
 	if err := gconv.Scan(rsp.Data, &data); err != nil {
-		return 0, fmt.Errorf("parse timestamp: %w", err)
+		return 0, errors.Wrap(err, "parse timestamp")
 	}
 	return data.Timestamp, nil
 }
@@ -341,7 +341,7 @@ func callChatPrivateHistory(ctx context.Context, roleID, friendID int64, count i
 	}
 	var msgs []*pb.PChatMsg
 	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
-		return nil, fmt.Errorf("parse private history: %w", err)
+		return nil, errors.Wrap(err, "parse private history")
 	}
 	return msgs, nil
 }
@@ -354,7 +354,7 @@ func callChatSystemHistory(ctx context.Context, count int) ([]*pb.PChatMsg, erro
 	}
 	var msgs []*pb.PChatMsg
 	if err := gconv.Scan(rsp.Data, &msgs); err != nil {
-		return nil, fmt.Errorf("parse system history: %w", err)
+		return nil, errors.Wrap(err, "parse system history")
 	}
 	return msgs, nil
 }

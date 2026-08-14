@@ -289,7 +289,7 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
 	if err := s.endpoint.SendMsg(msg); err != nil {
 		gxylog.Debug(ctx, "send client msg failed, stop session", gxylog.Err(err))
-		s.Stop(fmt.Errorf("conn closed: send client msg failed: %w", err))
+		s.Stop(errors.Wrap(err, "conn closed: send client msg failed"))
 		return nil
 	}
 	return nil

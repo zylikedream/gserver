@@ -101,7 +101,7 @@ func callGuildCreate(ctx context.Context, leaderID int64, name, declaration, ico
 		GuildID int64 `json:"guild_id"`
 	}{}
 	if err := gconv.Scan(rsp.Data, &data); err != nil {
-		return 0, fmt.Errorf("parse guild_id: %w", err)
+		return 0, errors.Wrap(err, "parse guild_id")
 	}
 	return data.GuildID, nil
 }
@@ -114,7 +114,7 @@ func callGuildSearch(ctx context.Context, keyword string) ([]*pb.PGuildBasic, er
 	}
 	var guilds []*pb.PGuildBasic
 	if err := gconv.Scan(rsp.Data, &guilds); err != nil {
-		return nil, fmt.Errorf("parse search result: %w", err)
+		return nil, errors.Wrap(err, "parse search result")
 	}
 	return guilds, nil
 }
@@ -160,7 +160,7 @@ func (r *RoleGuild) ReqGuildSearch(ctx context.Context, req *pb.ReqGuildSearch) 
 func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any, error) {
 	pid, err := lib.GetGuildActor(ctx, r.GuildID)
 	if err != nil {
-		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取公会 actor 失败")
 	}
 	return gxyactor.Call(ctx, pid, req, 10*time.Second)
 }
@@ -168,7 +168,7 @@ func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any,
 func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
 	pid, err := lib.GetGuildActor(ctx, req.GuildId)
 	if err != nil {
-		return nil, fmt.Errorf("获取公会 actor 失败: %w", err)
+		return nil, errors.Wrap(err, "获取公会 actor 失败")
 	}
 	rsp, err := gxyactor.Call(ctx, pid, &pb.ReqGuildApply{RoleId: r.RoleID, GuildId: req.GuildId}, 10*time.Second)
 	if err != nil {
