@@ -13,7 +13,7 @@ import (
 
 	"gserver/core/gxyregistery"
 
-	"github.com/olekukonko/errors"
+	"github.com/cockroachdb/errors"
 )
 
 const (

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/olekukonko/errors"
+	"github.com/cockroachdb/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )

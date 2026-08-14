@@ -19,7 +19,7 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/asynkron/protoactor-go/router"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/olekukonko/errors"
+	"github.com/cockroachdb/errors"
 	"github.com/redis/go-redis/v9"
 )
 

@@ -8,7 +8,7 @@ import (
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
 
-	"github.com/olekukonko/errors"
+	"github.com/cockroachdb/errors"
 )
 
 type GateHandler struct {

@@ -15,7 +15,7 @@ import (
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/olekukonko/errors"
+	"github.com/cockroachdb/errors"
 )
 
 // actorApp 基础Actor模块

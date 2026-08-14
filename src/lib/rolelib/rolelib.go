@@ -15,7 +15,7 @@ import (
 	"gserver/core/gxyredis"
 	"gserver/src/lib"
 
-	"github.com/olekukonko/errors"
+	"github.com/cockroachdb/errors"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
