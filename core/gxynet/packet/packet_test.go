@@ -12,13 +12,13 @@ import (
 )
 
 // newLtivForTest 用生产线格式配置构造(与 config/gate.toml 的
-// size_length=2/type_length=1/id_length=2/max_size=3145728 一致),
+// size_length=2/type_length=1/id_length=2/max_size=65535 一致),
 // 避免测试覆盖生产不存在的线格式。
 func newLtivForTest(order binary.ByteOrder) *ltiv {
 	return &ltiv{
 		byteOrder: order,
 		conf: &ltivConfig{
-			SizeLength: 2, MaxSize: 3145728,
+			SizeLength: 2, MaxSize: 65535,
 			TypeLength: 1, IDLength: 2,
 		},
 	}
@@ -83,8 +83,9 @@ func TestLtiv_Decode_BodyNotEnough(t *testing.T) {
 }
 
 func TestLtiv_Decode_PacketTooBig(t *testing.T) {
-	// 注意:生产 gate.toml 的 size_length=2 限 uint16(最大 65535),
-	// 而 max_size=3145728 使该错误在生产不可达;此处用独立小上限覆盖报错逻辑。
+	// 生产配置(size_length=2/max_size=65535)下该检查不可达: 长度字段
+	// 天然上限 65535 == max_size, dataSize 永远不超。此处用独立小上限
+	// 覆盖报错逻辑本身。
 	l := &ltiv{
 		byteOrder: binary.BigEndian,
 		conf: &ltivConfig{
@@ -116,6 +117,17 @@ func TestLtiv_Encode_EmptyPayload(t *testing.T) {
 	}
 	if decoded.Path != "1" || len(decoded.Payload) != 0 {
 		t.Fatalf("unexpected: %+v", decoded)
+	}
+}
+
+// TestLtiv_Encode_TooBig 生产配置(size_length=2/max_size=65535)下,
+// payload 超过长度字段上限必须报错而非静默截断(旧行为 uint16 mod 产生损坏包)。
+func TestLtiv_Encode_TooBig(t *testing.T) {
+	l := newLtivForTest(binary.BigEndian)
+	msg := &message.Message{Type: 1, Path: "1", Payload: make([]byte, 65536)}
+	_, err := l.Encode(msg)
+	if err == nil || !strings.Contains(err.Error(), "packet too big") {
+		t.Fatalf("expected packet too big error, got %v", err)
 	}
 }
 
@@ -180,5 +192,15 @@ func TestLtpv_EncodeDecode_EmptyPath(t *testing.T) {
 	}
 	if decoded.Path != "" || string(decoded.Payload) != "x" {
 		t.Fatalf("unexpected: %+v", decoded)
+	}
+}
+
+// TestLtpv_Encode_TooBig payload 超过 max_size(1024) 必须报错而非截断。
+func TestLtpv_Encode_TooBig(t *testing.T) {
+	l := newLtpvForTest(binary.BigEndian)
+	msg := &message.Message{Type: 1, Path: "p", Payload: make([]byte, 1025)}
+	_, err := l.Encode(msg)
+	if err == nil || !strings.Contains(err.Error(), "packet too big") {
+		t.Fatalf("expected packet too big error, got %v", err)
 	}
 }
