@@ -7,18 +7,15 @@ description: GServer 核心链路自检——验证"部署→运行→日志→L
 
 按序执行,每步有明确判定标准。全部通过 = 闭环完整;任何一步失败 = 报告缺口并定位。
 
+## 前置:环境/协议/命令细节
+
+环境前提(目录、systemd、客户端、中间件密码)、登录协议、hy 客户端用法、构建命令等**一律查 `skill://gserver-dev`**,本技能只给流程与判定标准。
+
 ## 自检范围
 
 ```
 代码层 → 进程层 → 容器层 → 业务冒烟 → 日志(Loki) → trace(Tempo) → Grafana 联动 → git 状态 → 数据库 → redis → consul → dlv 调试 → 加日志 → k8s 环境
 ```
-
-## 环境前提
-
-- 源码/部署目录:`/home/zyr/workspace/gserver_github`(旧目录 `gserver` 已废弃)
-- systemd unit:`~/.config/systemd/user/gserver@.service`(已指向 gserver_github)
-- 登录协议:客户端必须先 prelogin(account HTTP :18080)拿 gate_token,再带 token 连 gate——**旧 hy_client 不兼容**,用 `/home/zyr/workspace/gclient_github` 的新 hy
-- 中间件密码:postgres/redis 均为 `@zyc0131`(来自 `build/env/dev_zy.env.toml`)
 
 ## 流程
 
@@ -37,7 +34,7 @@ make test               # 全量测试
 systemctl --user is-active gserver@gate gserver@role gserver@chat gserver@friend gserver@guild gserver@account
 ```
 
-判定:6 个全 `active`。二进制 `bin/gserver-node`(`go build -o bin/gserver-node ./node`)。
+判定:6 个全 `active`。
 
 ### 3. 容器层
 
@@ -45,15 +42,15 @@ systemctl --user is-active gserver@gate gserver@role gserver@chat gserver@friend
 docker ps --format '{{.Names}} {{.Status}}' | sort
 ```
 
-判定:`gserver-postgres / gserver-redis / gserver-consul / gserver-prometheus / gserver-grafana / gserver-tempo / gserver-loki / gserver-promtail` 8 个全 Up(postgres/redis 带 healthy)。
+判定:postgres/redis/consul/prometheus/grafana/tempo/loki/promtail 8 个全 Up(postgres/redis 带 healthy)。
 
-### 4. 业务冒烟(新协议)
+### 4. 业务冒烟(hy 客户端)
 
 ```bash
 cd /home/zyr/workspace/gclient_github && printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:18080 --platform=guest --client-version=1.0.0
 ```
 
-判定:输出 `prelogin ok, role_id=<n>` → `handshake ok` → `login ok`(stdin 第一行是 **platform_uid**,不是账号;`--account-server` 触发 prelogin 自动拿 gate_token 并连接 gate)。
+判定:输出 `prelogin ok, role_id=<n>` → `handshake ok` → `login ok`(stdin 第一行是 **platform_uid**,不是账号)。
 
 ### 5. 日志链路(Loki)
 
@@ -81,7 +78,7 @@ docker exec gserver-grafana curl -s \
   -H 'Accept: application/json' | jq -r '.batches | length'
 ```
 
-判定:返回 `1`(有 batches,含 service.name + spans)。**注意:必须用业务日志的 trace_id**(actor 消息),启动日志是孤儿(见限制)。
+判定:返回 `1`(有 batches,含 service.name + spans)。**必须用业务日志的 trace_id**(actor 消息),启动日志是孤儿(见限制)。
 
 ### 7. Grafana 联动
 
@@ -89,10 +86,9 @@ docker exec gserver-grafana curl -s \
 # 数据源:4 个全在,derivedFields 的 url 必须非空(${__value.raw})
 curl -s -u admin:admin http://localhost:3000/api/datasources | jq -r '.[].name'
 curl -s -u admin:admin http://localhost:3000/api/datasources/uid/loki | jq -r '.jsonData.derivedFields[0].url'
-# 跳转 URL 含 traceID(在 Explore Logs 里点日志行 → Links → Tempo)
 ```
 
-判定:4 数据源(Prometheus/Prometheus-K8s/Tempo/Loki)+ url 为 `${__value.raw}`(非空)。跳转 URL 的 `queries[0].query` = 具体 traceID(非空)。**Grafana 密码:新装卷为 `admin`(compose env);旧卷是 `gserver123`——401 时切换重试**。
+判定:4 数据源(Prometheus/Prometheus-K8s/Tempo/Loki)+ url 为 `${__value.raw}`(非空)。**Grafana 密码:新卷 `admin`(compose env);旧卷 `gserver123`——401 时切换重试**。
 
 ### 8. git 状态
 
@@ -123,16 +119,14 @@ redis-cli -h 127.0.0.1 -p 6379 -a '@zyc0131' --no-auth-warning ping
 redis-cli -h 127.0.0.1 -p 6379 -a '@zyc0131' --no-auth-warning set zz_test_key hello
 redis-cli -h 127.0.0.1 -p 6379 -a '@zyc0131' --no-auth-warning get zz_test_key
 redis-cli -h 127.0.0.1 -p 6379 -a '@zyc0131' --no-auth-warning del zz_test_key
-# 业务 key 应有:gserver:locate:node:actor:role:<id>、chat:lobby:*、node:actors:*、uid.role
 ```
 
-判定:PONG + set/get/del 正常;业务 key 存在(有玩家在线时)。
+判定:PONG + set/get/del 正常;业务 key 存在(gserver:locate:node:actor:role:<id>、chat:lobby:* 等,有玩家在线时)。
 
 ### 11. consul
 
 ```bash
 curl -s http://127.0.0.1:8500/v1/catalog/services | jq -r 'keys[]'
-# 各服务健康(全 passing)
 for svc in account role chat friend guild chat-http guild-http chat_channel; do
   echo -n "$svc: "; curl -s "http://127.0.0.1:8500/v1/health/service/$svc?passing" | jq -r 'length'
 done
@@ -150,11 +144,11 @@ systemctl --user stop gserver@role          # 腾出 25011/9091 端口
 #   program=bin/gserver-node args=[--config, config/role.toml] cwd=gserver_github adapter=dlv
 #   set_breakpoint: src/apps/role/internal/logic/role_main.go:250 (HandleClientMsg,玩家消息统一入口)
 #   continue → 用 hy 登录触发 → stack_trace / variables
-# 断点处可求值:r.RoleID 应与 hy 登录的 role_id 对应
+#   breakpoint 处可求值:r.RoleID 应与 hy 登录的 role_id 对应
 # 结束:terminate 会话 → systemctl --user start gserver@role 恢复托管
 ```
 
-判定:断点命中,堆栈完整(protoactor mailbox → gxyactor.Receive → AutoHandleMsg → HandleClientMsg),`r.RoleID` 与玩家对应。玩家真实业务路径入口:
+判定:断点命中,堆栈完整(protoactor mailbox → gxyactor.Receive → AutoHandleMsg → HandleClientMsg),`r.RoleID` 与玩家对应。玩家业务路径入口:
 - `RoleMain.HandleClientMsg`(role_main.go:250)—— 所有玩家客户端消息
 - `Session.handleHandshake`(gateway session.go)—— 登录握手
 
@@ -194,20 +188,20 @@ curl -s http://127.0.0.1:30999/-/healthy        # 200
 curl -s http://127.0.0.1:30999/api/v1/targets | jq -r '.data.activeTargets[] | select(.health=="up") | .labels.job' | sort -u  # game-services
 ```
 
-判定:`login ok`;game-services targets up。详细部署/踩坑见 `docs/public/dev-ops.md` k8s 章节(kind 节点拉 docker.io 超时、imagePullPolicy、OpenKruise 依赖链)。
+判定:`login ok`;game-services targets up。详细部署/踩坑见 `docs/public/dev-ops.md` k8s 章节。
 
 ## 已知限制与坑
 
-| 坑 | 说明 |
+|坑|说明|
 |---|---|
-| **孤儿 trace_id** | 启动日志(`server started` 等)可能带 trace_id 但对应 span 不导出 Tempo——点击跳转 404。判定时**只用业务日志的 trace_id**。已修复:StartModule 不继承 gcmd 幽灵 span(commit e35330d) |
-| **dlv attach 被 yama 挡** | `ptrace_scope=1` + sudo 需密码 → attach 被内核拒绝。用 launch 方式(见第 12 步),或先 `sudo sysctl kernel.yama.ptrace_scope=0` |
-| **Tempo search 索引** | `/api/search` 对旧 block 可能 `inspected_traces=0`(容器重建后),但 **traceID 直查(`/api/traces/{id}`)正常**——Grafana 跳转走直查,不受影响 |
-| **Loki 时间窗口** | 默认 1h 窗口查不到旧日志,排查前先切 Last 6h/24h;日志点 Tempo 跳转继承当前窗口 |
-| **derivedFields url 插值** | provisioning 里必须写 `url: '$${__value.raw}'`(双 $ 转义)。单 `${...}` 会被 Grafana 当环境变量插值吞掉 → 跳转 query 为空 → 无数据 |
-| **数据源 uid 变更** | provisioning 里变更已有数据源 uid 会导致 Grafana 启动循环崩溃(`data source not found`),需清 `grafana-data` 卷重建 |
-| **promtail 挂载** | compose 在 `deploy/docker/`,日志挂载必须 `../../log`(一级 `../log` 指向不存在的 deploy/log) |
-| **config 是生成文件** | `config/*.toml` / `docker-compose.yml` 由 `./build/script/svr_init.sh dev_zy` 生成,勿手改;改 env(`build/env/dev_zy.env.toml`)后重新生成。env 缺 per-app metrics 段(`[metrics_gate]` 等)会导致生成 `addr = ":"` 服务起不来 |
+|**孤儿 trace_id**|启动日志(`server started` 等)可能带 trace_id 但对应 span 不导出 Tempo——点击跳转 404。判定时**只用业务日志的 trace_id**。已修复:StartModule 不继承 gcmd 幽灵 span(commit e35330d)|
+|**dlv attach 被 yama 挡**|`ptrace_scope=1` + sudo 需密码 → attach 被内核拒绝。用 launch 方式(见第 12 步),或先 `sudo sysctl kernel.yama.ptrace_scope=0`|
+|**Tempo search 索引**|`/api/search` 对旧 block 可能 `inspected_traces=0`(容器重建后),但 **traceID 直查(`/api/traces/{id}`)正常**——Grafana 跳转走直查,不受影响|
+|**Loki 时间窗口**|默认 1h 窗口查不到旧日志,排查前先切 Last 6h/24h;日志点 Tempo 跳转继承当前窗口|
+|**derivedFields url 插值**|provisioning 里必须写 `url: '$${__value.raw}'`(双 $ 转义)。单 `${...}` 会被 Grafana 当环境变量插值吞掉 → 跳转 query 为空 → 无数据|
+|**数据源 uid 变更**|provisioning 里变更已有数据源 uid 会导致 Grafana 启动循环崩溃(`data source not found`),需清 `grafana-data` 卷重建|
+|**promtail 挂载**|compose 在 `deploy/docker/`,日志挂载必须 `../../log`(一级 `../log` 指向不存在的 deploy/log)|
+|**config 是生成文件**|`config/*.toml` / `docker-compose.yml` 由 `./build/script/svr_init.sh dev_zy` 生成,勿手改;改 env(`build/env/dev_zy.env.toml`)后重新生成|
 
 ## 判定标准
 
