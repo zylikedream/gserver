@@ -15,11 +15,13 @@
 	type_length = 1 # 类型字段的长度
 	id_length = 2 # 消息id长度
 	byte_order = "little" # 字节序
-	max_size = 3145728 # 3M
+	# 必须 ≤ 长度字段上限(2^(8*size_length)-1 = 65535), 否则检查不可达且 Encode 静默截断
+	max_size = 65535 # 与 size_length=2 上限一致
 
 [packet.ltpv] # 解码配置
 	size_length = 2 #包大小字段的长度
 	type_length = 1 # 类型字段的长度
 	path_length = 2 # 消息id长度
 	byte_order = "little" # 字节序
-	max_size = 3145728 # 3M
+	# 必须 ≤ 长度字段上限(2^(8*size_length)-1 = 65535), 否则检查不可达且 Encode 静默截断
+	max_size = 65535 # 与 size_length=2 上限一致

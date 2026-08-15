@@ -105,6 +105,11 @@ func (l *ltiv) Encode(m *message.Message) ([]byte, error) {
 	m.Payload = payload.Bytes()
 	buf := &bytes.Buffer{}
 	payloadLen := len(m.Payload)
+	// 长度字段按 SizeLength 编码: 超过 MaxSize 会静默截断(uint16 mod),
+	// 产生损坏包导致对端流错位, 必须在打包前拦截。
+	if payloadLen > l.conf.MaxSize {
+		return nil, errors.Newf("packet too big, %d(max %d)", payloadLen, l.conf.MaxSize)
+	}
 	if err := binary.Write(buf, l.byteOrder, convertUint(uint64(payloadLen), l.conf.SizeLength)); err != nil {
 		return nil, errors.WithStack(err)
 	}
