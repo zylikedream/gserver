@@ -123,20 +123,6 @@ func (r *RoleMainTask) acceptTask(cfg *gamecfg.GardenMainTask) {
 	r.MarkDirty()
 }
 
-func (r *RoleMainTask) refreshCurrentStateTask() bool {
-	cfg := r.currentTaskConfig()
-	if cfg == nil {
-		return false
-	}
-	state := r.snapshotState()
-	if state.RefreshCurrentState(taskConfigFromMainTask(cfg), r.Role) {
-		r.applyState(state)
-		r.MarkDirty()
-		return true
-	}
-	return false
-}
-
 func (r *RoleMainTask) currentTaskConfig() *gamecfg.GardenMainTask {
 	if r.CurrentTaskID == 0 || r.Cfg() == nil || r.Cfg().TbMainTask == nil {
 		return nil

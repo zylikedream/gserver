@@ -54,5 +54,5 @@ func run() {
 
 func OnMainClose(s os.Signal) {
 	ctx := context.Background()
-	rootModule.StopModule(ctx)
+	_ = rootModule.StopModule(ctx)
 }

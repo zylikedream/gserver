@@ -30,7 +30,7 @@ func newEtcdRegistery(cfg *gcfg.Config) (*etcdRegistery, error) {
 	if err := gxyutil.CfgUnmarshalKey(context.Background(), cfg, "registery.etcd", conf); err != nil {
 		return nil, err
 	}
-	logger.SetLevelStr(conf.LogLevel)
+	_ = logger.SetLevelStr(conf.LogLevel)
 	regist := &etcdRegistery{}
 	regist.conf = conf
 	regist.Registry = etcd.New(gstr.Join(conf.EtcdServers, ","), etcd.Option{

@@ -191,7 +191,7 @@ func (r *RoleFlower) ReqFlowerFinishBreed(ctx context.Context, req *pb.ReqFlower
 	if !ok {
 		return nil, errors.WithStack(ErrFlowerLocked)
 	}
-	if !(flower.State == int32(pb.FlowerState_FLOWER_BREEDING) && time.Now().After(flower.StateTime)) {
+	if flower.State != int32(pb.FlowerState_FLOWER_BREEDING) || !time.Now().After(flower.StateTime) {
 		return nil, errors.WithStack(ErrFlowerNotBreedDone)
 	}
 

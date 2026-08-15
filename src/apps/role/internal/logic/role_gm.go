@@ -68,13 +68,10 @@ func gmExtractDocs() []CmdDoc {
 		return nil
 	}
 
-	pkg := &ast.Package{
-		Name: "logic",
-		Files: map[string]*ast.File{
-			"role_gm.go": f,
-		},
+	p, err := doc.NewFromFiles(fset, []*ast.File{f}, "./")
+	if err != nil {
+		return nil
 	}
-	p := doc.New(pkg, "./", 0)
 	for _, t := range p.Types {
 		if t.Name != "RoleGM" {
 			continue
@@ -341,7 +338,7 @@ func (r *RoleGM) StopRole(roleID int64) error {
 	if rolePid == nil {
 		return errors.Newf("role %d not found ", roleID)
 	}
-	gxyactor.LocalSend(r.ctx, rolePid, &pb.ActorStop{
+	_ = gxyactor.LocalSend(r.ctx, rolePid, &pb.ActorStop{
 		Reason: "gm stop role",
 	})
 	return nil

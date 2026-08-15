@@ -13,8 +13,6 @@ import (
 
 // ========== test setup ==========
 
-var flowerCfgInited bool
-
 const (
 	flowerTestID      int32 = 101
 	flowerTestOtherID int32 = 102

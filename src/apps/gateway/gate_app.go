@@ -35,7 +35,9 @@ func (s *gateApp) OnModInit(ctx context.Context) error {
 	}
 	logic.SetGateTokenVerifier(signer.Verify)
 	network := gxynet.NewNetwork(g.Cfg(), NewGateHandler())
-	s.AddModule(ctx, network)
+	if err := s.AddModule(ctx, network); err != nil {
+		return err
+	}
 	logic.NewSessionMgr()
 	return nil
 }
@@ -48,7 +50,7 @@ func (s *gateApp) OnModStart(ctx context.Context) error {
 func (s *gateApp) OnModStop(ctx context.Context) error {
 	sessions := logic.SessionMgr().All()
 	for _, pid := range sessions {
-		StopSession(pid, gerror.New("gateway service stop"))
+		_ = StopSession(pid, gerror.New("gateway service stop"))
 	}
 	return nil
 }

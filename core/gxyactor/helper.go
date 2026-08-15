@@ -55,7 +55,7 @@ func Call(ctx context.Context, pid PID, message proto.Message, timeout time.Dura
 }
 
 func CallSync(ctx context.Context, pid PID, message proto.Message, sender PID) {
-	app.callSync(ctx, pid, message, sender)
+	_ = app.callSync(ctx, pid, message, sender)
 }
 
 func GetNodeName() string {

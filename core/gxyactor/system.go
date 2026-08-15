@@ -13,9 +13,9 @@ import (
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
-	"github.com/cockroachdb/errors"
 )
 
 // actorApp 基础Actor模块
@@ -67,7 +67,9 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 	a.remote = remote.NewRemote(a.system, config)
 	a.remote.Start()
 	a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName)
-	a.AddModule(ctx, a.activatorMgr)
+	if err := a.AddModule(ctx, a.activatorMgr); err != nil {
+		return err
+	}
 	return nil
 }
 

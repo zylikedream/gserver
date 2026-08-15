@@ -21,9 +21,11 @@ func (s *guildService) ServiceName() string {
 }
 
 func (s *guildService) OnModStart(ctx context.Context) error {
-	gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
+	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
 		return guildlogic.NewGuildActor()
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 

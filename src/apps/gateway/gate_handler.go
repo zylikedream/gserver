@@ -28,7 +28,7 @@ func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
 	sessPid, err := SpawnSession(ep)
 	if err != nil {
 		gxylog.Error(ctx, "Failed to create session for %s", gxylog.Str("connID", connID), gxylog.Err(err))
-		ep.Conn().Close()
+		_ = ep.Conn().Close()
 		return err
 	}
 	ep.SetData(sessPid)
@@ -42,7 +42,7 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 		gxylog.Error(context.Background(), "failed to get session from endpoint data")
 		return nil
 	}
-	gxyactor.LocalSend(context.Background(), sess, msg)
+	_ = gxyactor.LocalSend(context.Background(), sess, msg)
 	// 消息将直接由Session Actor处理
 	return nil
 }
@@ -54,6 +54,6 @@ func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 		if err != nil {
 			reason = err.Error()
 		}
-		StopSession(sessPid, errors.Newf("conn closed: %s", reason))
+		_ = StopSession(sessPid, errors.Newf("conn closed: %s", reason))
 	}
 }

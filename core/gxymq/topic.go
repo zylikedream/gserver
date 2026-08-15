@@ -2,8 +2,6 @@ package gxymq
 
 import (
 	"context"
-
-	"github.com/redis/go-redis/v9"
 )
 
 type MessagePriority int
@@ -18,10 +16,9 @@ const (
 type TopicHandler func(ctx context.Context, msg string) error
 
 type SubInfo struct {
-	Topic      string
-	Priority   MessagePriority
-	Handler    TopicHandler
-	subscriber *redis.PubSub
+	Topic    string
+	Priority MessagePriority
+	Handler  TopicHandler
 }
 
 type PriorityData struct {

@@ -112,7 +112,7 @@ func GetSuitableMethods(typ reflect.Type, methodPrefix string) []*MethodMeta {
 }
 
 func isExportedOrBuildinType(t reflect.Type) bool {
-	for t.Kind() == reflect.Ptr {
+	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	return isExported(t.Name()) || t.PkgPath() == ""

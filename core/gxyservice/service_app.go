@@ -39,7 +39,9 @@ func (s *serviceApp) GetServices() []IService {
 
 func (s *serviceApp) LoadService(ctx context.Context, service IService) {
 	s.Services = append(s.Services, service)
-	s.AddModule(ctx, service)
+	if err := s.AddModule(ctx, service); err != nil {
+		gxylog.Error(ctx, "load service module failed", gxylog.Str("service", service.ServiceName()), gxylog.Err(err))
+	}
 }
 
 func (s *serviceApp) OnModInit(ctx context.Context) error {

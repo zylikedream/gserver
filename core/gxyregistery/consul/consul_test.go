@@ -154,7 +154,7 @@ func Test_Registry_Watch(t *testing.T) {
 		ctx := context.Background()
 		_, err = registry.Register(ctx, service)
 		t.AssertNil(err)
-		defer registry.Deregister(ctx, service)
+		t.Cleanup(func() { _ = registry.Deregister(ctx, service) })
 
 		// Wait for service to be registered
 		time.Sleep(time.Second)
@@ -163,7 +163,7 @@ func Test_Registry_Watch(t *testing.T) {
 		watcher, err := registry.Watch(ctx, testServiceName)
 		t.AssertNil(err)
 		t.Assert(watcher != nil, true)
-		defer watcher.Close()
+		defer func(w gsvc.Watcher) { _ = w.Close() }(watcher)
 
 		// Wait for initial service query
 		time.Sleep(time.Second)
@@ -182,7 +182,7 @@ func Test_Registry_Watch(t *testing.T) {
 		// Test watch with invalid service name
 		watcher, err = registry.Watch(ctx, "nonexistent-service")
 		t.AssertNil(err)
-		defer watcher.Close()
+		defer func(w gsvc.Watcher) { _ = w.Close() }(watcher)
 
 		// Wait for initial query
 		time.Sleep(time.Second)
@@ -195,7 +195,7 @@ func Test_Registry_Watch(t *testing.T) {
 		// Test watch after service deregistration
 		watcher, err = registry.Watch(ctx, testServiceName)
 		t.AssertNil(err)
-		defer watcher.Close()
+		defer func(w gsvc.Watcher) { _ = w.Close() }(watcher)
 
 		// Wait for initial query
 		time.Sleep(time.Second)
@@ -247,11 +247,11 @@ func Test_Registry_MultipleServices(t *testing.T) {
 		ctx := context.Background()
 		_, err = registry.Register(ctx, service1)
 		t.AssertNil(err)
-		defer registry.Deregister(ctx, service1)
+		t.Cleanup(func() { _ = registry.Deregister(ctx, service1) })
 
 		_, err = registry.Register(ctx, service2)
 		t.AssertNil(err)
-		defer registry.Deregister(ctx, service2)
+		t.Cleanup(func() { _ = registry.Deregister(ctx, service2) })
 
 		// Wait for services to be registered
 		time.Sleep(2 * time.Second)
@@ -294,7 +294,7 @@ func Test_Registry_MultipleServices(t *testing.T) {
 		// Watch both services
 		watcher, err := registry.Watch(ctx, testServiceName)
 		t.AssertNil(err)
-		defer watcher.Close()
+		defer func(w gsvc.Watcher) { _ = w.Close() }(watcher)
 
 		// Wait for initial query
 		time.Sleep(time.Second)
@@ -365,11 +365,11 @@ func Test_Registry_MultipleServicesMetadataFiltering(t *testing.T) {
 		ctx := context.Background()
 		_, err = registry.Register(ctx, service1)
 		t.AssertNil(err)
-		defer registry.Deregister(ctx, service1)
+		t.Cleanup(func() { _ = registry.Deregister(ctx, service1) })
 
 		_, err = registry.Register(ctx, service2)
 		t.AssertNil(err)
-		defer registry.Deregister(ctx, service2)
+		t.Cleanup(func() { _ = registry.Deregister(ctx, service2) })
 
 		time.Sleep(time.Second) // Wait for services to be registered
 
@@ -430,11 +430,11 @@ func Test_Registry_MultipleServicesVersionFiltering(t *testing.T) {
 		ctx := context.Background()
 		_, err = registry.Register(ctx, service1)
 		t.AssertNil(err)
-		defer registry.Deregister(ctx, service1)
+		t.Cleanup(func() { _ = registry.Deregister(ctx, service1) })
 
 		_, err = registry.Register(ctx, service2)
 		t.AssertNil(err)
-		defer registry.Deregister(ctx, service2)
+		t.Cleanup(func() { _ = registry.Deregister(ctx, service2) })
 
 		time.Sleep(time.Second) // Wait for services to be registered
 

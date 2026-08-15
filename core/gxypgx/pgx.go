@@ -100,7 +100,7 @@ func (p *PGXApp) OnModStop(ctx context.Context) error {
 	if p.db != nil {
 		sqlDB, err := p.db.DB()
 		if err == nil {
-			sqlDB.Close()
+			_ = sqlDB.Close()
 		}
 	}
 	gxylog.Info(ctx, "postgres stop success")

@@ -97,7 +97,7 @@ func (mq *messageQueueApp) OnModStartAfter(ctx context.Context) error {
 		return err
 	}
 	for range mq.config.WorkerCount {
-		go mq.processMessages(ctx)
+		go func() { _ = mq.processMessages(ctx) }()
 	}
 	if err := mq.queue.Start(ctx); err != nil {
 		return err
@@ -135,7 +135,7 @@ func (mq *messageQueueApp) startSubscribe(ctx context.Context) error {
 }
 func (mq *messageQueueApp) doSubscribe(ctx context.Context, subInfo *SubInfo) error {
 	// 创建Redis订阅者
-	mq.queue.Subscribe(ctx, subInfo.Topic, func(ctx context.Context, msg string) error {
+	if err := mq.queue.Subscribe(ctx, subInfo.Topic, func(ctx context.Context, msg string) error {
 		// 发送消息到通道
 		mq.priorityCh[subInfo.Priority] <- PriorityData{
 			Topic:   subInfo.Topic,
@@ -143,7 +143,9 @@ func (mq *messageQueueApp) doSubscribe(ctx context.Context, subInfo *SubInfo) er
 			Handler: subInfo.Handler,
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
 
 	// 初始化消息通道
 	gxylog.Info(ctx, "Subscribing to topic", gxylog.Str("topic", subInfo.Topic), gxylog.Num("priority", subInfo.Priority))
@@ -176,7 +178,7 @@ func (mq *messageQueueApp) processMessages(ctx context.Context) error {
 
 // Close 关闭消息队列，释放所有资源
 func (mq *messageQueueApp) OnModStopBefore(ctx context.Context) error {
-	mq.queue.Close(ctx)
+	_ = mq.queue.Close(ctx)
 	gxylog.Info(ctx, "Redis message queue closed")
 	return nil
 }

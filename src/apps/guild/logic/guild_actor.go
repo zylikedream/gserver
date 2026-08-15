@@ -81,7 +81,7 @@ func (g *GuildActor) loadFromDB(ctx context.Context) error {
 }
 
 func (g *GuildActor) Terminate(ctx context.Context, err error) {
-	g.StopModule(ctx)
+	_ = g.StopModule(ctx)
 }
 
 func (g *GuildActor) HandleMessage(ctx context.Context, msg any) error {
@@ -138,7 +138,7 @@ func (g *GuildActor) addLog(ctx context.Context, content string) {
 // ===== 通知（携带数据） =====
 
 func (g *GuildActor) notifyPlayer(ctx context.Context, roleID int64, msg proto.Message) {
-	rolelib.PublishRoleNotify(ctx, roleID, msg)
+	_ = rolelib.PublishRoleNotify(ctx, roleID, msg)
 }
 
 func (g *GuildActor) notifyGuildInfo(ctx context.Context, exclude ...int64) {

@@ -311,7 +311,7 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		msg := &pb.ReqAccountLogout{
 			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
 		}
-		s.SendRoleMsg(ctx, msg, codec.MessageMetaByMsg(msg).ID)
+		_ = s.SendRoleMsg(ctx, msg, codec.MessageMetaByMsg(msg).ID)
 	}
 	s.state = StateDisconnected
 
