@@ -80,7 +80,7 @@ func newGormDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 // gorm 默认事务 + Create(map 无主键)走 Exec(无 RETURNING)。
 func expectChannelInsert(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO "chat_guild_message"`).
+	mock.ExpectExec(`INSERT INTO "` + chatGuildMessageTable + `"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
@@ -439,7 +439,7 @@ func TestChannelActor_LoadHistory_Populates(t *testing.T) {
 	a.ChannelID = 7
 
 	// DESC: 最新(9, "later")在前; buffer 应为正序: (8, "first") → (9, "later")
-	mock.ExpectQuery(`SELECT .* FROM "chat_guild_message"`).
+	mock.ExpectQuery(`SELECT .* FROM "` + chatGuildMessageTable + `"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"sender_id", "content", "timestamp"}).
 			AddRow(9, "later", 200).
@@ -470,7 +470,7 @@ func TestChannelActor_LoadHistory_Empty(t *testing.T) {
 	a.ChannelType = 4
 	a.ChannelID = 7
 
-	mock.ExpectQuery(`SELECT .* FROM "chat_guild_message"`).
+	mock.ExpectQuery(`SELECT .* FROM "` + chatGuildMessageTable + `"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"sender_id", "content", "timestamp"}))
 
@@ -502,7 +502,7 @@ func TestChannelActor_LoadHistory_DBError(t *testing.T) {
 	a.ChannelType = 4
 	a.ChannelID = 7
 
-	mock.ExpectQuery(`SELECT .* FROM "chat_guild_message"`).
+	mock.ExpectQuery(`SELECT .* FROM "` + chatGuildMessageTable + `"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnError(gorm.ErrInvalidDB)
 
@@ -522,7 +522,7 @@ func TestChannelActor_Send_PersistsSenderID(t *testing.T) {
 
 	mock.ExpectBegin()
 	// gorm map 列按字母序: channel_id, channel_type, content, sender_id, timestamp
-	mock.ExpectExec(`INSERT INTO "chat_guild_message"`).
+	mock.ExpectExec(`INSERT INTO "` + chatGuildMessageTable + `"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), int64(5), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()

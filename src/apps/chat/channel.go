@@ -39,7 +39,7 @@ type GuildChannel struct{}
 func (GuildChannel) ChannelType() string         { return "guild" }
 func (GuildChannel) RingBufferSize() int         { return 500 }
 func (GuildChannel) SaveInterval() time.Duration { return 600 * time.Second }
-func (GuildChannel) TableName() string           { return "chat_guild_message" }
+func (GuildChannel) TableName() string           { return chatGuildMessageTable }
 func (GuildChannel) CanWrite(_ int64, content string) error {
 	if content == "" {
 		return errors.New("消息不能为空")

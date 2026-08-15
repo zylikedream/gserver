@@ -177,7 +177,7 @@ func TestGuildChannel_Interface(t *testing.T) {
 	if ch.SaveInterval() != 600*time.Second {
 		t.Fatalf("expected 600s, got %v", ch.SaveInterval())
 	}
-	if ch.TableName() != "chat_guild_message" {
+	if ch.TableName() != chatGuildMessageTable {
 		t.Fatalf("expected chat_guild_message, got %s", ch.TableName())
 	}
 }
