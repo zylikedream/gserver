@@ -5,7 +5,7 @@ import (
 
 	"gserver/core/gxypgx"
 
-	"github.com/pkg/errors"
+	"github.com/cockroachdb/errors"
 )
 
 type RoleGuildRecord struct {
