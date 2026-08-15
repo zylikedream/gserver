@@ -80,6 +80,7 @@ printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:180
 
 - 唯一错误库 cockroachdb/errors(见 `docs/development/error-handling.md`):产生点自动带栈;包装用 Wrap/Wrapf;哨兵返回处 WithStack;禁 fmt.Errorf %w/Newf %w/`%s`/`%v` 吞错误
 - 统一 gxylog(见 `docs/development/logging.md`):结构化字段;错误必须 `gxylog.Err(err)` 打栈;打印点只在最终处理处
+- 代码风格(命名一致性/魔法字符串常量化/协议命名/文件组织):`skill://gserver-code-style`
 - 新日志为单行 JSON(带 mod/roleID/trace_id),可用 `jq '{level, msg, mod, roleID, trace_id}'` 解析
 
 ## 调试
