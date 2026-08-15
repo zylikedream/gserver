@@ -102,6 +102,7 @@ func (a *ChannelActor) Init(ctx context.Context, args []any) error {
 	}
 	a.channel = ch
 	a.buffer = newRingBuffer(ch.RingBufferSize())
+	a.loadHistory(ctx)
 	return nil
 }
 
@@ -149,6 +150,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 			return nil
 		}
 		chatMsg := &pb.PChatMsg{
+			Sender:    &pb.PRolePublic{RoleId: m.SenderId},
 			Content:   m.Content,
 			Timestamp: time.Now().Unix(),
 		}
@@ -186,6 +188,40 @@ func (a *ChannelActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo)
 	a.save(ctx)
 }
 
+// loadHistory 启动时从落库表加载最近历史到内存 buffer。
+// 仅对 SaveInterval>0 的频道生效; 加载量上限 = RingBufferSize。
+// lastSavedSeq 对齐加载量, 避免后续 save 重复落库已加载的消息。
+func (a *ChannelActor) loadHistory(ctx context.Context) {
+	if a.channel == nil || a.channel.SaveInterval() <= 0 || a.channel.TableName() == "" || a.db == nil {
+		return
+	}
+	type row struct {
+		SenderID  int64  `gorm:"column:sender_id"`
+		Content   string `gorm:"column:content"`
+		Timestamp int64  `gorm:"column:timestamp"`
+	}
+	var rows []row
+	if err := a.db.Table(a.channel.TableName()).
+		Where("channel_type = ? AND channel_id = ?", a.ChannelType, a.ChannelID).
+		Order("id DESC").
+		Limit(a.channel.RingBufferSize()).
+		Find(&rows).Error; err != nil {
+		gxylog.Error(ctx, "load channel history failed",
+			gxylog.Str("channel", fmt.Sprintf("%d_%d", a.ChannelType, a.ChannelID)),
+			gxylog.Err(err))
+		return
+	}
+	for i := len(rows) - 1; i >= 0; i-- { // DESC → 正序 Push
+		r := rows[i]
+		a.buffer.Push(&pb.PChatMsg{
+			Sender:    &pb.PRolePublic{RoleId: r.SenderID},
+			Content:   r.Content,
+			Timestamp: r.Timestamp,
+		})
+	}
+	a.lastSavedSeq = a.buffer.Len()
+}
+
 func (a *ChannelActor) save(ctx context.Context) {
 	if a.channel == nil || a.channel.SaveInterval() <= 0 {
 		return
@@ -199,7 +235,7 @@ func (a *ChannelActor) save(ctx context.Context) {
 		a.db.Table(a.channel.TableName()).Create(map[string]any{
 			"channel_type": a.ChannelType,
 			"channel_id":   a.ChannelID,
-			"sender_id":    0,
+			"sender_id":    msg.Sender.GetRoleId(),
 			"content":      msg.Content,
 			"timestamp":    msg.Timestamp,
 		})
