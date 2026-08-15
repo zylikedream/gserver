@@ -174,7 +174,7 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	}
 
 	// Start TTL health check goroutine
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	r.mu.Lock()
 	r.stopHealthCheck[serviceID] = cancel
 	r.mu.Unlock()

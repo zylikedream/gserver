@@ -7,9 +7,7 @@ import (
 )
 
 func TestNetwork(t *testing.T) {
-	type args struct {
-		configFile string
-	}
+	type args struct{}
 	tests := []struct {
 		name    string
 		args    args

@@ -20,7 +20,6 @@ import (
 
 type RoleFriend struct {
 	RoleModule
-	cache []friendEntryJSON
 }
 
 // ---- write operations (call friend service via HTTP) ----
@@ -37,7 +36,7 @@ func (r *RoleFriend) ReqFriendSendRequest(ctx context.Context, req *pb.ReqFriend
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
-		rolelib.PublishRoleNotify(ctx, id, &pb.NotifyFriendNewRequest{
+		_ = rolelib.PublishRoleNotify(ctx, id, &pb.NotifyFriendNewRequest{
 			ApplyInfo: &pb.PApplyInfo{
 				PlayerInfo: GetRolePublic(ctx, r.Deps(), r.RoleID),
 			},
@@ -58,7 +57,7 @@ func (r *RoleFriend) ReqFriendAcceptRequest(ctx context.Context, req *pb.ReqFrie
 			continue
 		}
 		rsp.Friends = append(rsp.Friends, &pb.PFriendInfo{PlayerInfo: public})
-		rolelib.PublishRoleNotify(ctx, id, &pb.NotifyNewFriend{
+		_ = rolelib.PublishRoleNotify(ctx, id, &pb.NotifyNewFriend{
 			FriendInfo: &pb.PFriendInfo{PlayerInfo: GetRolePublic(ctx, r.Deps(), r.RoleID)},
 		})
 	}

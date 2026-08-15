@@ -62,7 +62,9 @@ func (mq *RedisMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 					continue
 				}
 				// 发送消息到通道
-				handler(ctx, msg.Payload)
+				if err := handler(ctx, msg.Payload); err != nil {
+					gxylog.Error(ctx, "Failed to handle message", gxylog.Str("topic", topic), gxylog.Err(err))
+				}
 			}
 		}
 	}()

@@ -49,7 +49,7 @@ func (e *EchoEventHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message)
 		Code: 0,
 		Msg:  req.Msg,
 	}
-	SendMsg(ep, rsp)
+	_ = SendMsg(ep, rsp)
 	return nil
 }
 

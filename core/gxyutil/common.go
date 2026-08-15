@@ -19,7 +19,7 @@ import (
 
 func CfgToViper(ctx context.Context, c *gcfg.Config) *viper.Viper {
 	vp := viper.New()
-	vp.MergeConfigMap(c.MustData(ctx))
+	_ = vp.MergeConfigMap(c.MustData(ctx))
 	return vp
 }
 

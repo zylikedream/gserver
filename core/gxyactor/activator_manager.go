@@ -18,8 +18,8 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
 	"github.com/asynkron/protoactor-go/router"
-	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/cockroachdb/errors"
+	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -173,17 +173,17 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		pid, err := SpawnNamed(props, msg.Id, msg.Id)
 		if err != nil {
 			if err == actor.ErrNameExists {
-				Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: pid})
+				_ = Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: pid})
 				return nil
 			}
-			Respond(ctx, a.Actx, ActorError(err.Error()))
+			_ = Respond(ctx, a.Actx, ActorError(err.Error()))
 			return nil
 		}
 
 		// 注册 Redis
 		if err := a.registerActor(msg.Id, pid); err != nil {
-			StopActor(pid)
-			Respond(ctx, a.Actx, ActorError(fmt.Sprintf("registration failed, key taken by another node, err: %s", err.Error())))
+			_ = StopActor(pid)
+			_ = Respond(ctx, a.Actx, ActorError(fmt.Sprintf("registration failed, key taken by another node, err: %s", err.Error())))
 			return nil
 		}
 
@@ -193,11 +193,11 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			if _, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second); err != nil {
 				gxylog.Warn(context.Background(), "actor touch failed", gxylog.Str("kind", a.kind), gxylog.Str("id", id), gxylog.Err(err))
 				a.unregisterActor(id, pid)
-				Send(context.Background(), sender, ActorError("actor init failed or actor died"))
+				_ = Send(context.Background(), sender, ActorError("actor init failed or actor died"))
 				return
 			}
 			a.Actx.Watch(pid)
-			Send(context.Background(), sender, &remote.ActorPidResponse{Pid: pid})
+			_ = Send(context.Background(), sender, &remote.ActorPidResponse{Pid: pid})
 		}(msg.Id)
 
 		return nil
@@ -319,7 +319,7 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 }
 
 func (g *activatorManager) OnModStop(ctx context.Context) error {
-	StopActor(g.routerPID)
+	_ = StopActor(g.routerPID)
 	return nil
 }
 
@@ -328,7 +328,7 @@ func (g *activatorManager) getPoolName(kind string) string {
 }
 
 func (g *activatorManager) getRouterName() string {
-	return fmt.Sprintf("%s", "ActivatorRouter")
+	return "ActivatorRouter"
 }
 
 func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) error {
@@ -352,7 +352,7 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 		delete(g.activatorMetas, kind)
 		return err
 	}
-	LocalSend(g.ctx, g.routerPID, &localMsgRegisterPool{
+	_ = LocalSend(g.ctx, g.routerPID, &localMsgRegisterPool{
 		Kind:   kind,
 		PoolID: poolPID,
 	})
@@ -367,7 +367,7 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 	}
 	// 先停所有活跃 Actor，触发 Terminate → save → Redis 清理
 	for _, pid := range info.mgr.All() {
-		StopActor(pid)
+		_ = StopActor(pid)
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
@@ -380,8 +380,8 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 		gxylog.Warn(g.ctx, "actors still alive after drain", gxylog.Str("kind", kind), gxylog.Num("count", int64(n)))
 	}
 
-	StopActor(info.Pool)
-	LocalSend(g.ctx, g.routerPID, &localMsgUnRegisterPool{
+	_ = StopActor(info.Pool)
+	_ = LocalSend(g.ctx, g.routerPID, &localMsgUnRegisterPool{
 		Kind: kind,
 	})
 	delete(g.activatorMetas, kind)

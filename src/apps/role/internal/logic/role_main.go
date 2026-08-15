@@ -97,7 +97,6 @@ type RoleMain struct {
 
 	deps deps.Deps
 
-	modsHash          map[string]uint64
 	session           gxyactor.PID
 	state             RoleState
 	sessionActiveTime time.Time
@@ -176,7 +175,7 @@ func (r *RoleMain) initRoleModules(ctx context.Context) {
 		if !field.IsExported() {
 			continue
 		}
-		if field.Type.Kind() != reflect.Ptr {
+		if field.Type.Kind() != reflect.Pointer {
 			continue
 		}
 		if !field.Type.Implements(reflect.TypeFor[IRoleModule]()) {
@@ -184,7 +183,9 @@ func (r *RoleMain) initRoleModules(ctx context.Context) {
 		}
 		rmod := gxyutil.NewObject(field.Type.Elem())
 		reflect.ValueOf(modules).Elem().Field(i).Set(reflect.ValueOf(rmod))
-		r.AddModule(ctx, rmod.(IRoleModule))
+		if err := r.AddModule(ctx, rmod.(IRoleModule)); err != nil {
+			gxylog.Error(ctx, "init role module error", gxylog.Str("module", fmt.Sprintf("%T", rmod)), gxylog.Err(err))
+		}
 	}
 }
 
@@ -582,17 +583,6 @@ func roleModuleDirty(rmod IRoleModule) bool {
 	return modState != nil && modState.IsDirty()
 }
 
-func roleModuleTableName(rmod IRoleModule) string {
-	modState := rmod.PersistState()
-	if modState == nil {
-		return ""
-	}
-	if t, ok := modState.(tabler); ok {
-		return t.TableName()
-	}
-	return ""
-}
-
 // sendClient 可替换函数变量:测试可捕获/拦截客户端消息(编译期安全,非 gomonkey 打桩)。
 var sendClient = defaultSendClient
 
@@ -605,7 +595,7 @@ func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
 		gxylog.Error(ctx, "new server msg error", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
 		return
 	}
-	gxyactor.Send(ctx, r.session, svrMsg)
+	_ = gxyactor.Send(ctx, r.session, svrMsg)
 }
 
 func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
@@ -637,7 +627,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	newSession := r.Sender()
 	if r.state == RoleStateLogined && !gxyactor.PidEqual(r.session, newSession) { // 表示重复登录
 		// 断开旧连接
-		gxyactor.Send(ctx, r.session, &pb.ActorStop{
+		_ = gxyactor.Send(ctx, r.session, &pb.ActorStop{
 			Reason: "multi login",
 		})
 	}
@@ -714,7 +704,7 @@ func (r *RoleMain) checkSessionAlive(ctx context.Context) {
 	if time.Since(r.sessionActiveTime) <= SESSION_ALIVE_INTERVAL {
 		return
 	}
-	r.dologout(ctx, "session alive timeout")
+	_ = r.dologout(ctx, "session alive timeout")
 }
 
 func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogout) error {

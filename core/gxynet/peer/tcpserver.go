@@ -80,7 +80,9 @@ func (t *TcpServer) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
 	gxymetrics.TcpConnections.WithLabelValues("server").Inc()
 	endPoint := endpoint.NewTcpEndPoint(c, t.Processor)
 	c.SetContext(endPoint)
-	t.Handler.OnOpen(endPoint)
+	if err := t.Handler.OnOpen(endPoint); err != nil {
+		gxylog.Error(ctx, "handler onOpen failed", gxylog.Err(err))
+	}
 	return nil, gnet.None
 }
 
@@ -111,10 +113,14 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 		}
 		dataLen += pkgLen
 		data = data[pkgLen:]
-		t.Handler.OnMessage(endPoint, msg)
+		if err := t.Handler.OnMessage(endPoint, msg); err != nil {
+			gxylog.Error(ctx, "handler onMessage failed", gxylog.Err(err))
+		}
 	}
 	if dataLen > 0 {
-		c.Discard(dataLen)
+		if _, err = c.Discard(dataLen); err != nil {
+			return gnet.Close
+		}
 	}
 	return gnet.None
 }

@@ -31,10 +31,6 @@ type ActorTimerMsg gxytimer.TimerActiveInfo
 type ActorInitMsg struct {
 }
 
-type ActorInternalError struct {
-	err error
-}
-
 type ActorContext struct {
 	actor.Context
 	InitArgs []any
@@ -106,7 +102,7 @@ func (a *ActorBase) doReceive(ctx actor.Context) error {
 		if err := a.actor.Init(a.ctx, initArgs); err != nil {
 			return gerror.Wrap(err, "init actor error")
 		}
-		LocalSend(a.ctx, a.self, &ActorInitMsg{})
+		_ = LocalSend(a.ctx, a.self, &ActorInitMsg{})
 	case *ActorInitMsg:
 		a.msgHandler.AddHandler(a.actor)
 		if err := a.actor.DelayInit(a.ctx); err != nil {
@@ -186,13 +182,13 @@ func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 	rsp, err := a.callMsgHandler(a.ctx, msg)
 	if err != nil {
 		gxylog.Error(a.ctx, "handle rpc msg failed", gxylog.Any("payload", msg), gxylog.Err(err))
-		Respond(ctx, a.Actx, &pb.ActorError{
+		_ = Respond(ctx, a.Actx, &pb.ActorError{
 			Reason: err.Error(),
 		})
 		return nil, nil
 	}
 	if rsp != nil {
-		Respond(ctx, a.Actx, rsp)
+		_ = Respond(ctx, a.Actx, rsp)
 	}
 	return rsp, nil
 }

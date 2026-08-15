@@ -21,9 +21,11 @@ func (s *chatService) ServiceName() string {
 
 func (s *chatService) OnModStart(ctx context.Context) error {
 	// 注册 ChannelActor kind（consistent hash 按 channel_type:channel_id 路由）
-	gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
+	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
 		return NewChannelActor()
-	})
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 

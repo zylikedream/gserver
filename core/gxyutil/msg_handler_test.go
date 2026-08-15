@@ -129,11 +129,6 @@ func TestMsgHandler_GetMethods(t *testing.T) {
 // ========== GetSuitableMethods tests ==========
 
 func TestGetSuitableMethods_FiltersUnexported(t *testing.T) {
-	type unexportedMsg struct{ X int }
-	type handler struct{}
-	// unexported method — should be filtered out
-	// (can't easily test unexported methods in external test, but exported check works)
-
 	// Test that non-3-arg methods are skipped
 	type badHandler struct{}
 	// No suitable methods — badHandler has no methods with (context.Context, *T) (reply, error)

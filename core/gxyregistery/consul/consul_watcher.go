@@ -133,17 +133,13 @@ func (w *Watcher) Proceed() ([]gsvc.Service, error) {
 	default:
 	}
 
-	w.mu.RLock()
-	services := w.services
-	w.mu.RUnlock()
-
 	// Wait for changes
 	select {
 	case <-w.closeChan:
 		return nil, gerror.New("watcher closed")
 	case <-w.eventChan:
 		w.mu.RLock()
-		services = w.services
+		services := w.services
 		w.mu.RUnlock()
 		return services, nil
 	}

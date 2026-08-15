@@ -25,7 +25,9 @@ func (f *friendApp) ServiceName() string {
 }
 
 func (f *friendApp) OnModInit(ctx context.Context) error {
-	f.AddModule(ctx, gameconfig.NewGameConfig())
+	if err := f.AddModule(ctx, gameconfig.NewGameConfig()); err != nil {
+		return err
+	}
 	fl.InitFriendSchema(ctx, gxypgx.DB())
 	gxyservice.ServiceApp().LoadService(ctx, NewFriendService(f.host))
 	return nil

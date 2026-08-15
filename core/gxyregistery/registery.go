@@ -67,7 +67,7 @@ func (r *registery) Register(ctx context.Context, svcInfo *ServiceInfo) error {
 }
 
 func (r *registery) UnRegister(ctx context.Context, svcInfo *ServiceInfo) error {
-	return r.Registry.Deregister(ctx, svcInfo)
+	return r.Deregister(ctx, svcInfo)
 }
 
 func (r *registery) Search(ctx context.Context, name string) ([]*ServiceInfo, error) {
@@ -152,7 +152,7 @@ func (r *registery) compareServiceInfos(old, new []*ServiceInfo) bool {
 
 func (r *registery) StartWatch(name string) {
 	ctx := context.Background()
-	watcher, err := r.Registry.Watch(ctx, name)
+	watcher, err := r.Watch(ctx, name)
 	if err != nil {
 		gxylog.Error(ctx, "Watch err", gxylog.Err(err))
 		return

@@ -21,7 +21,9 @@ func NewChatApp(host string) *chatApp {
 }
 
 func (c *chatApp) OnModInit(ctx context.Context) error {
-	c.AddModule(ctx, gameconfig.NewGameConfig())
+	if err := c.AddModule(ctx, gameconfig.NewGameConfig()); err != nil {
+		return err
+	}
 	InitChatSchema(ctx, gxypgx.DB())
 	gxyservice.ServiceApp().LoadService(ctx, NewChatService())
 	gxyservice.ServiceApp().LoadService(ctx, NewChatHttpService(c.host))

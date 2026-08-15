@@ -22,8 +22,8 @@ func (p testProcessor) Encode(msg *message.Message) ([]byte, error) {
 
 func TestTcpEndpointDecodeMsgUsesOnlyProvidedData(t *testing.T) {
 	client, server := net.Pipe()
-	defer client.Close()
-	defer server.Close()
+	t.Cleanup(func() { _ = client.Close() })
+	t.Cleanup(func() { _ = server.Close() })
 
 	ep := NewTcpEndPoint(server, testProcessor{})
 

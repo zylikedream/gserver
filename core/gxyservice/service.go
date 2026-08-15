@@ -19,7 +19,6 @@ type IService interface {
 
 type Service struct {
 	gxymodule.ModuleBase
-	name string
 }
 
 func (s *Service) ServiceName() string {

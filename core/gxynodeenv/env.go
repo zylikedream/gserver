@@ -123,7 +123,7 @@ func (e *K8sNodeEnv) State(ctx context.Context) (gxyregistery.ServiceState, erro
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", errors.Newf("get gameserver %s/%s: %s", e.namespace, e.gsName, resp.Status)
 	}

@@ -98,9 +98,15 @@ func TestSubscribe_HighPriority(t *testing.T) {
 
 func TestSubscribe_MultipleTopics(t *testing.T) {
 	mq := NewMessageQueueApp()
-	mq.Subscribe(context.Background(), "t1", func(ctx context.Context, msg string) error { return nil }, TOPIC_PRIORITY_CRITICAL)
-	mq.Subscribe(context.Background(), "t2", func(ctx context.Context, msg string) error { return nil }, TOPIC_PRIORITY_HIGH)
-	mq.Subscribe(context.Background(), "t3", func(ctx context.Context, msg string) error { return nil })
+	if err := mq.Subscribe(context.Background(), "t1", func(ctx context.Context, msg string) error { return nil }, TOPIC_PRIORITY_CRITICAL); err != nil {
+		t.Fatal(err)
+	}
+	if err := mq.Subscribe(context.Background(), "t2", func(ctx context.Context, msg string) error { return nil }, TOPIC_PRIORITY_HIGH); err != nil {
+		t.Fatal(err)
+	}
+	if err := mq.Subscribe(context.Background(), "t3", func(ctx context.Context, msg string) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
 	if len(mq.subs) != 3 {
 		t.Fatalf("expected 3 subs, got %d", len(mq.subs))
 	}
@@ -110,8 +116,12 @@ func TestSubscribe_Overwrite(t *testing.T) {
 	mq := NewMessageQueueApp()
 	handler1 := func(ctx context.Context, msg string) error { return nil }
 	handler2 := func(ctx context.Context, msg string) error { return errors.New("v2") }
-	mq.Subscribe(context.Background(), "t1", handler1, TOPIC_PRIORITY_HIGH)
-	mq.Subscribe(context.Background(), "t1", handler2, TOPIC_PRIORITY_CRITICAL)
+	if err := mq.Subscribe(context.Background(), "t1", handler1, TOPIC_PRIORITY_HIGH); err != nil {
+		t.Fatal(err)
+	}
+	if err := mq.Subscribe(context.Background(), "t1", handler2, TOPIC_PRIORITY_CRITICAL); err != nil {
+		t.Fatal(err)
+	}
 	sub := mq.subs["t1"]
 	if sub.Priority != TOPIC_PRIORITY_CRITICAL {
 		t.Fatalf("expected CRITICAL after overwrite, got %v", sub.Priority)
@@ -132,7 +142,7 @@ func TestProcessMessages_Stop(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		mq.processMessages(ctx)
+		_ = mq.processMessages(ctx)
 	}()
 	// Give it time to enter the select loop
 	time.Sleep(10 * time.Millisecond)
@@ -148,18 +158,20 @@ func TestProcessMessages_DispatchByPriority(t *testing.T) {
 	var mu sync.Mutex
 	var received []string
 
-	mq.Subscribe(ctx, "normal", func(ctx context.Context, msg string) error {
+	if err := mq.Subscribe(ctx, "normal", func(ctx context.Context, msg string) error {
 		mu.Lock()
 		received = append(received, msg)
 		mu.Unlock()
 		return nil
-	}, TOPIC_PRIORITY_NORMAL)
+	}, TOPIC_PRIORITY_NORMAL); err != nil {
+		t.Fatal(err)
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		mq.processMessages(ctx)
+		_ = mq.processMessages(ctx)
 	}()
 
 	time.Sleep(10 * time.Millisecond)

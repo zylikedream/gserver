@@ -7,8 +7,6 @@ import (
 	"gserver/src/apps/role/internal/logic/bag"
 )
 
-var basicCfgInited bool
-
 func initBasicTestConfig(t *testing.T) {
 	t.Helper()
 	initAllTestConfig(t)

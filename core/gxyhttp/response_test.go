@@ -24,10 +24,14 @@ func TestResponse(t *testing.T) {
 	c, _ := gjson.Marshal(resp)
 	t.Log(string(c))
 	resp1 := &Response{}
-	gjson.Unmarshal(c, &resp1)
+	if err := gjson.Unmarshal(c, &resp1); err != nil {
+		t.Fatalf("unmarshal response failed: %v", err)
+	}
 	t.Log(resp1)
 	t1 := &TestData{}
-	gconv.Struct(resp1.Data, t1)
+	if err := gconv.Struct(resp1.Data, t1); err != nil {
+		t.Fatalf("convert response data failed: %v", err)
+	}
 	f, _ := gstructs.TagFields(t1, []string{"path"})
 	t.Log(f[0].TagValue)
 }

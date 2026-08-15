@@ -54,7 +54,7 @@ func (t *TcpEndpoint) sendRaw(msg *message.Message) error {
 }
 
 func (t *TcpEndpoint) Close() {
-	t.conn.Close()
+	_ = t.conn.Close()
 }
 
 func (t *TcpEndpoint) Conn() net.Conn {

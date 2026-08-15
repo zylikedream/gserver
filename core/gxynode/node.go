@@ -96,7 +96,9 @@ func (n *node) OnModStart(ctx context.Context) error {
 		}
 		gxylog.Info(context.Background(), "app loaded success", gxylog.Str("app", appName))
 	}
-	n.loadApp(ctx, "thanks", loaded)
+	if err := n.loadApp(ctx, "thanks", loaded); err != nil {
+		gxylog.Error(context.Background(), "load thanks app failed", gxylog.Err(err))
+	}
 	return nil
 }
 

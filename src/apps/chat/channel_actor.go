@@ -145,7 +145,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 
 	case *pb.ReqChannelSend:
 		if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
-			gxyactor.Respond(ctx, a.Actx, gxyactor.ActorError(err.Error()))
+			_ = gxyactor.Respond(ctx, a.Actx, gxyactor.ActorError(err.Error()))
 			return nil
 		}
 		chatMsg := &pb.PChatMsg{
@@ -163,7 +163,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		}
 		// 通知所有成员
 		for _, mbr := range a.members {
-			rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
+			_ = rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
 		}
 
 	case *pb.ReqChatChannelHistory:
@@ -172,14 +172,14 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 			count = a.channel.RingBufferSize()
 		}
 		msgs := a.buffer.Recent(count)
-		gxyactor.Respond(ctx, a.Actx, &pb.RspChatChannelHistory{Messages: msgs})
+		_ = gxyactor.Respond(ctx, a.Actx, &pb.RspChatChannelHistory{Messages: msgs})
 	}
 	return nil
 }
 
 func (a *ChannelActor) Terminate(ctx context.Context, err error) {
 	a.save(ctx)
-	a.StopModule(ctx)
+	_ = a.StopModule(ctx)
 }
 
 func (a *ChannelActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo) {

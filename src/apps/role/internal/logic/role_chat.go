@@ -89,7 +89,7 @@ func (r *RoleChat) JoinChannel(ctx context.Context, channelType int32, channelID
 		return nil, err
 	}
 	self := r.Role.Self()
-	gxyactor.Send(ctx, channel, &pb.ChannelRegisterMsg{
+	_ = gxyactor.Send(ctx, channel, &pb.ChannelRegisterMsg{
 		RoleId: r.RoleID,
 		Pid: &pb.ActorPid{
 			Address: self.Address,
@@ -117,7 +117,7 @@ func (r *RoleChat) ReqChatInit(ctx context.Context, req *pb.ReqChatInit) (*pb.Rs
 	if err == nil {
 		worldMessages = worldHistory.Messages
 	}
-	systemMessages, err := callChatSystemHistory(ctx, 50)
+	systemMessages, _ := callChatSystemHistory(ctx, 50)
 	rsp := &pb.RspChatInit{
 		WorldMessages:  worldMessages,
 		SystemMessages: systemMessages,
@@ -275,7 +275,7 @@ func (r *RoleChat) LeaveChannel(ctx context.Context, channelType int32, channelI
 		gxylog.Warn(ctx, "leaveChannel: get actor failed", gxylog.Num("channelType", channelType), gxylog.Num("channelID", channelID), gxylog.Err(err))
 		return
 	}
-	gxyactor.Send(ctx, pid, &pb.ChannelUnregisterMsg{
+	_ = gxyactor.Send(ctx, pid, &pb.ChannelUnregisterMsg{
 		RoleId:      r.RoleID,
 		ChannelType: channelType,
 		ChannelId:   channelID,

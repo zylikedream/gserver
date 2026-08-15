@@ -216,14 +216,14 @@ type redisService struct {
 	key     string
 }
 
-func (s *redisService) GetName() string            { return s.serviceData.Name }
-func (s *redisService) GetVersion() string         { return s.serviceData.Version }
+func (s *redisService) GetName() string            { return s.Name }
+func (s *redisService) GetVersion() string         { return s.Version }
 func (s *redisService) GetKey() string             { return s.key }
 func (s *redisService) GetValue() string           { return s.jsonStr }
-func (s *redisService) GetPrefix() string          { return gsvc.DefaultSeparator + s.serviceData.Name }
+func (s *redisService) GetPrefix() string          { return gsvc.DefaultSeparator + s.Name }
 func (s *redisService) GetMetadata() gsvc.Metadata { return nil }
 func (s *redisService) GetEndpoints() gsvc.Endpoints {
-	return gsvc.NewEndpoints(s.serviceData.NodeHost)
+	return gsvc.NewEndpoints(s.NodeHost)
 }
 
 // ---- helper ----

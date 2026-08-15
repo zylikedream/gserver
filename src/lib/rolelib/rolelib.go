@@ -153,7 +153,7 @@ func GetRolePid(RoleID int64) gxyactor.PID {
 func NotifyLocalAll(ctx context.Context, msg proto.Message) error {
 	pids := gxyactor.GetLocalActorAll(lib.ROLE_ACTOR_TYPE)
 	for _, pid := range pids {
-		gxyactor.LocalSend(ctx, pid, &OnRoleNotifyMsg{Msg: msg})
+		_ = gxyactor.LocalSend(ctx, pid, &OnRoleNotifyMsg{Msg: msg})
 	}
 	return nil
 }

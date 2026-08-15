@@ -22,7 +22,9 @@ func NewGuildApp(host string) *guildApp {
 }
 
 func (g *guildApp) OnModInit(ctx context.Context) error {
-	g.AddModule(ctx, gameconfig.NewGameConfig())
+	if err := g.AddModule(ctx, gameconfig.NewGameConfig()); err != nil {
+		return err
+	}
 	guildlogic.InitGuildSchema(ctx, gxypgx.DB())
 	gxyservice.ServiceApp().LoadService(ctx, NewGuildService())
 	gxyservice.ServiceApp().LoadService(ctx, NewGuildHttpService(g.host))

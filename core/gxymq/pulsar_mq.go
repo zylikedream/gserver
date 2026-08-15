@@ -119,7 +119,7 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 					consumer.Nack(msg)
 				} else {
 					// 处理成功，确认消息
-					consumer.Ack(msg)
+					_ = consumer.Ack(msg)
 				}
 			}
 		}
