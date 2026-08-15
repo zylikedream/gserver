@@ -232,13 +232,18 @@ func (a *ChannelActor) save(ctx context.Context) {
 	}
 	msgs := a.buffer.Recent(currentLen - a.lastSavedSeq)
 	for _, msg := range msgs {
-		a.db.Table(a.channel.TableName()).Create(map[string]any{
+		if err := a.db.Table(a.channel.TableName()).Create(map[string]any{
 			"channel_type": a.ChannelType,
 			"channel_id":   a.ChannelID,
 			"sender_id":    msg.Sender.GetRoleId(),
 			"content":      msg.Content,
 			"timestamp":    msg.Timestamp,
-		})
+		}).Error; err != nil {
+			gxylog.Error(ctx, "save channel msg failed",
+				gxylog.Str("channel", fmt.Sprintf("%d_%d", a.ChannelType, a.ChannelID)),
+				gxylog.Err(err))
+			return // 保留 dirty, 下次重试
+		}
 	}
 	a.lastSavedSeq = currentLen
 }

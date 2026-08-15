@@ -2,6 +2,11 @@ package chat
 
 import "time"
 
+// 表名常量: 跨文件引用(ChannelActor/Channel 策略/测试), 避免字符串重复。
+const (
+	chatGuildMessageTable = "chat_guild_message"
+)
+
 type ChatPrivateMessage struct {
 	ID        int64     `gorm:"primaryKey;autoIncrement"`
 	MinRoleID int64     `gorm:"column:min_role_id;not null;index:idx_chat_pm_pair_time"`
@@ -20,3 +25,15 @@ type ChatSystemMessage struct {
 }
 
 func (ChatSystemMessage) TableName() string { return "chat_system_message" }
+
+// ChatGuildMessage 公会频道消息落库(ChannelActor.save 写, loadHistory 读)。
+type ChatGuildMessage struct {
+	ID          int64  `gorm:"primaryKey;autoIncrement"`
+	ChannelType int32  `gorm:"column:channel_type;not null;index:idx_chat_guild_channel_time"`
+	ChannelID   int64  `gorm:"column:channel_id;not null;index:idx_chat_guild_channel_time"`
+	SenderID    int64  `gorm:"column:sender_id;not null"`
+	Content     string `gorm:"column:content;not null;type:text"`
+	Timestamp   int64  `gorm:"column:timestamp;not null;index:idx_chat_guild_channel_time"`
+}
+
+func (ChatGuildMessage) TableName() string { return chatGuildMessageTable }
