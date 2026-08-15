@@ -76,11 +76,11 @@ func newGormDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	return db, mock
 }
 
-// expectChannelInsert 断言一次 guild_chat_log INSERT:
+// expectChannelInsert 断言一次 chat_guild_message INSERT:
 // gorm 默认事务 + Create(map 无主键)走 Exec(无 RETURNING)。
 func expectChannelInsert(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO "guild_chat_log"`).
+	mock.ExpectExec(`INSERT INTO "chat_guild_message"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
@@ -429,7 +429,7 @@ func TestChannelActor_RingBuffer_Eviction(t *testing.T) {
 
 // ========== loadHistory 启动加载 ==========
 
-// TestChannelActor_LoadHistory_Populates 启动从 guild_chat_log 加载最近历史:
+// TestChannelActor_LoadHistory_Populates 启动从 chat_guild_message 加载最近历史:
 // DESC 查询结果按正序填充 buffer, lastSavedSeq 对齐防重复落库。
 func TestChannelActor_LoadHistory_Populates(t *testing.T) {
 	db, mock := newGormDB(t)
@@ -439,7 +439,7 @@ func TestChannelActor_LoadHistory_Populates(t *testing.T) {
 	a.ChannelID = 7
 
 	// DESC: 最新(9, "later")在前; buffer 应为正序: (8, "first") → (9, "later")
-	mock.ExpectQuery(`SELECT .* FROM "guild_chat_log"`).
+	mock.ExpectQuery(`SELECT .* FROM "chat_guild_message"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"sender_id", "content", "timestamp"}).
 			AddRow(9, "later", 200).
@@ -470,7 +470,7 @@ func TestChannelActor_LoadHistory_Empty(t *testing.T) {
 	a.ChannelType = 4
 	a.ChannelID = 7
 
-	mock.ExpectQuery(`SELECT .* FROM "guild_chat_log"`).
+	mock.ExpectQuery(`SELECT .* FROM "chat_guild_message"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"sender_id", "content", "timestamp"}))
 
@@ -502,7 +502,7 @@ func TestChannelActor_LoadHistory_DBError(t *testing.T) {
 	a.ChannelType = 4
 	a.ChannelID = 7
 
-	mock.ExpectQuery(`SELECT .* FROM "guild_chat_log"`).
+	mock.ExpectQuery(`SELECT .* FROM "chat_guild_message"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnError(gorm.ErrInvalidDB)
 
@@ -522,7 +522,7 @@ func TestChannelActor_Send_PersistsSenderID(t *testing.T) {
 
 	mock.ExpectBegin()
 	// gorm map 列按字母序: channel_id, channel_type, content, sender_id, timestamp
-	mock.ExpectExec(`INSERT INTO "guild_chat_log"`).
+	mock.ExpectExec(`INSERT INTO "chat_guild_message"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), int64(5), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
