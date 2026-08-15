@@ -94,3 +94,7 @@ printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:180
 - 架构变更先写 ADR(`docs/architecture/adr-*.md`)
 - 改 proto 后 `make pb`(会 strip omitempty)
 - 功能改动后闭环:单元测试(本库基建)+ 冒烟(hy 客户端)+ 全量测试 + lint 0 issues
+
+## 业务专项文档(本地 docs/development/)
+
+- `docs/development/chat-e2e.md` — 聊天业务 E2E(多客户端广播/好友/私聊),含环境踩坑(uid counter/k8s 冲突/hy 管道 bug)
