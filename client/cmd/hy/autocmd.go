@@ -200,13 +200,39 @@ func buildAutoExec(msgType reflect.Type, fields []client.FieldInfo) func(c *clie
 	}
 }
 
+// kindName 映射 protoreflect.Kind 到易读类型名(usage 提示用)。
+func kindName(k protoreflect.Kind) string {
+	switch k {
+	case protoreflect.Int32Kind, protoreflect.Sint32Kind, protoreflect.Sfixed32Kind:
+		return "int32"
+	case protoreflect.Int64Kind, protoreflect.Sint64Kind, protoreflect.Sfixed64Kind:
+		return "int64"
+	case protoreflect.Uint32Kind, protoreflect.Fixed32Kind:
+		return "uint32"
+	case protoreflect.Uint64Kind, protoreflect.Fixed64Kind:
+		return "uint64"
+	case protoreflect.BoolKind:
+		return "bool"
+	case protoreflect.StringKind:
+		return "string"
+	case protoreflect.BytesKind:
+		return "bytes"
+	case protoreflect.FloatKind:
+		return "float"
+	case protoreflect.DoubleKind:
+		return "double"
+	default:
+		return k.String()
+	}
+}
+
 func formatParamList(fields []client.FieldInfo) string {
 	var parts []string
 	for _, fi := range fields {
 		if fi.Repeated {
-			parts = append(parts, fi.Name+"...")
+			parts = append(parts, fmt.Sprintf("%s(%s...)", fi.Name, kindName(fi.Kind)))
 		} else {
-			parts = append(parts, fi.Name)
+			parts = append(parts, fmt.Sprintf("%s(%s)", fi.Name, kindName(fi.Kind)))
 		}
 	}
 	return strings.Join(parts, " ")
