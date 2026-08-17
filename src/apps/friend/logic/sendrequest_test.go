@@ -27,7 +27,7 @@ func newFriendDBMock(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 }
 
 func testFriendConfig() *Config {
-	return &Config{ApplySendLimit: 10, ApplyReceiveLimit: 10}
+	return &Config{ApplySendLimit: 10, ApplyReceiveLimit: 10, FriendMaxCount: 100}
 }
 
 func friendDataColumns() []string {
