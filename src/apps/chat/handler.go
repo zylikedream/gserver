@@ -69,6 +69,9 @@ func (h *ChatHandler) StorePrivateMsg(ctx context.Context, req *StorePrivateMsgR
 	if err := json.Unmarshal([]byte(req.Sender), &sender); err != nil {
 		return nil, gxyhttp.NewErrCode(1, "parse sender error")
 	}
+	if sender == nil || sender.GetRoleId() <= 0 {
+		return nil, gxyhttp.NewErrCode(1, "invalid sender role_id")
+	}
 	ts, err := StorePrivateMsg(ctx, h.d, sender.GetRoleId(), req.TargetID, strings.TrimSpace(req.Content))
 	if err != nil {
 		return nil, gxyhttp.NewErrCode(1, err.Error())
