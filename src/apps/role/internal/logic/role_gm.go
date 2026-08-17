@@ -154,6 +154,9 @@ func (r *RoleGM) execCommand(name string, args []string) error {
 		return errors.Newf("unknown command: %s", name)
 	}
 	numParams := method.Type.NumIn() - 1 // minus receiver
+	if len(args) < numParams {
+		return errors.Newf("command %s needs %d arg(s), got %d", name, numParams, len(args))
+	}
 	if len(args) > numParams && numParams > 0 {
 		// join extra args into the last parameter (e.g. system message content with spaces)
 		last := numParams - 1

@@ -426,10 +426,14 @@ func (g *GuildActor) ApproveApply(ctx context.Context, operatorID int64, req *pb
 		return errors.WithStack(ErrPermissionDenied)
 	}
 
-	// 支持批量审批
+	// 支持批量审批: 单个失败跳过继续(部分成功必须通知, 不能中途 return
+	// 掩盖已生效的副作用)。
 	for _, applyID := range req.ApplyIds {
 		if err := g.processSingleApply(ctx, applyID, req.Approve); err != nil {
-			return err
+			gxylog.Warn(ctx, "approve apply skipped",
+				gxylog.Num("applyID", applyID),
+				gxylog.Err(err))
+			continue
 		}
 	}
 

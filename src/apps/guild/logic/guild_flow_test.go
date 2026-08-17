@@ -210,3 +210,43 @@ func TestProcessSingleApply_NotFound(t *testing.T) {
 		t.Fatalf("expected ErrApplyExpired, got %v", err)
 	}
 }
+
+// ========== ApproveApply 批量部分成功 ==========
+
+// TestApproveApply_MixedSkipsFailed 批量中混有不存在的 ID:
+// 跳过后继续处理有效 ID, 成功项生效。
+func TestApproveApply_MixedSkipsFailed(t *testing.T) {
+	initGuildTestConfig(t)
+	withFakeRolePublic(t)
+	g := newTestGuildNeg(t) // 负 RoleID 成员: notify 遍历避开未初始化 Redis
+	gormDB, mock := newGuildDBMock(t)
+	g.db = gormDB
+	g.Data.ApplyList = []*GuildApply{{ID: 5, RoleID: -400, Status: 0}}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "role_guild"`).
+		WithArgs(int64(1), int64(-400), int64(1), int64(0)).
+		WillReturnRows(sqlmock.NewRows([]string{"role_id", "guild_id"}).AddRow(-400, 1))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "guild" SET .* WHERE .*`).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	// [0(不存在), 5(有效)]: 0 跳过, 5 处理成功
+	err := g.ApproveApply(context.Background(), -100, &pb.ReqGuildApproveApply{
+		ApplyIds: []int64{0, 5}, Approve: true,
+	})
+	if err != nil {
+		t.Fatalf("ApproveApply should not fail on skipped id, got %v", err)
+	}
+	if g.Data.ApplyList[0].Status != 1 {
+		t.Fatalf("expected apply 5 approved, got status %d", g.Data.ApplyList[0].Status)
+	}
+	if len(g.Data.Members) != 4 {
+		t.Fatalf("expected member added, got %d", len(g.Data.Members))
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations: %v", err)
+	}
+}
