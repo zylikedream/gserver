@@ -98,3 +98,4 @@ printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:180
 ## 业务专项文档(本地 docs/development/)
 
 - `docs/development/chat-e2e.md` — 聊天业务 E2E(多客户端广播/好友/私聊),含环境踩坑(uid counter/k8s 冲突/hy 管道 bug)
+- `docs/development/guild-e2e.md` — 公会业务 E2E(建会/申请/审批/入会/重连持久化),脚本 `build/script/e2e_guild.sh`,含建会消耗 id=1/同 uid=同账号/need_approval 分流等踩坑
