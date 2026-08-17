@@ -135,3 +135,21 @@ func TestLeaveLobby_UnknownLobby(t *testing.T) {
 		t.Fatalf("leave unknown lobby should not error: %v", err)
 	}
 }
+
+// TestJoinLobby_CounterPersisted 开新厅后 lobby counter 必须无 TTL(PERSIST):
+// 防 Redis 重启后 counter 重置, 新厅 ID 与未过期旧厅冲突。
+func TestJoinLobby_CounterPersisted(t *testing.T) {
+	d, _ := newChatTestDeps(t)
+	ctx := context.Background()
+
+	if _, err := JoinLobby(ctx, d, 1001); err != nil {
+		t.Fatalf("join: %v", err)
+	}
+	ttl, err := d.Redis.TTL(ctx, "chat:lobby:counter").Result()
+	if err != nil {
+		t.Fatalf("ttl query: %v", err)
+	}
+	if ttl != -1 { // -1 = no expiry(PERSIST 生效)
+		t.Fatalf("expected counter TTL -1 (persisted), got %d", ttl)
+	}
+}

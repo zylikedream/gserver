@@ -22,6 +22,8 @@ local available = redis.call('ZREVRANGEBYSCORE', KEYS[1], maxSize - 1, 0, 'LIMIT
 local lobbyID
 if #available == 0 then
     lobbyID = tostring(redis.call('INCR', 'chat:lobby:counter'))
+    -- counter 持久化: 与 lobby set 一样防 Redis 重启后 ID 复用冲突
+    redis.call('PERSIST', 'chat:lobby:counter')
 else
     lobbyID = available[1]
 end
@@ -91,7 +93,7 @@ func GetPrivateHistory(ctx context.Context, d deps.Deps, roleID, friendID int64,
 		Order("created_at DESC").Limit(count).
 		Find(&msgs).Error
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "chat private history")
 	}
 	result := make([]*pb.PChatMsg, 0, len(msgs))
 	for i := len(msgs) - 1; i >= 0; i-- {
@@ -125,7 +127,7 @@ func GetSystemHistory(ctx context.Context, d deps.Deps, count int) ([]*pb.PChatM
 		Order("created_at DESC").Limit(count).
 		Find(&msgs).Error
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "chat system history")
 	}
 	result := make([]*pb.PChatMsg, 0, len(msgs))
 	for i := len(msgs) - 1; i >= 0; i-- {
