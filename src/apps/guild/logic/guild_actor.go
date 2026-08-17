@@ -124,6 +124,10 @@ func (g *GuildActor) onDayRefresh(ctx context.Context, _ gxytimer.TimerActiveInf
 	g.Data.ApplyList = valid
 }
 
+// getRolePublic 可替换函数变量: 生产走 role 包(全局 deps), 测试注入 fake 避免
+// 依赖未初始化的 Redis/DB(ADR-0001 依赖注入)。
+var getRolePublic = role.GetRolePublic
+
 // ===== 日志 =====
 
 func (g *GuildActor) addLog(ctx context.Context, content string) {
@@ -214,7 +218,7 @@ func (g *GuildActor) buildNotifyGuildApply(ctx context.Context) *pb.NotifyGuildA
 	pending := g.getPendingApplies()
 	result := make([]*pb.PGuildApply, 0, len(pending))
 	for _, a := range pending {
-		pub := role.GetRolePublic(ctx, a.RoleID)
+		pub := getRolePublic(ctx, a.RoleID)
 		result = append(result, &pb.PGuildApply{
 			ApplyId: a.ID, GuildId: g.GuildID,
 			PlayerInfo: pub, CreatedAt: a.CreatedAt.Unix(),
@@ -232,7 +236,7 @@ func (g *GuildActor) buildMemberList(ctx context.Context) []*pb.PGuildMember {
 }
 
 func (g *GuildActor) buildPGuildMember(ctx context.Context, m *GuildMember) *pb.PGuildMember {
-	pub := role.GetRolePublic(ctx, m.RoleID)
+	pub := getRolePublic(ctx, m.RoleID)
 	if pub == nil {
 		pub = &pb.PRolePublic{RoleId: m.RoleID}
 	}
@@ -406,7 +410,7 @@ func (g *GuildActor) GetGuildApplyList(ctx context.Context, req *pb.ReqGuildAppl
 	pending := g.getPendingApplies()
 	result := make([]*pb.PGuildApply, 0, len(pending))
 	for _, a := range pending {
-		pub := role.GetRolePublic(ctx, a.RoleID)
+		pub := getRolePublic(ctx, a.RoleID)
 		result = append(result, &pb.PGuildApply{
 			ApplyId: a.ID, GuildId: g.GuildID,
 			PlayerInfo: pub, CreatedAt: a.CreatedAt.Unix(),
