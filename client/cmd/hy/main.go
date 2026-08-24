@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
 	"os"
@@ -151,9 +150,23 @@ func promptPlatformUID(defaultUID string) string {
 		fmt.Print("Platform UID: ")
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
+	// 逐字节读直到换行: 不能用 bufio.Reader(预读会吞掉管道中
+	// 后续命令行, 而 REPL(liner)从同一 fd 读取时已无数据)。
+	var sb strings.Builder
+	buf := make([]byte, 1)
+	for {
+		n, err := os.Stdin.Read(buf)
+		if n > 0 {
+			if buf[0] == '\n' {
+				break
+			}
+			sb.WriteByte(buf[0])
+		}
+		if err != nil {
+			break
+		}
+	}
+	input := strings.TrimSpace(sb.String())
 
 	if input == "" {
 		if defaultUID == "" {
