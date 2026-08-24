@@ -162,3 +162,86 @@ A_ROLE_ID=$(client_value A ROLE_ID)
 B_ROLE_ID=$(client_value B ROLE_ID)
 [[ -n "$A_ROLE_ID" && -n "$B_ROLE_ID" && "$A_ROLE_ID" != "$B_ROLE_ID" ]] || die "role_id 无效"
 say "1. 双客户端登录 A=$A_ROLE_ID B=$B_ROLE_ID ✓"
+
+# ---- 2. 双方初始化聊天并断言同一大厅 ----
+a_mark=$(mark_log A)
+b_mark=$(mark_log B)
+send A 'chat.init'
+send B 'chat.init'
+wait_log A 'RspChatInit' "$a_mark"
+wait_log B 'RspChatInit' "$b_mark"
+A_LOBBY_ID=$(log_since A "$a_mark" | grep 'RspChatInit' | tail -n 1 |
+  sed -n 's/.*"lobbyId":\([0-9][0-9]*\).*/\1/p')
+B_LOBBY_ID=$(log_since B "$b_mark" | grep 'RspChatInit' | tail -n 1 |
+  sed -n 's/.*"lobbyId":\([0-9][0-9]*\).*/\1/p')
+[[ -n "$A_LOBBY_ID" && "$A_LOBBY_ID" != "0" && "$A_LOBBY_ID" == "$B_LOBBY_ID" ]] ||
+  die "世界大厅不一致：A=${A_LOBBY_ID:-empty} B=${B_LOBBY_ID:-empty}"
+say "2. 同一世界大厅 lobby_id=$A_LOBBY_ID ✓"
+
+# ---- 3. 世界频道响应、B 实时 push、频道历史 ----
+a_mark=$(mark_log A)
+b_mark=$(mark_log B)
+send A "chat.send_channel 1 \"$WORLD_MSG\""
+wait_log A 'RspChatSendChannel' "$a_mark"
+wait_log B "NotifyChatChannel.*\"senderId\":\"$A_ROLE_ID\".*\"content\":\"$WORLD_MSG\"" "$b_mark"
+a_mark=$(mark_log A)
+send A 'chat.channel_history 1 0 10'
+wait_log A "RspChatChannelHistory.*$WORLD_MSG" "$a_mark"
+say "3. 世界广播 + 实时 push + 历史 ✓"
+
+# ---- 4. 好友建立前私聊必须拒绝 ----
+a_mark=$(mark_log A)
+send A "chat.send_private $B_ROLE_ID \"blocked_$STAMP\""
+wait_log A 'ack error:.*对方不是你的好友' "$a_mark"
+say "4. 非好友私聊拒绝 ✓"
+
+# ---- 5. 好友申请响应、B 实时 push、申请列表、接受 ----
+a_mark=$(mark_log A)
+b_mark=$(mark_log B)
+send A "friend.send_request $B_ROLE_ID"
+wait_log A 'RspFriendSendRequest' "$a_mark"
+wait_log B "NotifyFriendNewRequest.*\"roleId\":\"$A_ROLE_ID\"" "$b_mark"
+b_mark=$(mark_log B)
+send B 'friend.apply_list'
+wait_log B "RspFriendApplyList.*\"roleId\":\"$A_ROLE_ID\"" "$b_mark"
+b_mark=$(mark_log B)
+send B "friend.accept_request $A_ROLE_ID"
+wait_log B 'RspFriendAcceptRequest' "$b_mark"
+say "5. 好友申请 + 实时 push + 接受 ✓"
+
+# ---- 6. 私聊响应、B 实时 push、私聊历史 ----
+a_mark=$(mark_log A)
+b_mark=$(mark_log B)
+send A "chat.send_private $B_ROLE_ID \"$PRIVATE_MSG\""
+wait_log A 'RspChatSendPrivate' "$a_mark"
+wait_log B "NotifyChatPrivate.*\"roleId\":\"$A_ROLE_ID\".*\"content\":\"$PRIVATE_MSG\"" "$b_mark"
+b_mark=$(mark_log B)
+send B "chat.private_history $A_ROLE_ID 10"
+wait_log B "RspChatPrivateHistory.*$PRIVATE_MSG" "$b_mark"
+say "6. 私聊实时 push + 历史 ✓"
+
+# ---- 7. PostgreSQL 私聊记录 ----
+count=$(psql -h 127.0.0.1 -U postgres -d gserver -tAc "
+  SELECT count(*)
+  FROM chat_private_message
+  WHERE min_role_id = LEAST($A_ROLE_ID, $B_ROLE_ID)
+    AND max_role_id = GREATEST($A_ROLE_ID, $B_ROLE_ID)
+    AND sender_id = $A_ROLE_ID
+    AND content = '$PRIVATE_MSG';
+")
+[[ "$count" == "1" ]] || die "DB 私聊记录应为 1 条，实际 $count"
+say "7. DB 私聊记录 ✓"
+
+# ---- 8. B 同 uid 重连后仍能查询私聊历史 ----
+original_b_role_id=$B_ROLE_ID
+stop_client B
+start_client B "$UID_B"
+B_ROLE_ID=$(client_value B ROLE_ID)
+[[ "$B_ROLE_ID" == "$original_b_role_id" ]] ||
+  die "B 重连 role_id 变化：before=$original_b_role_id after=$B_ROLE_ID"
+b_mark=$(mark_log B)
+send B "chat.private_history $A_ROLE_ID 10"
+wait_log B "RspChatPrivateHistory.*$PRIVATE_MSG" "$b_mark"
+say "8. B 同 uid 重连历史 ✓"
+
+say "========== PASS =========="
