@@ -145,3 +145,129 @@ func TestCreateAccountWithIdentityReloadsAfterUniquenessConflict(t *testing.T) {
 		t.Fatalf("unexpected reloaded account: %+v", account)
 	}
 }
+
+type errorAccountStore struct {
+	findErr   error
+	createErr error
+}
+
+func (s errorAccountStore) FindAccountByIdentity(context.Context, string, string) (*Account, error) {
+	return nil, s.findErr
+}
+
+func (s errorAccountStore) CreateAccountWithIdentity(context.Context, *Account, *AccountIdentity) error {
+	return s.createErr
+}
+
+type uniquenessReloadErrorStore struct {
+	createAttempted bool
+	reloadErr       error
+}
+
+func (s *uniquenessReloadErrorStore) FindAccountByIdentity(context.Context, string, string) (*Account, error) {
+	if s.createAttempted {
+		return nil, s.reloadErr
+	}
+	return nil, nil
+}
+
+func (s *uniquenessReloadErrorStore) CreateAccountWithIdentity(context.Context, *Account, *AccountIdentity) error {
+	s.createAttempted = true
+	return errors.New("duplicate key value violates unique constraint")
+}
+
+func swapIDGeneratorFuncs(t *testing.T, accountID func() (string, error), roleID func() (int64, error)) {
+	t.Helper()
+	oldAccountID := generateAccountID
+	oldRoleID := generateRoleID
+	generateAccountID = accountID
+	generateRoleID = roleID
+	t.Cleanup(func() {
+		generateAccountID = oldAccountID
+		generateRoleID = oldRoleID
+	})
+}
+
+func TestAccountIdentityRequiresBothPlatformFields(t *testing.T) {
+	swapAccountStore(t, newInMemoryAccountStore())
+
+	for _, test := range []struct {
+		name        string
+		platform    string
+		platformUID string
+	}{
+		{name: "missing platform", platformUID: "uid-1"},
+		{name: "missing platform uid", platform: "guest"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if account, err := LoadAccountByIdentity(context.Background(), test.platform, test.platformUID); err == nil || account != nil {
+				t.Fatalf("load should reject incomplete identity, account=%+v err=%v", account, err)
+			}
+			if account, isNew, err := CreateAccountWithIdentity(context.Background(), test.platform, test.platformUID); err == nil || account != nil || isNew {
+				t.Fatalf("create should reject incomplete identity, account=%+v isNew=%v err=%v", account, isNew, err)
+			}
+		})
+	}
+}
+
+func TestCreateAccountWithIdentityPropagatesDependencyErrors(t *testing.T) {
+	lookupErr := errors.New("lookup unavailable")
+	accountIDErr := errors.New("account id unavailable")
+	roleIDErr := errors.New("role id unavailable")
+	storeErr := errors.New("store unavailable")
+	reloadErr := errors.New("reload unavailable")
+
+	t.Run("initial lookup", func(t *testing.T) {
+		swapAccountStore(t, errorAccountStore{findErr: lookupErr})
+		swapIDGeneratorFuncs(t,
+			func() (string, error) { t.Fatal("account ID generator must not run"); return "", nil },
+			func() (int64, error) { t.Fatal("role ID generator must not run"); return 0, nil },
+		)
+		_, _, err := CreateAccountWithIdentity(context.Background(), "guest", "uid-lookup")
+		if !errors.Is(err, lookupErr) {
+			t.Fatalf("expected lookup error, got %v", err)
+		}
+	})
+
+	t.Run("account id generation", func(t *testing.T) {
+		swapAccountStore(t, newInMemoryAccountStore())
+		swapIDGeneratorFuncs(t,
+			func() (string, error) { return "", accountIDErr },
+			func() (int64, error) { t.Fatal("role ID generator must not run"); return 0, nil },
+		)
+		_, _, err := CreateAccountWithIdentity(context.Background(), "guest", "uid-account-id")
+		if !errors.Is(err, accountIDErr) {
+			t.Fatalf("expected account ID error, got %v", err)
+		}
+	})
+
+	t.Run("role id generation", func(t *testing.T) {
+		swapAccountStore(t, newInMemoryAccountStore())
+		swapIDGeneratorFuncs(t,
+			func() (string, error) { return "acc-role-id", nil },
+			func() (int64, error) { return 0, roleIDErr },
+		)
+		_, _, err := CreateAccountWithIdentity(context.Background(), "guest", "uid-role-id")
+		if !errors.Is(err, roleIDErr) {
+			t.Fatalf("expected role ID error, got %v", err)
+		}
+	})
+
+	t.Run("store create", func(t *testing.T) {
+		swapAccountStore(t, errorAccountStore{createErr: storeErr})
+		swapIDGenerators(t, "acc-store", 100004)
+		_, _, err := CreateAccountWithIdentity(context.Background(), "guest", "uid-store")
+		if !errors.Is(err, storeErr) {
+			t.Fatalf("expected store error, got %v", err)
+		}
+	})
+
+	t.Run("reload after uniqueness conflict", func(t *testing.T) {
+		swapAccountStore(t, &uniquenessReloadErrorStore{reloadErr: reloadErr})
+		swapIDGenerators(t, "acc-reload", 100005)
+		_, _, err := CreateAccountWithIdentity(context.Background(), "guest", "uid-reload")
+		if !errors.Is(err, reloadErr) {
+			t.Fatalf("expected reload error, got %v", err)
+		}
+	})
+}

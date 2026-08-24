@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -30,6 +31,21 @@ func (s stubSigner) Verify(token string) (*gatetoken.Claims, error) {
 		return nil, s.err
 	}
 	return s.claims, nil
+}
+
+type capturingSigner struct {
+	claims *gatetoken.Claims
+	token  string
+}
+
+func (s *capturingSigner) Sign(claims *gatetoken.Claims) (string, error) {
+	cloned := *claims
+	s.claims = &cloned
+	return s.token, nil
+}
+
+func (s *capturingSigner) Verify(string) (*gatetoken.Claims, error) {
+	return nil, errors.New("not implemented")
 }
 
 func swapIDGenerators(t *testing.T, accountID string, roleID int64) {
@@ -188,5 +204,107 @@ func TestAccountHandlerPreloginReturnsPayload(t *testing.T) {
 	}
 	if payload.AccountID != "acc_3001" || payload.GateToken != "signed-token" {
 		t.Fatalf("unexpected payload: %+v", payload)
+	}
+}
+
+func TestBuildPreloginResponseSignsCompleteClaims(t *testing.T) {
+	swapAccountStore(t, newInMemoryAccountStore())
+	swapIDGenerators(t, "acc-claims", 40001)
+	now := time.Unix(1710000000, 0)
+	oldTimeNow := preloginTimeNow
+	preloginTimeNow = func() time.Time { return now }
+	t.Cleanup(func() { preloginTimeNow = oldTimeNow })
+	signer := &capturingSigner{token: "claims-token"}
+	cfg := PreloginConfig{
+		MinVersion:    "1.2.0",
+		LatestVersion: "1.4.0",
+		GateHost:      "gate.example.com",
+		GatePort:      11086,
+		Env:           "staging",
+		TokenTTL:      90 * time.Second,
+		Issuer:        "account-service",
+	}
+
+	rsp, err := BuildPreloginResponse(context.Background(), cfg, signer, "guest", "uid-claims", "1.3.0")
+	if err != nil {
+		t.Fatalf("build response: %v", err)
+	}
+	if signer.claims == nil {
+		t.Fatal("signer did not receive claims")
+	}
+	if signer.claims.AccountID != "acc-claims" ||
+		signer.claims.RoleID != 40001 ||
+		signer.claims.Platform != "guest" ||
+		signer.claims.Env != "staging" ||
+		signer.claims.Issuer != "account-service" ||
+		!signer.claims.IssuedAt.Equal(now) ||
+		!signer.claims.ExpiresAt.Equal(now.Add(90*time.Second)) {
+		t.Fatalf("unexpected claims: %+v", signer.claims)
+	}
+	if rsp.GateToken != "claims-token" ||
+		rsp.ExpiresIn != 90 ||
+		rsp.AccountInfo["platform"] != "guest" ||
+		rsp.AccountInfo["platform_uid"] != "uid-claims" ||
+		rsp.VersionInfo.ClientVersion != "1.3.0" ||
+		rsp.VersionInfo.MinVersion != "1.2.0" ||
+		rsp.VersionInfo.LatestVersion != "1.4.0" ||
+		rsp.VersionInfo.Status != "ok" {
+		t.Fatalf("unexpected response: %+v", rsp)
+	}
+}
+
+func TestBuildPreloginResponsePropagatesSignerError(t *testing.T) {
+	swapAccountStore(t, newInMemoryAccountStore())
+	swapIDGenerators(t, "acc-sign-error", 40002)
+	signErr := errors.New("signer unavailable")
+
+	rsp, err := BuildPreloginResponse(context.Background(), PreloginConfig{
+		TokenTTL: time.Minute,
+	}, stubSigner{err: signErr}, "guest", "uid-sign-error", "")
+	if !errors.Is(err, signErr) || rsp != nil {
+		t.Fatalf("expected signer error, response=%+v err=%v", rsp, err)
+	}
+}
+
+func TestValidateClientVersion(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		clientVersion string
+		minVersion    string
+		wantErr       bool
+	}{
+		{name: "empty client version", minVersion: "1.0.0"},
+		{name: "empty minimum version", clientVersion: "1.0.0"},
+		{name: "equal", clientVersion: "1.2.0", minVersion: "1.2.0"},
+		{name: "equal with omitted trailing component", clientVersion: "1.2", minVersion: "1.2.0"},
+		{name: "newer major", clientVersion: "2.0.0", minVersion: "1.9.9"},
+		{name: "newer minor uses numeric comparison", clientVersion: "1.10.0", minVersion: "1.2.0"},
+		{name: "older", clientVersion: "1.1.9", minVersion: "1.2.0", wantErr: true},
+		{name: "invalid client version", clientVersion: "1.beta.0", minVersion: "1.0.0", wantErr: true},
+		{name: "invalid minimum version", clientVersion: "1.0.0", minVersion: "minimum", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateClientVersion(test.clientVersion, test.minVersion)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("validateClientVersion(%q, %q) error=%v, wantErr=%v", test.clientVersion, test.minVersion, err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestTTLSeconds(t *testing.T) {
+	for _, test := range []struct {
+		ttl  time.Duration
+		want int64
+	}{
+		{ttl: -time.Second, want: 0},
+		{ttl: 0, want: 0},
+		{ttl: time.Nanosecond, want: 1},
+		{ttl: time.Second, want: 1},
+		{ttl: time.Second + time.Nanosecond, want: 2},
+	} {
+		if got := ttlSeconds(test.ttl); got != test.want {
+			t.Fatalf("ttlSeconds(%s)=%d, want %d", test.ttl, got, test.want)
+		}
 	}
 }
