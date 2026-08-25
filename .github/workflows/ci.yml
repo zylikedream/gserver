@@ -1,9 +1,27 @@
 name: CI
 
+# 只有 PR 触发 CI;且 PR 必须包含代码相关路径变更才跑。
+# 纯文档 PR(SKILL.md/docs/README)不触发;master push(PR 合并)不重复跑。
 on:
-  push:
-    branches: [master]
   pull_request:
+    paths:
+      - 'core/**/*.go'
+      - 'src/**/*.go'
+      - 'node/**/*.go'
+      - 'protocol/**/*.proto'
+      - 'protocol/**/*.go'
+      - 'client/**/*.go'
+      - 'client/go.mod'
+      - 'client/go.sum'
+      - 'client/Makefile'
+      - 'go.mod'
+      - 'go.sum'
+      - 'go.work'
+      - 'go.work.sum'
+      - 'Makefile'
+      - 'hack/**'
+      - 'build/**'
+      - '.github/workflows/ci.yml'
 
 jobs:
   build-and-test:
