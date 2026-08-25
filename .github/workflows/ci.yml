@@ -21,7 +21,7 @@ on:
       - 'Makefile'
       - 'hack/**'
       - 'build/**'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/**'
 
 jobs:
   build-and-test:
