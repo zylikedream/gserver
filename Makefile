@@ -71,3 +71,8 @@ pb-check: pb
 		exit 1; \
 	fi
 	@echo "PB 生成一致，无漂移"
+
+# --- 真实 E2E（先构建 hy 再统一编排）---
+.PHONY: e2e
+e2e: build
+	bash build/script/e2e_all.sh

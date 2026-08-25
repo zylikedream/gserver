@@ -14,7 +14,8 @@
 # =============================================================================
 set -euo pipefail
 
-HY="${HY:-$HOME/workspace/gclient_github/bin/hy}"
+ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+HY="${HY:-$ROOT_DIR/bin/hy}"
 ACCOUNT_URL="${ACCOUNT_URL:-http://127.0.0.1:18080}"
 PGPASSWORD="${PGPASSWORD:-@zyc0131}"
 STAMP=$(date +%s)

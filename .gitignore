@@ -45,3 +45,6 @@ deploy/docker/docker-compose.yml
 
 # Fixed protobuf toolchain
 .tools/
+
+# E2E output
+.e2e-out/
