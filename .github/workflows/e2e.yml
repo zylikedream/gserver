@@ -27,26 +27,30 @@ jobs:
       - name: Start postgres
         run: |
           docker run -d --name postgres -e POSTGRES_PASSWORD=ci_password -e POSTGRES_DB=gserver -p 5432:5432 postgres:16
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             docker exec postgres pg_isready -U postgres -d gserver && break
             sleep 1
           done
+          docker exec postgres pg_isready -U postgres -d gserver
 
       - name: Start redis
         run: |
           docker run -d --name redis -p 6379:6379 redis:7 redis-server --requirepass ci_password
-          for i in $(seq 1 15); do
-            redis-cli -h 127.0.0.1 ping && break
+          for i in $(seq 1 45); do
+            redis-cli -h 127.0.0.1 -a ci_password ping 2>/dev/null | grep -q PONG && break
             sleep 1
           done
+          # 就绪循环结束后显式确认;失败使步骤报错(而非静默通过)
+          redis-cli -h 127.0.0.1 -a ci_password ping | grep -q PONG
 
       - name: Start consul
         run: |
           docker run -d --name consul -p 8500:8500 hashicorp/consul:1.18 agent -dev -client=0.0.0.0
-          for i in $(seq 1 30); do
+          for i in $(seq 1 45); do
             curl -fsS http://127.0.0.1:8500/v1/status/leader >/dev/null && break
             sleep 1
           done
+          curl -fsS http://127.0.0.1:8500/v1/status/leader >/dev/null
 
       # 生成 config/*.toml(CI 专用 dev_ci 环境,已跟踪;gen_config.py 需 toml 包)
       - name: Generate config

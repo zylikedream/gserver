@@ -1,30 +1,46 @@
 name: CI
 
-# 只有 PR 触发 CI;且 PR 必须包含代码相关路径变更才跑。
-# 纯文档 PR(SKILL.md/docs/README)不触发;master push(PR 合并)不重复跑。
+# 只有 PR 触发。代码相关路径变更时才跑完整 build/test/lint;
+# 纯文档 PR 通过 job 级 if 跳过(required check 显示 skipped,不阻塞合并)。
+# master push(PR 合并)不重复跑。
 on:
   pull_request:
-    paths:
-      - 'core/**/*.go'
-      - 'src/**/*.go'
-      - 'node/**/*.go'
-      - 'protocol/**/*.proto'
-      - 'protocol/**/*.go'
-      - 'client/**/*.go'
-      - 'client/go.mod'
-      - 'client/go.sum'
-      - 'client/Makefile'
-      - 'go.mod'
-      - 'go.sum'
-      - 'go.work'
-      - 'go.work.sum'
-      - 'Makefile'
-      - 'hack/**'
-      - 'build/**'
-      - '.github/workflows/ci.yml'
 
 jobs:
+  # 用 dorny/paths-filter 判断 PR 是否含代码变更,输出给下游 job
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'core/**/*.go'
+              - 'src/**/*.go'
+              - 'node/**/*.go'
+              - 'protocol/**/*.proto'
+              - 'protocol/**/*.go'
+              - 'client/**/*.go'
+              - 'client/go.mod'
+              - 'client/go.sum'
+              - 'client/Makefile'
+              - 'go.mod'
+              - 'go.sum'
+              - 'go.work'
+              - 'go.work.sum'
+              - 'Makefile'
+              - 'hack/**'
+              - 'build/**'
+              - '.github/workflows/**'
+
   build-and-test:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
