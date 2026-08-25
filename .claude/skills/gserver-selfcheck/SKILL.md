@@ -47,7 +47,7 @@ docker ps --format '{{.Names}} {{.Status}}' | sort
 ### 4. 业务冒烟(hy 客户端)
 
 ```bash
-cd /home/zyr/workspace/gclient_github && printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:18080 --platform=guest --client-version=1.0.0
+cd /home/zyr/workspace/gserver_github && printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:18080 --platform=guest --client-version=1.0.0
 ```
 
 判定:输出 `prelogin ok, role_id=<n>` → `handshake ok` → `login ok`(stdin 第一行是 **platform_uid**,不是账号)。
@@ -168,7 +168,7 @@ gxylog.Debug(ctx, "role recv client msg",
 gofmt -w src/apps/role/internal/logic/role_main.go
 go build -o bin/gserver-node ./node
 systemctl --user restart gserver@role
-# 触发:gclient_github hy 登录(见第 4 步)
+# 触发:monorepo bin/hy 登录(见第 4 步)
 grep 'role recv client msg' log/role/role.log | tail -3 | jq '{level, msg, msg_id, msg_name, role_id, trace_id}'
 ```
 
@@ -182,7 +182,7 @@ docker ps --format '{{.Names}} {{.Status}}' | grep game-cluster   # control-plan
 kubectl get pods                               # 13 个 1/1 Running(gate x2/account x2/role x2/chat x2/friend x2/guild x2/prometheus)
 ss -ltn | grep -E ':10086|:30080|:30999'       # hostPort 映射监听
 # k8s 冒烟(新协议,经 k8s account 30080 + k8s gate 10086)
-cd /home/zyr/workspace/gclient_github && printf '<uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:30080 --platform=guest --client-version=1.0.0
+cd /home/zyr/workspace/gserver_github && printf '<uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:30080 --platform=guest --client-version=1.0.0
 # k8s prometheus(独立于本地)
 curl -s http://127.0.0.1:30999/-/healthy        # 200
 curl -s http://127.0.0.1:30999/api/v1/targets | jq -r '.data.activeTargets[] | select(.health=="up") | .labels.job' | sort -u  # game-services

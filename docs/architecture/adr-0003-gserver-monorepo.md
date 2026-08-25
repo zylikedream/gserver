@@ -1,7 +1,7 @@
 # ADR 0003:GServer Monorepo(服务端、协议与工程客户端原子演进)
 
 - 日期:2026-08-24
-- 状态:**Accepted(待迁移)**
+- 状态:**Accepted**
 
 ## 背景
 

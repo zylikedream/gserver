@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# hy_client
+# client (gserver/client)
 
 Console debugging client and benchmark tool for "My Garden World" (gserver).
 
@@ -42,7 +42,7 @@ pkg/client/        Core SDK shared by both binaries
   registry.go      Message registry — scans protobuf files for `option (msg_id)`, bidir ID<->type maps
   fieldparse.go    Generic protobuf field parsing from CLI string args (int, string, bool, enum)
 pb/                Generated protobuf Go code
-proto/client/      Proto source files (gserver submodule)
+proto/client/      Protocol sources (monorepo protocol/client/, 唯一真源)
 ```
 
 ## Key Architectural Patterns
@@ -77,7 +77,7 @@ Send ReqAccountLogin{role_id, client_info}
 - `pkg/client/client.go`: `Handshake(gateToken)` — sends gate token to gate server
 - `cmd/hy/` flow: prelogin → connect to gate → handshake → login → REPL
 - On disconnect: must redo prelogin for a fresh gate_token (see `repl.go:reconnect()`)
-- Proto submodule URL: `https://github.com/zylikedream/gserver_protocol.git`
+- 协议唯一真源:monorepo `protocol/client/`;PB 由根 make pb 生成到 client/pb;禁止 submodule 更新
 
 ## Testing
 

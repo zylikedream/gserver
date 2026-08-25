@@ -21,14 +21,14 @@ node/main.go --config config/<name>.toml 启动一个 Node,按配置装配 apps
 
 - `core/` 共享框架:gxyactor(actor 封装)/ gxynet(网络)/ gxyredis / gxypgx / gxymodule / gxytimer / gxylog / gxyhttp
 - `src/apps/` 可部署微服务;`src/lib/` 跨 app 工具(rolelib/guildlib/gatetoken);`src/pkg/` 共享包(deps 依赖容器/gameconfig 配表)
-- `protocol/` protobuf 定义(client/ + server/)+ 生成代码(pb/);**客户端协议是 submodule**(gclient_github 内)
+- `protocol/` protobuf 定义(client/ + server/);`protocol/client/*.proto` 是唯一可写真源,生成 `protocol/pb`(server)与 `client/pb`(client)两份代码
 - `gameconfig/` 策划配表(子模块)
 
 ## 环境前提
 
 - 部署目录:`/home/zyr/workspace/gserver_github`(旧 `gserver` 已废弃)
 - systemd 托管:`~/.config/systemd/user/gserver@.service`,6 个 app 各一个实例(gate/account/role/chat/friend/guild),二进制 `bin/gserver-node`(`go build -o bin/gserver-node ./node`)
-- **客户端**:`/home/zyr/workspace/gclient_github`(新 hy 客户端,旧 hy_client 不兼容)
+- **工程客户端**:monorepo 内 `client/`(module gserver/client);hy/bench 产物在根 `bin/`(旧 gclient 仓库已归档只读)
 - 中间件密码:postgres/redis 均 `@zyc0131`(来自 `build/env/dev_zy.env.toml`)
 - 容器(全部 Up):gserver-postgres(5432)/ gserver-redis(6379)/ gserver-consul(8500)/ gserver-prometheus(9092)/ gserver-grafana(3000)/ gserver-tempo(4317)/ gserver-loki(3100)/ gserver-promtail
 
@@ -59,7 +59,7 @@ go run node/main.go --config config/gate.toml  # dev 起 gate
 ### hy 客户端(REPL)
 
 ```bash
-cd /home/zyr/workspace/gclient_github
+cd /home/zyr/workspace/gserver_github
 printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:18080 --platform=guest --client-version=1.0.0
 # 判定: prelogin ok → handshake ok → login ok
 ```

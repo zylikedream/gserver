@@ -10,13 +10,12 @@ Console debugging client and benchmark tool for gserver.
 | `cmd/bench/` | Configurable benchmark bot framework |
 | `pkg/client/` | Core SDK — codec, connection, message registry |
 | `pb/` | Generated protobuf Go code |
-| `proto/client/` | Proto source files (gserver protocol submodule) |
+| `proto/client/` | Protocol sources (monorepo `protocol/client/`) |
 
 ## Build & Run
 
 ```bash
-git submodule update --init   # clone proto/client submodule
-make proto                    # regenerate protobuf (if protos changed)
+make pb                      # regenerate from monorepo protocol/client (root Makefile)
 make build                    # build both binaries
 make test                     # run all tests
 ```
