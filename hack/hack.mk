@@ -91,24 +91,8 @@ build-okg-image:
 	@echo "=== Building docker image $(OKG_IMAGE) ==="
 	docker build --build-arg HTTP_PROXY= --build-arg HTTPS_PROXY= --build-arg http_proxy= --build-arg https_proxy= -f $(OKG_DOCKERFILE) -t $(OKG_IMAGE) .
 
-# Parsing protobuf files and generating go files.
-.PHONY: pbraw
-pbraw: cli.install
-	@for dir in protocol/client protocol/server; do \
-		for file in `ls $$dir/*.proto 2>/dev/null`; do \
-			echo "Generating $$file"; \
-			protoc --proto_path=$$dir/ -I $$dir/ -I protocol/client/ -I protocol/server/ -I /usr/local/include --go_out=protocol/ $$file; \
-		done; \
-	done;
-
-# 生成不带omitempty标签的protobuf代码
-.PHONY: pb
-pb: cli.install
-	@if [ ! -d gameconfig/gosrc ]; then git submodule update --init gameconfig; fi
-	@find protocol -name "*.pb.go" -delete
-	@$(MAKE) pbraw
-	@echo "Removing omitempty tags from generated protobuf files..."
-	@find protocol/pb -name "*.pb.go" -type f -exec sed -i 's/,omitempty"/"/' {} \;
+	# PB 生成已迁移到根 Makefile(make pb-server/pb-client/pb-check,固定 protoc 3.19.3 + protoc-gen-go v1.36.11)。
+	# 旧的 pbraw/pb 目标已删除,避免与根目标 recipe 冲突。
 
 # 列出每个proto文件的消息ID范围
 .PHONY: pbids
