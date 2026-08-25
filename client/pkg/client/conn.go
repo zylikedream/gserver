@@ -35,8 +35,8 @@ func (c *Conn) Connect(addr string) error {
 		return fmt.Errorf("connect failed: %w", err)
 	}
 	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAlive(true)
-		tcpConn.SetKeepAlivePeriod(15 * time.Second)
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
 	}
 	c.conn = conn
 	c.addr = addr

@@ -140,7 +140,7 @@ func main() {
 	repl := newREPL(c, acctServer, plat, pUID, cliVer)
 	repl.Run()
 
-	c.Close()
+	_ = c.Close()
 }
 
 func promptPlatformUID(defaultUID string) string {

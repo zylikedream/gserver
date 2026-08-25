@@ -257,7 +257,7 @@ func (a *BotActions) PlantCycle(args map[string]interface{}) error {
 
 	harvestable := a.state.FindHarvestablePlots()
 	for i := 0; i < len(harvestable) && i < plotMax; i++ {
-		a.Harvest(map[string]interface{}{"plot_ids": []interface{}{harvestable[i]}})
+		_ = a.Harvest(map[string]interface{}{"plot_ids": []interface{}{harvestable[i]}})
 	}
 
 	empty := a.state.FindEmptyPlots()
@@ -277,7 +277,7 @@ func (a *BotActions) PlantCycle(args map[string]interface{}) error {
 	}
 
 	for i := 0; i < planted && i < len(empty); i++ {
-		a.Water(map[string]interface{}{"plot_ids": []interface{}{empty[i]}})
+		_ = a.Water(map[string]interface{}{"plot_ids": []interface{}{empty[i]}})
 	}
 
 	return nil

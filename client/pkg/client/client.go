@@ -44,7 +44,7 @@ func NewClient(cfg Config) *Client {
 
 func (c *Client) Connect() error {
 	if c.conn != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 	}
 	c.conn = NewConn(c.handleMessage)
 	return c.conn.Connect(c.cfg.Addr)

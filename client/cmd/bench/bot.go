@@ -33,7 +33,7 @@ func NewBot(index int, uid string, cfg *Config, botTypeCfg *BotTypeConfig, metri
 func (b *Bot) Stop() {
 	close(b.stopCh)
 	if b.cl != nil {
-		b.cl.Close()
+		_ = b.cl.Close()
 	}
 }
 
@@ -62,7 +62,7 @@ func (b *Bot) Run() {
 	b.cl = client.NewClient(client.Config{
 		Addr: gateAddr,
 	})
-	defer b.cl.Close()
+	defer func() { _ = b.cl.Close() }()
 
 	disconnected := make(chan struct{})
 	var once sync.Once

@@ -29,8 +29,8 @@ func newREPL(c *client.Client, acctServer, platform, platformUID, clientVer stri
 	line.SetCtrlCAborts(true)
 
 	if f, err := os.Open(historyFile()); err == nil {
-		line.ReadHistory(f)
-		f.Close()
+		_, _ = line.ReadHistory(f)
+		_ = f.Close()
 	}
 
 	return &REPL{
@@ -54,10 +54,10 @@ func historyFile() string {
 func (r *REPL) Run() {
 	defer func() {
 		if f, err := os.Create(historyFile()); err == nil {
-			r.line.WriteHistory(f)
-			f.Close()
+			_, _ = r.line.WriteHistory(f)
+			_ = f.Close()
 		}
-		r.line.Close()
+		_ = r.line.Close()
 	}()
 
 	fmt.Println("Type 'help' for available commands, 'quit' to exit.")
@@ -233,7 +233,7 @@ func (r *REPL) reconnect() {
 		r.client.SetAddr(gateAddr)
 	}
 
-	r.client.Close()
+	_ = r.client.Close()
 	if err := r.client.Connect(); err != nil {
 		fmt.Printf("connect failed: %v\n", err)
 		return

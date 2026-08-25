@@ -13,7 +13,7 @@ func TestConnSendAndReceive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	serverCh := make(chan *Message, 1)
 	go func() {
@@ -21,7 +21,7 @@ func TestConnSendAndReceive(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		buf := make([]byte, 4096)
 		n, err := conn.Read(buf)
@@ -46,7 +46,7 @@ func TestConnSendAndReceive(t *testing.T) {
 			Payload: []byte{0x0a, 0x04, 0x74, 0x65, 0x73, 0x74},
 		}
 		data, _ := codec.Encode(rsp)
-		conn.Write(data)
+		_, _ = conn.Write(data)
 	}()
 
 	received := make(chan *Message, 1)
@@ -58,7 +58,7 @@ func TestConnSendAndReceive(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	err = conn.SendRaw(&Message{
 		Type:    0,
@@ -113,8 +113,8 @@ func TestConnDetectServerDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverConn.Close()
-	listener.Close()
+	_ = serverConn.Close()
+	_ = listener.Close()
 
 	select {
 	case <-disconnected:
@@ -149,8 +149,8 @@ func TestClientDetectServerDisconnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	serverConn.Close()
-	listener.Close()
+	_ = serverConn.Close()
+	_ = listener.Close()
 
 	select {
 	case reason := <-disconnected:

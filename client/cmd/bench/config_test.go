@@ -83,11 +83,11 @@ func writeTempConfig(t *testing.T, data []byte) string {
 		t.Fatal(err)
 	}
 	if _, err := f.Write(data); err != nil {
-		f.Close()
-		os.Remove(f.Name())
+		_ = f.Close()
+		_ = os.Remove(f.Name())
 		t.Fatal(err)
 	}
-	f.Close()
-	t.Cleanup(func() { os.Remove(f.Name()) })
+	_ = f.Close()
+	t.Cleanup(func() { _ = os.Remove(f.Name()) })
 	return f.Name()
 }

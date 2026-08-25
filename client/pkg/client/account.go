@@ -75,7 +75,7 @@ func AccountServerPrelogin(serverURL, platform, platformUID, clientVersion strin
 	if err != nil {
 		return nil, fmt.Errorf("prelogin request: %w", err)
 	}
-	defer httpRsp.Body.Close()
+	defer func() { _ = httpRsp.Body.Close() }()
 
 	rspBody, err := io.ReadAll(httpRsp.Body)
 	if err != nil {

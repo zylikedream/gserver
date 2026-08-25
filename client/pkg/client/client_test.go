@@ -17,14 +17,14 @@ func TestClientHandshakeLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		codec := NewLTIVCodec()
 		buf := make([]byte, 8192)
@@ -40,7 +40,7 @@ func TestClientHandshakeLogin(t *testing.T) {
 		rsp := &pb.RspHandShake{AccountUid: "test", RoleId: 1001}
 		payload, _ := proto.Marshal(rsp)
 		data, _ := codec.Encode(&Message{Type: 1, Path: "10002", Payload: payload})
-		conn.Write(data)
+		_, _ = conn.Write(data)
 
 		// Read login request
 		n, _ = conn.Read(buf)
@@ -53,7 +53,7 @@ func TestClientHandshakeLogin(t *testing.T) {
 		loginRsp := &pb.RspAccountLogin{FirstLogin: false, RoleId: 1001}
 		payload, _ = proto.Marshal(loginRsp)
 		data, _ = codec.Encode(&Message{Type: 1, Path: "10004", Payload: payload})
-		conn.Write(data)
+		_, _ = conn.Write(data)
 	}()
 
 	cfg := Config{Addr: listener.Addr().String()}
@@ -63,7 +63,7 @@ func TestClientHandshakeLogin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	rsp, err := c.Handshake("test_gate_token")
 	if err != nil {
@@ -89,14 +89,14 @@ func TestClientRequestResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		codec := NewLTIVCodec()
 		buf := make([]byte, 8192)
@@ -108,7 +108,7 @@ func TestClientRequestResponse(t *testing.T) {
 		rspID := reqID + 1
 		rspPayload := []byte{0x08, 0x01}
 		data, _ := codec.Encode(&Message{Type: 1, Path: uint16ToID(rspID), Payload: rspPayload})
-		conn.Write(data)
+		_, _ = conn.Write(data)
 	}()
 
 	cfg := Config{Addr: listener.Addr().String()}
@@ -117,7 +117,7 @@ func TestClientRequestResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	err = c.Request(&pb.ReqBagInfo{})
 	if err != nil {
@@ -132,7 +132,7 @@ func TestClientNotification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	notifyCh := make(chan proto.Message, 1)
 
@@ -141,13 +141,13 @@ func TestClientNotification(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		codec := NewLTIVCodec()
 		notify := &pb.NotifyBagUpdate{}
 		payload, _ := proto.Marshal(notify)
 		data, _ := codec.Encode(&Message{Type: 1, Path: "21003", Payload: payload})
-		conn.Write(data)
+		_, _ = conn.Write(data)
 	}()
 
 	cfg := Config{Addr: listener.Addr().String()}
@@ -160,7 +160,7 @@ func TestClientNotification(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 
 	select {
 	case msg := <-notifyCh:
