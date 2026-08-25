@@ -3,7 +3,7 @@ package client
 import (
 	"testing"
 
-	"hy_client/pb"
+	"gserver/client/pb"
 )
 
 func TestRegistryRegistersAllMessages(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	pb "hy_client/pb"
+	pb "gserver/client/pb"
 
 	"google.golang.org/protobuf/proto"
 )

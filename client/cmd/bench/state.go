@@ -1,7 +1,7 @@
 package main
 
 import (
-	pb "hy_client/pb"
+	pb "gserver/client/pb"
 )
 
 type mainTask struct {

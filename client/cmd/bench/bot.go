@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"hy_client/pkg/client"
+	"gserver/client/pkg/client"
 )
 
 type Bot struct {

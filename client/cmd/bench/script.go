@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"hy_client/pb"
-	"hy_client/pkg/client"
+	"gserver/client/pb"
+	"gserver/client/pkg/client"
 )
 
 type ScriptRunner struct {

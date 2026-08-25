@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"hy_client/pkg/client"
+	"gserver/client/pkg/client"
 
 	"github.com/BurntSushi/toml"
 	"google.golang.org/protobuf/proto"

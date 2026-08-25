@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"hy_client/pkg/client"
+	"gserver/client/pkg/client"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"

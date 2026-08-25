@@ -1,4 +1,4 @@
-module hy_client
+module gserver/client
 
 go 1.25.2
 
@@ -11,6 +11,10 @@ require (
 )
 
 require (
-	github.com/mattn/go-runewidth v0.0.3 // indirect
-	golang.org/x/sys v0.0.0-20211117180635-dee7805ff2e1 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	golang.org/x/sys v0.39.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )

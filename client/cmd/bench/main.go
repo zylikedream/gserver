@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"hy_client/pkg/client"
+	"gserver/client/pkg/client"
 )
 
 func main() {

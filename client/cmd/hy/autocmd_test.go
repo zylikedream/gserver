@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"hy_client/pkg/client"
+	"gserver/client/pkg/client"
 )
 
 func TestPascalToSnake(t *testing.T) {

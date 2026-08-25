@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"hy_client/pb"
-	"hy_client/pkg/client"
+	"gserver/client/pb"
+	"gserver/client/pkg/client"
 
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"

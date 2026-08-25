@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	pb "hy_client/pb"
+	pb "gserver/client/pb"
 )
 
 func TestBotStateUpdateBag(t *testing.T) {

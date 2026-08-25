@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"hy_client/pb"
-	"hy_client/pkg/client"
+	"gserver/client/pb"
+	"gserver/client/pkg/client"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
