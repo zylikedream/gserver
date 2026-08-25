@@ -42,3 +42,6 @@ hack/k8s-toggle.sh
 
 # Generated deploy config
 deploy/docker/docker-compose.yml
+
+# Fixed protobuf toolchain
+.tools/
