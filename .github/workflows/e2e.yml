@@ -1,0 +1,63 @@
+name: E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 22 * * *" # nightly UTC 22:00
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      E2E_OUT_DIR: ${{ runner.temp }}/gserver-e2e
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            client/go.sum
+
+      - name: Start postgres
+        run: |
+          docker run -d --name postgres -e POSTGRES_PASSWORD=@zyc0131 -e POSTGRES_DB=gserver -p 5432:5432 postgres:16
+          for i in $(seq 1 30); do
+            docker exec postgres pg_isready -U postgres -d gserver && break
+            sleep 1
+          done
+
+      - name: Start redis
+        run: |
+          docker run -d --name redis -p 6379:6379 redis:7
+          for i in $(seq 1 15); do
+            redis-cli -h 127.0.0.1 ping && break
+            sleep 1
+          done
+
+      - name: Start consul
+        run: |
+          docker run -d --name consul -p 8500:8500 hashicorp/consul:1.18 agent -dev -client=0.0.0.0
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8500/v1/status/leader >/dev/null && break
+            sleep 1
+          done
+
+      # 生成 config/*.toml(CI 无本地生成文件;dev.env.toml 已跟踪)
+      - name: Generate config
+        run: bash build/script/svr_init.sh dev
+
+      - name: Run E2E
+        run: make e2e
+
+      - name: Upload E2E logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: ${{ runner.temp }}/gserver-e2e/**/*
+          if-no-files-found: ignore

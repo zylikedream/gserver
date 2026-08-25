@@ -76,3 +76,20 @@ pb-check: pb
 .PHONY: e2e
 e2e: build
 	bash build/script/e2e_all.sh
+
+# --- 协议发布产物:从精确 tag 构建可重复 tar.gz ---
+# 用法: make protocol-artifact VERSION=vX.Y.Z (tag 必须存在且格式合法)
+.PHONY: protocol-artifact
+protocol-artifact:
+	@test -n "$(VERSION)" || { echo "需要 VERSION=vX.Y.Z"; exit 1; }
+	@echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "VERSION 格式非法: $(VERSION)"; exit 1; }
+	@git rev-parse "$(VERSION)" >/dev/null 2>&1 || { echo "tag $(VERSION) 不存在"; exit 1; }
+	@test "$$(git describe --exact-match --tags HEAD 2>/dev/null)" = "$(VERSION)" || { echo "HEAD 必须精确指向 tag $(VERSION)"; exit 1; }
+	@rm -rf dist/protocol-client-$(VERSION) && mkdir -p dist/protocol-client-$(VERSION)
+	@cp protocol/client/*.proto dist/protocol-client-$(VERSION)/
+	@SOURCE_DATE_EPOCH=$$(git log -1 --format=%ct "$(VERSION)") && \
+	  LC_ALL=C tar --sort=name --mtime=@$$SOURCE_DATE_EPOCH \
+	    --owner=0 --group=0 --numeric-owner \
+	    -C dist -cf - protocol-client-$(VERSION) | gzip -n > dist/protocol-client-$(VERSION).tar.gz
+	@cd dist && sha256sum protocol-client-$(VERSION).tar.gz > protocol-client-$(VERSION).tar.gz.sha256
+	@echo "产物: dist/protocol-client-$(VERSION).tar.gz + .sha256"

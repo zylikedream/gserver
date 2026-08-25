@@ -48,3 +48,6 @@ deploy/docker/docker-compose.yml
 
 # E2E output
 .e2e-out/
+
+# Release artifacts
+/dist/
