@@ -9,7 +9,7 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     env:
-      E2E_OUT_DIR: ${{ runner.temp }}/gserver-e2e
+      E2E_OUT_DIR: $RUNNER_TEMP/gserver-e2e
     steps:
       - uses: actions/checkout@v5
         with:
