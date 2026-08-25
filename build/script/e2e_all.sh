@@ -24,7 +24,12 @@ die() { printf '\033[31m[E2E FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 [[ -x "$ROOT_DIR/bin/hy" ]] || die "缺少 bin/hy，请先 make build"
 command -v psql >/dev/null || die "找不到 psql"
 command -v go >/dev/null || die "找不到 go"
-redis-cli -h 127.0.0.1 -a "${PGPASSWORD:-@zyc0131}" ping >/dev/null 2>&1 || die "redis 不可用"
+if command -v redis-cli >/dev/null 2>&1; then
+  redis-cli -h 127.0.0.1 -a "${PGPASSWORD:-@zyc0131}" ping >/dev/null 2>&1 || die "redis 不可用"
+else
+  # 无 redis-cli 环境(如 CI runner):仅探测端口连通
+  timeout 2 bash -c 'echo > /dev/tcp/127.0.0.1/6379' 2>/dev/null || die "redis 端口不可达"
+fi
 psql -h 127.0.0.1 -U postgres -d gserver -tAc "SELECT 1;" >/dev/null 2>&1 || die "postgres 不可用"
 curl -fsS http://127.0.0.1:8500/v1/status/leader >/dev/null 2>&1 || die "consul 不可用"
 

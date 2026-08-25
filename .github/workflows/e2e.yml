@@ -36,12 +36,12 @@ jobs:
       - name: Start redis
         run: |
           docker run -d --name redis -p 6379:6379 redis:7 redis-server --requirepass ci_password
+          # runner 无 redis-cli,用容器内命令检查(docker exec)
           for i in $(seq 1 45); do
-            redis-cli -h 127.0.0.1 -a ci_password ping 2>/dev/null | grep -q PONG && break
+            docker exec redis redis-cli -a ci_password ping 2>/dev/null | grep -q PONG && break
             sleep 1
           done
-          # 就绪循环结束后显式确认;失败使步骤报错(而非静默通过)
-          redis-cli -h 127.0.0.1 -a ci_password ping | grep -q PONG
+          docker exec redis redis-cli -a ci_password ping | grep -q PONG
 
       - name: Start consul
         run: |
