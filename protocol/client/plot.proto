@@ -1,0 +1,113 @@
+// ID: 24001~24099
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+import "bag.proto";
+
+// ==================== 枚举 ====================
+
+enum PlotState {
+    PLOT_EMPTY       = 0;
+    PLOT_PLANTED     = 1;
+    PLOT_GROWING     = 2;
+    PLOT_HARVESTABLE = 3;
+}
+
+// ==================== 数据结构 ====================
+
+message PPlotInfo {
+    int32 plot_id       = 1;
+    int32 flower_id     = 2;
+    PlotState state     = 3;
+    int32 harvest_count = 4;
+    int64 state_time    = 5;
+    bool can_steal      = 6;
+}
+
+// ==================== Req / Rsp ====================
+
+// 地块信息 (24001)
+message ReqPlotInfo {
+    option (msg_id) = 24001;
+}
+message RspPlotInfo {
+    option (msg_id) = 24002;
+    repeated PPlotInfo plots = 1;
+}
+
+// 解锁地块 (24003)
+message ReqPlotUnlock {
+    option (msg_id) = 24003;
+    int32 plot_id = 1;
+}
+message RspPlotUnlock {
+    option (msg_id) = 24004;
+    PPlotInfo plot = 1;
+}
+
+// 种植 (24005)
+message ReqPlotPlant {
+    option (msg_id) = 24005;
+    repeated int32 plot_ids = 1;
+    int32 flower_id = 2;
+}
+message RspPlotPlant {
+    option (msg_id) = 24006;
+    repeated PPlotInfo plots = 1;
+}
+
+// 浇水 (24007)
+message ReqPlotWater {
+    option (msg_id) = 24007;
+    repeated int32 plot_ids = 1;
+}
+message RspPlotWater {
+    option (msg_id) = 24008;
+    repeated PPlotInfo plots = 1;
+}
+
+// 收获 (24009)
+message ReqPlotHarvest {
+    option (msg_id) = 24009;
+    repeated int32 plot_ids = 1;
+}
+message RspPlotHarvest {
+    option (msg_id) = 24010;
+    repeated PPlotInfo plots = 1;
+}
+
+// 移除种植 (24011)
+message ReqPlotRemove {
+    option (msg_id) = 24011;
+    repeated int32 plot_ids = 1;
+}
+message RspPlotRemove {
+    option (msg_id) = 24012;
+    repeated PPlotInfo plots = 1;
+}
+
+// 查看好友花园 (24013)
+message ReqPlotFriendInfo {
+    option (msg_id) = 24013;
+    int64 friend_id = 1;
+}
+message RspPlotFriendInfo {
+    option (msg_id) = 24014;
+    repeated PPlotInfo plots = 1;
+    int32 steal_used  = 2;
+    int32 steal_limit = 3;
+}
+
+// 偷花 (24015)
+message ReqPlotSteal {
+    option (msg_id) = 24015;
+    int64 friend_id = 1;
+    int32 plot_id   = 2;
+}
+message RspPlotSteal {
+    option (msg_id) = 24016;
+    bool              success = 1;
+    repeated PGoodInfo rewards = 2;
+}
