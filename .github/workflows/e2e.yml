@@ -47,9 +47,11 @@ jobs:
             sleep 1
           done
 
-      # 生成 config/*.toml(CI 无本地生成文件;dev.env.toml 已跟踪)
+      # 生成 config/*.toml(CI 无本地生成文件;dev.env.toml 已跟踪;gen_config.py 需 toml 包)
       - name: Generate config
-        run: bash build/script/svr_init.sh dev
+        run: |
+          pip install --quiet toml
+          bash build/script/svr_init.sh dev
 
       - name: Run E2E
         run: make e2e
