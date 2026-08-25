@@ -207,7 +207,7 @@ curl -s http://127.0.0.1:30999/api/v1/targets | jq -r '.data.activeTargets[] | s
 
 1-14 全部通过 → 闭环完整。出现失败:
 - 进程/容器挂 → 重启(systemd `restart`,docker `up -d`)后重测
-- 冒烟失败 → 查 journalctl(`journalctl --user -u gserver@<app> -f`);确认用的是 gclient_github 新 hy(prelogin 协议)
+- 冒烟失败 → 查 journalctl(`journalctl --user -u gserver@<app> -f`);确认用的是 monorepo bin/hy(prelogin 协议)
 - Loki 无数据 → 查 promtail 日志 + 挂载路径 + 时间窗口
 - Tempo 无 trace → 确认用的是业务日志 trace_id + 时间窗口;再查 gxytrace exporter 配置
 - 跳转无数据 → 先查 derivedFields url(第 7 步),再查时间窗口

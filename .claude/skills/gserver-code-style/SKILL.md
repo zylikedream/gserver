@@ -45,7 +45,7 @@ description: GServer 项目代码风格规范——命名一致性、魔法字�
 
 - `protocol/client/` 客户端协议、`protocol/server/` 服务端内部;同域一个 .proto(chat.proto)
 - 生成代码进 `protocol/pb/`,**手改无效**(`make pb` 重新生成,会 strip omitempty)
-- proto 是 gclient_github 的 submodule,改协议后客户端侧同步
+- proto 真源在 protocol/client,改协议后 server/client 双端 PB 同步(make pb)
 
 ## 6. 引用其他规范
 
