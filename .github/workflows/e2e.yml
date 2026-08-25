@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       E2E_OUT_DIR: $RUNNER_TEMP/gserver-e2e
+      PGPASSWORD: ci_password
     steps:
       - uses: actions/checkout@v5
         with:
@@ -25,7 +26,7 @@ jobs:
 
       - name: Start postgres
         run: |
-          docker run -d --name postgres -e POSTGRES_PASSWORD=@zyc0131 -e POSTGRES_DB=gserver -p 5432:5432 postgres:16
+          docker run -d --name postgres -e POSTGRES_PASSWORD=ci_password -e POSTGRES_DB=gserver -p 5432:5432 postgres:16
           for i in $(seq 1 30); do
             docker exec postgres pg_isready -U postgres -d gserver && break
             sleep 1
@@ -33,7 +34,7 @@ jobs:
 
       - name: Start redis
         run: |
-          docker run -d --name redis -p 6379:6379 redis:7
+          docker run -d --name redis -p 6379:6379 redis:7 redis-server --requirepass ci_password
           for i in $(seq 1 15); do
             redis-cli -h 127.0.0.1 ping && break
             sleep 1
@@ -47,9 +48,11 @@ jobs:
             sleep 1
           done
 
-      # 生成 config/*.toml(CI 无本地生成文件;dev.env.toml 已跟踪)
+      # 生成 config/*.toml(CI 专用 dev_ci 环境,已跟踪;gen_config.py 需 toml 包)
       - name: Generate config
-        run: bash build/script/svr_init.sh dev
+        run: |
+          pip install --quiet toml
+          bash build/script/svr_init.sh dev_ci
 
       - name: Run E2E
         run: make e2e
