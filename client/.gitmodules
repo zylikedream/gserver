@@ -1,3 +1,0 @@
-[submodule "proto/client"]
-	path = proto/client
-	url = https://github.com/zylikedream/gserver_protocol.git
