@@ -17,9 +17,24 @@ jobs:
         with:
           go-version: "1.25"
           cache: true
+          cache-dependency-path: |
+            go.sum
+            client/go.sum
+
+      # 固定 protoc 3.19.3 + protoc-gen-go v1.36.11(校验 SHA256)
+      - name: Tools
+        run: make tools
+
+      # 重新生成双端 PB,要求工作区无漂移(捕获协议源未同步生成代码)
+      - name: PB drift check
+        run: make pb-check
+
+      # client 黑盒 seam:不得 require/import gserver 实现
+      - name: Client boundary check
+        run: make check-client-boundary
 
       - name: Build
-        run: go build ./...
+        run: make build
 
       - name: Test
         run: make test
@@ -29,3 +44,4 @@ jobs:
         with:
           # 需 v2.x(go1.25 构建): v1.latest(1.64.8) 是 go1.24 构建, 不认识 go 1.25.1
           version: v2.12.2
+          args: --timeout=5m

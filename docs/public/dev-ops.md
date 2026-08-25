@@ -91,7 +91,7 @@ curl -s 'http://127.0.0.1:8500/v1/health/service/role?passing' | jq -r 'length'
 systemctl --user stop gserver@role   # 腾出 25011/9091 端口
 # debug 工具 launch:program=bin/gserver-node args=[--config, config/role.toml] cwd=项目根 adapter=dlv
 # 断点:src/apps/role/internal/logic/role_main.go:250(HandleClientMsg,玩家消息统一入口)
-# continue → gclient_github hy 登录触发 → stack_trace / variables(r.RoleID 应等于玩家 role_id)
+# continue → gserver_github/bin/hy 登录触发 → stack_trace / variables(r.RoleID 应等于玩家 role_id)
 # 结束:terminate → systemctl --user start gserver@role 恢复托管
 ```
 
@@ -129,7 +129,7 @@ vim build/env/dev_<name>.env.toml     # 端口/密码/各 app metrics 端口
 
 ## 调试客户端(hy_client)
 
-新登录协议:客户端先 POST account `/prelogin` 拿 gate_token(JWT),再带 token 连 gate 握手。旧 `hy_client` 目录(直发账号)已不兼容,用 `gclient_github`:
+新登录协议:客户端先 POST account `/prelogin` 拿 gate_token(JWT),再带 token 连 gate 握手。旧 `hy_client` 目录(直发账号)已不兼容,用 `gserver_github/bin/hy`:
 
 ```bash
 # 交互式(推荐)——stdin 第一行是 platform_uid
@@ -150,7 +150,7 @@ printf 'account_xxx\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:18080 
   - gate:`127.0.0.1:10086`(hostPort)或 NodePort `30086`
   - account(prelogin):`127.0.0.1:30080`
   - prometheus:`127.0.0.1:30999`(Grafana 数据源 Prometheus-K8s)
-- **冒烟**(新协议,复用本地 gclient_github):
+- **冒烟**(新协议,复用本地 gserver_github/bin/hy):
   ```bash
   printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:30080 --platform=guest --client-version=1.0.0
   # 判定:prelogin ok → handshake ok → login ok

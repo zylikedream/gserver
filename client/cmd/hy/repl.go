@@ -1,0 +1,258 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"gserver/client/pkg/client"
+
+	"github.com/peterh/liner"
+)
+
+type REPL struct {
+	client       *client.Client
+	line         *liner.State
+	acctServer   string
+	platform     string
+	platformUID  string
+	clientVer    string
+}
+
+func NewREPL(c *client.Client) *REPL {
+	return newREPL(c, "", "", "", "")
+}
+
+func newREPL(c *client.Client, acctServer, platform, platformUID, clientVer string) *REPL {
+	line := liner.NewLiner()
+	line.SetCtrlCAborts(true)
+
+	if f, err := os.Open(historyFile()); err == nil {
+		_, _ = line.ReadHistory(f)
+		_ = f.Close()
+	}
+
+	return &REPL{
+		client:       c,
+		line:         line,
+		acctServer:   acctServer,
+		platform:     platform,
+		platformUID:  platformUID,
+		clientVer:    clientVer,
+	}
+}
+
+func historyFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".hy_history"
+	}
+	return filepath.Join(home, ".hy_history")
+}
+
+func (r *REPL) Run() {
+	defer func() {
+		if f, err := os.Create(historyFile()); err == nil {
+			_, _ = r.line.WriteHistory(f)
+			_ = f.Close()
+		}
+		_ = r.line.Close()
+	}()
+
+	fmt.Println("Type 'help' for available commands, 'quit' to exit.")
+
+	for {
+		line, err := r.line.Prompt("hy> ")
+		if err != nil {
+			if err == liner.ErrPromptAborted {
+				fmt.Println("\nbye.")
+				return
+			}
+			fmt.Printf("\nerror: %v\n", err)
+			return
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		r.line.AppendHistory(line)
+
+		parts := strings.Fields(line)
+		switch parts[0] {
+		case "quit", "exit":
+			fmt.Println("bye.")
+			return
+		case "help":
+			filter := ""
+			if len(parts) > 1 {
+				filter = parts[1]
+			}
+			r.printHelp(filter)
+		case "reconnect":
+			r.reconnect()
+		default:
+			r.execute(line)
+		}
+	}
+}
+
+func (r *REPL) execute(line string) {
+	parts := parseArgs(line)
+	if len(parts) == 0 {
+		return
+	}
+
+	name := parts[0]
+	args := parts[1:]
+
+	if name != "reconnect" && name != "help" && name != "quit" && name != "exit" && !r.client.IsConnected() {
+		fmt.Println("disconnected from server. type 'reconnect' to reconnect.")
+		return
+	}
+
+	cmd, ok := commands[name]
+	if !ok {
+		fmt.Printf("unknown command: %s (type 'help' for commands)\n", name)
+		return
+	}
+
+	if err := cmd.Exec(r.client, args); err != nil {
+		fmt.Printf("error: %v\n", err)
+	}
+}
+
+// parseArgs splits a line into arguments, respecting double-quoted strings.
+func parseArgs(line string) []string {
+	var args []string
+	var current strings.Builder
+	inQuote := false
+
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+
+		if ch == '"' {
+			if inQuote {
+				inQuote = false
+			} else {
+				inQuote = true
+			}
+			continue
+		}
+
+		if ch == ' ' && !inQuote {
+			if current.Len() > 0 {
+				args = append(args, current.String())
+				current.Reset()
+			}
+			continue
+		}
+
+		current.WriteByte(ch)
+	}
+
+	if current.Len() > 0 {
+		args = append(args, current.String())
+	}
+
+	return args
+}
+
+func (r *REPL) printHelp(filter string) {
+	if filter != "" {
+		matches := 0
+		for _, name := range commandOrder {
+			if groupOf(name) != filter && !strings.HasPrefix(name, filter) {
+				continue
+			}
+			if matches == 0 {
+				fmt.Printf("Commands [%s]:\n", filter)
+			}
+			cmd := commands[name]
+			paramsStr := strings.Join(cmd.Params, " ")
+			if paramsStr != "" {
+				fmt.Printf("\t%-25s %s (%s)\n", name, cmd.Help, paramsStr)
+			} else {
+				fmt.Printf("\t%-25s %s\n", name, cmd.Help)
+			}
+			matches++
+		}
+		if matches == 0 {
+			fmt.Printf("unknown group: %s (try: guild, friend, chat, ...)\n", filter)
+		}
+		return
+	}
+
+	fmt.Println("Commands:")
+	fmt.Println("  help [group]  Show this help, optionally filter by group")
+	fmt.Println("  quit          Exit")
+	fmt.Println("  reconnect     Reconnect to server")
+
+	grouped := make(map[string][]string)
+	var groupOrder []string
+	seen := make(map[string]bool)
+	for _, name := range commandOrder {
+		g := groupOf(name)
+		grouped[g] = append(grouped[g], name)
+		if !seen[g] {
+			seen[g] = true
+			groupOrder = append(groupOrder, g)
+		}
+	}
+
+	for _, g := range groupOrder {
+		fmt.Printf("\n[%s]\n", g)
+		for _, name := range grouped[g] {
+			cmd := commands[name]
+			paramsStr := strings.Join(cmd.Params, " ")
+			if paramsStr != "" {
+				fmt.Printf("\t%-25s %s (%s)\n", name, cmd.Help, paramsStr)
+			} else {
+				fmt.Printf("\t%-25s %s\n", name, cmd.Help)
+			}
+		}
+	}
+}
+
+func (r *REPL) reconnect() {
+	fmt.Println("disconnected. reconnecting...")
+
+	var gateAddr, gateToken string
+
+	if r.acctServer != "" && r.platformUID != "" {
+		fmt.Printf("prelogin to %s ...\n", r.acctServer)
+		preloginData, err := client.AccountServerPrelogin(r.acctServer, r.platform, r.platformUID, r.clientVer)
+		if err != nil {
+			fmt.Printf("prelogin failed: %v\n", err)
+			return
+		}
+		gateAddr = fmt.Sprintf("%s:%d", preloginData.Gate.Host, preloginData.Gate.Port)
+		gateToken = preloginData.GateToken
+		r.client.SetAddr(gateAddr)
+	}
+
+	_ = r.client.Close()
+	if err := r.client.Connect(); err != nil {
+		fmt.Printf("connect failed: %v\n", err)
+		return
+	}
+	fmt.Println("connected.")
+
+	if gateToken != "" {
+		rsp, err := r.client.Handshake(gateToken)
+		if err != nil {
+			fmt.Printf("handshake failed: %v\n", err)
+			return
+		}
+		fmt.Printf("handshake ok, role_id=%d\n", rsp.RoleId)
+	}
+
+	_, err := r.client.Login()
+	if err != nil {
+		fmt.Printf("login failed: %v\n", err)
+		return
+	}
+	fmt.Println("login ok.")
+}

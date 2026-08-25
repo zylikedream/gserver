@@ -1,0 +1,71 @@
+// ID: 30001~30099
+syntax = "proto3";
+option go_package="./pb;pb";
+package galaxy.protocol;
+
+import "msg_options.proto";
+import "bag.proto";
+
+message ReqMailList {
+    option (msg_id) = 30001;
+}
+
+message RspMailList {
+    option (msg_id) = 30002;
+    repeated PMailDetail mails = 1;
+}
+
+message ReqMailRead {
+    option (msg_id) = 30003;
+    int64 mail_id = 1;
+}
+
+message RspMailDetail {
+    option (msg_id) = 30004;
+    PMailDetail mail = 1;
+}
+
+message PMailDetail {
+    int64 id = 1;
+    string title = 2;
+    string content = 3;
+    int64 send_at = 4;
+    int64 expire_at = 5;
+    repeated PGoodInfo attachments = 6;
+    bool is_read = 7;
+    bool is_claimed = 8;
+}
+
+message ReqMailClaim {
+    option (msg_id) = 30005;
+    int64 mail_id = 1;
+}
+
+message RspMailClaim {
+    option (msg_id) = 30006;
+    PMailDetail mail = 1;
+}
+
+message ReqMailClaimAll {
+    option (msg_id) = 30007;
+}
+
+message RspMailClaimAll {
+    option (msg_id) = 30008;
+    repeated PMailDetail mails = 1;
+}
+
+message ReqMailDelete {
+    option (msg_id) = 30009;
+    int64 mail_id = 1;
+}
+
+message RspMailDelete {
+    option (msg_id) = 30010;
+    PMailDetail mail = 1;
+}
+
+message NotifyMailUpdate {
+    option (msg_id) = 30011;
+    int64 mail_id = 1;
+}

@@ -1,7 +1,3 @@
-[submodule "protocol/client"]
-	path = protocol/client
-	url = https://github.com/zylikedream/gserver_protocol.git
-	ignore = all
 [submodule "gameconfig"]
 	path = gameconfig
 	url = https://github.com/zylikedream/gserver_config.git

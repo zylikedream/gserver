@@ -69,7 +69,7 @@
 docker compose -f deploy/docker/docker-compose.yml up -d 
 
 # 1. 拉取子模块
-git submodule update --init --recursive
+git submodule update --init
 
 # 1. 安装依赖
 go mod download
@@ -97,11 +97,14 @@ make deploy-k8s-okg
 ### 运行测试
 
 ```bash
-make test
-
-# 单包测试
-go test ./src/apps/role/...
+make test    # server + client 两个 module
+make lint    # golangci-lint, 0 issues
+make build   # bin/gserver-node + bin/hy + bin/bench
+make pb-check # 重新生成双端 PB, 必须无漂移
+make e2e     # 启动三节点 + 聊天/公会真实回归
+make check-client-boundary  # client 不得依赖 server 实现
 ```
+
 
 ## 项目结构
 
@@ -125,7 +128,8 @@ go test ./src/apps/role/...
 │   ├── chat/                 # 聊天
 │   ├── friend/               # 好友
 │   └── guild/                # 公会
-├── protocol/                 # 协议定义 (protobuf)
+├── protocol/                 # 协议定义 (protobuf) — client/ 为唯一真源
+├── client/                   # 工程客户端 (hy 调试 + bench 压测, module gserver/client)
 ├── gameconfig/               # 游戏配置表
 ├── config/                   # 运行配置 (TOML)
 ├── deploy/                   # 部署配置 (Docker/K8s)
