@@ -68,3 +68,19 @@ jobs:
           name: e2e-logs
           path: ${{ runner.temp }}/gserver-e2e/**/*
           if-no-files-found: ignore
+
+      # 失败时创建 Issue,次日早上在 Issues 列表可见
+      - name: Open failure issue
+        if: failure()
+        uses: dacbd/create-issue-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "[E2E] nightly 失败 ${{ github.event.schedule || github.run_id }}"
+          body: |
+            E2E workflow 失败,请处理。
+
+            - Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - 触发: ${{ github.event_name }}(${{ github.event.schedule || 'manual' }})
+            - 失败步骤: ${{ github.job }}
+
+            日志 artifact: **e2e-logs**(同一 run 页面下载)
