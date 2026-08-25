@@ -25,7 +25,8 @@ jobs:
 
       - name: Start postgres
         run: |
-          docker run -d --name postgres -e POSTGRES_PASSWORD=@zyc0131 -e POSTGRES_DB=gserver -p 5432:5432 postgres:16
+          # dev.env.toml 模板为空密码;trust 认证同时兼容 e2e_all.sh 的 PGPASSWORD
+          docker run -d --name postgres -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=gserver -p 5432:5432 postgres:16
           for i in $(seq 1 30); do
             docker exec postgres pg_isready -U postgres -d gserver && break
             sleep 1
