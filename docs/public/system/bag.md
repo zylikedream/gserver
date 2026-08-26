@@ -166,7 +166,7 @@ message PBagGoodUpdate {
 |------|------|
 | `src/apps/role/internal/logic/role_bag.go` | 背包模块主逻辑 |
 | `src/apps/role/internal/logic/bag/good.go` | Good、BagGood、GoodOp、GoodUpdate 类型 |
-| `gameconfig/gameconfig.go` | 配置表加载模块 |
+| `src/pkg/gameconfig/gameconfig.go` | 配置表加载模块 |
 
 ## 预留接口
 

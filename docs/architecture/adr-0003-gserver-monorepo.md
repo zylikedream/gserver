@@ -220,4 +220,4 @@ gserver v0.8.0
 - client 调试与压测实现:原 `zylikedream/gclient`
 - client 协议历史:原 `zylikedream/gserver_protocol`
 - 真实 E2E:`build/script/e2e_chat.sh`、`build/script/e2e_guild.sh`
-- 工程知识:`.claude/skills/gserver-dev/SKILL.md`
+- 工程知识:`.agents/skills/gserver-dev/SKILL.md`

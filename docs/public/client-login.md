@@ -223,5 +223,5 @@ message RspHandShake{
 
 ## 7. 相关文档
 
-- [token-auth.md](/home/zhangyi/workspace/gserver_github/docs/public/token-auth.md:1)
-- [protocol.md](/home/zhangyi/workspace/gserver_github/docs/public/protocol.md:1)
+- [token-auth.md](token-auth.md)
+- [protocol.md](protocol.md)
