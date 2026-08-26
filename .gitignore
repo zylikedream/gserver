@@ -26,7 +26,6 @@ __debug_*
 .codegraph
 .trae/
 CLAUDE.md
-AGENTS.md
 # Documentation: publish maintained sources of truth; keep local plans/templates ignored.
 docs/*
 !docs/public/
