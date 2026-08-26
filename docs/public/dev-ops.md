@@ -1,6 +1,6 @@
 # 本地开发运维手册
 
-日常开发环境:5 个独立进程(systemd user services 管理)+ docker 中间件 + 监控栈。
+日常开发环境：6 个独立进程（gate、role、chat、friend、guild、account）+ Docker 中间件与监控栈。
 
 ## 进程架构
 
@@ -13,7 +13,7 @@ gate(:11086, TCP 网关)  role(:25011)  chat(:25041)  friend(:25021)  guild(:250
 
 ## 进程管理(systemd)
 
-模板 unit:`~/.config/systemd/user/gserver@.service`(一个文件管所有 app),已 `enable`(WSL 重启自启)+ `Restart=always`(崩溃 3s 自愈)。
+如使用 systemd user 管理进程，可创建模板 unit `~/.config/systemd/user/gserver@.service`，并按需配置开机启动与 `Restart=always`。该 unit 属于工作站配置，不由仓库生成。
 
 ```bash
 # 全部启动
@@ -74,10 +74,9 @@ docker exec gserver-grafana curl -s "http://tempo:3200/api/traces/<traceID>?star
 ### 基础设施
 
 ```bash
-# 数据库(密码来自 build/env/dev_zy.env.toml)
-PGPASSWORD='@zyc0131' psql -h 127.0.0.1 -U postgres -d gserver -c '\dt'
-# redis
-redis-cli -h 127.0.0.1 -p 6379 -a '@zyc0131' --no-auth-warning ping
+# 数据库/Redis 密码来自实际使用的 build/env/dev_<name>.env.toml
+PGPASSWORD='<password>' psql -h 127.0.0.1 -U postgres -d gserver -c '\dt'
+redis-cli -h 127.0.0.1 -p 6379 -a '<password>' --no-auth-warning ping
 # consul(服务注册与健康;gate 是 TCP 入口不注册,预期行为)
 curl -s http://127.0.0.1:8500/v1/catalog/services | jq -r 'keys[]'
 curl -s 'http://127.0.0.1:8500/v1/health/service/role?passing' | jq -r 'length'
@@ -90,8 +89,8 @@ curl -s 'http://127.0.0.1:8500/v1/health/service/role?passing' | jq -r 'length'
 ```bash
 systemctl --user stop gserver@role   # 腾出 25011/9091 端口
 # debug 工具 launch:program=bin/gserver-node args=[--config, config/role.toml] cwd=项目根 adapter=dlv
-# 断点:src/apps/role/internal/logic/role_main.go:250(HandleClientMsg,玩家消息统一入口)
-# continue → gserver_github/bin/hy 登录触发 → stack_trace / variables(r.RoleID 应等于玩家 role_id)
+# 断点：src/apps/role/internal/logic/role_main.go 的 HandleClientMsg（玩家消息统一入口）
+# continue → ./bin/hy 登录触发 → stack_trace / variables（r.RoleID 应等于玩家 role_id）
 # 结束:terminate → systemctl --user start gserver@role 恢复托管
 ```
 
@@ -127,9 +126,9 @@ vim build/env/dev_<name>.env.toml     # 端口/密码/各 app metrics 端口
 - 模板:`build/template/config/*.toml.template`
 - 改完模板后重启对应服务才生效:`systemctl --user restart gserver@<app>`
 
-## 调试客户端(hy_client)
+## 调试客户端（hy）
 
-新登录协议:客户端先 POST account `/prelogin` 拿 gate_token(JWT),再带 token 连 gate 握手。旧 `hy_client` 目录(直发账号)已不兼容,用 `gserver_github/bin/hy`:
+新登录协议：客户端先 POST account `/prelogin` 拿 gate_token（JWT），再带 token 连 gate 握手。旧 `hy_client` 目录（直发账号）已不兼容，使用仓库根目录构建出的 `bin/hy`：
 
 ```bash
 # 交互式(推荐)——stdin 第一行是 platform_uid
@@ -150,7 +149,7 @@ printf 'account_xxx\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:18080 
   - gate:`127.0.0.1:10086`(hostPort)或 NodePort `30086`
   - account(prelogin):`127.0.0.1:30080`
   - prometheus:`127.0.0.1:30999`(Grafana 数据源 Prometheus-K8s)
-- **冒烟**(新协议,复用本地 gserver_github/bin/hy):
+- **冒烟**（新协议，复用本地 `bin/hy`）：
   ```bash
   printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:30080 --platform=guest --client-version=1.0.0
   # 判定:prelogin ok → handshake ok → login ok

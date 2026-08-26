@@ -123,7 +123,7 @@ make deploy-k8s-okg
 make deploy-k8s-okg TAG=dev-001
 ```
 
-OKG 镜像构建默认不会再依赖 `golang:*` Docker 基础镜像。`make build-okg-image` 会先用本机 Go 编译 Linux 二进制到 `temp/docker/server`，再用 `deploy/Dockerfile.runtime` 打运行镜像。这样可以避开 Docker Hub 的 golang 镜像限流问题。
+`make build-okg-image` 使用 `deploy/Dockerfile` 做多阶段构建：`golang:1.25.1` 阶段编译服务端，最终产物进入 `scratch` 运行镜像。镜像 tag 默认由部署目标按当前 git short SHA 生成，也可通过 `TAG` 覆盖。
 
 这个目标会做几件事：
 
@@ -222,7 +222,7 @@ kubectl apply -f deploy/k8s/prometheus.yaml
 Grafana 不在 K8s 里跑，而是用本地 Docker Compose 启动，通过 datasource 连接 K8s 的 Prometheus。
 
 ```yaml
-# docker/grafana/provisioning/datasources/datasources.yml
+# deploy/docker/grafana/provisioning/datasources/datasources.yml
 datasources:
   - name: Prometheus-K8s
     type: prometheus

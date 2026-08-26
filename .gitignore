@@ -27,8 +27,29 @@ __debug_*
 .trae/
 CLAUDE.md
 AGENTS.md
+# Documentation: publish maintained sources of truth; keep local plans/templates ignored.
 docs/*
 !docs/public/
+!docs/public/**
+!docs/architecture/
+!docs/architecture/**
+!docs/development/
+docs/development/*
+!docs/development/chat-e2e.md
+!docs/development/guild-e2e.md
+!docs/development/error-handling.md
+!docs/development/logging.md
+!docs/system/
+docs/system/*
+!docs/system/flower.md
+!docs/system/gm.md
+!docs/system/gxyregistery-architecture.md
+!docs/system/main-task.md
+!docs/system/order.md
+!docs/system/plot.md
+!docs/bugfix/
+!docs/bugfix/**
+!docs/blog-actor-model-game-server.md
 
 # Generated config files
 config/*.toml
