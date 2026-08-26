@@ -102,5 +102,7 @@ say "运行聊天 E2E..."
 HY="$ROOT_DIR/bin/hy" bash build/script/e2e_chat.sh || die "聊天 E2E 失败"
 say "运行公会 E2E..."
 HY="$ROOT_DIR/bin/hy" bash build/script/e2e_guild.sh || die "公会 E2E 失败"
+say "运行角色玩法 E2E..."
+HY="$ROOT_DIR/bin/hy" bash build/script/e2e_role.sh || die "角色玩法 E2E 失败"
 
 say "========== E2E ALL PASS =========="
