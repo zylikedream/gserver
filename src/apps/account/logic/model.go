@@ -149,12 +149,8 @@ func defaultGenerateAccountID() (string, error) {
 }
 
 func defaultGenerateRoleID() (int64, error) {
-	const offset int64 = 100000
-	id, err := uid.UidGen().GenAutoIncID("role")
-	if err != nil {
-		return 0, err
-	}
-	return id + offset, nil
+	// role_id 由 PG sequence(uid_role_seq) 直接生成,起始值在建表时对齐现有数据。
+	return uid.UidGen().GenAutoIncID("role")
 }
 
 func isUniqueConstraintError(err error) bool {
