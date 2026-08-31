@@ -7,10 +7,12 @@ import (
 	"context"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxymetrics"
 	"gserver/core/gxynet/message"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
@@ -18,6 +20,7 @@ import (
 
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -26,6 +29,8 @@ import (
 func TestMain(m *testing.M) {
 	gxyactor.NewActorApp("test", "test", "127.0.0.1")
 	NewSessionMgr()
+	// 测试默认使用允许型登录准入器：旧握手测试显式、且不削弱生产 fail-closed 默认值
+	currentLoginAcquirer = &stubLoginAcquirer{permit: noopLoginPermit{}}
 	os.Exit(m.Run())
 }
 
@@ -101,12 +106,13 @@ func newTestSession(t *testing.T) (*Session, *fakeActx, *fakeEndpoint) {
 	return s, fake, ep
 }
 
-// withHandshake 完成一次成功握手:替换 token 验证与角色激活, 返回可恢复函数。
+// withHandshake 完成一次成功握手:替换 token 验证、登录准入与角色激活, 返回可恢复函数。
 func withHandshake(t *testing.T, s *Session, ep *fakeEndpoint) func() {
 	t.Helper()
 	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
 		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
 	})
+	restoreAcquirer := swapLoginAcquirer(&stubLoginAcquirer{permit: noopLoginPermit{}})
 	oldActivate := activateRole
 	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 		return &actor.PID{Id: "role_pid"}, nil
@@ -116,12 +122,14 @@ func withHandshake(t *testing.T, s *Session, ep *fakeEndpoint) func() {
 	err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"})
 	if err != nil {
 		restoreToken()
+		restoreAcquirer()
 		activateRole = oldActivate
 		gateMaintenanceEnabled = oldMaint
 		t.Fatalf("handshake: %v", err)
 	}
 	return func() {
 		restoreToken()
+		restoreAcquirer()
 		activateRole = oldActivate
 		gateMaintenanceEnabled = oldMaint
 	}
@@ -135,6 +143,9 @@ func TestSessionDisconnectReason(t *testing.T) {
 		want string
 	}{
 		{nil, "unknown"},
+		{ErrLoginRateLimited, "login_rate_limited"},
+		{ErrLoginQueueFull, "login_queue_full"},
+		{ErrLoginQueueTimeout, "login_queue_timeout"},
 		{gerror.New("client account logout"), "client_logout"},
 		{gerror.New("client idle timeout"), "client_idle_timeout"},
 		{gerror.New("server idle timeout"), "server_idle_timeout"},
@@ -311,6 +322,167 @@ func TestSession_Handshake_Success(t *testing.T) {
 	}
 	if SessionMgr().Count() != 1 {
 		t.Fatalf("expected 1 session in mgr, got %d", SessionMgr().Count())
+	}
+}
+
+// ========== 登录准入 ==========
+
+// TestSession_LoginAdmission_Rejections 每个预期准入拒绝都必须:
+// 阻止 activateRole、使 OnHandleClientMessage 停止 Session 并向 Actor 边界返回 nil;
+// 且 sentinel 错误对象原样到达 Terminate, 映射为固定断连标签。
+func TestSession_LoginAdmission_Rejections(t *testing.T) {
+	cases := []struct {
+		name  string
+		err   error
+		label string
+	}{
+		{"rate_limited", ErrLoginRateLimited, "login_rate_limited"},
+		{"queue_full", ErrLoginQueueFull, "login_queue_full"},
+		{"queue_timeout", ErrLoginQueueTimeout, "login_queue_timeout"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s, fake, ep := newTestSession(t)
+			before := testutil.ToFloat64(gxymetrics.SessionDisconnects.WithLabelValues(tc.label))
+			restore := swapLoginAcquirer(&stubLoginAcquirer{err: tc.err})
+			defer restore()
+			restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
+				return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
+			})
+			defer restoreToken()
+			oldActivate := activateRole
+			activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+				t.Fatal("activateRole must not be called on admission rejection")
+				return nil, nil
+			}
+			defer func() { activateRole = oldActivate }()
+
+			msg := &message.Message{
+				Type: message.MESSGE_TYPE_FIRST_PACKET,
+				Msg:  &pb.ReqHandShake{GateToken: "ok"},
+			}
+			if err := s.OnHandleClientMessage(context.Background(), msg); err != nil {
+				t.Fatalf("expected nil at actor boundary, got: %v", err)
+			}
+			if fake.stopPID == nil {
+				t.Fatal("expected Stop after admission rejection")
+			}
+			if s.state != StateConnected {
+				t.Fatalf("session state = %v, want StateConnected", s.state)
+			}
+			if s.sessionInfo.RolePid != nil {
+				t.Fatal("RolePid must stay nil after admission rejection")
+			}
+			// 端到端:运行时在 Stop 后投递 *actor.Stopped, Terminate 用 stopErr
+			// 计算断连标签; sentinel 错误对象必须原样到达, 不因包裹/重建而降级。
+			fake.msg = &actor.Stopped{}
+			s.Receive(fake)
+			if !ep.closed {
+				t.Fatal("expected endpoint closed after Terminate")
+			}
+			if s.state != StateDisconnected {
+				t.Fatalf("session state = %v, want StateDisconnected", s.state)
+			}
+			if got := testutil.ToFloat64(gxymetrics.SessionDisconnects.WithLabelValues(tc.label)); got != before+1 {
+				t.Fatalf("disconnect counter(%q) = %v, want %v", tc.label, got, before+1)
+			}
+		})
+	}
+}
+
+// TestSession_LoginAdmission_SuccessHoldsThenReleases 成功准入时:
+// permit 在 activateRole 执行期间仍被持有, handleHandshake 返回前恰好释放一次。
+func TestSession_LoginAdmission_SuccessHoldsThenReleases(t *testing.T) {
+	s, fake, ep := newTestSession(t)
+	permit := &recordingLoginPermit{}
+	restore := swapLoginAcquirer(&stubLoginAcquirer{permit: permit})
+	defer restore()
+	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
+		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
+	})
+	defer restoreToken()
+	oldActivate := activateRole
+	var heldDuringActivate bool
+	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+		heldDuringActivate = permit.releases == 0
+		return &actor.PID{Id: "role_pid"}, nil
+	}
+	defer func() { activateRole = oldActivate }()
+
+	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"}); err != nil {
+		t.Fatalf("handshake: %v", err)
+	}
+	if !heldDuringActivate {
+		t.Fatal("permit was not held while activateRole ran")
+	}
+	if permit.releases != 1 {
+		t.Fatalf("permit released %d times, want exactly 1", permit.releases)
+	}
+	if len(fake.watched) != 1 || fake.watched[0].Id != "role_pid" {
+		t.Fatalf("expected Watch(role_pid) after release, got %+v", fake.watched)
+	}
+	if len(ep.sentMsgs) != 1 {
+		t.Fatalf("expected 1 handshake rsp after release, got %d", len(ep.sentMsgs))
+	}
+}
+
+// TestSession_LoginAdmission_ActivateRoleErrorReleases activateRole 失败时仍恰好释放一次。
+func TestSession_LoginAdmission_ActivateRoleErrorReleases(t *testing.T) {
+	s, _, _ := newTestSession(t)
+	permit := &recordingLoginPermit{}
+	restore := swapLoginAcquirer(&stubLoginAcquirer{permit: permit})
+	defer restore()
+	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
+		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
+	})
+	defer restoreToken()
+	oldActivate := activateRole
+	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+		return nil, gerror.New("activate failed")
+	}
+	defer func() { activateRole = oldActivate }()
+
+	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"}); err == nil {
+		t.Fatal("expected activateRole error")
+	}
+	if permit.releases != 1 {
+		t.Fatalf("permit released %d times, want exactly 1", permit.releases)
+	}
+}
+
+// TestSession_LoginAdmission_UnconfiguredPropagates 未配置限流器属于启动/接线缺陷,
+// 不应被归类为预期拒绝: 错误必须传播到 Actor 边界, 且不停止 Session。
+func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
+	s, fake, _ := newTestSession(t)
+	restore := swapLoginAcquirer(&stubLoginAcquirer{err: ErrLoginLimiterUnconfigured})
+	defer restore()
+	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
+		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
+	})
+	defer restoreToken()
+	oldActivate := activateRole
+	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+		t.Fatal("activateRole must not be called when limiter is unconfigured")
+		return nil, nil
+	}
+	defer func() { activateRole = oldActivate }()
+
+	msg := &message.Message{
+		Type: message.MESSGE_TYPE_FIRST_PACKET,
+		Msg:  &pb.ReqHandShake{GateToken: "ok"},
+	}
+	err := s.OnHandleClientMessage(context.Background(), msg)
+	if err == nil {
+		t.Fatal("expected unconfigured error to propagate to actor boundary")
+	}
+	if isLoginAdmissionRejection(err) {
+		t.Fatalf("unconfigured must not be classified as an expected rejection, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "login limiter not configured") {
+		t.Fatalf("propagated error = %v, want ErrLoginLimiterUnconfigured", err)
+	}
+	if fake.stopPID != nil {
+		t.Fatal("unconfigured wiring defect must not stop the session")
 	}
 }
 

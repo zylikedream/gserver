@@ -25,6 +25,16 @@ func NewGateApp() *gateApp {
 }
 
 func (s *gateApp) OnModInit(ctx context.Context) error {
+	loginCfg, err := logic.LoadLoginLimitConfig(ctx, g.Cfg())
+	if err != nil {
+		return err
+	}
+	loginLimiter, err := logic.NewLoginLimiter(loginCfg)
+	if err != nil {
+		return err
+	}
+	logic.SetLoginLimiter(loginLimiter)
+
 	tokenCfg, err := gatetoken.LoadConfigFromGF(ctx)
 	if err != nil {
 		return err
