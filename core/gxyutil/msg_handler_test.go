@@ -97,6 +97,23 @@ func TestMsgHandler_AddHandler_PrefixFiltersUnmatched(t *testing.T) {
 	}
 }
 
+func TestMsgHandlerAddHandlerReturnsRegisteredMetadata(t *testing.T) {
+	h := NewMsgHandler()
+	metas := h.AddHandler(&handlerWithPrefix{}, "On")
+	got := make(map[string]bool, len(metas))
+	for _, meta := range metas {
+		got[meta.Method.Name] = true
+	}
+	if !got["OnLogin"] || !got["OnLogout"] || len(got) != 2 {
+		t.Fatalf("registered method metadata = %v", got)
+	}
+
+	second := h.AddHandler(&testHandler{})
+	if len(second) != 1 || second[0].ArgType.Name() != "ReqPing" {
+		t.Fatalf("second registration metadata = %#v", second)
+	}
+}
+
 func TestMsgHandler_GetMethodMeta(t *testing.T) {
 	h := NewMsgHandler()
 	h.AddHandler(&testHandler{})

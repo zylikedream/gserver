@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/cockroachdb/errors"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/frame/g"
@@ -27,10 +28,27 @@ func CfgUnmarshal(ctx context.Context, c *gcfg.Config, data any) error {
 	vp := CfgToViper(ctx, c)
 	return vp.Unmarshal(data, cfgDecoderConfigOption(c))
 }
-
 func CfgUnmarshalKey(ctx context.Context, c *gcfg.Config, key string, data any) error {
 	vp := CfgToViper(ctx, c)
 	return vp.UnmarshalKey(key, data, cfgDecoderConfigOption(c))
+}
+
+// CfgUnmarshalKeyExact 将配置中指定 key 的子节严格解码到 out:
+//   - 子节缺失时返回带堆栈的 cockroachdb/errors 错误;
+//   - 未知字段报错(UnmarshalExact), 用于启动期严格校验。
+//
+// 非文件适配器(如测试用内存适配器)没有文件扩展名可作 TagName,
+// 此时退回 mapstructure 默认的字段名匹配。
+func CfgUnmarshalKeyExact(ctx context.Context, c *gcfg.Config, key string, out any) error {
+	vp := CfgToViper(ctx, c)
+	sub := vp.Sub(key)
+	if sub == nil {
+		return errors.Newf("config section %q is missing", key)
+	}
+	if opt := cfgDecoderConfigOption(c); opt != nil {
+		return sub.UnmarshalExact(out, opt)
+	}
+	return sub.UnmarshalExact(out)
 }
 
 func cfgDecoderConfigOption(c *gcfg.Config) viper.DecoderConfigOption {

@@ -24,11 +24,63 @@ const (
 )
 
 // 每个协议都会回一个ack表示确认
+type AckCode int32
+
+const (
+	AckCode_ACK_CODE_OK              AckCode = 0
+	AckCode_ACK_CODE_ERROR           AckCode = 1
+	AckCode_ACK_CODE_RATE_LIMITED    AckCode = 2
+	AckCode_ACK_CODE_MODULE_DISABLED AckCode = 3
+)
+
+// Enum value maps for AckCode.
+var (
+	AckCode_name = map[int32]string{
+		0: "ACK_CODE_OK",
+		1: "ACK_CODE_ERROR",
+		2: "ACK_CODE_RATE_LIMITED",
+		3: "ACK_CODE_MODULE_DISABLED",
+	}
+	AckCode_value = map[string]int32{
+		"ACK_CODE_OK":              0,
+		"ACK_CODE_ERROR":           1,
+		"ACK_CODE_RATE_LIMITED":    2,
+		"ACK_CODE_MODULE_DISABLED": 3,
+	}
+)
+
+func (x AckCode) Enum() *AckCode {
+	p := new(AckCode)
+	*p = x
+	return p
+}
+
+func (x AckCode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AckCode) Descriptor() protoreflect.EnumDescriptor {
+	return file_ack_proto_enumTypes[0].Descriptor()
+}
+
+func (AckCode) Type() protoreflect.EnumType {
+	return &file_ack_proto_enumTypes[0]
+}
+
+func (x AckCode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AckCode.Descriptor instead.
+func (AckCode) EnumDescriptor() ([]byte, []int) {
+	return file_ack_proto_rawDescGZIP(), []int{0}
+}
+
 type Ack struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Code          int32                  `protobuf:"varint,1,opt,name=code,proto3" json:"code,omitempty"`
+	Code          AckCode                `protobuf:"varint,1,opt,name=code,proto3,enum=galaxy.protocol.AckCode" json:"code,omitempty"`
 	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"` // 协议id
-	Reason        string                 `protobuf:"bytes,3,opt,name=Reason,proto3" json:"Reason,omitempty"`
+	Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -63,11 +115,11 @@ func (*Ack) Descriptor() ([]byte, []int) {
 	return file_ack_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *Ack) GetCode() int32 {
+func (x *Ack) GetCode() AckCode {
 	if x != nil {
 		return x.Code
 	}
-	return 0
+	return AckCode_ACK_CODE_OK
 }
 
 func (x *Ack) GetId() string {
@@ -88,11 +140,16 @@ var File_ack_proto protoreflect.FileDescriptor
 
 const file_ack_proto_rawDesc = "" +
 	"\n" +
-	"\tack.proto\x12\x0fgalaxy.protocol\x1a\x11msg_options.proto\"H\n" +
-	"\x03Ack\x12\x12\n" +
-	"\x04code\x18\x01 \x01(\x05R\x04code\x12\x0e\n" +
+	"\tack.proto\x12\x0fgalaxy.protocol\x1a\x11msg_options.proto\"b\n" +
+	"\x03Ack\x12,\n" +
+	"\x04code\x18\x01 \x01(\x0e2\x18.galaxy.protocol.AckCodeR\x04code\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x16\n" +
-	"\x06Reason\x18\x03 \x01(\tR\x06Reason:\x05\xa8\xac\x1d\x81\x04B\tZ\a./pb;pbb\x06proto3"
+	"\x06reason\x18\x03 \x01(\tR\x06reason:\x05\xa8\xac\x1d\x81\x04*g\n" +
+	"\aAckCode\x12\x0f\n" +
+	"\vACK_CODE_OK\x10\x00\x12\x12\n" +
+	"\x0eACK_CODE_ERROR\x10\x01\x12\x19\n" +
+	"\x15ACK_CODE_RATE_LIMITED\x10\x02\x12\x1c\n" +
+	"\x18ACK_CODE_MODULE_DISABLED\x10\x03B\tZ\a./pb;pbb\x06proto3"
 
 var (
 	file_ack_proto_rawDescOnce sync.Once
@@ -106,16 +163,19 @@ func file_ack_proto_rawDescGZIP() []byte {
 	return file_ack_proto_rawDescData
 }
 
+var file_ack_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_ack_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_ack_proto_goTypes = []any{
-	(*Ack)(nil), // 0: galaxy.protocol.Ack
+	(AckCode)(0), // 0: galaxy.protocol.AckCode
+	(*Ack)(nil),  // 1: galaxy.protocol.Ack
 }
 var file_ack_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0, // 0: galaxy.protocol.Ack.code:type_name -> galaxy.protocol.AckCode
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_ack_proto_init() }
@@ -129,13 +189,14 @@ func file_ack_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ack_proto_rawDesc), len(file_ack_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_ack_proto_goTypes,
 		DependencyIndexes: file_ack_proto_depIdxs,
+		EnumInfos:         file_ack_proto_enumTypes,
 		MessageInfos:      file_ack_proto_msgTypes,
 	}.Build()
 	File_ack_proto = out.File
