@@ -46,6 +46,34 @@ var activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error)
 	return lib.ActivateRole(ctx, roleID)
 }
 
+// 错误契约: 准入错误(限流 sentinel / 未配置 / ctx 取消)原样上抛, 不包裹——
+// 预期拒绝需要保持原始形态供 OnHandleClientMessage 分类; ActivateRole 的业务
+// 错误在此打上激活上下文后返回。
+func activateRoleWithLoginPermit(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+	permit, err := currentLoginAcquirer.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer permit.Release()
+	pid, err := activateRole(ctx, roleID)
+	if err != nil {
+		return nil, gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
+	}
+	return pid, nil
+}
+
+// isLoginAdmissionRejection 判定是否为预期的登录准入拒绝（限流/队列满/队列超时）。
+// 注意：三个准入 sentinel 必须以未被 gerror 包裹的原始形态到达本函数——
+// cockroachdb errors.Is 无法穿透 gerror.Wrap 匹配 sentinel（gerror.Cause 会过度
+// 解包 pkg/errors 风格的 causer）。当前生产路径（activateRoleWithLoginPermit 原样
+// 上抛准入错误，handleHandshake 直接透传，OnHandleClientMessage 在其 Wrap 之前
+// 分类）恰好满足该不变式。
+func isLoginAdmissionRejection(err error) bool {
+	return errors.Is(err, ErrLoginRateLimited) ||
+		errors.Is(err, ErrLoginQueueFull) ||
+		errors.Is(err, ErrLoginQueueTimeout)
+}
+
 const (
 	SESSION_MSG_STOP            = "stop"
 	SESSION_MSG_CLIENT          = "client"         // 客户端消息
@@ -169,9 +197,9 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.sessionInfo.RoleID = identity.RoleID
 
 	s.SetLogValue(gxylog.ContextKeyRoleID, identity.RoleID)
-	rolePid, err := activateRole(ctx, identity.RoleID)
+	rolePid, err := activateRoleWithLoginPermit(ctx, identity.RoleID)
 	if err != nil {
-		return gerror.Wrapf(err, "activate role actor error, role: %d", identity.RoleID)
+		return err
 	}
 	gxylog.Info(ctx, "get role pid", gxylog.Any("rolePid", rolePid))
 	s.sessionInfo.RolePid = rolePid
@@ -219,6 +247,10 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
 		if err := s.handleHandshake(ctx, msg.Msg); err != nil {
+			if isLoginAdmissionRejection(err) {
+				s.Stop(err)
+				return nil
+			}
 			return gerror.Wrap(err, "handle handshake error")
 		}
 	case message.MESSAGE_TYPE_DATA_PACKET:
@@ -314,12 +346,21 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		_ = s.SendRoleMsg(ctx, msg, codec.MessageMetaByMsg(msg).ID)
 	}
 	s.state = StateDisconnected
-
 }
 
 func sessionDisconnectReason(err error) string {
 	if err == nil {
 		return "unknown"
+	}
+	// 与 isLoginAdmissionRejection 相同的不变式：sentinel 需以未包裹形态到达这里。
+	// 当前生产路径（OnHandleClientMessage 将原始 sentinel 传给 s.Stop）满足该不变式。
+	switch {
+	case errors.Is(err, ErrLoginRateLimited):
+		return "login_rate_limited"
+	case errors.Is(err, ErrLoginQueueFull):
+		return "login_queue_full"
+	case errors.Is(err, ErrLoginQueueTimeout):
+		return "login_queue_timeout"
 	}
 	reason := strings.ToLower(err.Error())
 	switch {

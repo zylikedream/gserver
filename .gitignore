@@ -70,5 +70,8 @@ deploy/docker/docker-compose.yml
 # E2E output
 .e2e-out/
 
+# Python bytecode
+__pycache__/
+
 # Release artifacts
 /dist/

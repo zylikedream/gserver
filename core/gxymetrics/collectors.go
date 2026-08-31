@@ -72,6 +72,27 @@ var (
 		Help: "Total session disconnects by reason",
 	}, []string{"reason"})
 
+	LoginInflight = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "login_inflight",
+		Help: "Current Gateway logins holding an ActivateRole permit",
+	})
+
+	LoginQueueLength = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "login_queue_length",
+		Help: "Current Gateway logins waiting for an ActivateRole permit",
+	})
+
+	LoginLimitTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "login_limit_total",
+		Help: "Total Gateway login admission decisions",
+	}, []string{"result"})
+
+	LoginWaitDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "login_wait_duration_seconds",
+		Help:    "Gateway login concurrency permit wait duration",
+		Buckets: prometheus.DefBuckets,
+	}, []string{"result"})
+
 	RoleLogins = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "role_login_total",
 		Help: "Total role logins by result",
