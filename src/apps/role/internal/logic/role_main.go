@@ -28,6 +28,7 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gorm.io/gorm"
@@ -95,6 +96,12 @@ type RoleMain struct {
 	*gxyactor.ActorBase
 	RoleID int64
 
+	limitConfig RoleLimitConfig
+
+	moduleByMessage map[string]string
+	moduleGuard     *roleModuleGuard
+	newBucket       bucketFactory
+
 	deps deps.Deps
 
 	session           gxyactor.PID
@@ -105,7 +112,9 @@ type RoleMain struct {
 
 func NewRoleMain() *RoleMain {
 	r := &RoleMain{
-		state: RoleStateInit,
+		state:       RoleStateInit,
+		limitConfig: roleLimitConfig,
+		newBucket:   newLimitBucket,
 		// 组装根:填充全局单例;测试可覆盖注入 mock。
 		deps: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()},
 	}
@@ -152,7 +161,9 @@ func (r *RoleMain) initRole(ctx context.Context) error {
 		return err
 	}
 	r.initTimer(ctx)
-	r.initMsgHandler()
+	if err := r.initMsgHandler(); err != nil {
+		return err
+	}
 	r.state = RoleStateLoad
 	gxylog.Debug(ctx, "init role success")
 	return nil
@@ -303,8 +314,9 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		return nil, gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
 	}
 	msgID, msgName = clientMessageMetricLabels(id, pbmsg)
-	r.Span().SetName(fmt.Sprintf("%T", pbmsg))
-	r.Span().SetAttributes(
+	span := trace.SpanFromContext(ctx)
+	span.SetName(fmt.Sprintf("%T", pbmsg))
+	span.SetAttributes(
 		attribute.Int64("roleID", r.RoleID),
 	)
 	r.sessionActiveTime = time.Now()
@@ -318,12 +330,33 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		result = "ignored"
 		return nil, nil
 	}
+	module, guarded := r.moduleByMessage[gxyutil.GetObjectName(pbmsg)]
+	if guarded {
+		admission := r.moduleGuard.Check(module)
+		gxymetrics.RoleModuleLimitTotal.WithLabelValues(module, string(admission)).Inc()
+		switch admission {
+		case admissionLimited:
+			result = "limited"
+			return r.newServerMsg(&pb.Ack{
+				Code:   pb.AckCode_ACK_CODE_RATE_LIMITED,
+				Id:     id,
+				Reason: "rate limited",
+			})
+		case admissionDisabled:
+			result = "disabled"
+			return r.newServerMsg(&pb.Ack{
+				Code:   pb.AckCode_ACK_CODE_MODULE_DISABLED,
+				Id:     id,
+				Reason: "module disabled",
+			})
+		}
+	}
 	var rsp proto.Message
 	res, err := r.DoCallMsgHandler(ctx, pbmsg)
 	if err != nil {
 		result = "error"
 		res = &pb.Ack{
-			Code:   1,
+			Code:   pb.AckCode_ACK_CODE_ERROR,
 			Id:     id,
 			Reason: err.Error(),
 		}
@@ -376,11 +409,33 @@ func (r *RoleMain) initTimer(ctx context.Context) {
 	})
 }
 
-func (r *RoleMain) initMsgHandler() {
+func (r *RoleMain) initMsgHandler() error {
 	// 把各个模块的handle也添加到msgHandler中,方便自动处理协议
+	moduleByMessage := make(map[string]string)
+	seen := make(map[string]struct{})
+	moduleNames := make([]string, 0, len(r.Modules()))
 	for _, mod := range r.Modules() {
-		r.AddMsgHandler(mod)
+		metas := r.AddMsgHandler(mod)
+		if len(metas) == 0 {
+			continue
+		}
+		name := mod.GetModName()
+		for _, meta := range metas {
+			moduleByMessage[meta.ArgType.Name()] = name
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		seen[name] = struct{}{}
+		moduleNames = append(moduleNames, name)
 	}
+	guard, err := newRoleModuleGuard(r.limitConfig, moduleNames, r.newBucket)
+	if err != nil {
+		return err
+	}
+	r.moduleByMessage = moduleByMessage
+	r.moduleGuard = guard
+	return nil
 }
 
 func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {

@@ -52,6 +52,16 @@ var (
 		Buckets: prometheus.DefBuckets,
 	}, []string{"msg_id", "msg_name", "result"})
 
+	RoleModuleLimitTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "role_module_limit_total",
+		Help: "Total Role business module admission decisions",
+	}, []string{"module", "result"})
+
+	RoleModuleDisabled = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "role_module_disabled",
+		Help: "Whether a Role business module is disabled by startup policy",
+	}, []string{"module"})
+
 	GatewayPackets = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "gateway_packets_total",
 		Help: "Total gateway packets received by type and result",

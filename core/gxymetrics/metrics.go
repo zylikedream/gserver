@@ -57,6 +57,8 @@ func (m *metricsApp) OnModInit(ctx context.Context) error {
 		OnlinePlayers,
 		ClientRequests,
 		ClientRequestDuration,
+		RoleModuleLimitTotal,
+		RoleModuleDisabled,
 		GatewayPackets,
 		SessionDisconnects,
 		RoleLogins,

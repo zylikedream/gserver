@@ -125,7 +125,6 @@ func isExported(name string) bool {
 
 type MsgHandler struct {
 	methodMap map[string]MsgMethod
-	metas     []*MethodMeta
 }
 
 type MsgMethod struct {
@@ -144,19 +143,20 @@ func NewMsgHandler() *MsgHandler {
 	return msgHandler
 }
 
-func (m *MsgHandler) AddHandler(handler any, prefix ...string) {
+func (m *MsgHandler) AddHandler(handler any, prefix ...string) []*MethodMeta {
 	handlerPrefix := ""
 	if len(prefix) > 0 {
 		handlerPrefix = prefix[0]
 	}
-	m.metas = GetSuitableMethods(reflect.TypeOf(handler), handlerPrefix)
-	for _, meta := range m.metas {
+	metas := GetSuitableMethods(reflect.TypeOf(handler), handlerPrefix)
+	for _, meta := range metas {
 		msgMethod := MsgMethod{
 			meta:    meta,
 			handler: handler,
 		}
 		m.methodMap[meta.ArgType.Name()] = msgMethod
 	}
+	return metas
 }
 
 func (m *MsgHandler) CallWithMsg(ctx context.Context, msg any) (any, error) {

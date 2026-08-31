@@ -54,3 +54,13 @@
 [token.ed25519]
 	private_key = "{{ token.ed25519.private_key | default('') }}"
 	public_key = "{{ token.ed25519.public_key | default('') }}"
+[role_limit.default]
+rate = {{ role_limit.default.rate | default(10.0) }}
+burst = {{ role_limit.default.burst | default(20) }}
+disabled = {{ role_limit.default.disabled | default(false) | string | lower }}
+{% for module, limit in (role_limit.modules | default({})).items() %}
+[role_limit.modules.{{ module }}]
+{% if limit.rate is defined %}rate = {{ limit.rate }}{% endif %}
+{% if limit.burst is defined %}burst = {{ limit.burst }}{% endif %}
+{% if limit.disabled is defined %}disabled = {{ limit.disabled | string | lower }}{% endif %}
+{% endfor %}
