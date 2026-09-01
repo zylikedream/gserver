@@ -41,7 +41,8 @@
 新建记录时复制 [template.md](template.md)：
 
 ```bash
-cp docs/pressure/template.md docs/pressure/$(date +%F)-<run-name>.md
+run_name="login-capacity-smoke"
+cp docs/pressure/template.md "docs/pressure/$(date +%F)-${run_name}.md"
 ```
 
 ## 历史记录
