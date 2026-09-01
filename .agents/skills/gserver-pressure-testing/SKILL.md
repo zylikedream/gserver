@@ -10,7 +10,7 @@ Treat every pressure test as a reproducible experiment, not an ad-hoc command. C
 
 ## Non-negotiable record rule
 
-- Every run, including a smoke run, gets one file: `docs/pressure/YYYY-MM-DD-<run-name>.md`.
+- Every run, including a smoke run, gets one file: `docs/pressure/runs/YYYY-MM-DD-<run-name>.md`.
 - Create the file before launching `bench`; never postpone the record until after the run.
 - Record facts, queries, time ranges, and commands. Write `未测` or `未知` instead of filling gaps with estimates.
 - Keep one document per run. Do not overwrite an earlier run or silently fold multiple parameter sets into one result.

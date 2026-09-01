@@ -38,15 +38,13 @@
 
 ## 文件模板
 
-新建记录时复制 [template.md](template.md)：
+新建记录时复制 [template.md](template.md) 到 [runs/](runs/)：
 
 ```bash
 run_name="login-capacity-smoke"
-cp docs/pressure/template.md "docs/pressure/$(date +%F)-${run_name}.md"
+cp docs/pressure/template.md "docs/pressure/runs/$(date +%F)-${run_name}.md"
 ```
 
-## 历史记录
+## 压测记录
 
-| 日期 | 运行 | 类型 | 结论 |
-|---|---|---|---|
-| 2026-08-31 | [login-limit-phase-a](2026-08-31-login-limit-phase-a.md) | 低阈值登录限流分支验证 | 通过（以会话记录为依据） |
+所有单次压测记录统一放在 [runs/](runs/) 目录。README 不维护逐次记录索引；进入目录即可查看全部运行记录。
