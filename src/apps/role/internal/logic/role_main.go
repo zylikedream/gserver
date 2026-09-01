@@ -63,6 +63,18 @@ var (
 	}
 	globalRoleSaveLimiter = newRoleSaveLimiter(ROLE_SAVE_CONCURRENCY)
 )
+var clientProtocolErrorLog = func(ctx context.Context, roleID int64, msgID, msgName string, err error) {
+	gxylog.Error(ctx, "handle client protocol failed",
+		gxylog.Str("msg_id", msgID),
+		gxylog.Str("msg_name", msgName),
+		gxylog.Num("role_id", roleID),
+		gxylog.Err(err),
+	)
+}
+
+func logClientProtocolError(ctx context.Context, roleID int64, msgID, msgName string, err error) {
+	clientProtocolErrorLog(ctx, roleID, msgID, msgName, err)
+}
 
 type RoleState int32
 
@@ -355,6 +367,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	res, err := r.DoCallMsgHandler(ctx, pbmsg)
 	if err != nil {
 		result = "error"
+		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
 		res = &pb.Ack{
 			Code:   pb.AckCode_ACK_CODE_ERROR,
 			Id:     id,
