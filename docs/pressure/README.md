@@ -50,4 +50,3 @@ cp docs/pressure/template.md "docs/pressure/$(date +%F)-${run_name}.md"
 | 日期 | 运行 | 类型 | 结论 |
 |---|---|---|---|
 | 2026-08-31 | [login-limit-phase-a](2026-08-31-login-limit-phase-a.md) | 低阈值登录限流分支验证 | 通过（以会话记录为依据） |
-| 2026-09-02 | [login-capacity-smoke](2026-09-02-login-capacity-smoke.md) | 100 bot / 20/s Smoke 容量基线 | 通过 |
