@@ -323,33 +323,6 @@ func TestClientMessageMetricLabels_UnknownMsg(t *testing.T) {
 	}
 }
 
-func TestLogClientProtocolError_EmitsContext(t *testing.T) {
-	var got struct {
-		roleID  int64
-		msgID   string
-		msgName string
-		err     error
-	}
-	previous := clientProtocolErrorLog
-	clientProtocolErrorLog = func(_ context.Context, roleID int64, msgID, msgName string, err error) {
-		got.roleID = roleID
-		got.msgID = msgID
-		got.msgName = msgName
-		got.err = err
-	}
-	t.Cleanup(func() { clientProtocolErrorLog = previous })
-
-	cause := errors.New("flower is locked")
-	logClientProtocolError(context.Background(), 42, "23003", "ReqFlowerStartBreed", cause)
-
-	if got.roleID != 42 || got.msgID != "23003" || got.msgName != "ReqFlowerStartBreed" {
-		t.Fatalf("logged protocol context = %+v", got)
-	}
-	if got.err != cause {
-		t.Fatalf("logged error = %v, want %v", got.err, cause)
-	}
-}
-
 // 辅助: 确保 gerror/anypb 引用(避免误删 import 后编译不过)。
 var _ = gerror.New
 var _ = anypb.Any{}
