@@ -55,6 +55,7 @@ config/*.toml
 
 # User-specific env files (copy from dev.env.toml)
 build/env/dev_*.env.toml
+build/env/pressure_*.env.toml
 !build/env/dev_ci.env.toml
 
 # Generated scripts

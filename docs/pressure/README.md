@@ -16,7 +16,7 @@
 
 1. **定义实验**：明确是链路冒烟、限流分支验证、容量测试还是回归比较，并写出通过标准。
 2. **前置检查**：确认分支、构建产物、PostgreSQL/Redis/Consul、account、gate、逻辑服务和 Prometheus target 状态。
-3. **固定参数**：记录服务配置、bench YAML、账号池、机器人类型权重、启动速率、稳态时长和停止方式。
+3. **固定参数**：使用独立的 `build/env/pressure_<operator>.env.toml`，从个人开发环境复制后设置 `[log].level = "info"`；通过 `./build/script/svr_init.sh pressure_<operator>` 生成服务配置。记录服务配置、bench YAML、账号池、机器人类型权重、启动速率、稳态时长和停止方式。
 4. **运行压测**：`client/cmd/bench` 没有内置 duration，运行到 `SIGINT`/`SIGTERM`；使用外部 timeout 时记录命令、信号和退出状态。
 5. **采集证据**：保存 bench 输出、Prometheus 数值、Grafana/Loki 查询、时间范围、服务日志和异常时间线。
 6. **结束与清理**：停止 bench 和临时服务，清理临时配置/凭据，记录数据重置和证据保留情况。

@@ -38,7 +38,7 @@ Do not call a run a capacity result when it only validates a low-limit rejection
 1. Confirm the repository branch and working-tree state. Do not hide unrelated user changes.
 2. Build the server and bench binary with the repository's normal commands. If source or `.proto` files changed, follow the repository generation/build rules first.
 3. Start or verify PostgreSQL, Redis, Consul, account, gate, and logical services required by the scenario.
-4. Generate server configs through `./build/script/svr_init.sh <env>`. Do not hand-edit generated `config/*.toml` as the permanent configuration path.
+4. For local pressure tests, use a dedicated `build/env/pressure_<operator>.env.toml` copied from the operator's development environment. Set `[log].level = "info"` so Debug traffic logs do not flood the test evidence while Info/Warn/Error remain available for diagnosis. Generate server configs through `./build/script/svr_init.sh pressure_<operator>`; do not hand-edit generated `config/*.toml` as the permanent configuration path.
 5. Verify endpoints and metrics before traffic:
    - bench gate address, normally `127.0.0.1:11086` in local runs;
    - account prelogin URL, when configured;
