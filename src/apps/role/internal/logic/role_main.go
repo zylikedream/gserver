@@ -41,7 +41,6 @@ const (
 	SINGLE_ALIVE_INTERVAL  = 10 * time.Minute
 	PUBLIC_UPDATE_INTERVAL = 8 * time.Minute
 	SLOW_CLIENT_REQUEST    = 200 * time.Millisecond
-	ROLE_SAVE_CONCURRENCY  = 16
 )
 
 var (
@@ -61,7 +60,6 @@ var (
 		Name:     "check_session_alive",
 		Interval: SESSION_ALIVE_INTERVAL,
 	}
-	globalRoleSaveLimiter = newRoleSaveLimiter(ROLE_SAVE_CONCURRENCY)
 )
 
 func logClientProtocolError(ctx context.Context, roleID int64, msgID, msgName string, err error) {
@@ -480,12 +478,6 @@ func defaultSaveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) e
 		return nil
 	}
 
-	release, err := globalRoleSaveLimiter.acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
 	saved, err := r.saveRoleModuleState(ctx, r.DB(), rmod)
 	if err != nil {
 		return err
@@ -522,28 +514,6 @@ type savedRoleModule struct {
 	state          IPersistState
 	oldVersion     int64
 	versionChanged bool
-}
-
-type roleSaveLimiter struct {
-	slots chan struct{}
-}
-
-func newRoleSaveLimiter(limit int) *roleSaveLimiter {
-	if limit <= 0 {
-		limit = 1
-	}
-	return &roleSaveLimiter{
-		slots: make(chan struct{}, limit),
-	}
-}
-
-func (l *roleSaveLimiter) acquire(ctx context.Context) (func(), error) {
-	select {
-	case l.slots <- struct{}{}:
-		return func() { <-l.slots }, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
 }
 
 func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IRoleModule) (*savedRoleModule, error) {
@@ -593,14 +563,8 @@ func (r *RoleMain) save(ctx context.Context) error {
 		return nil
 	}
 
-	release, err := globalRoleSaveLimiter.acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
 	var savedMods []*savedRoleModule
-	err = r.DB().Transaction(func(tx *gorm.DB) error {
+	err := r.DB().Transaction(func(tx *gorm.DB) error {
 		var errStr string
 		for _, rmod := range dirtyMods {
 			saved, err := r.saveRoleModuleState(ctx, tx, rmod)

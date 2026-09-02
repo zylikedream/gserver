@@ -2,10 +2,7 @@ package logic
 
 import (
 	"context"
-	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"gserver/core/gxymodule"
 )
@@ -58,44 +55,5 @@ func TestDirtyRoleModulesOnlyReturnsDirtyPersistModules(t *testing.T) {
 	}
 	if mods[0] != dirty {
 		t.Fatalf("dirtyRoleModules[0] = %T, want dirty module", mods[0])
-	}
-}
-
-func TestRoleSaveLimiterCapsConcurrentSaves(t *testing.T) {
-	limiter := newRoleSaveLimiter(2)
-
-	var active int32
-	var maxActive int32
-	var wg sync.WaitGroup
-	start := make(chan struct{})
-
-	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start
-			release, err := limiter.acquire(context.Background())
-			if err != nil {
-				t.Errorf("acquire failed: %v", err)
-				return
-			}
-			cur := atomic.AddInt32(&active, 1)
-			for {
-				prev := atomic.LoadInt32(&maxActive)
-				if cur <= prev || atomic.CompareAndSwapInt32(&maxActive, prev, cur) {
-					break
-				}
-			}
-			time.Sleep(10 * time.Millisecond)
-			atomic.AddInt32(&active, -1)
-			release()
-		}()
-	}
-
-	close(start)
-	wg.Wait()
-
-	if maxActive > 2 {
-		t.Fatalf("max active saves = %d, want <= 2", maxActive)
 	}
 }
