@@ -2,25 +2,126 @@
 
 ## Goal
 
-将 actor 定位从“缓存写入 + 无条件删除”改为可验证的单 owner 协调模块,支持节点故障接管并拒绝旧 owner 的延迟副作用。
+将 actor 定位收敛为一致性优先的 Activation Directory：同一玩家最多只有一个 actor 具备处理新请求和提交持久化副作用的权限；actor 下线清理失败、节点故障和网络分区均不能产生两个合法 writer。
 
 ## Scope
 
-本设计覆盖 `core/gxyactor` 的 actor locate 注册、定位、Claim、Release 和节点 lease,以及 Role 保存时的 owner/fencing 校验。它不改变 Consul 服务发现、节点选择算法或 actor PID 格式;不在第一版增加本地 locate 缓存或 Redis 节点 Set 扫描。
+本设计覆盖：
+
+- `core/gxyactor` 的 direct locate、Claim、Release、stale owner 自愈和节点 lease watchdog；
+- owner Activator 对本地 activation 的权威判断；
+- Role activation 的 PostgreSQL epoch fence；
+- Role 保存事务的 fence 校验；
+- 新增节点只承接离线玩家的新 activation。
+
+GServer 明确不建设 shard ownership、在线 actor 迁移、本地 locate 缓存、节点 Set 扫描或 mailbox/state 内存迁移。这是长期架构边界，不是延期到后续版本的待办；只有新的业务证据和替代 ADR 才能改变该决策。
+
+## CAP Policy
+
+Role ownership 在网络分区时选择一致性优先：
+
+- Redis 不可用时禁止创建新 actor；
+- 节点只能在最近一次已确认 lease 的安全期限内继续处理请求；
+- lease 到期前仍无法确认续租时，节点必须 self-fence 并终止进程；
+- 新 owner 只能在旧 lease 失效后 Claim；
+- PostgreSQL 必须拒绝旧 epoch 的事务。
+
+允许旧 actor 进程物理存在，但它不能继续成为合法 writer。
+
+## Domain Model
+
+### Directory Entry
+
+Redis owner key 表示当前 activation 的路由归属，不表示永久玩家归属，也不直接证明 actor 实例存活。
+
+### Node Lease
+
+Node lease 表示节点进程当前是否有资格持有 directory entry。`nodeInstanceName` 每次进程启动唯一，同时作为 lease token。
+
+### Local Activation
+
+只有 owner 节点本地 `ActorMgr` 能判断 actor 实例是否存在。Redis 命中后必须请求 owner Activator，不能直接构造 PID。
+
+### Fencing Epoch
+
+每次 ownership 接管获得更大的 epoch。Redis 决定 owner；PostgreSQL 在事务 seam 强制执行 epoch，拒绝旧 writer。
 
 ## Invariants
 
-1. 同一玩家的 owner 变更必须由 Redis 原子 Claim 决定。
-2. Claim 未成功的节点不得创建该玩家的可服务 actor。
-3. owner 记录必须包含 `node_id` 和单调递增的 `epoch`。
-4. Release 只能删除调用者当前持有的 owner 记录。
-5. epoch 小于 Redis 当前值的保存或其他持久化副作用必须被拒绝。
-6. Redis 不可用时不允许通过本地 fallback 创建 actor。
-7. locate 热路径只能做 O(1) direct lookup。
+1. owner 变更只能由 Redis Lua Claim 决定。
+2. 未取得 Claim 的节点不得 `SpawnNamed`。
+3. owner key 包含 `nodeInstanceName + epoch + leaseToken`。
+4. Release 只能删除完全匹配的 owner。
+5. owner key 在线期间没有固定 TTL；有效性由 node lease 决定。
+6. owner 命中必须经过 owner Activator 验证本地 activation。
+7. live owner 节点发现本地 activation 缺失时，条件释放 stale entry 并要求调用方重新定位。
+8. Redis 错误不得转换为 miss 或 fallback spawn。
+9. 节点超过已确认 lease deadline 后不得处理业务 actor 消息。
+10. Role 加载业务状态前必须在 PostgreSQL 建立当前 epoch fence。
+11. 每次 Role 保存必须在同一 PostgreSQL 事务中锁定并验证 fence。
+12. 在线 actor 不因扩容迁移；离线玩家再次登录时按当前节点集合重新分配。
 
-## Interface
+## Redis State
 
-在 `core/gxyactor` 内提供一个小的 `ActorLocator` 接口,调用方不直接拼 Redis key 或执行 Redis 命令:
+```text
+gserver:locate:node:actor:{kind}:{id}
+  -> {nodeInstanceName}|{epoch}|{leaseToken}
+  TTL: none while owned
+
+gserver:locate:node:lease:{nodeInstanceName}
+  -> {leaseToken}
+  TTL: 15s
+
+gserver:locate:node:epoch
+  -> global monotonically increasing counter
+```
+
+Locate Lua 原子读取 owner，并验证对应 node lease 是否存在。不存在的 owner 返回 miss，但保留 key 供下一次 Claim 原子覆盖。
+
+## PostgreSQL State
+
+新增表：
+
+```text
+role_actor_fence
+  role_id   bigint primary key
+  node_id   text not null
+  epoch     bigint not null
+  update_at timestamptz not null
+```
+
+Role actor 在 `DelayInit` 加载模块状态前执行 fence advance：
+
+```sql
+INSERT INTO role_actor_fence(role_id, node_id, epoch, update_at)
+VALUES (?, ?, ?, ?)
+ON CONFLICT(role_id) DO UPDATE
+SET node_id = EXCLUDED.node_id,
+    epoch = EXCLUDED.epoch,
+    update_at = EXCLUDED.update_at
+WHERE role_actor_fence.epoch < EXCLUDED.epoch
+   OR (
+       role_actor_fence.epoch = EXCLUDED.epoch
+       AND role_actor_fence.node_id = EXCLUDED.node_id
+   );
+```
+
+`RowsAffected == 0` 表示调用者是旧 owner，actor 初始化失败。
+
+每次保存事务首先锁定并验证：
+
+```sql
+SELECT epoch
+FROM role_actor_fence
+WHERE role_id = ? AND node_id = ? AND epoch = ?
+FOR UPDATE;
+```
+
+没有完全匹配行时返回 ownership-lost 错误，不写任何业务表。新 owner 推进 fence 与旧 owner 保存通过同一行锁串行化：已经开始的旧事务可以先完成；新 fence 建立后，旧 epoch 不能再开始保存。
+
+## Directory Interface
+
+调用方只使用 `ActivateActor`；Redis 状态和 retry 留在 `core/gxyactor` 内部。
 
 ```go
 type ActorOwner struct {
@@ -28,112 +129,128 @@ type ActorOwner struct {
     Epoch  uint64
 }
 
-type ActorLocator interface {
-    Locate(ctx context.Context, kind, id string) (ActorOwner, error)
-    Acquire(ctx context.Context, kind, id string) (ActorOwner, error)
-    Release(ctx context.Context, kind, id string, owner ActorOwner) error
-}
+func (l *actorLocator) locate(
+    ctx context.Context,
+    kind, id string,
+) (ActorOwner, error)
+
+func (l *actorLocator) claim(
+    ctx context.Context,
+    kind, id string,
+) (owner ActorOwner, acquired bool, err error)
+
+func (l *actorLocator) release(
+    ctx context.Context,
+    kind, id string,
+    owner ActorOwner,
+) (released bool, err error)
 ```
 
-lease token 只属于实现内部,不暴露给业务层。实现内部还维护节点 lease:
+`Release` 返回是否实际删除，便于区分成功、stale no-op 和基础设施错误。
 
-```text
-node lease key -> random lease token, EX TTL
-heartbeat -> only refresh the same token
-```
+## Activation Flow
 
-实际配置使用现有节点生命周期注入,不在业务调用方创建 Redis client。
-
-## Redis state
-
-第一版继续使用 direct per-actor key,避免同时改变查询布局和所有权语义:
-
-```text
-gserver:locate:node:actor:{kind}:{id}
-  -> encoded owner {node_id, epoch}
-  TTL: owner retention safety net
-
-gserver:locate:lease:{node_id}
-  -> random lease token
-  TTL: node lease
-
-gserver:locate:epoch
-  -> monotonically increasing fencing counter
-```
-
-值编码必须可解析且保留 `node_id` 与 `epoch`;不得只保存节点名。后续若内存仍是瓶颈,独立实验 sharded Hash,不改变 Claim/Release 接口。
-
-## Atomic operations
-
-### Claim
-
-Claim Lua 在一次 Redis 原子执行中完成:
-
-1. 验证候选节点的 lease key 仍等于调用者 token。
-2. 读取 actor owner。
-3. owner 存在且其节点 lease 有效时返回当前 owner。
-4. owner 缺失或其节点 lease 过期时递增 epoch并写入新 owner。
-5. 同一 owner 的重复 Claim 返回成功且保持幂等。
-
-脚本结果必须区分 `acquired`、`already_owned`、`owned_by_other`、`invalid_lease` 和基础设施错误,调用方不得把未知错误当成未命中。
-
-### Release
-
-Release Lua 必须比较当前 owner 的 `node_id + epoch` 和调用者提供的 owner,匹配才删除;不匹配返回 no-op。不得使用裸 `DEL`。
-
-### Heartbeat
-
-节点启动获得随机 lease token,定期只刷新 token 相同的 lease。节点重启即使复用逻辑节点名也必须生成新的 token。lease 过期后 Claim 才能接管。
-
-## Actor lifecycle integration
+### Directory Miss
 
 ```text
 getActor
-  -> Locate direct lookup
-  -> owner healthy: construct PID and route
-  -> miss/stale/dead owner: Acquire
-  -> acquired: activate locally/remotely
-  -> not acquired: route to returned owner
-
-actor registration
-  -> owner registration is Claim, not SET
-
-actor termination
-  -> conditional Release
-
-role save
-  -> validate owner node + epoch before persistence
+  -> choose candidate from current healthy nodes
+  -> send ActorActive{allow_spawn=true}
+  -> candidate Claim
+  -> acquired: SpawnNamed with ActorOwner
+  -> owned by another node: ActorLocateRetry
 ```
 
-注册失败、Touch 失败和远程 spawn 失败必须按 owner 身份执行条件清理,不能删除后来产生的 owner。
+### Directory Hit
 
-## Error policy
+```text
+getActor
+  -> resolve owner address through Consul
+  -> send ActorActive{allow_spawn=false}
+  -> owner Claim validates current ownership
+  -> local ActorMgr contains id: return existing PID
+  -> local ActorMgr missing id:
+       conditional Release
+       return ActorLocateRetry
+  -> caller repeats Locate against current node set
+```
 
-- Redis command error: return wrapped infrastructure error; do not treat as offline.
-- Redis Nil/missing owner: enter Acquire path.
-- Invalid lease: stop activation on this node and refresh/reacquire node lease.
-- Owner exists: return owner without creating a second actor.
-- Fencing mismatch on save: skip/reject write and log structured context with player, expected epoch and current epoch.
+`getActor` uses a bounded retry loop. `spawn=false` callers return not-found after stale cleanup instead of creating a new actor.
+
+`ActorActive` gains `allow_spawn`; `ActorLocateRetry` is a typed protobuf response. Error strings are not used as control flow.
+
+## Actor Shutdown
+
+```text
+actor save under PostgreSQL fence
+  -> actor stop
+  -> conditional Redis Release
+```
+
+Release error is logged with structured fields. It does not keep a dead actor alive and does not become a correctness dependency. A stale key is repaired by the next owner Activator request or overwritten after node lease expiry.
+
+## Node Lease Watchdog
+
+Lease acquisition and every successful renewal record a conservative local deadline using the command start time plus lease TTL.
+
+- token mismatch fences immediately;
+- Redis renewal error logs the infrastructure failure but may retry only before the last confirmed deadline;
+- reaching the deadline invokes a fatal callback exactly once;
+- production callback terminates the process;
+- tests inject a non-terminating callback;
+- graceful module stop cancels the watchdog before releasing the lease.
+
+This prevents a partitioned node from continuing indefinitely after Redis may grant a new owner.
+
+## Expansion and Drain
+
+- Scale-out does not migrate online actors.
+- Online actors remain on the old node until logout or drain.
+- Normal logout conditionally releases the directory entry.
+- If logout cleanup failed, the next login asks the old owner Activator; absent local activation causes conditional release and retry.
+- After release, the current consistent-hash node set includes newly added nodes, so a subset of offline old players moves naturally.
+- Scale-in marks the node draining, rejects new activations, waits for natural logout, then saves and disconnects remaining players before lease release.
+
+## Error Policy
+
+- Redis command error: wrapped infrastructure error; never miss.
+- Invalid candidate lease: reject activation.
+- Active owner address unavailable while lease remains valid: return unavailable; do not steal.
+- Stale owner on live node: conditional release plus typed retry.
+- Retry exhaustion: return explicit locate-retry-exhausted error.
+- PostgreSQL fence advance rejected: actor initialization fails.
+- PostgreSQL fence validation rejected: save fails, dirty state remains, actor stops through the existing save-error path.
+- Lease deadline reached: fatal self-fence.
 
 ## Verification
 
-Tests must cover real Redis behavior through an injectable Redis adapter or a temporary Redis instance:
+Tests cover:
 
-1. concurrent Claim by two nodes produces one owner;
-2. active owner prevents a second Claim;
-3. expired lease permits takeover and increases epoch;
-4. old Release cannot remove the new owner;
-5. old epoch save is rejected;
-6. Redis errors are not interpreted as misses;
-7. actor activation does not proceed after losing Claim;
-8. full existing `core/gxyactor` tests remain green.
+1. concurrent Claim produces exactly one owner;
+2. active owner blocks another Claim;
+3. expired lease permits takeover with a greater epoch;
+4. stale Release cannot delete a newer owner;
+5. owner key does not expire while the node lease is active;
+6. live owner with missing local activation conditionally releases and returns retry;
+7. retry performs a fresh node selection and permits offline redistribution;
+8. `spawn=false` never creates an actor;
+9. Redis error is not interpreted as miss;
+10. renewal token mismatch and deadline expiry self-fence exactly once;
+11. PostgreSQL fence advance rejects an older epoch;
+12. save transaction rejects a stale epoch before business writes;
+13. same node and epoch retry is idempotent;
+14. full package tests and `go build ./...` pass.
 
-The existing Redis layout benchmark remains separate. After semantic correctness is green, rerun direct locate latency and resource measurements; only then decide whether sharded Hash is worthwhile.
+## Permanent Non-goals
 
-## Non-goals
+- no online actor migration;
+- no shard coordinator or shard handoff;
+- no mailbox or in-memory actor state migration;
+- no per-actor heartbeat;
+- no fixed owner TTL;
+- no node Set scan in locate;
+- no local locate cache;
+- no transparent availability during ownership-store partition;
+- no migration to another actor framework.
 
-- no full node Set scan in locate;
-- no local cache in first implementation;
-- no change to Consul service registration;
-- no claim that Redis TTL alone solves network partitions;
-- no migration to a new actor framework.
+这些能力带来的体验收益不足以覆盖协调状态机、故障恢复、测试和运维复杂度，不作为后续自然演进方向。

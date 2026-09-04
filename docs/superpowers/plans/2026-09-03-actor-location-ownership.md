@@ -2,334 +2,397 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace unsafe actor locate `SET`/`DEL` with direct lookup, node leases, atomic Claim/Release, and fencing epochs.
+**Goal:** Implement a consistency-first Actor Activation Directory that self-heals stale owners, self-fences nodes after lease loss, and rejects stale Role writes inside PostgreSQL transactions.
 
-**Architecture:** Keep direct per-actor Redis lookup in the first implementation. Put Redis state transitions behind a private `actorLocator` implementation and expose only owner-aware helpers to actor activation and role persistence. A node lease uses the existing unique `nodeInstanceName` as the per-process lease token; every takeover increments a Redis fencing epoch.
+**Architecture:** Redis stores an O(1) per-activation directory entry plus one lease per node process. Every owner hit goes through the owner Activator, which distinguishes a live local actor from a stale directory entry. Redis coordinates ownership; PostgreSQL serializes Role writer epochs at the persistence seam.
 
-**Tech Stack:** Go 1.25.1, Redis go-redis/v9, Redis Lua scripts, protoactor-go, GoFrame, existing dependency-injection test patterns.
+**Tech Stack:** Go 1.25.1, protoactor-go, go-redis/v9, Redis Lua, Go protobuf, GORM PostgreSQL, go-sqlmock, miniredis.
 
 **Spec:** `docs/superpowers/specs/2026-09-03-actor-location-ownership-design.md`
 
 ## Global Constraints
 
-- No node Set scan in the locate hot path.
-- Claim, takeover, and Release comparisons execute atomically in Redis Lua.
-- A Redis command error is infrastructure failure, never a cache miss.
-- Redis unavailability fails closed; no local actor creation fallback.
-- Old owner operations with a lower fencing epoch must not persist state.
-- Use existing `gxyredis.Redis()` injection seam; do not create a second Redis client.
-- Follow `docs/development/error-handling.md` and `docs/development/logging.md` for wrapped errors and structured logs.
-- Run `gofmt` on changed Go files and targeted tests before broader verification.
+- Role ownership is consistency-first: infrastructure uncertainty must not create a second writer.
+- Claim precedes `SpawnNamed`; a Claim loser never creates the actor.
+- Redis errors are infrastructure failures, never locate misses.
+- Owner hits go through the owner Activator; callers never infer activation liveness from a Redis key.
+- Online actors are not migrated during scale-out; offline players are redistributed on later activation.
+- Owner keys have no fixed TTL while owned; node lease validity determines takeover.
+- Node lease deadline loss triggers process self-fencing exactly once.
+- PostgreSQL rejects stale epochs inside the same transaction as business writes.
+- Shard ownership, online actor migration, mailbox/state migration, local locate cache, node Set scan and per-actor heartbeat are permanent non-goals, not deferred work.
+- Use `cockroachdb/errors`, structured `gxylog`, dependency injection instead of monkey patching, and `testing.B.Loop()` in Go benchmarks.
 
 ---
 
-### Task 1: Define the ownership module seam
+### Task 1: Add typed owner-resolution protocol
 
 **Files:**
-- Create: `core/gxyactor/actor_locator.go`
-- Test: `core/gxyactor/actor_locator_test.go`
+- Modify: `protocol/server/gactor.proto`
+- Regenerate: `protocol/pb/gactor.pb.go`
+- Modify: `core/gxyactor/actor_test.go`
 
 **Interfaces:**
-- Produces `ActorOwner{NodeID string, Epoch uint64}`.
-- Produces private `actorLocator` methods for `Locate`, `Claim`, `Release`, `AcquireNodeLease`, `RenewNodeLease`.
-- Uses an injectable `redis.UniversalClient` field so tests can run against a temporary Redis without replacing global application state.
+- `ActorActive.allow_spawn` distinguishes a directory-miss candidate from an owner-resolution request.
+- `ActorLocateRetry` is a typed response; error text is never control flow.
 
-- [ ] **Step 1: Write the failing unit/integration tests**
-
-Add tests that exercise the desired Redis behavior through the locator seam:
+- [ ] **Step 1: Write the failing test**
 
 ```go
-func TestActorLocatorClaimConcurrentHasSingleWinner(t *testing.T) {}
-func TestActorLocatorClaimTakesOverExpiredOwnerWithNextEpoch(t *testing.T) {}
-func TestActorLocatorReleaseDoesNotDeleteNewOwner(t *testing.T) {}
-func TestActorLocatorRedisErrorIsNotMiss(t *testing.T) {}
-```
-
-Use a temporary Redis server or the repository's existing Redis test setup. The concurrent test starts two goroutines with different lease tokens and asserts exactly one `acquired` result and one owner record. The takeover test seeds an owner whose node lease is absent, then asserts the new epoch is greater. The release test seeds owner A, replaces it with owner B, calls Release for A, and asserts B remains. The error test closes the Redis client before Locate and asserts a non-nil infrastructure error.
-
-- [ ] **Step 2: Run the tests and verify RED**
-
-Run:
-
-```bash
-RUN_REDIS_TESTS=1 go test -run '^TestActorLocator' -count=1 ./core/gxyactor
-```
-
-Expected: FAIL because `actorLocator` and its operations do not exist.
-
-- [ ] **Step 3: Add the minimum ownership types and Redis script constants**
-
-Define:
-
-```go
-type ActorOwner struct {
-    NodeID string
-    Epoch  uint64
-}
-
-type actorLocator struct {
-    redis      redis.UniversalClient
-    nodeID     string
-    leaseToken string
+func TestActorLocateRetryIsProtoMessage(t *testing.T) {
+    var msg proto.Message = &pb.ActorLocateRetry{}
+    if msg == nil {
+        t.Fatal("ActorLocateRetry is nil")
+    }
 }
 ```
 
-Use explicit key builders for actor owner, node lease, and epoch counter. Encode owner values as a stable, parseable string containing node ID and epoch. Return typed operation results so callers can distinguish acquired, already-owned, owned-by-other, and invalid-lease outcomes.
-
-- [ ] **Step 4: Run the tests and verify GREEN**
-
-Run the same targeted command. Confirm all four tests pass and Redis errors are returned rather than converted to misses.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 2: Run RED**
 
 ```bash
-git add core/gxyactor/actor_locator.go core/gxyactor/actor_locator_test.go
-git commit -m "feat: add actor ownership locator seam"
+go test -run '^TestActorLocateRetryIsProtoMessage$' -count=1 ./core/gxyactor
+```
+
+Expected: compile failure because `pb.ActorLocateRetry` does not exist.
+
+- [ ] **Step 3: Extend and regenerate the protocol**
+
+```proto
+message ActorActive {
+    string kind = 1;
+    string id = 2;
+    bool allow_spawn = 3;
+}
+
+message ActorLocateRetry {
+}
+```
+
+Run `make pb`.
+
+- [ ] **Step 4: Run GREEN**
+
+```bash
+go test -run '^(TestActorLocateRetryIsProtoMessage|TestHashableActorActive_Hash)$' -count=1 ./core/gxyactor
 ```
 
 ---
 
-### Task 2: Wire atomic Claim, Release, and node lease
+### Task 2: Self-heal stale directory owners
 
 **Files:**
 - Modify: `core/gxyactor/actor_locator.go`
 - Modify: `core/gxyactor/activator_manager.go`
-- Test: `core/gxyactor/actor_locator_test.go`
+- Modify: `core/gxyactor/actor_activation_ownership_test.go`
+- Modify: `core/gxyactor/actor_locator_test.go`
+- Modify: `core/gxyactor/actor_test.go`
 
 **Interfaces:**
-- `actorLocator.Claim(ctx, kind, id string) (ActorOwner, claimResult, error)` validates the caller lease and atomically claims or returns the current owner.
-- `actorLocator.Release(ctx, kind, id string, owner ActorOwner) error` compare-and-deletes only the matching owner.
-- `actorLocator.AcquireNodeLease(ctx) error` creates the node lease with the process token.
-- `actorLocator.RenewNodeLease(ctx) error` refreshes TTL only when the stored token matches.
-- `activatorManager` owns one locator and starts/stops the node lease heartbeat with the module lifecycle.
+- `actorLocator.release(ctx, kind, id, owner) (bool, error)` reports whether the exact owner was deleted.
+- `activatorManager.requestActor(ctx, node, kind, id, allowSpawn) (PID, retry bool, err error)` sends `ActorActive`.
+- `getActor` retries `ActorLocateRetry` at most `actorLocateMaxAttempts`.
 
-- [ ] **Step 1: Add failing edge-case tests**
-
-Add tests for:
+- [ ] **Step 1: Write failing stale-owner tests**
 
 ```go
-func TestActorLocatorClaimActiveOwnerReturnsExistingOwner(t *testing.T) {}
-func TestActorLocatorClaimRejectsInvalidLease(t *testing.T) {}
-func TestActorLocatorRenewDoesNotRefreshDifferentToken(t *testing.T) {}
-func TestActorLocatorReleaseMatchesNodeAndEpoch(t *testing.T) {}
+func TestActorLocatorReleaseReportsMatch(t *testing.T) {}
+func TestActivationExistingLocalActorReturnsPID(t *testing.T) {}
+func TestActivationMissingLocalActorReleasesAndRetries(t *testing.T) {}
+func TestGetActorRetryRelocatesOfflineActor(t *testing.T) {}
+func TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup(t *testing.T) {}
 ```
+
+The relocation test seeds a valid node-a owner, injects an owner request that conditionally releases and returns retry, then asserts the next attempt selects from the current node list. The `spawn=false` test asserts no candidate spawn occurs after stale cleanup.
 
 - [ ] **Step 2: Run RED**
 
 ```bash
-RUN_REDIS_TESTS=1 go test -run '^TestActorLocator' -count=1 ./core/gxyactor
+go test -run '^(TestActorLocatorReleaseReportsMatch|TestActivation|TestGetActorRetry|TestGetActorWithoutSpawn)' -count=1 ./core/gxyactor
 ```
 
-Expected: the new cases fail against the incomplete implementation.
+- [ ] **Step 3: Implement conditional Release result**
 
-- [ ] **Step 3: Implement scripts and lifecycle**
-
-Implement Claim as one Lua operation:
-
-1. compare the candidate lease key with the candidate token;
-2. read the actor owner;
-3. if the existing owner lease is present, return that owner;
-4. otherwise increment the fencing counter and write the new owner;
-5. return the operation result and owner fields.
-
-Implement Release as compare-and-delete on node ID and epoch. Implement lease acquisition with `SET NX EX` and renewal with a token comparison script. Use the existing unique `nodeInstanceName` as the lease token so a restart cannot renew the previous process lease. Start a bounded heartbeat goroutine in `OnModStart`; cancel and wait for it in `OnModStop`.
-
-Move stale actor cleanup to conditional Release. Keep `trackActor` only as a cleanup inventory; it must never perform raw `DEL` on an actor owner key.
-
-- [ ] **Step 4: Run GREEN and lifecycle tests**
-
-```bash
-RUN_REDIS_TESTS=1 go test -run '^(TestActorLocator|TestActivatorManager)' -count=1 ./core/gxyactor
+```go
+func (l *actorLocator) release(
+    ctx context.Context,
+    kind, id string,
+    owner ActorOwner,
+) (bool, error) {
+    result, err := l.redis.Eval(
+        ctx,
+        actorLocatorReleaseScript,
+        []string{actorLocatorOwnerKey(kind, id)},
+        encodeActorOwner(owner, l.leaseToken),
+    ).Int64()
+    if err != nil {
+        return false, errors.Wrap(err, "release actor owner")
+    }
+    return result == 1, nil
+}
 ```
 
-- [ ] **Step 5: Commit**
+Migrate every caller without a compatibility wrapper.
+
+- [ ] **Step 4: Implement owner Activator resolution**
+
+For each `hashableActorActive`:
+
+1. Claim validates the directory owner.
+2. `owned_by_other` returns `ActorLocateRetry`.
+3. `already_owned` with a local PID returns that PID.
+4. `already_owned` without a local PID conditionally releases and returns retry.
+5. `acquired` with `allow_spawn=false` conditionally releases and returns retry.
+6. Only `acquired` with `allow_spawn=true` calls `SpawnNamed`.
+
+Touch failure and actor termination remove local maps and conditionally Release. Redis Release errors are logged but do not preserve dead local state.
+
+- [ ] **Step 5: Implement bounded relocation**
+
+`getActor` loops at most `actorLocateMaxAttempts`. On directory hit it resolves the owner address and calls `requestActor(..., false)`. On miss with `spawn=true` it selects a current healthy candidate and calls `requestActor(..., true)`. Typed retry restarts Locate; retry exhaustion returns `errActorLocateRetryExhausted`. A missing active-owner address returns unavailable and never steals a valid lease.
+
+- [ ] **Step 6: Run GREEN**
 
 ```bash
-git add core/gxyactor/actor_locator.go core/gxyactor/activator_manager.go core/gxyactor/actor_locator_test.go
-git commit -m "feat: add atomic actor ownership claim"
+go test -race -run '^(TestActorLocator|TestActivation|TestGetActor)' -count=1 ./core/gxyactor
 ```
 
 ---
 
-### Task 3: Gate actor activation on Claim
+### Task 3: Self-fence after node lease loss
 
 **Files:**
+- Modify: `core/gxyactor/actor_locator.go`
 - Modify: `core/gxyactor/activator_manager.go`
-- Modify: `core/gxyactor/helper.go`
-- Test: `core/gxyactor/actor_test.go`
-- Test: `core/gxyactor/actor_locator_test.go`
+- Modify: `core/gxyactor/actor_locator_test.go`
 
 **Interfaces:**
-- Actor activation uses `actorLocator.Claim` before `SpawnNamed`.
-- A losing activator returns the existing owner's PID when its node address is available, or a typed ownership error that causes the caller to re-locate.
-- `GetActorOwner(ctx, kind, id)` exposes owner metadata to persistence and notification adapters without exposing Redis commands.
+- `actorLocator.leaseValid(now time.Time) bool` checks the conservative local deadline.
+- `startLeaseHeartbeat(ctx, onLost func(error)) func()` invokes `onLost` exactly once.
+- Production `onLost` calls `gxylog.Fatal`; tests inject a non-terminating callback.
 
-- [ ] **Step 1: Write failing activation tests**
-
-Add tests that prove:
+- [ ] **Step 1: Write failing watchdog tests**
 
 ```go
-func TestActorActivatorDoesNotSpawnAfterClaimLost(t *testing.T) {}
-func TestActorActivatorClaimWinnerRegistersEpoch(t *testing.T) {}
-func TestGetActorOwnerReturnsNodeAndEpoch(t *testing.T) {}
+func TestActorLocatorTokenMismatchFencesImmediately(t *testing.T) {}
+func TestActorLocatorRenewalErrorsFenceAtDeadlineOnce(t *testing.T) {}
+func TestActorLocatorGracefulStopDoesNotFence(t *testing.T) {}
 ```
 
-The losing test injects a locator returning `owned_by_other` and asserts the spawn function is not called. The winner test asserts the actor registration stores the claimed owner in an `actorActivator.owners` map keyed by PID rather than overwriting Redis with a raw SET.
+Use short test-only lease and heartbeat durations. Close the Redis client after acquisition and assert one callback after the last confirmed deadline.
 
 - [ ] **Step 2: Run RED**
 
 ```bash
-go test -run '^(TestActorActivator|TestGetActorOwner)' -count=1 ./core/gxyactor
+go test -run '^TestActorLocator.*Fence|^TestActorLocatorGracefulStop' -count=1 ./core/gxyactor
 ```
 
-Expected: FAIL because activation still calls `SpawnNamed` before ownership Claim and owner metadata is unavailable.
+- [ ] **Step 3: Implement deadline tracking**
 
-Change `actorActivator.HandleMessage` so Claim occurs before `SpawnNamed`. On `owned_by_other`, resolve the existing node through the current service lookup and return its PID without creating a local actor. On Claim success, pass the returned owner into registration and Touch failure cleanup; store the owner in `actorActivator.owners[pid]`. Pass the owner as a second actor initialization argument with `SpawnNamed(props, msg.Id, msg.Id, owner)` so RoleMain can retain the exact epoch. Replace `registerActorLocate` raw `SET` with Claim-backed registration. Replace unregister raw `DEL` with conditional Release.
-
-Keep `getActor` direct lookup behavior, but route owner metadata through the locator. A Redis error must return an error; only Redis Nil/missing owner enters the spawn path.
-
-- [ ] **Step 4: Run GREEN**
-
-```bash
-go test -run '^(TestActorActivator|TestGetActorOwner|TestActorLocate)' -count=1 ./core/gxyactor
+```go
+type actorLocator struct {
+    redis             redis.UniversalClient
+    nodeID            string
+    leaseToken        string
+    leaseTTL          time.Duration
+    heartbeatInterval time.Duration
+    leaseDeadline     atomic.Int64
+    fenced            atomic.Bool
+}
 ```
 
-- [ ] **Step 5: Commit**
+Capture `started := time.Now()` before every acquire or renew. On success store `started.Add(leaseTTL).UnixNano()`, which is conservative relative to Redis command completion. Token mismatch fences immediately. Redis errors log and retry only before the last confirmed deadline. `sync.Once` guarantees one fatal callback.
+
+- [ ] **Step 4: Wire production self-fencing**
+
+```go
+g.stopLease = g.locator.startLeaseHeartbeat(ctx, func(err error) {
+    gxylog.Fatal(g.ctx, "actor node lease lost",
+        gxylog.Str("node", g.nodeInstanceName),
+        gxylog.Err(err))
+})
+```
+
+Graceful module stop cancels and waits for the watchdog before releasing the lease. Claim rejects a locally fenced locator.
+
+- [ ] **Step 5: Run GREEN**
 
 ```bash
-git add core/gxyactor/activator_manager.go core/gxyactor/helper.go core/gxyactor/actor_test.go core/gxyactor/actor_locator_test.go
-git commit -m "feat: gate actor activation on ownership claim"
+go test -race -run '^TestActorLocator' -count=1 ./core/gxyactor
 ```
 
 ---
 
-### Task 4: Carry fencing epoch into Role persistence
+### Task 4: Establish the PostgreSQL Role fence
+
+**Files:**
+- Create: `src/apps/role/internal/logic/role_actor_fence.go`
+- Create: `src/apps/role/internal/logic/role_actor_fence_test.go`
+- Modify: `src/apps/role/internal/logic/role_schema.go`
+- Modify: `src/apps/role/internal/logic/role_main.go`
+
+**Interfaces:**
+- `advanceRoleActorFence(ctx, db, roleID, owner) error` establishes ownership before Role state loads.
+- `lockRoleActorFence(ctx, tx, roleID, owner) error` validates ownership inside saves.
+- `errRoleActorOwnershipLost` classifies stale owners.
+
+- [ ] **Step 1: Write failing SQL tests**
+
+```go
+func TestAdvanceRoleActorFenceInsertsFirstOwner(t *testing.T) {}
+func TestAdvanceRoleActorFenceAdvancesGreaterEpoch(t *testing.T) {}
+func TestAdvanceRoleActorFenceAllowsSameOwnerIdempotently(t *testing.T) {}
+func TestAdvanceRoleActorFenceRejectsOlderEpoch(t *testing.T) {}
+func TestLockRoleActorFenceRejectsMissingOwner(t *testing.T) {}
+```
+
+Use `newGormDBForRole` and go-sqlmock. A zero-row advance or lock returns `errRoleActorOwnershipLost`.
+
+- [ ] **Step 2: Run RED**
+
+```bash
+go test -run '^(TestAdvanceRoleActorFence|TestLockRoleActorFence)' -count=1 ./src/apps/role/internal/logic
+```
+
+- [ ] **Step 3: Add the model and migration**
+
+```go
+type RoleActorFence struct {
+    RoleID   int64     `gorm:"column:role_id;primaryKey"`
+    NodeID   string    `gorm:"column:node_id;not null"`
+    Epoch    uint64    `gorm:"column:epoch;not null"`
+    UpdateAt time.Time `gorm:"column:update_at;not null"`
+}
+
+func (RoleActorFence) TableName() string { return "role_actor_fence" }
+```
+
+Add `&RoleActorFence{}` to `InitRoleSchema`. Implement the exact `INSERT ... ON CONFLICT ... WHERE` and `SELECT ... FOR UPDATE` statements from the spec. Reject empty node, epoch zero, SQL errors and zero affected rows.
+
+- [ ] **Step 4: Establish the fence before loading**
+
+At the start of `RoleMain.DelayInit`, reject a missing `actorOwner`, then call `advanceRoleActorFence` before `initRole`.
+
+- [ ] **Step 5: Run GREEN**
+
+```bash
+go test -run '^(TestAdvanceRoleActorFence|TestLockRoleActorFence|TestRoleMain)' -count=1 ./src/apps/role/internal/logic
+```
+
+---
+
+### Task 5: Fence every Role save transaction
 
 **Files:**
 - Modify: `src/apps/role/internal/logic/role_main.go`
-- Modify: `src/lib/rolelib/rolelib.go`
-- Modify: `core/gxyactor/helper.go`
-- Test: `src/apps/role/internal/logic/role_main_test.go`
-- Test: `src/apps/role/internal/logic/role_save_test.go`
+- Modify: `src/apps/role/internal/logic/role_main_core_test.go`
+- Modify: `src/apps/role/internal/logic/role_save_test.go`
+- Remove: `src/apps/role/internal/logic/role_owner_fencing_test.go`
 
 **Interfaces:**
-- `RoleMain` stores the `ActorOwner` passed as the second actor initialization argument.
-- `checkRoleSaveOwner(ctx)` validates exact node ID and epoch against the current locator owner.
-- Role notification lookup continues to return a node ID through the locator adapter; it does not read Redis directly.
+- Full Role saves and single-module saves call `lockRoleActorFence` before business writes in the same transaction.
+- Ownership loss returns an error, preserves dirty state, and reaches the existing timer-save actor stop path.
 
-- [ ] **Step 1: Write failing save-fencing tests**
-
-Add cases:
+- [ ] **Step 1: Write failing transaction-order tests**
 
 ```go
-func TestCheckRoleSaveOwnerRejectsOlderEpoch(t *testing.T) {}
-func TestCheckRoleSaveOwnerAcceptsSameNodeAndEpoch(t *testing.T) {}
-func TestCheckRoleSaveOwnerRejectsDifferentNode(t *testing.T) {}
+func TestSaveLocksRoleFenceBeforeModuleWrites(t *testing.T) {}
+func TestSaveRejectsStaleFenceWithoutBusinessWrites(t *testing.T) {}
+func TestSaveRoleModuleLocksFenceInSameTransaction(t *testing.T) {}
+func TestSaveRoleModuleKeepsDirtyStateOnFenceLoss(t *testing.T) {}
 ```
 
-Inject the locator/owner lookup through existing package-level dependency variables. Seed a RoleMain with epoch 41; return current epoch 42 and assert the save is skipped. Return the same node and epoch and assert the save path proceeds.
+Success expects `BEGIN -> SELECT ... FOR UPDATE -> module write -> COMMIT`. Stale ownership expects `BEGIN -> empty fence query -> ROLLBACK` with no business write.
 
 - [ ] **Step 2: Run RED**
 
 ```bash
-go test -run '^(TestCheckRoleSaveOwner|TestSaveRole)' ./src/apps/role/internal/logic
+go test -run '^TestSave.*Fence|^TestSaveRoleModule.*Fence' -count=1 ./src/apps/role/internal/logic
 ```
 
-Expected: FAIL because RoleMain stores no epoch and compares only the node string.
+- [ ] **Step 3: Fence full and single-module saves**
 
-Pass the claimed owner as the second actor initialization argument: `SpawnNamed(props, msg.Id, msg.Id, owner)`. In `RoleMain.Init`, require and parse `args[1].(gxyactor.ActorOwner)` for production actor activation and retain it on the RoleMain. Replace direct `rolelib.GetRoleLocateKey(...).GET` with `gxyactor.GetActorOwner`. Reject missing owner, Redis errors, different node, and epoch mismatch; only an exact current node+epoch is accepted for persistence. Keep dirty state intact when persistence is rejected.
+Make `lockRoleActorFence` the first operation inside the existing full-save transaction. Wrap `defaultSaveRoleModule` in one transaction and lock before `saveRoleModuleState`.
 
-Change `rolelib.roleLocateNode` to call the locator adapter instead of reading Redis directly, preserving its existing notification behavior and tests.
+Remove `checkRoleSaveOwner` and `roleActorOwnerLookup`; a Redis pre-check has cross-store TOCTOU and no longer authorizes persistence.
+
+Replace version-zero `db.Save(modState)` with `db.Create(modState)` so a stale insert path cannot fall back to UPDATE. Clear dirty state only after commit; retain the existing version rollback bookkeeping.
 
 - [ ] **Step 4: Run GREEN**
 
 ```bash
-go test -run '^(TestCheckRoleSaveOwner|TestSaveRole|TestPublishRoleNotify)' ./src/apps/role/internal/logic
-```
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/apps/role/internal/logic/role_main.go src/lib/rolelib/rolelib.go core/gxyactor/helper.go src/apps/role/internal/logic/*_test.go
-git commit -m "feat: fence role persistence by actor epoch"
+go test -race -run '^(TestSave|TestDirtyRoleModules|TestRoleMain)' -count=1 ./src/apps/role/internal/logic
+go test ./src/apps/role/internal/logic ./src/lib/rolelib
 ```
 
 ---
 
-### Task 5: Update architecture documentation and compatibility tests
+### Task 6: Align architecture documentation and benchmarks
 
 **Files:**
+- Modify: `docs/architecture/adr-0006-actor-location-ownership.md`
+- Modify: `docs/superpowers/specs/2026-09-03-actor-location-ownership-design.md`
 - Modify: `docs/architecture/actor-location.md`
-- Modify: `docs/architecture/actor-location-research.md`
 - Modify: `docs/architecture/actor-init-race.md`
-- Test: `core/gxyactor/actor_bench_test.go`
-- Test: `core/gxyactor/actor_test.go`
+- Modify: `docs/architecture/actor-system.md`
+- Modify: `docs/architecture/overview.md`
+- Modify: `docs/architecture/actor-location-research.md`
+- Modify: `core/gxyactor/actor_bench_test.go`
+- Modify: `core/gxyactor/actor_locate_bench_test.go`
 
 **Interfaces:**
-- Documentation reflects direct lookup, node lease, atomic Claim/Release, and fencing.
-- Existing direct lookup benchmarks continue to measure the hot path; node Set scan remains comparison-only.
+- Documentation uses Directory Entry, Node Lease, Local Activation and Fencing Epoch consistently.
+- Benchmarks use `testing.B.Loop()` and seed valid node leases for directory hits.
 
-- [ ] **Step 1: Add failing compatibility assertions**
+- [ ] **Step 1: Remove contradictory claims**
 
-Update existing Redis integration tests so they expect an encoded owner containing node ID and epoch, and add a test that a second registration cannot overwrite a live owner. Run the focused tests and confirm they fail against old test expectations.
+Remove statements that owner keys prove actor liveness, fixed owner TTL makes ownership safe, Redis hits may directly construct PIDs, Role Redis pre-check is true fencing, or shard/online migration is deferred work.
 
-- [ ] **Step 2: Implement documentation and test updates**
+- [ ] **Step 2: Record exact failure semantics**
 
-Document exact key formats, lifecycle order, error semantics, stale cleanup, and network-partition limits. Remove statements claiming raw `SET`/`DEL` or a 12-hour key alone ensures safety. Keep the measured Redis layout comparison linked as evidence.
+Document the CP decision, stale-owner self-healing, offline-only redistribution, fatal self-fence, PostgreSQL fencing and permanent rejection of shard ownership and online actor migration.
 
-- [ ] **Step 3: Run focused compatibility tests**
+- [ ] **Step 3: Compile benchmarks and focused tests**
 
 ```bash
+go test -run '^$' -bench '^$' ./core/gxyactor
 go test -run '^(TestGetActorLocateKey|TestRegisterActorLocate|TestGetActorLocateNodeName)' -count=1 ./core/gxyactor
 ```
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add docs/architecture/actor-location.md docs/architecture/actor-location-research.md docs/architecture/actor-init-race.md core/gxyactor/actor_bench_test.go core/gxyactor/actor_test.go
-git commit -m "docs: record actor ownership fencing model"
-```
-
 ---
 
-### Task 6: Run end-to-end verification
+### Task 7: End-to-end verification and commits
 
 **Files:**
-- Verify all changed files; no new implementation files.
+- Verify and commit all changed files.
 
-- [ ] **Step 1: Run ownership integration tests**
-
-```bash
-RUN_REDIS_TESTS=1 go test -race -run '^(TestActorLocator|TestActorActivator|TestGetActorOwner)' -count=1 ./core/gxyactor
-```
-
-Expected: PASS, including concurrent Claim, expired-lease takeover, stale Release protection, and invalid lease rejection.
-
-- [ ] **Step 2: Run Role persistence and notification tests**
+- [ ] **Step 1: Run ownership race tests**
 
 ```bash
-go test -race -run '^(TestCheckRoleSaveOwner|TestSaveRole|TestPublishRoleNotify)' -count=1 ./src/apps/role/internal/logic ./src/lib/rolelib
+go test -race -run '^(TestActorLocator|TestActivation|TestGetActor)' -count=1 ./core/gxyactor
 ```
 
-Expected: PASS with old epochs rejected and same owner epochs accepted.
+- [ ] **Step 2: Run PostgreSQL fencing tests**
 
-- [ ] **Step 3: Run package regression tests**
+```bash
+go test -race -run '^(TestAdvanceRoleActorFence|TestLockRoleActorFence|TestSave)' -count=1 ./src/apps/role/internal/logic
+```
+
+- [ ] **Step 3: Run package and project verification**
 
 ```bash
 go test ./core/gxyactor ./src/apps/role/internal/logic ./src/lib/rolelib
-```
-
-- [ ] **Step 4: Build all packages**
-
-```bash
+go test ./...
 go build ./...
 ```
 
-- [ ] **Step 5: Check formatting and final diff**
+- [ ] **Step 4: Check generated code and formatting**
 
 ```bash
-gofmt -l core/gxyactor src/apps/role/internal/logic src/lib/rolelib
+gofmt -w core/gxyactor/*.go src/apps/role/internal/logic/*.go src/lib/rolelib/*.go
 git diff --check
+git status --short --branch
 ```
 
-Expected: no formatting output and no whitespace errors. Preserve unrelated untracked benchmark/research files unless they are explicitly part of the commits above.
+- [ ] **Step 5: Commit coherent changes**
+
+Commit the revised ADR/spec/plan before implementation commits. Keep protocol, directory, lease watchdog, PostgreSQL fence and final documentation in reviewable commits. Do not commit pressure-run artifacts unrelated to the final implementation.
