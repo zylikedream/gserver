@@ -165,7 +165,9 @@ const (
 )
 
 // decideActivation 将 Claim 结果、本地 activation 状态和调用方的 spawn 意图
-// 组合成唯一动作。localPID 来自当前节点 ActorMgr；nil 表示本地没有已登记的 Actor。
+// 组合成唯一动作。Claim 与 Spawn 是两个独立阶段：allowSpawn=false
+// 仍会校验/清理 ownership，但绝不会执行 SpawnNamed。
+// localPID 来自当前节点 ActorMgr；nil 表示本地没有已登记的 Actor。
 func decideActivation(owner ActorOwner, acquired bool, localNode string, localPID PID, allowSpawn bool) activationAction {
 	// Claim 返回了其他节点的 owner：本节点不能创建或接管，只能重新定位。
 	if owner.NodeID != localNode {
@@ -562,6 +564,8 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 			if nodeHost == "" {
 				return nil, errors.Newf("active actor owner address unavailable: %s", owner.NodeID)
 			}
+			// 已有 owner 时这是 lookup-only 请求：即使 allowSpawn=false，
+			// 远端仍需 Claim 重新校验 owner/lease，处理 locate 与请求之间的竞态。
 			pid, retry, err := requestActor(ctx, nodeHost, kind, id, false)
 			if retry {
 				continue
@@ -573,6 +577,7 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 			return pid, nil
 		}
 
+		// 没有 owner 时，spawn=false 直接返回 not found，不会发送远程 Claim。
 		if !spawn {
 			result = "not_found"
 			return nil, gerror.Newf("actor kind:%s, id:%s not found", kind, id)

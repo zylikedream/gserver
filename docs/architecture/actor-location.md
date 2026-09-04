@@ -84,6 +84,8 @@ GetRoleActor(roleID)
                └── owned_by_other → 返回 RetryLocate，重新读取 directory
 ```
 
+`allowSpawn` 只控制 Claim 成功后的 `SpawnNamed` 权限，并不跳过 Claim。已有 owner 的查找请求即使是 `allowSpawn=false`，仍需在 owner 节点重新校验 lease 和 epoch，避免 Redis 定位结果与远程处理之间的竞态；只有没有 owner 且调用方明确允许创建时，才会选择候选节点并执行 spawn。
+
 ### Claim 与 Release
 
 ```
