@@ -50,12 +50,17 @@ const (
 	claimOwnedOther claimResult = "owned_by_other"
 )
 
+// actorLocatorClaimScript 在一次 Redis Lua 调用内完成候选节点校验和 owner 仲裁。
+// 返回值为 {状态, owner值}; 状态由 claimResult 及 invalid_lease 分支解释。
 const actorLocatorClaimScript = `
+-- KEYS: 玩家 owner、候选节点 lease、全局 epoch；ARGV: 候选节点和 lease token。
 local ownerKey = KEYS[1]
 local candidateLeaseKey = KEYS[2]
 local epochKey = KEYS[3]
 local candidateNode = ARGV[1]
 local candidateToken = ARGV[2]
+
+-- 候选节点无法证明自己仍持有 lease 时必须 fail closed，禁止抢占。
 if redis.call("GET", candidateLeaseKey) ~= candidateToken then
     return {"invalid_lease", ""}
 end
@@ -63,17 +68,22 @@ end
 local current = redis.call("GET", ownerKey)
 if current then
     local currentNode, _, currentToken = string.match(current, "^([^|]+)|([0-9]+)|(.+)$")
+    -- owner 格式非法时按失效记录处理，下面会递增 epoch 后重建。
     if currentNode then
         local currentLease = redis.call("GET", "gserver:locate:node:lease:" .. currentNode)
+        -- 只有 owner 节点 lease 仍与 owner 中的 token 匹配，才算活跃 owner。
         if currentLease == currentToken then
             if currentNode == candidateNode then
+                -- 同一节点重复 Claim：保留原 epoch，避免无意义地生成新 owner。
                 return {"already_owned", current}
             end
+            -- 其他节点仍是活跃 owner：候选节点不能越权接管。
             return {"owned_by_other", current}
         end
     end
 end
 
+-- owner 缺失、格式非法或原 owner lease 已失效：递增 epoch 后原子接管。
 local epoch = redis.call("INCR", epochKey)
 local owner = candidateNode .. "|" .. epoch .. "|" .. candidateToken
 redis.call("SET", ownerKey, owner)
