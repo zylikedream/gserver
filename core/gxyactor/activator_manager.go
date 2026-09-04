@@ -214,11 +214,15 @@ func (a *actorActivator) unregisterActor(id string, pid PID) {
 func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *hashableActorActive:
+		// Claim 必须先于任何 SpawnNamed：Redis owner 是跨节点 single-writer
+		// 的裁决结果，本地 ActorMgr 只能用于确认当前节点是否已有实例。
 		owner, acquired, err := a.manager.locator.claim(ctx, a.kind, msg.Id)
 		if err != nil {
 			_ = Respond(ctx, a.Actx, ActorError(err.Error()))
 			return nil
 		}
+		// 同一 ID 在 Touch 完成前再次到达时，加入同一个 pending activation。
+		// 不重复 Claim/Spawn；owner 校验防止旧初始化结果接管新 owner。
 		if pending := a.pending[msg.Id]; pending != nil {
 			if pending.owner != owner {
 				_ = Respond(ctx, a.Actx, ActorError("pending actor activation lost ownership"))
@@ -229,6 +233,8 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			}
 			return nil
 		}
+		// Claim 后再检查本地 Actor，统一处理远程 owner、本地命中、
+		// 残留 owner、重复 ownership 和允许/禁止 spawn 等分支。
 		localPID := a.meta.mgr.Get(msg.Id)
 		switch decideActivation(owner, acquired, a.manager.nodeInstanceName, localPID, msg.GetAllowSpawn()) {
 		case activationRetry:
@@ -238,6 +244,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			_ = Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: localPID})
 			return nil
 		case activationReleaseAndRetry:
+			// 只有 owner 完全匹配时 Release 才能删除记录，避免误删新 owner。
 			if _, err := a.manager.locator.release(ctx, a.kind, msg.Id, owner); err != nil {
 				_ = Respond(ctx, a.Actx, ActorError(err.Error()))
 				return nil
@@ -245,16 +252,18 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			_ = Respond(ctx, a.Actx, &pb.ActorLocateRetry{})
 			return nil
 		case activationConflict:
+			// Claim 已成功但本地已有实例：宁可报错，也不能创建第二个 writer。
 			_ = Respond(ctx, a.Actx, ActorError("claimed actor owner conflicts with an existing local activation"))
 			return nil
 		case activationSpawn:
+			// 当前节点持有 owner 且允许创建，继续执行 Claim-before-Spawn。
 		}
 
+		// SpawnNamed 使用原始 ID，保证 Actor PID 与后续 ActorMgr 查找一致。
 		props := a.meta.Props.Clone()
-		// notice 这儿不要使用actor自带的SpawnNamed, 因为actor_context的spawn_named会把id偷偷的加上前缀，
-		// 导致actor.NewPid(msg.Id)返回的pid和a.SpawnNamed(msg.Id)返回的pid不同
 		pid, err := SpawnNamed(props, msg.Id, msg.Id, owner)
 		if err != nil {
+			// 创建失败也必须条件释放 owner，否则其他节点会看到残留 owner。
 			_, releaseErr := a.manager.locator.release(ctx, a.kind, msg.Id, owner)
 			if releaseErr != nil {
 				err = errors.CombineErrors(err, releaseErr)
@@ -263,6 +272,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			return nil
 		}
 
+		// 在异步 Touch 完成前登记 pending；并发请求会在上面的分支加入 waiters。
 		var waiters []PID
 		if sender := a.Actx.Sender(); sender != nil {
 			waiters = append(waiters, sender)
@@ -276,10 +286,11 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		}
 		a.Actx.Watch(pid)
 
-		// Touch may block on actor initialization. Only the result crosses back
-		// into this activator's mailbox; actor state is never mutated here.
+		// Init/DelayInit 可能阻塞，不能占住 activator mailbox；结果通过本地消息
+		// 回到 mailbox，继续由 Actor 顺序处理 pending 和 waiter。
 		self := a.Actx.Self()
 		go func(id string, owner ActorOwner) {
+
 			_, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second)
 			if sendErr := LocalSend(context.Background(), self, &localMsgActorTouchResult{
 				ID: id, PID: pid, Owner: owner, Err: err,
@@ -291,12 +302,17 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 
 		return nil
 
+		// Touch 结果必须回到 activator mailbox 串行处理；先校验 PID 和 owner，
+		// 丢弃迟到的旧结果，避免旧 activation 修改新 pending。
 	case *localMsgActorTouchResult:
 		pending := a.pending[msg.ID]
 		if pending == nil || pending.pid != msg.PID || pending.owner != msg.Owner {
 			return nil
 		}
+		// pending 只在一次有效 Touch 结果到达后删除，之后该 Actor 才进入 mgr。
 		delete(a.pending, msg.ID)
+		// Touch 失败意味着 Actor 没有完成初始化：停止实例、条件释放 owner，
+		// 再通知所有等待者，确保失败的 Actor 不会被当成可用实例返回。
 		if msg.Err != nil {
 			gxylog.Warn(ctx, "actor touch failed", gxylog.Str("kind", a.kind), gxylog.Str("id", msg.ID), gxylog.Err(msg.Err))
 			_ = StopActor(msg.PID)
@@ -306,6 +322,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			}
 			return nil
 		}
+		// Touch 成功后才登记到 ActorMgr，随后把同一个 PID 返回给全部 waiters。
 		a.meta.mgr.Add(msg.ID, msg.PID)
 		for _, waiter := range pending.waiters {
 			_ = Send(ctx, waiter, &remote.ActorPidResponse{Pid: msg.PID})
