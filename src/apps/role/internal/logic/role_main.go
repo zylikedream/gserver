@@ -31,6 +31,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -525,11 +526,21 @@ func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IR
 	modState.SetUpdateAt(time.Now())
 
 	if oldVersion == 0 {
-		// version==0 表示新号，只允许 INSERT，绝不回退为覆盖旧行的 UPDATE。
-		if err := db.Create(modState).Error; err != nil {
-			return nil, errors.Wrap(err, "create mod "+tableName+" failed")
+		// version==0 可能是新行,也可能是旧版本留下的已有行。
+		// 先用 INSERT ... ON CONFLICT DO NOTHING 处理新行；若冲突,
+		// 继续进入 version=0 的条件 UPDATE,将遗留行升级到 version=1。
+		modState.SetVersion(1)
+		result := db.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "role_id"}},
+			DoNothing: true,
+		}).Create(modState)
+		if result.Error != nil {
+			modState.SetVersion(0)
+			return nil, errors.Wrap(result.Error, "create mod "+tableName+" failed")
 		}
-		return &savedRoleModule{state: modState}, nil
+		if result.RowsAffected == 1 {
+			return &savedRoleModule{state: modState, oldVersion: 0, versionChanged: true}, nil
+		}
 	}
 
 	// version>0 表示有已有行，UPDATE + WHERE version 做冲突检测

@@ -103,8 +103,8 @@ actor spawn 成功后写入 Redis，TTL 为 12 小时且不续期；actor termin
 
 来源：
 
-- `docs/architecture/actor-location.md:15-26,67-80,83-101`
-- `core/gxyactor/activator_manager.go:146-165,226-246`
+- `87b5ce1:docs/architecture/actor-location.md:15-26,67-80,83-101`
+- `87b5ce1:core/gxyactor/activator_manager.go:146-165,226-246`
 
 改造前查找流程是：
 
@@ -117,10 +117,10 @@ GET per-player locate key
 
 来源：
 
-- `core/gxyactor/activator_manager.go:406-450`
-- `docs/architecture/actor-location.md:40-65`
+- `87b5ce1:core/gxyactor/activator_manager.go:406-450`
+- `87b5ce1:docs/architecture/actor-location.md:40-65`
 
-改造前 per-player key 的优点是正常查找 O(1)，且不需要遍历全部节点；缺点是 locate key 同时承担路由缓存、所有权记录、存活判断和清理信号，导致 `SET`、`SETNX`、TTL、无条件 `DEL` 之间存在语义冲突。
+改造前 per-player key 的优点是正常查找 O(1)，且不需要遍历全部节点；缺点是 locate key 同时承担路由缓存、所有权记录、存活判断和清理信号，导致 `SET`、TTL、无条件 `DEL` 之间存在语义冲突。
 
 ## 差异对比
 

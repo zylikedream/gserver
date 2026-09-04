@@ -151,7 +151,8 @@ func TestSaveRoleModuleState_NotDirty(t *testing.T) {
 	}
 }
 
-// TestSaveRoleModuleState_NewRowVersion0 version=0(新号)走 INSERT。
+// TestSaveRoleModuleState_NewRowVersion0 version=0(新号)走 INSERT,
+// 插入成功后版本推进为 1:下次脏保存走 UPDATE 路径,不会再次 INSERT 撞主键。
 func TestSaveRoleModuleState_NewRowVersion0(t *testing.T) {
 	db, mock := newGormDBForRole(t)
 	r := newRoleMainForSave(100)
@@ -160,7 +161,7 @@ func TestSaveRoleModuleState_NewRowVersion0(t *testing.T) {
 	st.Version = 0
 
 	mock.ExpectBegin()
-	// gorm Save 主键零值 → INSERT ... RETURNING role_id(走 Query)
+	// gorm Create 零值主键 → INSERT ... RETURNING role_id(走 Query)
 	mock.ExpectQuery(`INSERT INTO "test_mod"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(sqlmock.NewRows([]string{"role_id"}).AddRow(100))
@@ -173,11 +174,70 @@ func TestSaveRoleModuleState_NewRowVersion0(t *testing.T) {
 	if saved == nil {
 		t.Fatal("expected saved result for new row")
 	}
-	if saved.versionChanged {
-		t.Fatal("new row insert must not be versionChanged")
+	if st.Version != 1 {
+		t.Fatalf("insert must advance version to 1, got %d", st.Version)
+	}
+	if saved.oldVersion != 0 || !saved.versionChanged {
+		t.Fatalf("expected versionChanged with oldVersion=0, got %+v", saved)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("mock expectations: %v", err)
+	}
+}
+
+// TestSaveRoleModuleState_NewRowInsertErrorKeepsVersion INSERT 失败时版本保持 0。
+func TestSaveRoleModuleState_NewRowInsertErrorKeepsVersion(t *testing.T) {
+	db, mock := newGormDBForRole(t)
+	r := newRoleMainForSave(100)
+	st := &corePersistState{}
+	st.MarkDirty()
+	st.Version = 0
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "test_mod"`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnError(errors.New("duplicate key"))
+	mock.ExpectRollback()
+
+	if _, err := r.saveRoleModuleState(context.Background(), db, &coreRoleModule{state: st}); err == nil {
+		t.Fatal("expected insert error")
+	}
+	if st.Version != 0 {
+		t.Fatalf("failed insert must keep version 0, got %d", st.Version)
+	}
+	if !st.IsDirty() {
+		t.Fatal("dirty flag must survive failed insert")
+	}
+}
+
+func TestSaveRoleModuleState_LegacyVersionZeroRowUpgrades(t *testing.T) {
+	db, mock := newGormDBForRole(t)
+	r := newRoleMainForSave(100)
+	st := &corePersistState{}
+	st.RoleID = 100
+	st.MarkDirty()
+	st.Version = 0
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "test_mod"`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"role_id"}))
+	mock.ExpectCommit()
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "test_mod"`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	saved, err := r.saveRoleModuleState(context.Background(), db, &coreRoleModule{state: st})
+	if err != nil {
+		t.Fatalf("saveRoleModuleState: %v", err)
+	}
+	if saved == nil || !saved.versionChanged || st.Version != 1 {
+		t.Fatalf("legacy row was not upgraded: saved=%+v version=%d", saved, st.Version)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 

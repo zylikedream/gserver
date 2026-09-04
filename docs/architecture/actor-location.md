@@ -65,8 +65,8 @@ Service Key：`gserver-{nodeName}-{serviceName}`
 
 ```
 GetRoleActor(roleID)
-  → ActivateActor("role", roleID, spawn=true)
-    → getActor("role", roleID, spawn=true)
+  → ActivateActor("role", roleID, spawn=false)
+    → getActor("role", roleID, spawn=false)
       │
       ├─ Redis direct lookup
       │   GET key → owner {nodeInstanceName, epoch, leaseToken}
@@ -77,7 +77,7 @@ GetRoleActor(roleID)
       │              ├── 本地 ActorMgr 命中 → 返回 PID
       │              └── 本地 activation 缺失 → 条件删除 owner，返回 RetryLocate
       │
-      └─ 未命中且 spawn=true
+      └─ 未命中且 spawn=true（由 ActivateRole 进入）
           → ConsistentHash 选择候选节点
           → 请求候选 Activator（allow_spawn=true）
                ├── acquired → SpawnNamed → Touch 成功后返回 PID
@@ -180,7 +180,7 @@ Consul 负责节点服务发现；Redis lease、token 和 epoch 负责 directory
 | 注销方式 | compare-and-delete(node, epoch, token) | 延迟旧清理不能删除新 owner |
 | 持久化校验 | PostgreSQL 事务锁定 exact node + epoch | Redis 预查存在 TOCTOU；旧 actor 的整个保存事务必须被拒绝 |
 | 节点选择 | 一致性哈希 | 同一 ID 稳定选择候选节点 |
-| 随机端口 | `remote.Configure(host, 0)` | 避免端口冲突 |
+| 节点端口 | `remote.Configure(host, port.actor)` | 使用配置端口，避免随机端口带来的防火墙/注册问题 |
 
 ## 变更记录
 

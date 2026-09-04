@@ -59,6 +59,14 @@ func TestActivationClaimWinnerCanSpawn(t *testing.T) {
 	}
 }
 
+func TestActivationClaimedWithExistingLocalActorConflicts(t *testing.T) {
+	pid := actor.NewPID("node-a:1", "player-1")
+	action := decideActivation(ActorOwner{NodeID: "node-a", Epoch: 7}, true, "node-a", pid, true)
+	if action != activationConflict {
+		t.Fatalf("action = %v, want conflict", action)
+	}
+}
+
 func TestGetActorRetryRelocatesOfflineActor(t *testing.T) {
 	ownerLocator, callerLocator, _ := newActorLocatorTestPair(t)
 	ctx := context.Background()

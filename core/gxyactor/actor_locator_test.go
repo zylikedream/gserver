@@ -158,6 +158,23 @@ func TestActorLocatorClaimRejectsInvalidLease(t *testing.T) {
 	}
 }
 
+func TestActorLocatorClaimReportsInvalidLeaseFromScript(t *testing.T) {
+	first, _, server := newActorLocatorTestPair(t)
+	ctx := context.Background()
+	if err := first.acquireNodeLease(ctx); err != nil {
+		t.Fatal(err)
+	}
+	// 本地 deadline 仍有效,但脚本执行时节点 lease 已被替换:
+	// Lua 返回 invalid_lease,必须得到类型化的 lease 错误而非 decode 错误。
+	if err := server.Set(actorLocatorLeaseKey(first.nodeID), "other-token"); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := first.claim(ctx, "role", "player-1")
+	if !errors.Is(err, errActorLocatorLeaseInvalid) {
+		t.Fatalf("claim error = %v, want typed invalid lease", err)
+	}
+}
+
 func TestActorLocatorRenewDoesNotRefreshDifferentToken(t *testing.T) {
 	first, _, server := newActorLocatorTestPair(t)
 	ctx := context.Background()

@@ -206,6 +206,10 @@ func (l *actorLocator) claim(ctx context.Context, kind, id string) (ActorOwner, 
 	if !ok {
 		return ActorOwner{}, false, errors.New("actor claim result status is not a string")
 	}
+	if status == "invalid_lease" {
+		return ActorOwner{}, false, errActorLocatorLeaseInvalid
+	}
+
 	ownerValue, ok := redisString(parts[1])
 	if !ok {
 		return ActorOwner{}, false, errors.New("actor claim result owner is not a string")
@@ -221,8 +225,6 @@ func (l *actorLocator) claim(ctx context.Context, kind, id string) (ActorOwner, 
 		return owner, false, nil
 	case claimOwnedOther:
 		return owner, false, nil
-	case "invalid_lease":
-		return ActorOwner{}, false, errActorLocatorLeaseInvalid
 	default:
 		return ActorOwner{}, false, errors.Newf("unknown actor claim result: %s", status)
 	}

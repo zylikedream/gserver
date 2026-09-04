@@ -11,7 +11,6 @@ import (
 	"gserver/protocol/pb"
 
 	"github.com/asynkron/protoactor-go/actor"
-	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -110,20 +109,13 @@ func TestPublishRoleNotify_NilMsg(t *testing.T) {
 }
 
 func TestPublishRoleNotify_Offline(t *testing.T) {
-	for name, locateErr := range map[string]error{
-		"redis_nil":  redis.Nil,
-		"empty_value": nil,
-	} {
-		t.Run(name, func(t *testing.T) {
-			env := &notifyEnv{locateErr: locateErr}
-			injectFakes(t, env)
-			if err := PublishRoleNotify(context.Background(), 10001, &pb.Ack{}); err != nil {
-				t.Fatalf("PublishRoleNotify = %v, want nil", err)
-			}
-			if len(env.sent) != 0 || len(env.published) != 0 {
-				t.Errorf("offline target must not send; sent=%d published=%d", len(env.sent), len(env.published))
-			}
-		})
+	env := &notifyEnv{}
+	injectFakes(t, env)
+	if err := PublishRoleNotify(context.Background(), 10001, &pb.Ack{}); err != nil {
+		t.Fatalf("PublishRoleNotify = %v", err)
+	}
+	if len(env.sent) != 0 || len(env.published) != 0 {
+		t.Errorf("offline target must not send; sent=%d published=%d", len(env.sent), len(env.published))
 	}
 }
 
@@ -189,12 +181,16 @@ func TestPublishRoleNotify_RemotePublishError(t *testing.T) {
 	}
 }
 
-func TestPublishRoleNotify_LocateError(t *testing.T) {
-	// unknown 分支:定位返回了值但伴随错误(空值会先被 offline 分支拦截)。
-	env := &notifyEnv{selfNode: "node-1", locateValue: "node-2", locateErr: errors.New("redis degraded")}
+func TestPublishRoleNotify_LocateErrorIsOffline(t *testing.T) {
+	// locate 出错时 NodeID 为空,按 offline 吞掉(best-effort 通知,
+	// 与旧 Redis GET 错误路径行为一致),不算发布失败。
+	env := &notifyEnv{selfNode: "node-1", locateErr: errors.New("redis degraded")}
 	injectFakes(t, env)
-	if err := PublishRoleNotify(context.Background(), 10001, &pb.Ack{}); err == nil {
-		t.Fatal("PublishRoleNotify = nil, want locate error")
+	if err := PublishRoleNotify(context.Background(), 10001, &pb.Ack{}); err != nil {
+		t.Fatalf("PublishRoleNotify = %v, want nil for locate error", err)
+	}
+	if len(env.sent) != 0 || len(env.published) != 0 {
+		t.Errorf("degraded locate must not send; sent=%d published=%d", len(env.sent), len(env.published))
 	}
 }
 
@@ -276,13 +272,10 @@ func TestPureHelpers(t *testing.T) {
 	if got := roleNotifyTopic("node-1"); got != "gserver:notify:role:node-1" {
 		t.Errorf("roleNotifyTopic = %q", got)
 	}
-	if got := GetRoleLocateKey(10001); got != "gserver:locate:node:actor:role:10001" {
-		t.Errorf("GetRoleLocateKey = %q", got)
-	}
 	if got := protoMessageName(&pb.Ack{}); got != "Ack" {
 		t.Errorf("protoMessageName(Ack) = %q", got)
 	}
 	if got := protoMessageName(nil); got != "unknown" {
-		t.Errorf("protoMessageName(nil) = %q", got)
+		t.Errorf("protoMessageName(nil) = %q, want unknown", got)
 	}
 }

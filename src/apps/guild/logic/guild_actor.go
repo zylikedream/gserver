@@ -49,7 +49,8 @@ func NewGuildActor() *GuildActor {
 // ===== IActor 接口 =====
 
 func (g *GuildActor) Init(ctx context.Context, args []any) error {
-	if len(args) != 1 {
+	// args[1] 可能是共享 Activator 追加的 ActorOwner,非 guild 参数,忽略。
+	if len(args) < 1 {
 		return errors.New("guild actor init args error")
 	}
 	g.GuildID = gconv.Int64(args[0])

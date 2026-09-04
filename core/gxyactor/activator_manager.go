@@ -21,7 +21,12 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-const actorLocateMaxAttempts = 3
+const (
+	actorLocateMaxAttempts = 3
+	// actorLocateRequestTimeout 必须大于 Touch 确认窗口(10s):
+	// spawn 响应在 Init+Touch 完成后才返回,更短的超时会把慢初始化误判为失败。
+	actorLocateRequestTimeout = 30 * time.Second
+)
 
 var errActorLocateRetryExhausted = errors.New("actor locate retry exhausted")
 
@@ -495,7 +500,7 @@ func (g *activatorManager) requestActor(ctx context.Context, node string, kind s
 		Kind:       kind,
 		Id:         id,
 		AllowSpawn: allowSpawn,
-	}, -1)
+	}, actorLocateRequestTimeout)
 	if err != nil {
 		return nil, false, err
 	}

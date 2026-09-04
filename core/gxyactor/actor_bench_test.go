@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/asynkron/protoactor-go/actor"
@@ -38,14 +39,16 @@ func benchRedisReady(b *testing.B) {
 	if os.Getenv("RUN_REDIS_TESTS") != "1" {
 		b.Skip("set RUN_REDIS_TESTS=1 to run Redis benchmarks")
 	}
+	addr := os.Getenv("ACTOR_LOCATE_REDIS_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:6379"
+	}
+	password := os.Getenv("ACTOR_LOCATE_REDIS_PASSWORD")
 	f, err := os.CreateTemp("", "redis-bench-*.toml")
 	if err != nil {
 		b.Fatalf("create temp config error: %v", err)
 	}
-	if _, err := fmt.Fprint(f, `[redis]
-addr = "127.0.0.1:6379"
-dial_timeout = "1s"
-`); err != nil {
+	if _, err := fmt.Fprintf(f, "[redis]\naddr = %s\npassword = %s\ndial_timeout = \"1s\"\n", strconv.Quote(addr), strconv.Quote(password)); err != nil {
 		_ = f.Close()
 		b.Fatalf("write temp config error: %v", err)
 	}
@@ -91,7 +94,7 @@ func BenchmarkGetActorLocateNodeName(b *testing.B) {
 	if err := gxyredis.Redis().Set(context.Background(), key, "bench@node|1|bench-token", 0).Err(); err != nil {
 		b.Fatalf("setup locate key error = %v", err)
 	}
-	if err := gxyredis.Redis().Set(context.Background(), leaseKey, "bench-token", actorLocateLeaseTTL).Err(); err != nil {
+	if err := gxyredis.Redis().Set(context.Background(), leaseKey, "bench-token", 0).Err(); err != nil {
 		b.Fatalf("setup lease key error = %v", err)
 	}
 	b.Cleanup(func() {
@@ -100,8 +103,12 @@ func BenchmarkGetActorLocateNodeName(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		if _, err := getActorLocateNodeName(context.Background(), "role", "bench-player"); err != nil {
+		node, err := getActorLocateNodeName(context.Background(), "role", "bench-player")
+		if err != nil {
 			b.Fatalf("getActorLocateNodeName() error = %v", err)
+		}
+		if node != "bench@node" {
+			b.Fatalf("getActorLocateNodeName() = %q, want %q", node, "bench@node")
 		}
 	}
 }
@@ -123,12 +130,15 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
+	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
+		return actor.NewPID(node, id), false, nil
+	}
 	key := getActorLocateKey("role", "bench-player")
 	leaseKey := actorLocatorLeaseKey(targetNode)
 	if err := gxyredis.Redis().Set(context.Background(), key, encodeActorOwner(ActorOwner{NodeID: targetNode, Epoch: 1}, "bench-token"), 0).Err(); err != nil {
 		b.Fatalf("setup locate key error = %v", err)
 	}
-	if err := gxyredis.Redis().Set(context.Background(), leaseKey, "bench-token", actorLocateLeaseTTL).Err(); err != nil {
+	if err := gxyredis.Redis().Set(context.Background(), leaseKey, "bench-token", 0).Err(); err != nil {
 		b.Fatalf("setup lease key error = %v", err)
 	}
 	b.Cleanup(func() {

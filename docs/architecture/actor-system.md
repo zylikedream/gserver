@@ -91,7 +91,7 @@ type IActor interface {
                               │
                    ┌──────────▼───────────┐
                    │  actorActivator       │  — 真正创建 Actor 实例
-                   │  (负责创建/管理 Actor)  │   注册 Redis、维护 childs
+                   │  (负责创建/管理 Actor)  │   Claim/Release、维护 childs
                    └──────────────────────┘
 ```
 
@@ -173,6 +173,6 @@ actor.NewOneForOneStrategy(10, 3*time.Second, decider)
 | `core/gxyactor/system.go` | actorApp 全局单例、protoactor 集成 |
 | `core/gxyactor/helper.go` | 全局函数（Send/Call/ActivateActor 等） |
 | `core/gxyactor/activator_manager.go` | Activator 管理器、路由池 |
+| `core/gxyactor/actor_locator.go` | Redis lease、Claim/Release、epoch 和 self-fence |
 | `core/gxyactor/actor_timer.go` | Actor 定时器 |
-| `core/gxyactor/types.go` | ActorService 类型 |
 | `core/gxyactor/logger.go` | protoactor 日志适配 |
