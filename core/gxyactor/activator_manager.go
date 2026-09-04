@@ -164,22 +164,31 @@ const (
 	activationConflict
 )
 
+// decideActivation 将 Claim 结果、本地 activation 状态和调用方的 spawn 意图
+// 组合成唯一动作。localPID 来自当前节点 ActorMgr；nil 表示本地没有已登记的 Actor。
 func decideActivation(owner ActorOwner, acquired bool, localNode string, localPID PID, allowSpawn bool) activationAction {
+	// Claim 返回了其他节点的 owner：本节点不能创建或接管，只能重新定位。
 	if owner.NodeID != localNode {
 		return activationRetry
 	}
 	if acquired {
+		// 本次 Claim 已抢到 owner，但本地已有同 ID Actor，说明 ownership
+		// 状态与本地 activation 不一致，禁止继续创建第二个 Actor。
 		if localPID != nil {
 			return activationConflict
 		}
+		// 只有允许 spawn 的路径才能使用刚抢到的 owner 创建 Actor。
 		if allowSpawn {
 			return activationSpawn
 		}
+		// locate-only 请求不能创建 Actor；释放刚抢到的 owner 后重试。
 		return activationReleaseAndRetry
 	}
+	// owner 属于本节点且 Claim 未抢占：本地 Actor 已存在，可直接返回。
 	if localPID != nil {
 		return activationReturnLocal
 	}
+	// owner 属于本节点但本地没有 Actor：这是残留 owner，条件释放后重试。
 	return activationReleaseAndRetry
 }
 
