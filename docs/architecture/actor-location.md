@@ -2,28 +2,50 @@
 
 ## 概述
 
-Actor 定位系统管理 grain（虚拟 actor）在集群中的位置：gate 收到客户端请求时，通过定位系统找到目标 actor 所在节点，将消息路由到正确的节点。系统采用两层架构——**Redis 存节点标识**，**Consul 做节点级服务发现**。
+Actor 定位系统管理 actor 在集群中的位置：gate 收到客户端请求时，通过定位系统找到目标 actor 所在节点，将消息路由到正确的节点。系统采用两层架构——**Redis 保存玩家到 owner 的直接映射，Consul 做节点级服务发现**。
 
 核心设计原则：
-- **Redis 只存 `nodeInstanceName`，不存 address:port**，因此端口变化不影响缓存有效性
-- **TTL 设为 12h，不做续约**，避免周期性续约开销
-- **Redis 命中 → 直接构造 PID**：`actor.NewPID(nodeHost, id)`，跳过 spawnActor。因为 nodeInstanceName 匹配即 actor 存活
-- **NodeInstanceName**（`nodeName@uid`）每次节点启动时唯一生成，重启后不同，用于检测节点是否重启
+- **Redis 只存 owner 的 `nodeInstanceName + fencing epoch`，不存 address:port**。
+- **locate 热路径只做 O(1) direct lookup**，不扫描节点 Set。
+- **节点租约由每个节点统一续期**，不为每个 actor 创建续约任务。
+- **actor 激活必须先 Claim**；Claim、接管和 Release 使用 Redis Lua 原子比较。
+- **epoch 用于 fencing**：旧 owner 的延迟保存或清理不得覆盖新 owner。
+- **Redis 错误 fail closed**，不得把基础设施错误当成未命中后本地创建 actor。
 
 ## 数据结构
 
-### Redis — Actor 所在节点标识
+### Redis — Actor owner
 
-Key 格式：`gserver:locate:node:actor:{kind}:{id}`
+Key 格式：
 
-Value 为 `nodeInstanceName`（即 `game-2@18f3a4b2c1d0`）。
+```text
+gserver:locate:node:actor:{kind}:{id}
+```
+
+Value 格式：
+
+```text
+{nodeInstanceName}|{epoch}|{leaseToken}
+```
+
+业务层只使用 `nodeInstanceName + epoch`；`leaseToken` 由定位模块内部用于条件续租和释放。
 
 | 属性 | 值 |
 |------|-----|
-| TTL | 12h（`ActorLocateTTL`） |
-| 续约 | **无**（不续约，TTL 仅作崩溃安全网） |
-| 注册方式 | spawn 成功后 `SET key nodeInstanceName EX 12h` |
-| 清理 | actor terminate 时 `DEL key` |
+| owner TTL | 不设置；owner 有效性由对应 node lease 决定 |
+| 正常续约 | 不续约单个 actor；节点 lease 统一续期 |
+| 注册方式 | Redis Lua Claim，不能直接 SET |
+| 清理 | compare-and-delete，不能直接 DEL |
+
+### Redis — Node lease
+
+Key 格式：
+
+```text
+gserver:locate:node:lease:{nodeInstanceName}
+```
+
+Value 是当前进程的 lease token，TTL 由节点级 heartbeat 刷新。节点重启生成新的 `nodeInstanceName` 和 token。
 
 ### Consul — 节点服务注册
 
@@ -46,125 +68,123 @@ GetRoleActor(roleID)
   → ActivateActor("role", roleID, spawn=true)
     → getActor("role", roleID, spawn=true)
       │
-      ├─ ① Redis Lookup ──────────────────────────────────────┐
-      │   GET key → "game-2@18f3a4b2c1d0"                    │
-      │   ↓                                                   │
-      │   命中 → 提取 "game-2" → Consul 查 game-2 地址         │
-      │         ├── 节点存活 → NewPID(nodeHost, id) 直接返回   │
-      │         └── 节点已死 → 进入 ②                          │
-      │   未命中 → 进入 ②                                     │
-      │                                                       │
-      └─ ② ConsistentHash Fallback ───────────────────────────┘
-           GetServiceInfo("role", key, consistentHash)
-           → 选节点 → spawnActor(node, kind, id)
-           → spawn → SET key → 返回
+      ├─ Redis direct lookup
+      │   GET key → owner {nodeInstanceName, epoch, leaseToken}
+      │   ↓
+      │   命中 → Consul 解析完整 nodeInstanceName 地址
+      │         ├── 地址缺失 → fail closed，不接管仍有有效 lease 的 owner
+      │         └── 请求 owner Activator（allow_spawn=false）
+      │              ├── 本地 ActorMgr 命中 → 返回 PID
+      │              └── 本地 activation 缺失 → 条件删除 owner，返回 RetryLocate
+      │
+      └─ 未命中且 spawn=true
+          → ConsistentHash 选择候选节点
+          → 请求候选 Activator（allow_spawn=true）
+               ├── acquired → SpawnNamed → Touch 成功后返回 PID
+               └── owned_by_other → 返回 RetryLocate，重新读取 directory
+```
+
+### Claim 与 Release
+
+```
+节点启动
+  → SET node lease(token) EX TTL
+  → heartbeat 只刷新 token 相同的 lease
+
+ActorActive 到达候选节点
+  → Claim 验证候选 lease
+  → 检查现有 owner lease
+  → owner 失效时 INCR epoch 并写入新 owner
+  → Claim 失败不得创建 actor
+
+actor terminate / Touch 失败
+  → compare-and-delete(nodeInstanceName, epoch, token)
+  → 不匹配时保持当前 owner
 ```
 
 关键点：
-- **Redis 命中后直接返回 NewPID**，跳过 spawnActor。nodeInstanceName 匹配即说明 actor 存活在目标节点上
-- **Consul 匹配使用完整 `nodeInstanceName`**：Redis 存的和 Consul 注册的都是 `game-2@uid`，直匹配
-
-### spawnActor（远程创建 actor）
-
-```
-spawnActor(nodeHost, kind, id)
-  → activator.NewPID(nodeHost, routerName)
-  → Call(activator, &ActorActive{Kind, Id})
-    → activatorRouter 转发到 consistentHash pool
-      → actorActivator.SpawnNamed(props, id)
-        ├── ErrNameExists → 返回已有 PID
-        └── 成功 → registerActor: SET key EX 12h
-                → Touch 确认（异步，10s 超时，验证 Init 是否成功）
-                ├── 成功 → 返回 ActorPidResponse
-                └── 失败 → 清理 Redis 注册 + 一致性哈希
-                          → 返回 ActorError 给调用方
-```
+- 正常 locate 是一次 O(1) Redis direct lookup，不扫描节点 Set。
+- `Claim` 在 `SpawnNamed` 之前执行，避免两台节点先创建 actor 再互相覆盖 owner。
+- `epoch` 必须传入 Role 保存等持久化路径；旧 epoch 的副作用被拒绝。
+- Redis 错误与 owner miss 分开处理；Redis 错误不进入本地 fallback 创建。
 
 ### Actor 生命周期
 
 ```
 node 启动
   → OnModInit 生成 nodeInstanceName = nodeName@unixNano
-  → 传给 actorApp 和 serviceApp
+  → 创建 node lease，token 使用本次 nodeInstanceName
+  → heartbeat 定期续租；token 不匹配立即 self-fence
+  → Redis 错误仅可在上次确认的 lease deadline 前重试
+  → deadline 到期仍无法确认续租时终止进程
   → serviceApp 以 nodeInstanceName 注册 Consul
 
-spawn 成功
-  → registerActor(): SET key nodeInstanceName EX 12h
+Claim 成功
+  → SpawnNamed(props, id, id, ActorOwner{NodeID, Epoch})
+  → pending 状态合并同 ID 并发请求
+  → Touch 确认 Init 成功后才发布到本地 ActorMgr
 
 actor terminate（正常退出）
-  → deRegisterActor(): DEL key
+  → compare-and-delete 当前 node + epoch + token
 
-进程崩溃（异常退出）
-  → Redis key 残留（TTL 12h，无续约，残留不影响正确性）
-  → Consul TTL 10s 过期后摘掉节点
-  → 下次 getActor → Redis 命中 → Consul 查不到 → fallback 到一致性 Hash
+进程崩溃或 self-fence
+  → heartbeat 停止，node lease 过期
+  → owner key 可能残留，但 token 不匹配或 lease 缺失时不再有效
+  → 下次 Claim 递增 epoch 后接管
 ```
 
-## 异常场景
 
-### 节点重启（端口变化）
-
-```
-服务器 A（game-2）重启，端口从 34567 变 34568
-  → 新 nodeInstanceName: game-2@NEWuid
-  → Consul 注册新 entry
-
-getActor(role, 100008):
-  → Redis 还有旧的 game-2@OLDuid
-  → Consul 查 game-2@OLDUid → 不存在（重启后 uid 变了）
-  → fallback 一致性 Hash → 选中 game-2（新 entry）
-  → spawnActor → actor 重新创建 → SET game-2@NEWuid → 正常
-```
-
-### 节点抖动（10min 断网后恢复）
+### 节点重启和 fencing
 
 ```
-节点 B 断网 10min，重新加入
-  → 同一 uid，Consul 恢复健康
-  → 期间可能部分 actor 被迁移到其他节点
-  → 恢复后 actor 仍在，继续服务
+节点 A 旧进程持有 P1:
+  → P1 -> node-A@OLD, epoch=41
+
+节点 A 崩溃，节点 B 接管:
+  → 旧 lease 过期
+  → Claim 写入 P1 -> node-B@NEW, epoch=42
+
+旧节点 A 的延迟保存:
+  → 携带 node-A@OLD, epoch=41
+  → PostgreSQL 事务先锁定 role_actor_fence 的 exact owner
+  → fence 已是 node-B@NEW, epoch=42，查询不到匹配行
+  → 整个保存事务回滚
 ```
 
-### 节点抖动导致的数据分叉（TODO）
-
-```
-节点 B 抖动 → 误认为下线
-  → 玩家在节点 A 创建新 actor（使用 DB 旧数据）
-  → 节点 B 恢复后，落地时间到 → 批量写 DB
-  → 可能覆盖节点 A 新写入的数据
-```
-
-当前版本尚未处理此问题，后续通过分布式事务或版本号解决。
+Consul 负责节点服务发现；Redis lease、token 和 epoch 负责 directory 协调。Redis 查询与后续写库之间存在 TOCTOU，不能作为持久化 fencing；PostgreSQL `role_actor_fence` 才是拒绝旧 actor 写入的最终边界。
 
 ## 代码位置
 
 | 文件 | 说明 |
 |------|------|
 | `core/gxynode/node.go` | 生成 `NodeInstanceName`，传入 actorApp 和 serviceApp |
-| `core/gxyactor/activator_manager.go` | getActor、spawnActor、registerActor（SET）、RegisterActorKind |
-| `core/gxyactor/system.go` | actorApp 启动 remote、activatorManager 生命周期 |
+| `core/gxyactor/actor_locator.go` | ActorOwner、node lease deadline、Claim、Release、epoch 和 self-fence |
+| `core/gxyactor/activator_manager.go` | owner Activator 验活、pending Touch、RetryLocate、条件 Release |
+| `core/gxyactor/system.go` | actorApp 启动 remote、activatorManager 生命周期和 owner 查询 |
 | `core/gxyservice/service_app.go` | 以 `nodeInstanceName` 注册 Consul，`GetAddressByNodeName` |
 | `core/gxyregistery/types.go` | ServiceInfo 结构体 |
 | `src/apps/gateway/internal/logic/session.go` | 客户端接入，调用 ActivateRole |
-| `src/lib/rolelib/rolelib.go` | GetRoleActor / ActivateRole 封装 |
+| `src/apps/role/internal/logic/role_actor_fence.go` | PostgreSQL epoch fence 的推进与事务锁定 |
+| `src/apps/role/internal/logic/role_main.go` | Role activation 和保存事务接入数据库 fence |
 
 ## 设计决策
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
-| Redis 存什么 | `nodeInstanceName`（`nodeName@uid`） | 不依赖端口，重启后 uid 变化自动失效 |
-| TTL | 12h，不续约 | 避免续约开销，TTL 仅兜底；注册/注销用 SET/DEL 精确控制 |
-| Redis 命中后行为 | NewPID 直接构造 PID，跳过 spawnActor | nodeInstanceName 匹配即 actor 存活；如果 actor 已死，ErrDeadRespond 由 protoactor 返回 |
-| 节点标识生命周期 | 每次启动生成新 uid | 用 uid 变化自然检测节点重启 |
-| Consul 注册名 | `nodeInstanceName` | 与 Redis 值直接匹配，无需额外映射 |
-| 注销方式 | DEL（不带 CAS） | 12h TTL 兜底，极端情况最多 12h 残留 |
-| Touch 确认 | 异步 Call(Touch, 10s)，失败返回 ActorError | Init 异步执行，Touch 验证 Init 是否成功；失败时清理脏数据 |
-| 节点选择 | 一致性哈希 | 同一 ID 稳定路由到同一节点 |
+| Redis 存什么 | `nodeInstanceName + epoch + leaseToken` | 直接 O(1) 定位；epoch 防止旧 owner 副作用 |
+| Actor owner 注册 | Claim Lua | 在 SpawnNamed 前原子检查和抢占，避免双创建 |
+| Node lease | 每节点一个 TTL lease | 续约责任集中在节点，不为每个 actor 续约 |
+| owner TTL | 不设置 | 防止长生命周期 actor 的 owner key 过期；残留记录由 lease 判定失效并在下一次 Claim 时覆盖 |
+| Redis 命中后行为 | 请求 owner Activator | 只有 owner 节点本地 ActorMgr 能确认 activation 存在；残留 owner 条件删除后重试 |
+| 接管规则 | lease 失效或 token 不匹配后递增 epoch | 新 owner 版本高于旧 owner |
+| 注销方式 | compare-and-delete(node, epoch, token) | 延迟旧清理不能删除新 owner |
+| 持久化校验 | PostgreSQL 事务锁定 exact node + epoch | Redis 预查存在 TOCTOU；旧 actor 的整个保存事务必须被拒绝 |
+| 节点选择 | 一致性哈希 | 同一 ID 稳定选择候选节点 |
 | 随机端口 | `remote.Configure(host, 0)` | 避免端口冲突 |
 
 ## 变更记录
 
 | 日期 | 变更 | 说明 |
 |------|------|------|
+| 2026-09-03 | owner fencing 改造 | direct lookup 保留性能，增加节点 lease、原子 Claim/Release 和 epoch |
 | 2026-05-02 | v2 重构 | 以 `nodeInstanceName` 代替 `address:port`，去掉续约，去掉 gxylocator |
-| 之前 | v1 方案 | Redis 存 JSON ActorPid，TTL=40s，30s 续约；节点重启有 40s 窗口期 |

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"gserver/core/gxyactor"
 )
 
 func TestRoleMainInitRequiresAccountRecord(t *testing.T) {
@@ -21,7 +23,7 @@ func TestRoleMainInitRequiresAccountRecord(t *testing.T) {
 	}
 
 	r := NewRoleMain()
-	err := r.Init(context.Background(), []any{int64(1001)})
+	err := r.Init(context.Background(), []any{int64(1001), gxyactor.ActorOwner{NodeID: "role-1@instance-a", Epoch: 1}})
 	if err == nil {
 		t.Fatal("expected init error when account record is missing")
 	}
@@ -41,7 +43,7 @@ func TestRoleMainInitAcceptsExistingAccountRecord(t *testing.T) {
 	}
 
 	r := NewRoleMain()
-	if err := r.Init(context.Background(), []any{int64(1001)}); err != nil {
+	if err := r.Init(context.Background(), []any{int64(1001), gxyactor.ActorOwner{NodeID: "role-1@instance-a", Epoch: 1}}); err != nil {
 		t.Fatalf("Init returned error: %v", err)
 	}
 }
@@ -58,8 +60,16 @@ func TestRoleMainInitPropagatesAccountLookupError(t *testing.T) {
 	}
 
 	r := NewRoleMain()
-	err := r.Init(context.Background(), []any{int64(1001)})
+	err := r.Init(context.Background(), []any{int64(1001), gxyactor.ActorOwner{NodeID: "role-1@instance-a", Epoch: 1}})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Init error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestRoleMainInitRequiresActorOwner(t *testing.T) {
+	r := NewRoleMain()
+	err := r.Init(context.Background(), []any{int64(1001)})
+	if err == nil || !strings.Contains(err.Error(), "actor owner is required") {
+		t.Fatalf("Init error = %v, want actor owner required", err)
 	}
 }

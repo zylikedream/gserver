@@ -34,37 +34,36 @@ ActorPidResponse{Pid} ──→ caller 拿到 PID，完全不知道 Init 失败
 
 ## 修复
 
-### Init 参数解析（层 C — ChannelActor 自身防御）
+### Claim 先于 Spawn
 
-`ChannelActor.Init` 改为从 `a.Self().Id`（格式 `"{channelType}_{channelID}"`）解析参数，
-不依赖外部传入 init args。适用于 `ChannelActor` 这个具体场景。
+Activator 在 `SpawnNamed` 前执行 Redis 原子 Claim。Claim 返回其他 owner 时只回复 `ActorLocateRetry`，由调用方重新定位；Redis 命中也必须请求 owner Activator，不能直接构造 PID。只有 owner Activator 确认本地 activation 存在时才返回 PID。
 
-参见 `src/apps/chat/channel_actor.go` 的 `Init` 方法。
+### Owner 元数据随 actor 传递
 
-### Touch 确认失败时返回错误（层 A — Activator 通用防御）
+Claim 成功返回 `ActorOwner{NodeID, Epoch}`。Activator 通过 `SpawnNamed(props, id, id, owner)` 将 owner 传给 actor；Role activation 用该 epoch 推进 PostgreSQL fence，所有保存事务先锁定 exact `roleID + nodeID + epoch`。
 
-Activator 的 Touch goroutine 在 `Call(Touch)` 失败时：
-- 清理 Redis locate key 和一致性哈希成员
-- 向调用方回复 `ActorError`
+### Touch 确认失败时条件清理
+
+Touch 等待仍在 goroutine 中执行，但 goroutine 只把结果发回 Activator mailbox，不直接访问 actor context 或本地 map。Activator 在 mailbox 内串行完成：
+
+- Touch 期间把同一 actor 的并发请求合并到 pending waiters；
+- Touch 成功后才把 PID 发布到本地 `ActorMgr` 并回复所有 waiters；
+- Touch 失败时停止 actor，使用 `nodeInstanceName + epoch + lease token` compare-and-delete owner，并回复 `ActorError`；
+- `Terminated` 先到时清理 pending activation，并拒绝全部 waiters。
 
 ```go
-go func(id string) {
-    if _, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second); err != nil {
-        a.deRegisterActor(a.ctx, getActorLocateKey(a.kind, id))
-        a.meta.mgr.Remove(id)
-        delete(a.childs, pid)
-        a.Send(sender, ActorError("actor init failed or actor died"))
-        return
-    }
-    a.Send(sender, &remote.ActorPidResponse{Pid: pid})
-}(msg.Id)
+owner, acquired, err := locator.claim(ctx, kind, id)
+pid, err := SpawnNamed(props, id, id, owner)
+pending[id] = {pid, owner, waiters}
+// goroutine: Call(Touch) → LocalSend(activator, touchResult)
+// activator mailbox: publish PID or conditional Release
 ```
 
 ### 局限
 
-- **2s 延迟**：`Call(Touch)` 最长等 10s 超时才能判定 actor 死亡。
+- **10s 延迟**：`Call(Touch)` 最长等 10s 超时才能判定 actor 死亡。
 - **误判**：actor 在 Init 成功之后、Touch 到达之前的短暂窗口内崩溃，也会被判定为 Init 失败。
-两者在实践中概率很低，可接受。
+- Redis TTL 不能单独解决网络分区；Role 持久化必须执行 epoch fencing。
 
 ## 完整时序
 
@@ -72,16 +71,17 @@ go func(id string) {
 Client                    Activator                    Actor
   │                          │                           │
   │── ActivateActor(id) ────→│                           │
-  │                          │── SpawnNamed(id) ────────→│
+  │                          │── Claim Lua ──────────────→ Redis
+  │                          │←─ owner + epoch ──────────│
+  │                          │── SpawnNamed(id, owner) ──→│
   │                          │   ←──────── PID ──────────│
-  │                          │── registerActor(Redis)    │
   │                          │── Call(Touch) ───────────→│  (goroutine)
   │                          │                           │── Init() → fail
   │                          │                           │── Stop()
-  │                          │   Touch 超时              │
-  │                          │── deRegisterActor(Redis)  │
-  │←── ActorError ──────────│                           │
-  │  (err != nil)            │                           │
+  │                          │←─ local touch result ─────│
+  │                          │── conditional Release ────→ Redis
+  │←── ActorError ───────────│
+  │  (err != nil)             │                           │
 ```
 
 修复前：Activator 返回 PID，Client 以为成功。

@@ -218,6 +218,7 @@ type ActorActive struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind"`
 	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id"`
+	AllowSpawn    bool                   `protobuf:"varint,3,opt,name=allow_spawn,json=allowSpawn,proto3" json:"allow_spawn"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -266,6 +267,49 @@ func (x *ActorActive) GetId() string {
 	return ""
 }
 
+func (x *ActorActive) GetAllowSpawn() bool {
+	if x != nil {
+		return x.AllowSpawn
+	}
+	return false
+}
+
+type ActorLocateRetry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ActorLocateRetry) Reset() {
+	*x = ActorLocateRetry{}
+	mi := &file_gactor_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ActorLocateRetry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ActorLocateRetry) ProtoMessage() {}
+
+func (x *ActorLocateRetry) ProtoReflect() protoreflect.Message {
+	mi := &file_gactor_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ActorLocateRetry.ProtoReflect.Descriptor instead.
+func (*ActorLocateRetry) Descriptor() ([]byte, []int) {
+	return file_gactor_proto_rawDescGZIP(), []int{5}
+}
+
 type ActorStop struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason"`
@@ -275,7 +319,7 @@ type ActorStop struct {
 
 func (x *ActorStop) Reset() {
 	*x = ActorStop{}
-	mi := &file_gactor_proto_msgTypes[5]
+	mi := &file_gactor_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -287,7 +331,7 @@ func (x *ActorStop) String() string {
 func (*ActorStop) ProtoMessage() {}
 
 func (x *ActorStop) ProtoReflect() protoreflect.Message {
-	mi := &file_gactor_proto_msgTypes[5]
+	mi := &file_gactor_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -300,7 +344,7 @@ func (x *ActorStop) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActorStop.ProtoReflect.Descriptor instead.
 func (*ActorStop) Descriptor() ([]byte, []int) {
-	return file_gactor_proto_rawDescGZIP(), []int{5}
+	return file_gactor_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ActorStop) GetReason() string {
@@ -320,7 +364,7 @@ type ActorPid struct {
 
 func (x *ActorPid) Reset() {
 	*x = ActorPid{}
-	mi := &file_gactor_proto_msgTypes[6]
+	mi := &file_gactor_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -332,7 +376,7 @@ func (x *ActorPid) String() string {
 func (*ActorPid) ProtoMessage() {}
 
 func (x *ActorPid) ProtoReflect() protoreflect.Message {
-	mi := &file_gactor_proto_msgTypes[6]
+	mi := &file_gactor_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -345,7 +389,7 @@ func (x *ActorPid) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ActorPid.ProtoReflect.Descriptor instead.
 func (*ActorPid) Descriptor() ([]byte, []int) {
-	return file_gactor_proto_rawDescGZIP(), []int{6}
+	return file_gactor_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ActorPid) GetAddress() string {
@@ -377,10 +421,13 @@ const file_gactor_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12&\n" +
 	"\x03msg\x18\x02 \x01(\v2\x14.google.protobuf.AnyR\x03msg\"3\n" +
 	"\tServerMsg\x12&\n" +
-	"\x03msg\x18\x01 \x01(\v2\x14.google.protobuf.AnyR\x03msg\"1\n" +
+	"\x03msg\x18\x01 \x01(\v2\x14.google.protobuf.AnyR\x03msg\"R\n" +
 	"\vActorActive\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"#\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x1f\n" +
+	"\vallow_spawn\x18\x03 \x01(\bR\n" +
+	"allowSpawn\"\x12\n" +
+	"\x10ActorLocateRetry\"#\n" +
 	"\tActorStop\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\"4\n" +
 	"\bActorPid\x12\x18\n" +
@@ -399,20 +446,21 @@ func file_gactor_proto_rawDescGZIP() []byte {
 	return file_gactor_proto_rawDescData
 }
 
-var file_gactor_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_gactor_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_gactor_proto_goTypes = []any{
-	(*ActorTimerMsg)(nil), // 0: galaxy.protocol.ActorTimerMsg
-	(*ActorError)(nil),    // 1: galaxy.protocol.ActorError
-	(*ClientMsg)(nil),     // 2: galaxy.protocol.ClientMsg
-	(*ServerMsg)(nil),     // 3: galaxy.protocol.ServerMsg
-	(*ActorActive)(nil),   // 4: galaxy.protocol.ActorActive
-	(*ActorStop)(nil),     // 5: galaxy.protocol.ActorStop
-	(*ActorPid)(nil),      // 6: galaxy.protocol.ActorPid
-	(*anypb.Any)(nil),     // 7: google.protobuf.Any
+	(*ActorTimerMsg)(nil),    // 0: galaxy.protocol.ActorTimerMsg
+	(*ActorError)(nil),       // 1: galaxy.protocol.ActorError
+	(*ClientMsg)(nil),        // 2: galaxy.protocol.ClientMsg
+	(*ServerMsg)(nil),        // 3: galaxy.protocol.ServerMsg
+	(*ActorActive)(nil),      // 4: galaxy.protocol.ActorActive
+	(*ActorLocateRetry)(nil), // 5: galaxy.protocol.ActorLocateRetry
+	(*ActorStop)(nil),        // 6: galaxy.protocol.ActorStop
+	(*ActorPid)(nil),         // 7: galaxy.protocol.ActorPid
+	(*anypb.Any)(nil),        // 8: google.protobuf.Any
 }
 var file_gactor_proto_depIdxs = []int32{
-	7, // 0: galaxy.protocol.ClientMsg.msg:type_name -> google.protobuf.Any
-	7, // 1: galaxy.protocol.ServerMsg.msg:type_name -> google.protobuf.Any
+	8, // 0: galaxy.protocol.ClientMsg.msg:type_name -> google.protobuf.Any
+	8, // 1: galaxy.protocol.ServerMsg.msg:type_name -> google.protobuf.Any
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -431,7 +479,7 @@ func file_gactor_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_gactor_proto_rawDesc), len(file_gactor_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

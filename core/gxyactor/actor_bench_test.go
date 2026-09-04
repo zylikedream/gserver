@@ -68,15 +68,18 @@ dial_timeout = "1s"
 func BenchmarkRegisterActorLocate(b *testing.B) {
 	benchRedisReady(b)
 	mgr := NewActivatorManager("bench", "bench@1")
-	act := NewActorActivator("role", mgr)
-	act.ctx = context.Background()
-	keyPrefix := "gserver:locate:node:actor:role:bench"
+	if err := mgr.locator.acquireNodeLease(context.Background()); err != nil {
+		b.Fatal(err)
+	}
+	keyPrefix := "bench-player"
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		key := fmt.Sprintf("%s-%d", keyPrefix, i)
-		if err := act.registerActorLocate(context.Background(), key); err != nil {
-			b.Fatalf("registerActorLocate() error = %v", err)
+	i := 0
+	for b.Loop() {
+		i++
+		id := fmt.Sprintf("%s-%d", keyPrefix, i)
+		if _, _, err := mgr.locator.claim(context.Background(), "role", id); err != nil {
+			b.Fatalf("claim actor owner error = %v", err)
 		}
 	}
 }
@@ -84,15 +87,19 @@ func BenchmarkRegisterActorLocate(b *testing.B) {
 func BenchmarkGetActorLocateNodeName(b *testing.B) {
 	benchRedisReady(b)
 	key := getActorLocateKey("role", "bench-player")
-	if err := gxyredis.Redis().Set(context.Background(), key, "bench@node", ActorLocateTTL).Err(); err != nil {
+	leaseKey := actorLocatorLeaseKey("bench@node")
+	if err := gxyredis.Redis().Set(context.Background(), key, "bench@node|1|bench-token", 0).Err(); err != nil {
 		b.Fatalf("setup locate key error = %v", err)
 	}
+	if err := gxyredis.Redis().Set(context.Background(), leaseKey, "bench-token", actorLocateLeaseTTL).Err(); err != nil {
+		b.Fatalf("setup lease key error = %v", err)
+	}
 	b.Cleanup(func() {
-		gxyredis.Redis().Del(context.Background(), key)
+		gxyredis.Redis().Del(context.Background(), key, leaseKey)
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if _, err := getActorLocateNodeName(context.Background(), "role", "bench-player"); err != nil {
 			b.Fatalf("getActorLocateNodeName() error = %v", err)
 		}
@@ -117,15 +124,19 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
 	key := getActorLocateKey("role", "bench-player")
-	if err := gxyredis.Redis().Set(context.Background(), key, targetNode, ActorLocateTTL).Err(); err != nil {
+	leaseKey := actorLocatorLeaseKey(targetNode)
+	if err := gxyredis.Redis().Set(context.Background(), key, encodeActorOwner(ActorOwner{NodeID: targetNode, Epoch: 1}, "bench-token"), 0).Err(); err != nil {
 		b.Fatalf("setup locate key error = %v", err)
 	}
+	if err := gxyredis.Redis().Set(context.Background(), leaseKey, "bench-token", actorLocateLeaseTTL).Err(); err != nil {
+		b.Fatalf("setup lease key error = %v", err)
+	}
 	b.Cleanup(func() {
-		gxyredis.Redis().Del(context.Background(), key)
+		gxyredis.Redis().Del(context.Background(), key, leaseKey)
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		pid, err := mgr.getActor(context.Background(), "role", "bench-player", false)
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
@@ -158,12 +169,12 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
-	mgr.spawnActorFunc = func(ctx context.Context, node string, kind string, id string) (PID, error) {
-		return actor.NewPID(node, id), nil
+	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
+		return actor.NewPID(node, id), false, nil
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		pid, err := mgr.getActor(context.Background(), "role", "bench-player", true)
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
@@ -191,7 +202,7 @@ func BenchmarkGetAddressByNodeNameWith1000Nodes(b *testing.B) {
 	lookup := &benchServiceLookup{services: services}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if got := lookup.GetAddressByNodeName(context.Background(), "role", targetNode); got == "" {
 			b.Fatal("GetAddressByNodeName returned empty address")
 		}
@@ -211,7 +222,7 @@ func BenchmarkConsistentHashSelectWith1000Nodes(b *testing.B) {
 	gxylog.SetLevel("error")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		if got := selector.Select(ctx, "role", "bench-player", hs); got == nil {
 			b.Fatal("selector returned nil")
 		}
@@ -230,7 +241,7 @@ func BenchmarkConsistentHashSelectColdWith1000Nodes(b *testing.B) {
 	gxylog.SetLevel("error")
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for i := 0; b.Loop(); i++ {
 		hs := gxyregistery.HashServices{
 			ServiceInfos: services,
 			Hash:         fmt.Sprintf("bench-cold-%d", i),

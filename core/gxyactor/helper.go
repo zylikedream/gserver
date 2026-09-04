@@ -7,6 +7,7 @@ import (
 	"gserver/protocol/pb"
 
 	"github.com/asynkron/protoactor-go/actor"
+	"github.com/cockroachdb/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -76,6 +77,12 @@ func Address() string {
 
 func ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
 	return app.ActivateActor(ctx, kind, id, spawn)
+}
+func GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
+	if app == nil {
+		return ActorOwner{}, errors.New("actor app is not initialized")
+	}
+	return app.GetActorOwner(ctx, kind, id)
 }
 
 func GetActorCount(kind string) int {

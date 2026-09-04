@@ -15,6 +15,7 @@ func InitRoleSchema(ctx context.Context, db *gorm.DB) {
 	}
 
 	if err := db.AutoMigrate(
+		&RoleActorFence{},
 		&RoleBasicState{},
 		&RoleBagState{},
 		&RoleExtraPersistState{},

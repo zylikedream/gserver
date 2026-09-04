@@ -12,7 +12,6 @@ import (
 	"gserver/core/gxymetrics"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
-	"gserver/core/gxyredis"
 	"gserver/src/lib"
 
 	"github.com/cockroachdb/errors"
@@ -33,7 +32,8 @@ var (
 		return app.NodeInstanceName()
 	}
 	roleLocateNode = func(ctx context.Context, roleID int64) (string, error) {
-		return gxyredis.Redis().Get(ctx, GetRoleLocateKey(roleID)).Result()
+		owner, err := gxyactor.GetActorOwner(ctx, lib.ROLE_ACTOR_TYPE, strconv.FormatInt(roleID, 10))
+		return owner.NodeID, err
 	}
 	getLocalActor    = gxyactor.GetLocalActor
 	getLocalActorAll = gxyactor.GetLocalActorAll

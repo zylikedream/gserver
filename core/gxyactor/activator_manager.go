@@ -3,7 +3,6 @@ package gxyactor
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"gserver/core/gxylog"
@@ -20,12 +19,11 @@ import (
 	"github.com/asynkron/protoactor-go/router"
 	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/errors/gerror"
-	"github.com/redis/go-redis/v9"
 )
 
-const (
-	ActorLocateTTL = 12 * time.Hour
-)
+const actorLocateMaxAttempts = 3
+
+var errActorLocateRetryExhausted = errors.New("actor locate retry exhausted")
 
 // hashableActorActive wraps pb.ActorActive to implement router.Hasher
 // so the consistent-hash pool can route by actor id.
@@ -47,6 +45,13 @@ type localMsgUnRegisterPool struct {
 	Kind string
 }
 
+type localMsgActorTouchResult struct {
+	unspanMessage
+	ID    string
+	PID   PID
+	Owner ActorOwner
+	Err   error
+}
 type activatorMeta struct {
 	Kind  string
 	Props *actor.Props
@@ -115,11 +120,19 @@ func (r *activatorRouter) GetPool(kind string) PID {
 	return nil
 }
 
+type pendingActivation struct {
+	pid     PID
+	owner   ActorOwner
+	waiters []PID
+}
+
 type actorActivator struct {
 	*ActorBase
 	kind    string
 	manager *activatorManager
 	childs  map[PID]string
+	owners  map[PID]ActorOwner
+	pending map[string]*pendingActivation
 	meta    *activatorMeta
 }
 
@@ -128,10 +141,41 @@ func NewActorActivator(kind string, manager *activatorManager) *actorActivator {
 		kind:    kind,
 		manager: manager,
 		childs:  make(map[PID]string),
+		owners:  make(map[PID]ActorOwner),
+		pending: make(map[string]*pendingActivation),
 	}
 	ctx := gxylog.NewContext(context.Background(), "actor_activator")
 	a.ActorBase = NewActorBase(ctx, a, "actor_activator")
 	return a
+}
+
+type activationAction uint8
+
+const (
+	activationRetry activationAction = iota
+	activationReturnLocal
+	activationReleaseAndRetry
+	activationSpawn
+	activationConflict
+)
+
+func decideActivation(owner ActorOwner, acquired bool, localNode string, localPID PID, allowSpawn bool) activationAction {
+	if owner.NodeID != localNode {
+		return activationRetry
+	}
+	if acquired {
+		if localPID != nil {
+			return activationConflict
+		}
+		if allowSpawn {
+			return activationSpawn
+		}
+		return activationReleaseAndRetry
+	}
+	if localPID != nil {
+		return activationReturnLocal
+	}
+	return activationReleaseAndRetry
 }
 
 func (a *actorActivator) DelayInit(ctx context.Context) error {
@@ -143,63 +187,115 @@ func (a *actorActivator) DelayInit(ctx context.Context) error {
 	return nil
 }
 
-func (a *actorActivator) registerActor(id string, pid PID) error {
-	// 注册 Redis
-	locateKey := getActorLocateKey(a.kind, id)
-	if err := a.registerActorLocate(a.ctx, locateKey); err != nil {
-		return err
-	}
-	// 追踪 actor 到节点集合，用于崩溃后清理
-	a.manager.trackActor(a.kind, id)
-
-	// 注册成功，加入 childs
-	a.childs[pid] = id
-	a.meta.mgr.Add(id, pid)
-	return nil
-}
-
 func (a *actorActivator) unregisterActor(id string, pid PID) {
-	a.deRegisterActorLocate(a.ctx, getActorLocateKey(a.kind, id))
+	owner := a.owners[pid]
+	if _, err := a.manager.locator.release(a.ctx, a.kind, id, owner); err != nil {
+		gxylog.Warn(a.ctx, "release actor owner failed", gxylog.Str("kind", a.kind), gxylog.Str("id", id), gxylog.Err(err))
+	}
 	a.meta.mgr.Remove(id)
 	delete(a.childs, pid)
+	delete(a.owners, pid)
 }
 
 func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
 	case *hashableActorActive:
+		owner, acquired, err := a.manager.locator.claim(ctx, a.kind, msg.Id)
+		if err != nil {
+			_ = Respond(ctx, a.Actx, ActorError(err.Error()))
+			return nil
+		}
+		if pending := a.pending[msg.Id]; pending != nil {
+			if pending.owner != owner {
+				_ = Respond(ctx, a.Actx, ActorError("pending actor activation lost ownership"))
+				return nil
+			}
+			if sender := a.Actx.Sender(); sender != nil {
+				pending.waiters = append(pending.waiters, sender)
+			}
+			return nil
+		}
+		localPID := a.meta.mgr.Get(msg.Id)
+		switch decideActivation(owner, acquired, a.manager.nodeInstanceName, localPID, msg.GetAllowSpawn()) {
+		case activationRetry:
+			_ = Respond(ctx, a.Actx, &pb.ActorLocateRetry{})
+			return nil
+		case activationReturnLocal:
+			_ = Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: localPID})
+			return nil
+		case activationReleaseAndRetry:
+			if _, err := a.manager.locator.release(ctx, a.kind, msg.Id, owner); err != nil {
+				_ = Respond(ctx, a.Actx, ActorError(err.Error()))
+				return nil
+			}
+			_ = Respond(ctx, a.Actx, &pb.ActorLocateRetry{})
+			return nil
+		case activationConflict:
+			_ = Respond(ctx, a.Actx, ActorError("claimed actor owner conflicts with an existing local activation"))
+			return nil
+		case activationSpawn:
+		}
+
 		props := a.meta.Props.Clone()
 		// notice 这儿不要使用actor自带的SpawnNamed, 因为actor_context的spawn_named会把id偷偷的加上前缀，
 		// 导致actor.NewPid(msg.Id)返回的pid和a.SpawnNamed(msg.Id)返回的pid不同
-		pid, err := SpawnNamed(props, msg.Id, msg.Id)
+		pid, err := SpawnNamed(props, msg.Id, msg.Id, owner)
 		if err != nil {
-			if err == actor.ErrNameExists {
-				_ = Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: pid})
-				return nil
+			_, releaseErr := a.manager.locator.release(ctx, a.kind, msg.Id, owner)
+			if releaseErr != nil {
+				err = errors.CombineErrors(err, releaseErr)
 			}
 			_ = Respond(ctx, a.Actx, ActorError(err.Error()))
 			return nil
 		}
 
-		// 注册 Redis
-		if err := a.registerActor(msg.Id, pid); err != nil {
-			_ = StopActor(pid)
-			_ = Respond(ctx, a.Actx, ActorError(fmt.Sprintf("registration failed, key taken by another node, err: %s", err.Error())))
+		var waiters []PID
+		if sender := a.Actx.Sender(); sender != nil {
+			waiters = append(waiters, sender)
+		}
+		a.childs[pid] = msg.Id
+		a.owners[pid] = owner
+		a.pending[msg.Id] = &pendingActivation{
+			pid:     pid,
+			owner:   owner,
+			waiters: waiters,
+		}
+		a.Actx.Watch(pid)
+
+		// Touch may block on actor initialization. Only the result crosses back
+		// into this activator's mailbox; actor state is never mutated here.
+		self := a.Actx.Self()
+		go func(id string, owner ActorOwner) {
+			_, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second)
+			if sendErr := LocalSend(context.Background(), self, &localMsgActorTouchResult{
+				ID: id, PID: pid, Owner: owner, Err: err,
+			}); sendErr != nil {
+				gxylog.Error(context.Background(), "deliver actor touch result failed",
+					gxylog.Str("kind", a.kind), gxylog.Str("id", id), gxylog.Err(sendErr))
+			}
+		}(msg.Id, owner)
+
+		return nil
+
+	case *localMsgActorTouchResult:
+		pending := a.pending[msg.ID]
+		if pending == nil || pending.pid != msg.PID || pending.owner != msg.Owner {
 			return nil
 		}
-
-		// Touch 确认（异步，验证 Init 是否成功）
-		sender := a.Actx.Sender()
-		go func(id string) {
-			if _, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second); err != nil {
-				gxylog.Warn(context.Background(), "actor touch failed", gxylog.Str("kind", a.kind), gxylog.Str("id", id), gxylog.Err(err))
-				a.unregisterActor(id, pid)
-				_ = Send(context.Background(), sender, ActorError("actor init failed or actor died"))
-				return
+		delete(a.pending, msg.ID)
+		if msg.Err != nil {
+			gxylog.Warn(ctx, "actor touch failed", gxylog.Str("kind", a.kind), gxylog.Str("id", msg.ID), gxylog.Err(msg.Err))
+			_ = StopActor(msg.PID)
+			a.unregisterActor(msg.ID, msg.PID)
+			for _, waiter := range pending.waiters {
+				_ = Send(ctx, waiter, ActorError("actor init failed or actor died"))
 			}
-			a.Actx.Watch(pid)
-			_ = Send(context.Background(), sender, &remote.ActorPidResponse{Pid: pid})
-		}(msg.Id)
-
+			return nil
+		}
+		a.meta.mgr.Add(msg.ID, msg.PID)
+		for _, waiter := range pending.waiters {
+			_ = Send(ctx, waiter, &remote.ActorPidResponse{Pid: msg.PID})
+		}
 		return nil
 
 	// 父actor spawn出来的子actor在terminate后会，给父actor发送Terminate消息
@@ -213,6 +309,12 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		if id == "" {
 			return nil
 		}
+		if pending := a.pending[id]; pending != nil && pending.pid == child {
+			delete(a.pending, id)
+			for _, waiter := range pending.waiters {
+				_ = Send(ctx, waiter, ActorError("actor terminated during initialization"))
+			}
+		}
 		a.unregisterActor(id, child)
 		return nil
 	}
@@ -223,27 +325,34 @@ func (a *actorActivator) Terminate(ctx context.Context, err error) {
 	gxylog.Info(ctx, "actor activator stopped", gxylog.Err(err))
 }
 
-func (a *actorActivator) registerActorLocate(ctx context.Context, key string) error {
-	return gxyredis.Redis().Set(ctx, key, a.manager.nodeInstanceName, ActorLocateTTL).Err()
-}
-
-func (a *actorActivator) deRegisterActorLocate(ctx context.Context, key string) {
-	gxyredis.Redis().Del(ctx, key)
-}
-
 const redisLocatePrefix = "gserver:locate:node"
 
 func getActorLocateKey(kind string, id string) string {
 	return fmt.Sprintf("%s:%s:%s:%s", redisLocatePrefix, "actor", kind, id)
 }
 
-func getActorLocateNodeName(ctx context.Context, kind string, id string) (string, error) {
-	key := getActorLocateKey(kind, id)
-	nodeName, err := gxyredis.Redis().Get(ctx, key).Result()
-	if err != nil && err != redis.Nil {
-		return "", gerror.Wrap(err, "redis get failed")
+func getActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
+	locator, err := activeActorLocator()
+	if err != nil {
+		return ActorOwner{}, err
 	}
-	return nodeName, nil
+	return locator.locate(ctx, kind, id)
+}
+
+func getActorLocateNodeName(ctx context.Context, kind string, id string) (string, error) {
+	owner, err := getActorOwner(ctx, kind, id)
+	return owner.NodeID, err
+}
+
+func activeActorLocator() (*actorLocator, error) {
+	if app != nil && app.activatorMgr != nil && app.activatorMgr.locator != nil {
+		return app.activatorMgr.locator, nil
+	}
+	client := gxyredis.Redis()
+	if client == nil {
+		return nil, errors.New("actor locator Redis client is not initialized")
+	}
+	return newActorLocator(client, "", ""), nil
 }
 
 type activatorManager struct {
@@ -254,7 +363,9 @@ type activatorManager struct {
 	routerPID        PID
 	ctx              context.Context
 	serviceLookup    actorServiceLookup
-	spawnActorFunc   func(ctx context.Context, node string, kind string, id string) (PID, error)
+	requestActorFunc func(ctx context.Context, node string, kind string, id string, allowSpawn bool) (PID, bool, error)
+	locator          *actorLocator
+	stopLease        func()
 }
 
 type actorServiceLookup interface {
@@ -269,34 +380,8 @@ func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorMan
 		activatorMetas:   make(map[string]*activatorMeta),
 		ctx:              gxylog.NewContext(context.Background(), "activatorManager"),
 		serviceLookup:    gxyservice.ServiceApp(),
-		spawnActorFunc:   nil,
+		locator:          newActorLocator(gxyredis.Redis(), nodeInstanceName, nodeInstanceName),
 	}
-}
-
-// trackActor records the actor in a per-node Redis set for cleanup on restart.
-func (g *activatorManager) trackActor(kind, id string) {
-	key := fmt.Sprintf("node:actors:%s", g.nodeName)
-	gxyredis.Redis().SAdd(g.ctx, key, kind+":"+id)
-}
-
-// cleanupActors removes stale actor Redis entries for this node.
-// Called on startup to purge entries from the previous process instance.
-func (g *activatorManager) cleanupActors(ctx context.Context) {
-	key := fmt.Sprintf("node:actors:%s", g.nodeName)
-	actorIDs, err := gxyredis.Redis().SMembers(ctx, key).Result()
-	if err != nil || len(actorIDs) == 0 {
-		return
-	}
-	for _, id := range actorIDs {
-		parts := strings.SplitN(id, ":", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		locateKey := getActorLocateKey(parts[0], parts[1])
-		gxyredis.Redis().Del(ctx, locateKey)
-	}
-	gxyredis.Redis().Del(ctx, key)
-	gxylog.Info(ctx, "cleaned up stale actor entries", gxylog.Str("node", g.nodeName), gxylog.Num("count", int64(len(actorIDs))))
 }
 
 func (g *activatorManager) OnModInit(ctx context.Context) error {
@@ -304,7 +389,15 @@ func (g *activatorManager) OnModInit(ctx context.Context) error {
 }
 
 func (g *activatorManager) OnModStart(ctx context.Context) error {
-	g.cleanupActors(ctx)
+	if err := g.locator.acquireNodeLease(ctx); err != nil {
+		return err
+	}
+	g.stopLease = g.locator.startLeaseHeartbeat(ctx, func(err error) {
+		gxylog.Fatal(ctx, "actor node lease lost; terminating process",
+			gxylog.Str("node", g.nodeInstanceName),
+			gxylog.Err(err),
+		)
+	})
 
 	// Create router (external entry point for remote nodes)
 	routerPID, err := SpawnNamed(
@@ -312,6 +405,9 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 			return NewActivatorRouter()
 		}), g.getRouterName())
 	if err != nil {
+		g.stopLease()
+		g.stopLease = nil
+		_ = g.locator.releaseNodeLease(ctx)
 		return err
 	}
 	g.routerPID = routerPID
@@ -319,6 +415,11 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 }
 
 func (g *activatorManager) OnModStop(ctx context.Context) error {
+	if g.stopLease != nil {
+		g.stopLease()
+		g.stopLease = nil
+	}
+	_ = g.locator.releaseNodeLease(ctx)
 	_ = StopActor(g.routerPID)
 	return nil
 }
@@ -387,20 +488,27 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 	delete(g.activatorMetas, kind)
 }
 
-func (g *activatorManager) spawnActor(ctx context.Context, node string, kind string, id string) (PID, error) {
-	gxylog.Debug(ctx, "spawn actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node))
+func (g *activatorManager) requestActor(ctx context.Context, node string, kind string, id string, allowSpawn bool) (PID, bool, error) {
+	gxylog.Debug(ctx, "request actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node), gxylog.Bool("allow_spawn", allowSpawn))
 	activator := actor.NewPID(node, g.getRouterName())
 	rsp, err := Call(ctx, activator, &pb.ActorActive{
-		Kind: kind,
-		Id:   id,
+		Kind:       kind,
+		Id:         id,
+		AllowSpawn: allowSpawn,
 	}, -1)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	if rsp, ok := rsp.(*pb.ActorError); ok {
-		return nil, gerror.New(rsp.Reason)
+	switch rsp := rsp.(type) {
+	case *pb.ActorLocateRetry:
+		return nil, true, nil
+	case *pb.ActorError:
+		return nil, false, gerror.New(rsp.Reason)
+	case *remote.ActorPidResponse:
+		return rsp.Pid, false, nil
+	default:
+		return nil, false, errors.Newf("unexpected actor activation response: %T", rsp)
 	}
-	return rsp.(*remote.ActorPidResponse).Pid, nil
 }
 
 func (g *activatorManager) getActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
@@ -409,44 +517,50 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 		gxymetrics.ActorLocate.WithLabelValues(kind, result).Inc()
 	}()
 	key := getActorLocateKey(kind, id)
-	nodeName, err := getActorLocateNodeName(ctx, kind, id)
-	if err != nil {
-		return nil, err
+	requestActor := g.requestActor
+	if g.requestActorFunc != nil {
+		requestActor = g.requestActorFunc
 	}
-
-	if nodeName != "" {
-		// Redis 中存的是 nodeInstanceName（game-2@uid），直接传给 Consul 查地址
-		nodeHost := g.serviceLookup.GetAddressByNodeName(ctx, kind, nodeName)
-		if nodeHost != "" {
-			result = "hit"
-			return actor.NewPID(nodeHost, id), nil
+	for range actorLocateMaxAttempts {
+		owner, err := g.locator.locate(ctx, kind, id)
+		if err != nil {
+			return nil, err
 		}
-		// 节点已死 → fallback spawn（下面继续走）
-		result = "node_dead"
-		gxylog.Warn(ctx, "node not alive, re-spawning", gxylog.Str("node", nodeName), gxylog.Str("actor", key))
-	}
+		if owner.NodeID != "" {
+			nodeHost := g.serviceLookup.GetAddressByNodeName(ctx, kind, owner.NodeID)
+			if nodeHost == "" {
+				return nil, errors.Newf("active actor owner address unavailable: %s", owner.NodeID)
+			}
+			pid, retry, err := requestActor(ctx, nodeHost, kind, id, false)
+			if retry {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			result = "hit"
+			return pid, nil
+		}
 
-	if !spawn {
-		result = "not_found"
-		return nil, gerror.Newf("actor kind:%s, id:%s not found", kind, id)
-	}
-
-	serviceInfo := g.serviceLookup.GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
-	if serviceInfo == nil || serviceInfo.NodeHost == "" {
-		return nil, gerror.Newf("find actor node failed, kind: %s, id: %s", kind, id)
-	}
-	spawnActor := g.spawnActor
-	if g.spawnActorFunc != nil {
-		spawnActor = g.spawnActorFunc
-	}
-	pid, err := spawnActor(ctx, serviceInfo.NodeHost, kind, id)
-	if err != nil {
-		return nil, err
-	}
-	if result != "node_dead" {
+		if !spawn {
+			result = "not_found"
+			return nil, gerror.Newf("actor kind:%s, id:%s not found", kind, id)
+		}
+		serviceInfo := g.serviceLookup.GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
+		if serviceInfo == nil || serviceInfo.NodeHost == "" {
+			return nil, gerror.Newf("find actor node failed, kind: %s, id: %s", kind, id)
+		}
+		pid, retry, err := requestActor(ctx, serviceInfo.NodeHost, kind, id, true)
+		if retry {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
 		result = "miss"
+		return pid, nil
 	}
-	return pid, nil
+	return nil, errActorLocateRetryExhausted
 }
 
 func (g *activatorManager) GetActorCount(kind string) int {
