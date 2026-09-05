@@ -1,6 +1,6 @@
 # GServer
 
-基于 **Actor 模型**的分布式游戏服务器框架，使用 [protoactor-go](https://github.com/asynkron/protoactor-go) 运行时和 [GoFrame v2](https://goframe.org) 工具库。
+基于 **Actor 模型**的分布式游戏服务器框架，使用 [Ergo](https://github.com/AsynkronIT/proto) 运行时和 [GoFrame v2](https://goframe.org) 工具库。
 服务器中以开发种花游戏为例，展示如何使用 Actor 模型实现分布式游戏逻辑。
 配置系统使用luban来管理, 前后端通信使用protobuf
 
@@ -31,7 +31,7 @@
 ├──────────────────────────────────────────────────────────┤
 │  ┌──────────────────────────────────────────────────────┐│
 │  │              Actor System                            ││
-│  │    protoactor-go + Activator + Remote                ││
+│  │    Ergo + GServer Activator + Network                 ││
 │  ├──────────────────────────────────────────────────────┤│
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ││
 │  │  │  Redis   │ │   PGX    │ │    MQ    │ │  HTTP  │ ││
@@ -152,15 +152,17 @@ type IModule interface {
 
 ### Actor 模型
 
-基于 protoactor-go，提供：
+基于 Ergo，通过 `core/gxyactor` 的 GServer runtime-neutral seam 提供：
 - **Activator** — 按需激活 Actor（如玩家上线时才创建对应的 Role Actor）
-- **Remote** — 跨进程 Actor 通信
-- **PID 寻址** — 通过 `{node}:{kind}/{id}` 格式定位 Actor
+- **Network** — 跨节点传输 GServer protobuf envelope
+- **规范化 PID** — 通过 `{runtime, node, logical_id, creation}` 定位 Actor
+- **监督与生命周期** — `ProcessInit`、mailbox 消息处理和 `ProcessTerminate`
+Actor Directory 仍由 GServer 管理：Redis 保存 `nodeInstanceName + epoch + leaseToken`，节点 lease、原子 Claim/Release 和 PostgreSQL `role_actor_fence` 共同保证 single-writer。Ergo Registrar/Grid 仅用于 runtime 发现，不能替代 ownership fencing。详见 [ADR 0008](docs/architecture/adr-0008-ergo-actor-runtime.md)。
 
 ### 服务发现
 
 - **Consul** — 服务注册与健康检查（TTL 模式）
-- **Redis** — Actor 归属缓存（`role_id → node_instance_name`），支持快速重连
+- **Redis** — Actor Directory（`role_id → node_instance_name + epoch`），支持快速重连并 fail closed
 - **Watcher** — 本地缓存 Consul 服务地址，避免每次调用都查询
 
 ### 持久化
@@ -228,7 +230,7 @@ app.RegisterModule(&MyModule{})
 | 组件 | 选型 |
 |------|------|
 | 语言 | Go 1.25+ |
-| Actor 框架 | protoactor-go |
+| Actor 框架 | Ergo + GServer runtime adapter |
 | 工具框架 | GoFrame v2 |
 | 网络 | gnet v2 (TCP) |
 | 持久化 | GORM + PostgreSQL |
