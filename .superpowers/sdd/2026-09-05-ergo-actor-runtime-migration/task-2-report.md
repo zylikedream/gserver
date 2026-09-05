@@ -140,3 +140,37 @@ The command passed for gateway, gateway internal logic, lib, gatetoken, and role
 1. The legacy PID registry is intentionally temporary and has no creation/incarnation value; `Creation` remains empty for Protoactor compatibility PIDs and must be populated by the Ergo adapter.
 2. The registry is private adapter state and is not a PID compatibility protocol. Ergo must provide its own exact transport mapping and creation value.
 3. The checkout still lacks generated `gameconfig/gosrc`, so focused commands require a temporary removed stub; no stub is committed.
+
+## Review round 2 fixes
+
+Implementation commit: `76dfa3f` (`fix: complete runtime seam compatibility`).
+
+- Restored `actorApp.GetActorCount`, which is required by the public helper and current role service.
+- Added private legacy PID mapping eviction on the stopped lifecycle callback. The regression drives `legacyActorContextAdapter.Message` with `actor.Stopped` and verifies the normalized mapping is removed.
+- Ported the Guild disband test fake to `ActorContext` and normalized PID methods.
+- Added `WireAddress(PID)` as the temporary neutral compatibility bridge for the existing `pb.ActorPid.Address` dialable-address field. `role_chat.go` now preserves the legacy transport address from the private adapter mapping instead of writing canonical `PID.Node` into a wire address field.
+
+### Round 2 verification
+
+The focused regression command was run before committing the round 2 changes:
+
+```text
+go test ./core/gxyactor ./src/apps/gateway/internal/logic ./src/lib/rolelib -run 'Test(LegacyPID|ActorBaseStopped|RuntimeDispatchesLocal|Uninitialized|Session|PublishRoleNotify|NotifyLocal|GetRolePid)' -count=1
+ok  	gserver/core/gxyactor	0.185s
+ok  	gserver/src/apps/gateway/internal/logic	0.353s
+ok  	gserver/src/lib/rolelib	0.360s
+```
+
+The affected gateway/rolelib compile check also passed:
+
+```text
+go test ./src/apps/gateway/... ./src/lib/... -run '^$'
+?   	gserver/src/apps/gateway	[no test files]
+ok  	gserver/src/apps/gateway/internal/logic	0.348s [no tests to run]
+?   	gserver/src/lib	[no test files]
+ok  	gserver/src/lib/gatetoken	(cached) [no tests to run]
+?   	gserver/src/lib/guildlib	[no test files]
+ok  	gserver/src/lib/rolelib	0.338s [no tests to run]
+```
+
+Both commands used the same temporary, removed `gameconfig/gosrc` compatibility stub required because generated gameconfig sources are absent from this checkout. No stub is committed.
