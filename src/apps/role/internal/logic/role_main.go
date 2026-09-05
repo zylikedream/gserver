@@ -31,7 +31,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -481,24 +480,17 @@ func defaultSaveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) e
 	tableName := modState.(tabler).TableName()
 	gxylog.Debug(ctx, "save mod", gxylog.Str("table", tableName))
 
-	var saved *savedRoleModule
 	err := r.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRoleActorFence(ctx, tx, r.RoleID, r.actorOwner); err != nil {
 			return err
 		}
-		var err error
-		saved, err = r.saveRoleModuleState(ctx, tx, rmod)
+		_, err := r.saveRoleModuleState(ctx, tx, rmod)
 		return err
 	})
 	if err != nil {
-		if saved != nil && saved.versionChanged {
-			saved.state.SetVersion(saved.oldVersion)
-		}
 		return err
 	}
-	if saved != nil {
-		saved.state.ClearDirty()
-	}
+	modState.ClearDirty()
 	return nil
 }
 
@@ -507,9 +499,7 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 }
 
 type savedRoleModule struct {
-	state          IPersistState
-	oldVersion     int64
-	versionChanged bool
+	state IPersistState
 }
 
 func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IRoleModule) (*savedRoleModule, error) {
@@ -521,42 +511,14 @@ func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IR
 		return nil, nil
 	}
 	tableName := modState.(tabler).TableName()
-
-	oldVersion := modState.GetVersion()
 	modState.SetUpdateAt(time.Now())
 
-	if oldVersion == 0 {
-		// version==0 可能是新行,也可能是旧版本留下的已有行。
-		// 先用 INSERT ... ON CONFLICT DO NOTHING 处理新行；若冲突,
-		// 继续进入 version=0 的条件 UPDATE,将遗留行升级到 version=1。
-		modState.SetVersion(1)
-		result := db.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "role_id"}},
-			DoNothing: true,
-		}).Create(modState)
-		if result.Error != nil {
-			modState.SetVersion(0)
-			return nil, errors.Wrap(result.Error, "create mod "+tableName+" failed")
-		}
-		if result.RowsAffected == 1 {
-			return &savedRoleModule{state: modState, oldVersion: 0, versionChanged: true}, nil
-		}
+	// Actor mailbox 保证正常写入串行；PostgreSQL role_actor_fence
+	// 在事务开始时拒绝旧 owner，因此模块只需按 role_id 保存。
+	if err := db.Save(modState).Error; err != nil {
+		return nil, errors.Wrap(err, "save mod "+tableName+" failed")
 	}
-
-	// version>0 表示有已有行，UPDATE + WHERE version 做冲突检测
-	modState.SetVersion(oldVersion + 1)
-	result := db.Model(modState).
-		Where("role_id = ? AND version = ?", r.RoleID, oldVersion).
-		Updates(modState)
-	if result.Error != nil {
-		modState.SetVersion(oldVersion)
-		return nil, errors.Wrap(result.Error, "save mod "+tableName+" failed")
-	}
-	if result.RowsAffected == 0 {
-		modState.SetVersion(oldVersion) // 不清 dirty，下次重试
-		return nil, nil
-	}
-	return &savedRoleModule{state: modState, oldVersion: oldVersion, versionChanged: true}, nil
+	return &savedRoleModule{state: modState}, nil
 }
 
 func (r *RoleMain) save(ctx context.Context) error {
@@ -588,11 +550,6 @@ func (r *RoleMain) save(ctx context.Context) error {
 		return saveErr
 	})
 	if err != nil {
-		for _, saved := range savedMods {
-			if saved.versionChanged {
-				saved.state.SetVersion(saved.oldVersion)
-			}
-		}
 		return err
 	}
 	for _, saved := range savedMods {

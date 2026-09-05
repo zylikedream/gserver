@@ -82,7 +82,6 @@ func TestRoleSaveLocksFenceBeforeWritingModules(t *testing.T) {
 	r.actorOwner = owner
 	mod := &testRoleModule{state: &testPersistState{table: "test_mod"}}
 	mod.state.RoleID = 100
-	mod.state.Version = 5
 	mod.state.MarkDirty()
 	if err := r.AddModule(context.Background(), mod); err != nil {
 		t.Fatal(err)
@@ -114,7 +113,6 @@ func TestSaveRoleModuleLocksFenceBeforeWriting(t *testing.T) {
 	r.actorOwner = owner
 	mod := &testRoleModule{state: &testPersistState{table: "test_mod"}}
 	mod.state.RoleID = 100
-	mod.state.Version = 5
 	mod.state.MarkDirty()
 
 	mock.ExpectBegin()

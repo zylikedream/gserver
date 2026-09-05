@@ -29,14 +29,11 @@ type IPersistState interface {
 	MarkDirty()
 	IsDirty() bool
 	ClearDirty()
-	GetVersion() int64
-	SetVersion(v int64)
 }
 
 type RolePersistState struct {
 	RoleID   int64     `gorm:"column:role_id;primaryKey"`
 	UpdateAt time.Time `gorm:"column:update_at;autoUpdateTime"`
-	Version  int64     `gorm:"column:version"`
 	dirty    bool
 }
 
@@ -56,11 +53,9 @@ func (r *RolePersistState) GetIndexes() []string {
 	return []string{"update_at"}
 }
 
-func (r *RolePersistState) MarkDirty()         { r.dirty = true }
-func (r *RolePersistState) IsDirty() bool      { return r.dirty }
-func (r *RolePersistState) ClearDirty()        { r.dirty = false }
-func (r *RolePersistState) GetVersion() int64  { return r.Version }
-func (r *RolePersistState) SetVersion(v int64) { r.Version = v }
+func (r *RolePersistState) MarkDirty()    { r.dirty = true }
+func (r *RolePersistState) IsDirty() bool { return r.dirty }
+func (r *RolePersistState) ClearDirty()   { r.dirty = false }
 
 type RoleModule struct {
 	gxymodule.ModuleBase

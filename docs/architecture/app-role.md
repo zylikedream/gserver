@@ -82,7 +82,7 @@ type IRoleModule interface {
 }
 ```
 
-### 持久化接口（IPersistState）
+### 持久化状态接口（IPersistState）
 
 ```go
 type IPersistState interface {
@@ -93,13 +93,11 @@ type IPersistState interface {
     MarkDirty()
     IsDirty() bool
     ClearDirty()
-    GetVersion() int64
-    SetVersion(v int64)
 }
 ```
 
 - 脏跟踪（Dirty Flag） → 定时刷盘
-- 版本号（`Version`） → 乐观锁（详见下文）
+- `role_id` → 模块状态表的唯一持久化身份
 
 ## 持久化
 
@@ -115,12 +113,9 @@ type IPersistState interface {
 
 ### save() 并发安全
 
-两层保护：
+Role Actor 的 mailbox 串行处理正常保存。每次保存事务开始时，先在 PostgreSQL 中锁定完全匹配的 `role_actor_fence(role_id, node_id, epoch)`；锁定失败则拒绝整次保存。fence 校验通过后，各模块按 `role_id` 使用 GORM `Save` 写入，全部成功后再清除 dirty 状态。
 
-1. **Redis 所有权检查**：写入前校验 Redis 中该 Actor 的 locate key 是否指向本节点（防止 Actor 迁移后旧节点回写）
-2. **版本乐观锁**：`UPDATE ... WHERE version = oldVersion`，更新成功后 `version++`
-
-首次写入（GORM `RowsAffected == 0`）时自动创建新行。
+`role_actor_fence` 防止旧 owner 在 ownership 转移后写入业务表；同一 `role_id` 的重复 activation 必须由 Activator fail closed。已部署数据库中可能保留未使用的历史 `version` 列，`AutoMigrate` 不会自动删除它。
 
 ### 数据库表
 

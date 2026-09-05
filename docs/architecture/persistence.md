@@ -56,8 +56,6 @@ type IPersistState interface {
     MarkDirty()
     IsDirty() bool
     ClearDirty()
-    GetVersion() int64
-    SetVersion(v int64)
 }
 ```
 
@@ -81,39 +79,9 @@ func (m *GoodsMap) Scan(value interface{}) error  // ← JSON 反序列化
 
 ## save() 并发安全
 
-`RoleMain.save()` 实现两层保护：
+Role Actor 的 mailbox 串行处理正常保存。每次 `save()` 事务开始时，先在 PostgreSQL 中锁定完全匹配的 `role_actor_fence(role_id, node_id, epoch)`；锁定失败则拒绝整次保存。fence 校验通过后，各模块按 `role_id` 使用 GORM `Save` 写入，全部成功后再清除 dirty 状态。
 
-### 第一层：Redis 所有权检查
-
-写入前校验 Redis 中该 Actor 的 locate key 是否指向本节点：
-
-```go
-owner, _ := gxyredis.Redis().Get(ctx, key).Result()
-if owner != nodeInstanceName {
-    // Actor 已迁移到其他节点，拒绝写入
-    return
-}
-```
-
-防止 Actor 因负载均衡迁移后，旧节点仍在回写数据。
-
-### 第二层：版本乐观锁
-
-```go
-if oldVersion == 0 {
-    result = db.Create(state)
-} else {
-    state.SetVersion(oldVersion + 1)
-    result = db.Model(state).
-        Where("role_id = ? AND version = ?", roleID, oldVersion).
-        Updates(state)
-}
-```
-
-- 首次写入（`version == 0`）直接创建
-- 已有行通过 `UPDATE ... WHERE version = oldVersion` 做冲突检测
-- `RowsAffected == 0` 表示版本冲突：回滚内存版本、保留 dirty，等待后续处理
-- 所有模块写入成功后再统一 `ClearDirty()`；任一失败则回滚本轮内存版本
+`role_actor_fence` 防止旧 owner 在 ownership 转移后写入业务表；同一 `role_id` 的重复 activation 必须由 Activator fail closed。已部署数据库中可能保留未使用的历史 `version` 列，`AutoMigrate` 不会自动删除它。
 
 ## 源码位置
 

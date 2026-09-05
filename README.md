@@ -166,7 +166,7 @@ type IModule interface {
 ### 持久化
 
 - GORM + PostgreSQL，自动建表迁移
-- 按 module 维度拆分状态表，乐观锁版本号冲突检测
+- PostgreSQL `role_actor_fence` 拒绝旧 owner 的持久化副作用
 - 脏标记（dirty flag）避免无效写入
 
 ## 配置

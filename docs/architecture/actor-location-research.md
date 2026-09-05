@@ -208,7 +208,7 @@ Orleans 将 grain directory 明确建模为“逻辑 actor identity 到当前 ac
 per-player locate
     → 作为快速路由缓存，可由节点状态验证
 
-role version / fencing
+PostgreSQL role_actor_fence
     → 负责拒绝旧 owner 的持久化副作用
 ```
 
@@ -235,4 +235,4 @@ role version / fencing
 - Redis 错误 fail closed，不允许 fallback 本地创建 actor。
 - shard ownership、在线 actor 迁移、本地 locate 缓存、节点 Set 扫描及 mailbox/state 迁移是永久非目标。
 
-已有模块 version 乐观锁继续作为同一 owner 内的数据库冲突保护，但不替代 actor owner fencing。
+不保留模块级 Version 乐观锁；Role Actor 依赖 mailbox 串行处理正常写入，并由 PostgreSQL `role_actor_fence` 在每次保存事务中锁定 exact `node_id + epoch`，拒绝旧 owner。重复 activation 必须由 Activator fail closed。
