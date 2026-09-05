@@ -5,12 +5,13 @@ import (
 	"errors"
 	"testing"
 	"time"
-
 	"gserver/core/gxytimer"
+	"gserver/protocol/pb"
 )
 type lifecycleProbeActor struct {
 	*ActorBase
 	events      []string
+	terminateErr error
 	initErr     error
 	delayErr    error
 	handlerErr  error
@@ -38,8 +39,9 @@ func (p *lifecycleProbeActor) HandleMessage(context.Context, any) error {
 	}
 	return p.handlerErr
 }
-func (p *lifecycleProbeActor) Terminate(context.Context, error) {
+func (p *lifecycleProbeActor) Terminate(_ context.Context, err error) {
 	p.events = append(p.events, "terminate")
+	p.terminateErr = err
 }
 func (p *lifecycleProbeActor) Timer() *ActorTimer { return p.ActorBase.timer }
 
@@ -103,6 +105,56 @@ func TestActorHandlerPanicStopsCurrentActor(t *testing.T) {
 	if len(ctx.stops) == 0 {
 		t.Fatal("handler panic did not request actor stop")
 	}
+}
+
+func TestActorHandlerErrorTerminatesOnceWithOriginalReason(t *testing.T) {
+	probe := newLifecycleProbe()
+	reason := errors.New("handler failed")
+	probe.handlerErr = reason
+	ctx := &lifecycleContext{self: PID{Runtime: "test", Node: "node", ID: "error", Creation: "1"}}
+	probe.Receive(&lifecycleContext{message: ActorStartedMessage{Self: ctx.self}, self: ctx.self})
+	ctx.message = "business"
+	probe.Receive(ctx)
+	ctx.message = ActorStoppedMessage{}
+	probe.Receive(ctx)
+	probe.Receive(ctx)
+	if !errors.Is(probe.terminateErr, reason) {
+		t.Fatalf("terminate reason = %v, want %v", probe.terminateErr, reason)
+	}
+	if got := countString(probe.events, "terminate"); got != 1 {
+		t.Fatalf("terminate count = %d, want 1 (%v)", got, probe.events)
+	}
+}
+
+type lifecycleValueHandler struct{}
+
+func (lifecycleValueHandler) HandleValue(context.Context, *pb.ReqGuildInfo) (*pb.RspGuildInfo, error) {
+	return &pb.RspGuildInfo{}, nil
+}
+
+func TestActorAsyncValueHandlerDoesNotRequireResponseHandle(t *testing.T) {
+	probe := newLifecycleProbe()
+	ctx := &lifecycleContext{self: PID{Runtime: "test", Node: "node", ID: "value", Creation: "1"}}
+	probe.Receive(&lifecycleContext{message: ActorStartedMessage{Self: ctx.self}, self: ctx.self})
+	probe.msgHandler.AddHandler(lifecycleValueHandler{})
+	probe.Actx = ctx
+	result, err := probe.AutoHandleMsg(context.Background(), &pb.ReqGuildInfo{})
+	if err != nil {
+		t.Fatalf("async value handler error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("async value handler returned nil result")
+	}
+}
+
+func countString(values []string, wanted string) int {
+	count := 0
+	for _, value := range values {
+		if value == wanted {
+			count++
+		}
+	}
+	return count
 }
 
 func equalStrings(a, b []string) bool {

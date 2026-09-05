@@ -73,6 +73,7 @@ func(a *legacyActorAdapter)Receive(ctx actor.Context){receiver,ok:=a.actor.(inte
 func legacyActorProducer(prod func()IActor,app *actorApp)func()actor.Actor{return func()actor.Actor{return &legacyActorAdapter{actor:prod(),app:app}}}
 type legacyActorContextAdapter struct{actor.Context;app *actorApp}
 func(c *legacyActorContextAdapter)Message()any{msg:=c.Context.Message();switch value:=msg.(type){case *actor.Started:args:=[]any(nil);if decorated,ok:=c.Context.(*legacyActorContext);ok{args=decorated.InitArgs};return ActorStartedMessage{Self:pidFromProto(c.Context.Self(),c.app),InitArgs:args};case *actor.Stopping:return ActorStopping;case *actor.Stopped:forgetLegacyPID(c.Context.Self(),c.app);return ActorStoppedMessage{};case actor.AutoRespond:return ActorAutoRespond;case *actor.Terminated:return ActorTerminatedMessage{Who:pidFromProto(value.Who,c.app)};case *actor.MessageEnvelope:return value.Message;default:return msg}}
+func(c *legacyActorContextAdapter)RequestHandle()Request{if _,ok:=c.Context.Message().(*actor.MessageEnvelope);ok{return c};return nil}
 func(c *legacyActorContextAdapter)Sender()PID{return pidFromProto(c.Context.Sender(),c.app)}
 func(c *legacyActorContextAdapter)Self()PID{return pidFromProto(c.Context.Self(),c.app)}
 func(c *legacyActorContextAdapter)MessageHeader()map[string]string{header:=c.Context.MessageHeader();if header==nil{return nil};return header.ToMap()}

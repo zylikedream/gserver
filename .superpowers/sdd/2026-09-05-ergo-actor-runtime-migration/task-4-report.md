@@ -66,3 +66,26 @@ ok   gserver/core/gxyactor 0.609s
 go test ./core/gxyactor/internal/ergo -run 'Test(Adapter|Start|Spawn)' -count=1
 ok   gserver/core/gxyactor/internal/ergo 1.353s
 ```
+
+## Review round 1 fixes
+
+- Ergo `HandleMessage` and `HandleCall` now create each callback context from a fresh base, retaining only the current propagated Ergo trace and private process callback. Prior callback cancellation/value chains are not retained.
+- Added deterministic adapter-level trace-hop coverage for local and remote-style callback context reconstruction, including exact TraceID/SpanID and remote status. A full two-node network hop remains outside this focused package test runtime.
+- Added non-panic handler-error coverage asserting exactly-once `Terminate` with the original error reason.
+- `AutoHandleMsg` now detects whether the neutral context actually carries a request handle. Asynchronous value-returning handlers no longer attempt `Respond`; call handlers still send response errors and terminate on handler failure.
+
+Verification after review fixes:
+
+```text
+go test ./core/gxyactor -run 'Test(ActorHandlerErrorTerminatesOnce|ActorAsyncValueHandler|Lifecycle|Timer|Trace)' -count=1
+ok   gserver/core/gxyactor 0.179s
+
+go test ./core/gxyactor/internal/ergo -run 'Test(TraceHop|Adapter)' -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.284s
+
+go test ./core/gxyactor -run 'Test(Lifecycle|Actor|Timer|Trace)' -count=1
+ok   gserver/core/gxyactor 0.608s
+
+go test ./core/gxyactor/internal/ergo -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.353s
+```

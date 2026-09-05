@@ -62,7 +62,7 @@ func (a *ergoActor) HandleMessage(from gen.PID, message any) error {
 	}
 	a.ctx.sender = a.adapter.fromErgoPID(from, "")
 	a.ctx.request = nil
-	a.ctx.ctx = contextWithErgoTrace(a.ctx.ctx, a.PropagatingTrace(), a)
+	a.ctx.ctx = contextWithErgoTrace(context.Background(), a.PropagatingTrace(), a)
 	a.ctx.message = decoded
 	if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
 		receiver.Receive(a.ctx)
@@ -84,7 +84,7 @@ func (a *ergoActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, err
 	}
 	a.ctx.sender = a.adapter.fromErgoPID(from, "")
 	a.ctx.request = &ergoRequest{sender: a.ctx.sender, rawSender: from, ref: ref, process: a}
-	a.ctx.ctx = contextWithErgoTrace(a.ctx.ctx, a.PropagatingTrace(), a)
+	a.ctx.ctx = contextWithErgoTrace(context.Background(), a.PropagatingTrace(), a)
 	a.ctx.message = decoded
 	handler, ok := a.actor.(interface {
 		DoCallMsgHandler(context.Context, any) (any, error)
@@ -184,6 +184,12 @@ func (c *actorContext) Context() context.Context {
 		return context.Background()
 	}
 	return c.ctx
+}
+func (c *actorContext) RequestHandle() gxyactor.Request {
+	if c == nil {
+		return nil
+	}
+	return c.request
 }
 func (c *actorContext) Message() any {
 	if c == nil {

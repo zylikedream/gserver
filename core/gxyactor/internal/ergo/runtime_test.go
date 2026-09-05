@@ -2,17 +2,68 @@ package ergo
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"strconv"
 	"testing"
 	"time"
-
 	"ergo.services/ergo"
 	"ergo.services/ergo/gen"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"gserver/core/gxyactor"
 	"gserver/protocol/pb"
 )
+
+func TestTraceHopContextPreservesErgoIdentity(t *testing.T) {
+	tracing := gen.Tracing{ID: [2]uint64{11, 22}, SpanID: 33}
+	local := contextWithErgoTrace(context.Background(), tracing, nil)
+	remote := contextWithErgoTrace(context.Background(), tracing, nil)
+	for name, ctx := range map[string]context.Context{"local": local, "remote": remote} {
+		t.Run(name, func(t *testing.T) {
+			got := trace.SpanContextFromContext(ctx)
+			if !got.IsValid() {
+				t.Fatal("adapter callback context has no valid trace span")
+			}
+			if got.TraceID() != traceID(tracing) || got.SpanID() != spanID(tracing) {
+				t.Fatalf("trace = %s/%s, want %s/%s", got.TraceID(), got.SpanID(), traceID(tracing), spanID(tracing))
+			}
+			if !got.IsRemote() {
+				t.Fatal("adapter callback trace must be marked remote")
+			}
+		})
+	}
+}
+
+func traceID(tracing gen.Tracing) trace.TraceID {
+	var id trace.TraceID
+	binary.BigEndian.PutUint64(id[:8], tracing.ID[0])
+	binary.BigEndian.PutUint64(id[8:], tracing.ID[1])
+	return id
+}
+
+func spanID(tracing gen.Tracing) trace.SpanID {
+	var id trace.SpanID
+	binary.BigEndian.PutUint64(id[:], tracing.SpanID)
+	return id
+}
+
+func TestErgoCallbackContextStartsFreshPerMessage(t *testing.T) {
+	type valueKey struct{}
+	cancelled := context.WithValue(context.Background(), valueKey{}, "prior")
+	cancelled, cancel := context.WithCancel(cancelled)
+	cancel()
+	fresh := contextWithErgoTrace(context.Background(), gen.Tracing{}, nil)
+	if fresh.Value(valueKey{}) != nil {
+		t.Fatal("fresh callback context retained a prior value chain")
+	}
+	if fresh.Err() != nil {
+		t.Fatalf("fresh callback context is cancelled: %v", fresh.Err())
+	}
+	if cancelled.Value(valueKey{}) != "prior" || cancelled.Err() == nil {
+		t.Fatal("test setup did not create a cancelled prior context")
+	}
+}
 
 func TestEnvelopeRoundTripRegisteredProto(t *testing.T) {
 	registry := NewMessageRegistry()

@@ -300,17 +300,30 @@ func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
 		ctx = a.ctx
 	}
 	rsp, err := a.callMsgHandler(ctx, msg)
+	request := a.requestHandle()
 	if err != nil {
 		a.logError("handle rpc msg failed", err)
-		_ = Respond(ctx, a.Actx, nil, err)
+		if request != nil {
+			_ = Respond(ctx, request, nil, err)
+		}
 		return nil, err
 	}
-	if rsp != nil {
-		if err := Respond(ctx, a.Actx, rsp); err != nil {
+	if rsp != nil && request != nil {
+		if err := Respond(ctx, request, rsp); err != nil {
 			return nil, err
 		}
 	}
 	return rsp, nil
+}
+
+func (a *ActorBase) requestHandle() Request {
+	if a.Actx == nil {
+		return nil
+	}
+	if provider, ok := a.Actx.(interface{ RequestHandle() Request }); ok {
+		return provider.RequestHandle()
+	}
+	return nil
 }
 
 func (a *ActorBase) callMsgHandler(ctx context.Context, msg any) (any, error) {
