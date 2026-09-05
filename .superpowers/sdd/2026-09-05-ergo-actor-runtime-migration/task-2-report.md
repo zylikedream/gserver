@@ -174,3 +174,22 @@ ok  	gserver/src/lib/rolelib	0.338s [no tests to run]
 ```
 
 Both commands used the same temporary, removed `gameconfig/gosrc` compatibility stub required because generated gameconfig sources are absent from this checkout. No stub is committed.
+
+### Committed-tree verification
+
+After commits `76dfa3f` and `f1246a1`, the same focused checks were rerun against the committed tree:
+
+```text
+go test ./core/gxyactor ./src/apps/gateway/internal/logic ./src/lib/rolelib -run 'Test(LegacyPID|ActorBaseStopped|RuntimeDispatchesLocal|Uninitialized|Session|PublishRoleNotify|NotifyLocal|GetRolePid)' -count=1
+ok  	gserver/core/gxyactor	0.192s
+ok  	gserver/src/apps/gateway/internal/logic	0.342s
+ok  	gserver/src/lib/rolelib	0.350s
+
+go test ./src/apps/gateway/... ./src/lib/... -run '^$'
+?   	gserver/src/apps/gateway	[no test files]
+ok  	gserver/src/apps/gateway/internal/logic	(cached) [no tests to run]
+?   	gserver/src/lib	[no test files]
+ok  	gserver/src/lib/gatetoken	(cached) [no tests to run]
+?   	gserver/src/lib/guildlib	[no test files]
+ok  	gserver/src/lib/rolelib	(cached) [no tests to run]
+```
