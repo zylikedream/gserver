@@ -263,7 +263,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 
 		// SpawnNamed 使用原始 ID，保证 Actor PID 与后续 ActorMgr 查找一致。
 		props := a.meta.Props.Clone()
-		pid, err := SpawnNamed(props, msg.Id, msg.Id, owner)
+		pid, err := app.spawnNamedLegacy(props, msg.Id, msg.Id, owner)
 		if err != nil {
 			// 创建失败也必须条件释放 owner，否则其他节点会看到残留 owner。
 			_, releaseErr := a.manager.locator.release(ctx, a.kind, msg.Id, owner)
@@ -432,7 +432,7 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 	})
 
 	// Create router (external entry point for remote nodes)
-	routerPID, err := SpawnNamed(
+	routerPID, err := app.spawnNamedLegacy(
 		actor.PropsFromProducer(func() actor.Actor {
 			return legacyActorProducer(func() IActor { return NewActivatorRouter() }, app)()
 		}), g.getRouterName())
@@ -477,7 +477,7 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 	g.activatorMetas[kind] = meta
 
 	// Create consistent-hash pool (internal)
-	poolPID, err := SpawnNamed(
+	poolPID, err := app.spawnNamedLegacy(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
 			return legacyActorProducer(func() IActor { return NewActorActivator(kind, g) }, app)()
 		})), g.getPoolName(kind))

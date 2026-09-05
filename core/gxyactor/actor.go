@@ -139,6 +139,9 @@ func (a *ActorBase) doReceiveWithStarted(ctx ActorContext, msg ActorStartedMessa
 }
 
 func (a *ActorBase) terminate(err error) {
+	if err == nil {
+		err = a.stopErr
+	}
 	gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Dec()
 	if a.timer != nil {
 		a.timer.Stop(a.ctx)

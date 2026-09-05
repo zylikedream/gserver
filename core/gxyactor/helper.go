@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"gserver/protocol/pb"
-
 	"github.com/cockroachdb/errors"
 )
 
@@ -16,28 +15,13 @@ func RegisterActorKind(name string, prod ActorProducer) error {
 }
 
 func DeregisterActorKind(name string) {
+	if runtime, err := currentRuntime(); err == nil { runtime.DeregisterActorKind(name); return }
 	if app != nil { app.DeregisterActorKind(name) }
 }
 
-// Spawn helpers accept an opaque runtime-specific producer/property value for
-// compatibility during the adapter cutover. Business code should register an
-// ActorProducer instead; the value is consumed only by the private adapter.
-func SpawnNamed(props any, name string, initArgs ...any) (PID, error) {
-	if app == nil { return PID{}, errors.New("actor app is not initialized") }
-	return app.spawnNamed(props, name, initArgs...)
-}
-
-func SpawnNamedFunc(prod any, initArgs ...any) (PID, error) {
-	if app == nil { return PID{}, errors.New("actor app is not initialized") }
-	return app.spawnFunc(prod, initArgs...)
-}
-
-func Spawn(props any, initArgs ...any) (PID, error) {
-	if app == nil { return PID{}, errors.New("actor app is not initialized") }
-	return app.spawn(props, initArgs...)
-}
-
-func SpawnFunc(prod any, initArgs ...any) (PID, error) {
+// SpawnFunc is the only public spawn helper. Runtime-specific properties and
+// producers are private to the adapter; business code supplies ActorProducer.
+func SpawnFunc(prod ActorProducer, initArgs ...any) (PID, error) {
 	if app == nil { return PID{}, errors.New("actor app is not initialized") }
 	return app.spawnFunc(prod, initArgs...)
 }
@@ -48,7 +32,11 @@ func Send(ctx context.Context, pid PID, message any) error {
 	return app.send(ctx, pid, message)
 }
 
-func LocalSend(ctx context.Context, pid PID, message any) error { return Send(ctx, pid, message) }
+func LocalSend(ctx context.Context, pid PID, message any) error {
+	if runtime, err := currentRuntime(); err == nil { return runtime.LocalSend(ctx, pid, message) }
+	if app == nil { return errors.New("actor app is not initialized") }
+	return app.localSend(ctx, pid, message)
+}
 
 func Respond(ctx context.Context, request Request, message any, responseErr ...error) error {
 	err := error(nil)

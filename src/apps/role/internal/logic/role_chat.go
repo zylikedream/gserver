@@ -70,11 +70,11 @@ func (r *RoleChat) OnModStop(ctx context.Context) error {
 func (r *RoleChat) joinWorldChannel(ctx context.Context) (gxyactor.PID, error) {
 	lobbyID, err := callChatJoinLobby(ctx, r.RoleID)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	channel, err := r.JoinChannel(ctx, int32(gamecfg.GardenEChatChannelType_WORLD), lobbyID)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	r.lastLobbyID = lobbyID
 	return channel, nil
@@ -82,18 +82,18 @@ func (r *RoleChat) joinWorldChannel(ctx context.Context) (gxyactor.PID, error) {
 
 func (r *RoleChat) JoinChannel(ctx context.Context, channelType int32, channelID int64) (gxyactor.PID, error) {
 	if channelID < 0 {
-		return nil, errors.New("channelID 不能小于 0")
+		return gxyactor.PID{}, errors.New("channelID 不能小于 0")
 	}
 	channel, err := lib.GetChannelActor(ctx, channelType, channelID)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	self := r.Role.Self()
 	_ = gxyactor.Send(ctx, channel, &pb.ChannelRegisterMsg{
 		RoleId: r.RoleID,
 		Pid: &pb.ActorPid{
-			Address: self.Address,
-			Id:      self.Id,
+			Address: self.Node,
+			Id:      self.ID,
 		},
 		ChannelType: channelType,
 		ChannelId:   channelID,

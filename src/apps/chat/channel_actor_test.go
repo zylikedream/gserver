@@ -13,7 +13,6 @@ import (
 	"gserver/protocol/pb"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/asynkron/protoactor-go/actor"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -25,22 +24,21 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// fakeActx 最小 actor.Context:嵌入 nil 接口兜底,只实现被测路径用到的方法。
+// fakeActx implements the runtime-neutral ActorContext contract.
 type fakeActx struct {
-	actor.Context
-	self    *actor.PID
-	sender  *actor.PID
-	stopPID *actor.PID
-	msg     any
+	self gxyactor.PID
+	sender gxyactor.PID
+	stopPID gxyactor.PID
+	msg any
 }
-
-func (f *fakeActx) Self() *actor.PID    { return f.self }
-func (f *fakeActx) Sender() *actor.PID  { return f.sender }
-func (f *fakeActx) Stop(pid *actor.PID) { f.stopPID = pid }
-func (f *fakeActx) Message() any        { return f.msg }
-func (f *fakeActx) MessageHeader() actor.ReadonlyMessageHeader {
-	return nil
-}
+func (f *fakeActx) Self() gxyactor.PID { return f.self }
+func (f *fakeActx) Sender() gxyactor.PID { return f.sender }
+func (f *fakeActx) Stop(pid gxyactor.PID) { f.stopPID = pid }
+func (f *fakeActx) Message() any { return f.msg }
+func (f *fakeActx) MessageHeader() map[string]string { return nil }
+func (f *fakeActx) Watch(gxyactor.PID) {}
+func (f *fakeActx) Unwatch(gxyactor.PID) {}
+func (f *fakeActx) Children() []gxyactor.PID { return nil }
 
 // newTestChannelActor 构造被测 actor:
 //   - 通过 Receive(&actor.Started{}) 走真实初始化路径,建立 ActorBase.timer/self
@@ -50,13 +48,12 @@ func newTestChannelActor(t *testing.T, ch IChannel) (*ChannelActor, *fakeActx) {
 	t.Helper()
 	a := NewChannelActor()
 	fake := &fakeActx{
-		self:   &actor.PID{Id: "test_channel"},
-		sender: &actor.PID{Id: "sender_pid"},
-		msg:    &actor.Started{},
+		self:   gxyactor.PID{Runtime: "test", Node: "node", ID: "test_channel", Creation: "1"},
+		sender: gxyactor.PID{Runtime: "test", Node: "node", ID: "sender_pid", Creation: "1"},
+		msg:    gxyactor.ActorStartedMessage{Self: gxyactor.PID{Runtime: "test", Node: "node", ID: "test_channel", Creation: "1"}},
 	}
 	a.Receive(fake)    // Started: 初始化 timer; Init(nil args) 失败 → Stop 记录, 无 panic
-	fake.stopPID = nil // 清掉 Init 失败路径的 Stop, 断言只关注被测调用
-	a.channel = ch
+	fake.stopPID = gxyactor.PID{}
 	a.buffer = newRingBuffer(ch.RingBufferSize())
 	return a, fake
 }
@@ -385,7 +382,7 @@ func TestChannelActor_DelayInit_WithoutSaveInterval(t *testing.T) {
 func TestChannelActor_Terminate_NoPanic(t *testing.T) {
 	a, fake := newTestChannelActor(t, WorldChannel{})
 	a.Terminate(context.Background(), nil)
-	if fake.stopPID != nil {
+	if !fake.stopPID.IsZero() {
 		t.Fatalf("Terminate should not Stop actor, got stopPID=%v", fake.stopPID)
 	}
 }

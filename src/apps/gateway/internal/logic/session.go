@@ -21,7 +21,6 @@ import (
 	"gserver/src/lib"
 	"gserver/src/lib/gatetoken"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
@@ -52,12 +51,12 @@ var activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error)
 func activateRoleWithLoginPermit(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 	permit, err := currentLoginAcquirer.acquire(ctx)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	defer permit.Release()
 	pid, err := activateRole(ctx, roleID)
 	if err != nil {
-		return nil, gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
+		return gxyactor.PID{}, gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
 	}
 	return pid, nil
 }
@@ -131,9 +130,9 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
 			return gerror.Wrap(err, "handle server message error")
 		}
-	case *actor.Terminated:
+	case gxyactor.ActorTerminatedMessage:
 		if gxyactor.PidEqual(msg.Who, s.sessionInfo.RolePid) {
-			s.sessionInfo.RolePid = nil
+			s.sessionInfo.RolePid = gxyactor.PID{}
 			s.Stop(errors.New("role terminated"))
 		}
 	case *pb.ActorError:
@@ -338,7 +337,7 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		s.endpoint.SetData(nil)
 		s.endpoint.Close()
 	}
-	if s.sessionInfo.RolePid != nil {
+	if !s.sessionInfo.RolePid.IsZero() {
 		s.Actx.Unwatch(s.sessionInfo.RolePid)
 		msg := &pb.ReqAccountLogout{
 			Reason: fmt.Sprintf("session terminated: %s", err.Error()),

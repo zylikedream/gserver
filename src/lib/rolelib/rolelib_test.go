@@ -10,12 +10,13 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/protocol/pb"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-// notifyEnv 持有所有可替换函数变量的 fake 状态。
+func testPID(id string) gxyactor.PID {
+	return gxyactor.PID{Runtime: "protoactor-v1", Node: "127.0.0.1:25011", ID: id, Creation: "test"}
+}
 type notifyEnv struct {
 	selfNode     string
 	locateValue  string
@@ -120,7 +121,7 @@ func TestPublishRoleNotify_Offline(t *testing.T) {
 }
 
 func TestPublishRoleNotify_LocalHit(t *testing.T) {
-	pid := actor.NewPID("127.0.0.1:25011", "role_10001")
+	pid := testPID("role_10001")
 	env := &notifyEnv{selfNode: "node-1", locateValue: "node-1", localPid: pid}
 	injectFakes(t, env)
 
@@ -136,7 +137,7 @@ func TestPublishRoleNotify_LocalHit(t *testing.T) {
 }
 
 func TestPublishRoleNotify_LocalActorMissing(t *testing.T) {
-	env := &notifyEnv{selfNode: "node-1", locateValue: "node-1", localPid: nil}
+	env := &notifyEnv{selfNode: "node-1", locateValue: "node-1", localPid: gxyactor.PID{}}
 	injectFakes(t, env)
 	if err := PublishRoleNotify(context.Background(), 10001, &pb.Ack{}); err != nil {
 		t.Fatalf("PublishRoleNotify = %v, want nil", err)
@@ -147,7 +148,7 @@ func TestPublishRoleNotify_LocalActorMissing(t *testing.T) {
 }
 
 func TestPublishRoleNotify_LocalSendError(t *testing.T) {
-	pid := actor.NewPID("127.0.0.1:25011", "role_10001")
+	pid := testPID("role_10001")
 	env := &notifyEnv{selfNode: "node-1", locateValue: "node-1", localPid: pid, sendErr: errors.New("send boom")}
 	injectFakes(t, env)
 	if err := PublishRoleNotify(context.Background(), 10001, &pb.Ack{}); err == nil {
@@ -222,7 +223,7 @@ func TestHandleNotify_MissingMsg(t *testing.T) {
 }
 
 func TestHandleNotify_Ok(t *testing.T) {
-	pid := actor.NewPID("127.0.0.1:25011", "role_10001")
+	pid := testPID("role_10001")
 	env := &notifyEnv{localPid: pid}
 	injectFakes(t, env)
 	r := &RoleNotify{}
@@ -242,8 +243,8 @@ func TestHandleNotify_Ok(t *testing.T) {
 func TestNotifyLocalAll(t *testing.T) {
 	env := &notifyEnv{
 		allPids: []gxyactor.PID{
-			actor.NewPID("127.0.0.1:25011", "role_1"),
-			actor.NewPID("127.0.0.1:25011", "role_2"),
+			testPID("role_1"),
+			testPID("role_2"),
 		},
 	}
 	injectFakes(t, env)
@@ -256,7 +257,7 @@ func TestNotifyLocalAll(t *testing.T) {
 }
 
 func TestGetRolePidUsesLocalActor(t *testing.T) {
-	pid := actor.NewPID("127.0.0.1:25011", "role_42")
+	pid := testPID("role_42")
 	env := &notifyEnv{localPid: pid}
 	injectFakes(t, env)
 

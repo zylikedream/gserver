@@ -2,8 +2,8 @@ package gxyactor
 
 import (
 	"context"
+	"sync"
 	"time"
-
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
 	"gserver/protocol/pb"
@@ -17,6 +17,7 @@ import (
 )
 
 type actorApp struct { gxyapp.App; system *actor.ActorSystem; remote *remote.Remote; nodeName, nodeInstanceName, host string; activatorMgr *activatorManager }
+var legacyPIDByNormalized sync.Map
 const CLUSTER_NAME = "gcluster"
 var app *actorApp
 func ActorApp() *actorApp { return app }
@@ -25,15 +26,15 @@ func NewActorApp(nodeName, nodeInstanceName, host string) *actorApp { app = &act
 func (a *actorApp) newSystem() *actor.ActorSystem { return actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging)) }
 func (a *actorApp) OnModInit(ctx context.Context) error { port := g.Cfg().MustGet(ctx, "port.actor").Int(); a.system = a.newSystem(); a.remote = remote.NewRemote(a.system, remote.Configure(a.host, port)); a.remote.Start(); a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName); return a.AddModule(ctx, a.activatorMgr) }
 func (a *actorApp) OnModStart(ctx context.Context) error { gxylog.Info(ctx, "actor started ", gxylog.Str("nodeName", a.nodeName), gxylog.Str("address", a.Address())); return nil }
-func (a *actorApp) OnModStop(ctx context.Context) error { if a.system != nil { a.system.Shutdown() }; gxylog.Info(ctx, "actor system stopped ", gxylog.Str("address", a.Address())); return nil }
-func (a *actorApp) RegisterActorKind(name string, prod ActorProducer) error { return a.activatorMgr.RegisterActorKind(name, prod) }
-func (a *actorApp) DeregisterActorKind(name string) { a.activatorMgr.DeregisterActorKind(name) }
-func (a *actorApp) spawnNamed(props any, name string, initArgs ...any) (PID, error) { p, ok := props.(*actor.Props); if !ok { return PID{}, errors.New("runtime spawn properties are private to the adapter") }; if len(initArgs)>0 { p=p.Configure(actor.WithContextDecorator(legacyContextDecorator(initArgs...))) }; if a.system==nil { return PID{}, errors.New("node not initialized") }; pid, err := a.system.Root.SpawnNamed(p,name); if err != nil{return PID{},err}; return pidFromProto(pid,a),nil }
-func (a *actorApp) spawn(props any, initArgs ...any) (PID,error) { p,ok:=props.(*actor.Props); if !ok{return PID{},errors.New("runtime spawn properties are private to the adapter")}; if a.system==nil{return PID{},errors.New("node not initialized")}; if len(initArgs)>0{p=p.Configure(actor.WithContextDecorator(legacyContextDecorator(initArgs...)))}; return pidFromProto(a.system.Root.Spawn(p),a),nil }
-func (a *actorApp) spawnFunc(prod any, initArgs ...any) (PID,error) { fn,ok:=prod.(func() actor.Actor); if !ok{return PID{},errors.New("runtime actor producer is private to the adapter")}; return a.spawn(actor.PropsFromProducer(fn),initArgs...) }
+func (a *actorApp) RegisterActorKind(name string, prod ActorProducer) error { if a.activatorMgr == nil { return errors.New("actor app is not initialized") }; return a.activatorMgr.RegisterActorKind(name, prod) }
+func (a *actorApp) DeregisterActorKind(name string) { if a.activatorMgr != nil { a.activatorMgr.DeregisterActorKind(name) } }
+func (a *actorApp) spawnNamedLegacy(props *actor.Props, name string, initArgs ...any) (PID, error) { p := props; if len(initArgs)>0 { p=p.Configure(actor.WithContextDecorator(legacyContextDecorator(initArgs...))) }; if a.system==nil { return PID{}, errors.New("node not initialized") }; pid, err := a.system.Root.SpawnNamed(p,name); if err != nil{return PID{},err}; return pidFromProto(pid,a),nil }
+func (a *actorApp) spawnLegacy(props *actor.Props, initArgs ...any) (PID,error) { p:=props; if a.system==nil{return PID{},errors.New("node not initialized")}; if len(initArgs)>0{p=p.Configure(actor.WithContextDecorator(legacyContextDecorator(initArgs...)))}; return pidFromProto(a.system.Root.Spawn(p),a),nil }
+func (a *actorApp) spawnFunc(prod ActorProducer, initArgs ...any) (PID,error) { return a.spawnLegacy(actor.PropsFromProducer(legacyActorProducer(prod, a)), initArgs...) }
 func (a *actorApp) Send(ctx context.Context,pid PID,message any) error{return a.send(ctx,pid,message)}
-func (a *actorApp) send(ctx context.Context,pid PID,message any) error {if a.system==nil{return errors.New("node not initialized")}; if env:=injectTrace(ctx,message);env!=nil{a.system.Root.Send(protoFromPID(pid),env);return nil};a.system.Root.Send(protoFromPID(pid),message);return nil}
+func (a *actorApp) LocalSend(ctx context.Context,pid PID,message any) error{return a.localSend(ctx,pid,message)}
 func (a *actorApp) localSend(ctx context.Context,pid PID,message any) error{return a.send(ctx,pid,message)}
+func (a *actorApp) send(ctx context.Context,pid PID,message any) error {if a.system==nil{return errors.New("node not initialized")}; if env:=injectTrace(ctx,message);env!=nil{a.system.Root.Send(protoFromPID(pid),env);return nil};a.system.Root.Send(protoFromPID(pid),message);return nil}
 func (a *actorApp) Respond(ctx context.Context,request Request,message any,responseErr error) error{return a.respond(ctx,request,message,responseErr)}
 func (a *actorApp) respond(ctx context.Context,request Request,message any,responseErr error) error {if request==nil||request.Sender().IsZero(){gxylog.Warn(ctx,"sender is nil, can not respond");return responseErr};if responseErr!=nil{message=&pb.ActorError{Reason:responseErr.Error()}};return a.send(ctx,request.Sender(),message)}
 func (a *actorApp) Call(ctx context.Context,pid PID,message any,timeout time.Duration)(any,error){return a.call(ctx,pid,message,timeout)}
@@ -49,9 +50,10 @@ func (a *actorApp) Address()string{if a.system==nil{return ""};return a.system.A
 func (a *actorApp) ActivateActor(ctx context.Context,kind,id string,spawn bool)(PID,error){return a.activatorMgr.getActor(ctx,kind,id,spawn)}
 func (a *actorApp) GetLocalActor(kind,id string)PID{return a.activatorMgr.GetLocalActor(kind,id)}
 func (a *actorApp) GetLocalActorAll(kind string)[]PID{return a.activatorMgr.GetLocalActorAll(kind)}
-func (a *actorApp) GetActorCount(kind string)int{return a.activatorMgr.GetActorCount(kind)}
-func pidFromProto(pid *actor.PID,a *actorApp)PID{if pid==nil{return PID{}};node:=pid.Address;if a!=nil&&a.nodeInstanceName!=""&&pid.Address==a.Address(){node=a.nodeInstanceName};return PID{Runtime:"protoactor-v1",Node:node,ID:pid.Id}}
-func protoFromPID(pid PID)*actor.PID{if pid.IsZero(){return nil};return actor.NewPID(pid.Node,pid.ID)}
+// Protoactor does not expose an incarnation value through this compatibility
+// path, so Creation remains empty until the Ergo adapter supplies one.
+func pidFromProto(pid *actor.PID,a *actorApp)PID{if pid==nil{return PID{}};node:=pid.Address;if a!=nil&&a.nodeInstanceName!=""&&a.system!=nil&&pid.Address==a.system.Address(){node=a.nodeInstanceName};normalized:=PID{Runtime:"protoactor-v1",Node:node,ID:pid.Id};legacyPIDByNormalized.Store(normalized,pid);return normalized}
+func protoFromPID(pid PID)*actor.PID{if pid.IsZero(){return nil};if legacy,ok:=legacyPIDByNormalized.Load(pid);ok{return legacy.(*actor.PID)};return actor.NewPID(pid.Node,pid.ID)}
 type messageEnvelopeCarrier struct{envelope *actor.MessageEnvelope}
 func(c messageEnvelopeCarrier)Get(key string)string{if c.envelope==nil||c.envelope.Header==nil{return ""};return c.envelope.Header.Get(key)}
 func(c messageEnvelopeCarrier)Set(key,val string){if c.envelope!=nil{c.envelope.SetHeader(key,val)}}

@@ -66,10 +66,12 @@ type ActorContext interface {
 // private adapters (for example, the future Ergo adapter).
 type Runtime interface {
 	RegisterActorKind(string, ActorProducer) error
+	DeregisterActorKind(string)
 	ActivateActor(context.Context, string, string, bool) (PID, error)
 	GetLocalActor(string, string) PID
 	GetLocalActorAll(string) []PID
 	Send(context.Context, PID, any) error
+	LocalSend(context.Context, PID, any) error
 	Call(context.Context, PID, any, time.Duration) (any, error)
 	Respond(context.Context, Request, any, error) error
 	Stop(PID) error

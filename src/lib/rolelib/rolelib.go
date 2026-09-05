@@ -99,7 +99,7 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 
 func notifyLocal(ctx context.Context, targetRoleID int64, msg proto.Message) error {
 	pid := getLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
-	if pid == nil {
+	if pid.IsZero() {
 		gxylog.Debug(ctx, "role notify target not local online", gxylog.Num("roleID", targetRoleID))
 		return nil
 	}
