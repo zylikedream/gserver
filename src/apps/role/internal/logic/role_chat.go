@@ -92,7 +92,7 @@ func (r *RoleChat) JoinChannel(ctx context.Context, channelType int32, channelID
 	_ = gxyactor.Send(ctx, channel, &pb.ChannelRegisterMsg{
 		RoleId: r.RoleID,
 		Pid: &pb.ActorPid{
-			Address: self.Node,
+			Address: gxyactor.WireAddress(self),
 			Id:      self.ID,
 		},
 		ChannelType: channelType,

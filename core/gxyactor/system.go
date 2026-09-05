@@ -41,6 +41,7 @@ func (a *actorApp) Call(ctx context.Context,pid PID,message any,timeout time.Dur
 func (a *actorApp) call(ctx context.Context,pid PID,message any,timeout time.Duration)(any,error){if a.system==nil{return nil,errors.New("node not initialized")};future:=actor.NewFuture(a.system,timeout);if err:=a.send(ctx,pid,&actor.MessageEnvelope{Message:message,Sender:future.PID()});err!=nil{return nil,err};result,err:=future.Result();if err!=nil{return nil,err};if aerr,ok:=result.(*pb.ActorError);ok{return nil,gerror.New(aerr.Reason)};return result,nil}
 func (a *actorApp) callSync(ctx context.Context,pid PID,message any,sender PID) error{return a.send(ctx,pid,&actor.MessageEnvelope{Message:message,Sender:protoFromPID(sender)})}
 func (a *actorApp) GetNodeName()string{return a.nodeName}
+func (a *actorApp) GetActorCount(kind string)int{if a.activatorMgr==nil{return 0};return a.activatorMgr.GetActorCount(kind)}
 func (a *actorApp) Stop(pid PID)error{if a.system==nil{return errors.New("node not initialized")};a.system.Root.Stop(protoFromPID(pid));return nil}
 func (a *actorApp) StopActor(pid PID)error{return a.Stop(pid)}
 func (a *actorApp) Host()string{return a.host}
@@ -52,8 +53,11 @@ func (a *actorApp) GetLocalActor(kind,id string)PID{return a.activatorMgr.GetLoc
 func (a *actorApp) GetLocalActorAll(kind string)[]PID{return a.activatorMgr.GetLocalActorAll(kind)}
 // Protoactor does not expose an incarnation value through this compatibility
 // path, so Creation remains empty until the Ergo adapter supplies one.
-func pidFromProto(pid *actor.PID,a *actorApp)PID{if pid==nil{return PID{}};node:=pid.Address;if a!=nil&&a.nodeInstanceName!=""&&a.system!=nil&&pid.Address==a.system.Address(){node=a.nodeInstanceName};normalized:=PID{Runtime:"protoactor-v1",Node:node,ID:pid.Id};legacyPIDByNormalized.Store(normalized,pid);return normalized}
+func normalizedProtoPID(pid *actor.PID,a *actorApp) PID { if pid==nil{return PID{}}; node:=pid.Address; if a!=nil&&a.nodeInstanceName!=""&&a.system!=nil&&pid.Address==a.system.Address(){node=a.nodeInstanceName}; return PID{Runtime:"protoactor-v1",Node:node,ID:pid.Id} }
+func pidFromProto(pid *actor.PID,a *actorApp)PID{normalized:=normalizedProtoPID(pid,a);if normalized.IsZero(){return normalized};legacyPIDByNormalized.Store(normalized,pid);return normalized}
+func forgetLegacyPID(pid *actor.PID,a *actorApp){normalized:=normalizedProtoPID(pid,a);if !normalized.IsZero(){legacyPIDByNormalized.Delete(normalized)}}
 func protoFromPID(pid PID)*actor.PID{if pid.IsZero(){return nil};if legacy,ok:=legacyPIDByNormalized.Load(pid);ok{return legacy.(*actor.PID)};return actor.NewPID(pid.Node,pid.ID)}
+func WireAddress(pid PID) string { if legacy,ok:=legacyPIDByNormalized.Load(pid);ok{return legacy.(*actor.PID).Address};return pid.Node }
 type messageEnvelopeCarrier struct{envelope *actor.MessageEnvelope}
 func(c messageEnvelopeCarrier)Get(key string)string{if c.envelope==nil||c.envelope.Header==nil{return ""};return c.envelope.Header.Get(key)}
 func(c messageEnvelopeCarrier)Set(key,val string){if c.envelope!=nil{c.envelope.SetHeader(key,val)}}
@@ -68,7 +72,7 @@ type legacyActorAdapter struct{actor IActor;app *actorApp}
 func(a *legacyActorAdapter)Receive(ctx actor.Context){receiver,ok:=a.actor.(interface{Receive(ActorContext)});if ok{receiver.Receive(&legacyActorContextAdapter{Context:ctx,app:a.app})}}
 func legacyActorProducer(prod func()IActor,app *actorApp)func()actor.Actor{return func()actor.Actor{return &legacyActorAdapter{actor:prod(),app:app}}}
 type legacyActorContextAdapter struct{actor.Context;app *actorApp}
-func(c *legacyActorContextAdapter)Message()any{msg:=c.Context.Message();switch value:=msg.(type){case *actor.Started:args:=[]any(nil);if decorated,ok:=c.Context.(*legacyActorContext);ok{args=decorated.InitArgs};return ActorStartedMessage{Self:pidFromProto(c.Context.Self(),c.app),InitArgs:args};case *actor.Stopping:return ActorStopping;case *actor.Stopped:return ActorStoppedMessage{};case actor.AutoRespond:return ActorAutoRespond;case *actor.Terminated:return ActorTerminatedMessage{Who:pidFromProto(value.Who,c.app)};case *actor.MessageEnvelope:return value.Message;default:return msg}}
+func(c *legacyActorContextAdapter)Message()any{msg:=c.Context.Message();switch value:=msg.(type){case *actor.Started:args:=[]any(nil);if decorated,ok:=c.Context.(*legacyActorContext);ok{args=decorated.InitArgs};return ActorStartedMessage{Self:pidFromProto(c.Context.Self(),c.app),InitArgs:args};case *actor.Stopping:return ActorStopping;case *actor.Stopped:forgetLegacyPID(c.Context.Self(),c.app);return ActorStoppedMessage{};case actor.AutoRespond:return ActorAutoRespond;case *actor.Terminated:return ActorTerminatedMessage{Who:pidFromProto(value.Who,c.app)};case *actor.MessageEnvelope:return value.Message;default:return msg}}
 func(c *legacyActorContextAdapter)Sender()PID{return pidFromProto(c.Context.Sender(),c.app)}
 func(c *legacyActorContextAdapter)Self()PID{return pidFromProto(c.Context.Self(),c.app)}
 func(c *legacyActorContextAdapter)MessageHeader()map[string]string{header:=c.Context.MessageHeader();if header==nil{return nil};return header.ToMap()}

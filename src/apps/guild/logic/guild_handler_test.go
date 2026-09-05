@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"gserver/core/gxyactor"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
@@ -379,12 +378,17 @@ func TestGetGuildApplyList(t *testing.T) {
 	}
 }
 
-// disbandFakeActx 最小 actor.Context: DisbandGuild 的 g.Stop 需要 Actx.Stop。
+// disbandFakeActx implements the neutral context needed by DisbandGuild.
 type disbandFakeActx struct {
-	actor.Context
-	stopped *actor.PID
+	stopped gxyactor.PID
 }
-
-func (f *disbandFakeActx) Stop(pid *actor.PID) { f.stopped = pid }
+func (f *disbandFakeActx) Sender() gxyactor.PID { return gxyactor.PID{} }
+func (f *disbandFakeActx) Message() any { return nil }
+func (f *disbandFakeActx) MessageHeader() map[string]string { return nil }
+func (f *disbandFakeActx) Self() gxyactor.PID { return gxyactor.PID{} }
+func (f *disbandFakeActx) Stop(pid gxyactor.PID) { f.stopped = pid }
+func (f *disbandFakeActx) Watch(gxyactor.PID) {}
+func (f *disbandFakeActx) Unwatch(gxyactor.PID) {}
+func (f *disbandFakeActx) Children() []gxyactor.PID { return nil }
 
 // timeNow 避免直接依赖 time 构造(测试内嵌)。

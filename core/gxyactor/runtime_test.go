@@ -63,6 +63,33 @@ func TestLegacyPIDRoundTripPreservesTransportAddress(t *testing.T) {
 	if roundTrip == nil || roundTrip.Address != original.Address || roundTrip.Id != original.Id { t.Fatalf("round-trip PID = %#v, want address %q and id %q", roundTrip, original.Address, original.Id) }
 }
 
+func TestLegacyPIDMappingEvictedOnTermination(t *testing.T) {
+	system := actor.NewActorSystem()
+	defer system.Shutdown()
+	app := &actorApp{system: system, nodeInstanceName: "node-instance"}
+	original := actor.NewPID(system.Address(), "role/1")
+	pid := pidFromProto(original, app)
+	if _, ok := legacyPIDByNormalized.Load(pid); !ok {
+		t.Fatal("expected legacy PID mapping after normalization")
+	}
+	adapter := &legacyActorContextAdapter{
+		Context: &stoppedLegacyContext{self: original, message: &actor.Stopped{}},
+		app: app,
+	}
+	adapter.Message()
+	if _, ok := legacyPIDByNormalized.Load(pid); ok {
+		t.Fatal("legacy PID mapping survived process termination cleanup")
+	}
+}
+
+type stoppedLegacyContext struct {
+	actor.Context
+	self *actor.PID
+	message any
+}
+func (c *stoppedLegacyContext) Self() *actor.PID { return c.self }
+func (c *stoppedLegacyContext) Message() any { return c.message }
+
 func TestActorBaseStoppedPreservesStopReason(t *testing.T) {
 	reason := errors.New("handler failed")
 	actorImpl := &terminationActor{}
