@@ -80,3 +80,10 @@ func namespacedID(kind, id string) string {
 	}
 	return kind + "/" + id
 }
+func unscopedID(kind, logicalID string) string {
+	prefix := kind + "/"
+	if strings.HasPrefix(logicalID, prefix) {
+		return strings.TrimPrefix(logicalID, prefix)
+	}
+	return logicalID
+}

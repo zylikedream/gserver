@@ -78,6 +78,9 @@ func TestAdapterLocalSendCallTimeoutAndStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if actors := adapter.GetLocalActorAll("test"); len(actors) != 1 {
+		t.Fatalf("local actor entries = %d, want 1 (%+v)", len(actors), actors)
+	}
 	if err := adapter.Send(context.Background(), pid, "send"); err != nil {
 		t.Fatal(err)
 	}
@@ -187,5 +190,20 @@ func TestMessageRegistryDuplicateRegistrationIsTypedAndIdempotent(t *testing.T) 
 	}
 	if err := registry.Register("login.request", func() proto.Message { return &pb.RspAccountLogin{} }); !errors.Is(err, ErrDuplicateRegistration) {
 		t.Fatalf("duplicate name error = %v", err)
+	}
+}
+func TestStartWiresPIDResolver(t *testing.T) {
+	adapter, err := Start(Options{
+		NodeName: "adapter-resolver@localhost",
+		ResolvePID: func(gxyactor.PID) (gen.PID, error) {
+			return gen.PID{Node: "adapter-resolver@localhost", ID: 1, Creation: 1}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.StopNode(time.Second)
+	if adapter.resolvePID == nil {
+		t.Fatal("Start did not wire Options.ResolvePID")
 	}
 }

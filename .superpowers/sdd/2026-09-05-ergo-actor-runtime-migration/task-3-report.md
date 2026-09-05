@@ -51,3 +51,24 @@ ok   gserver/core/gxyactor/internal/ergo 1.255s
 ```
 
 The changes remain limited to the adapter, adapter tests, and this report. No Task 4 lifecycle/ownership work was added.
+
+## Review round 2 fixes
+
+The review regressions were first run before the fixes and failed as expected:
+
+```text
+TestAdapterLocalSendCallTimeoutAndStop: local actor entries = 2, want 1
+TestStartWiresPIDResolver: Start did not wire Options.ResolvePID
+```
+
+The adapter now wires `Options.ResolvePID` through `Start`. Init-time PID seeding derives the caller's unscoped ID, reuses the exact Spawn map key, and therefore preserves one normalized local entry while allowing the lifecycle self-send.
+
+Final committed-tree focused verification:
+
+```text
+gofmt -w core/gxyactor/internal/ergo/*.go
+go test ./core/gxyactor/internal/ergo -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.285s
+```
+
+No Task 4 lifecycle/ownership behavior was added.

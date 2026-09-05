@@ -126,7 +126,7 @@ func Start(options Options) (*Adapter, error) {
 	}
 	instance := options.NodeInstanceName
 	a := New(node, instance)
-	a.activation = options.Activation
+	a.resolvePID = options.ResolvePID
 	gxyactor.SetRuntime(a)
 	return a, nil
 }
