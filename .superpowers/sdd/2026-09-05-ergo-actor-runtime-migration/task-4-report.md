@@ -110,3 +110,13 @@ Verification:
 go test ./core/gxyactor/internal/ergo -run '^TestTraceHopContextPreservesErgoIdentity$' -count=1
 ok   gserver/core/gxyactor/internal/ergo 0.231s
 ```
+
+Committed-tree rerun after `b9d92fd`:
+
+```text
+go test ./core/gxyactor -run 'Test(Lifecycle|Actor|Timer|Trace)' -count=1
+ok   gserver/core/gxyactor 0.617s
+
+go test ./core/gxyactor/internal/ergo -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.390s
+```
