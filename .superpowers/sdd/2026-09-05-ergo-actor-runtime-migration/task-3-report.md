@@ -22,7 +22,7 @@ Focused command required by the brief:
 
 ```text
 go test ./core/gxyactor/internal/ergo -count=1
-ok   gserver/core/gxyactor/internal/ergo 1.257s
+ok   gserver/core/gxyactor/internal/ergo 1.255s
 ```
 
 The changed Go files were formatted with:
@@ -47,7 +47,7 @@ After the fixes, the committed-tree focused command passed:
 ```text
 gofmt -w core/gxyactor/internal/ergo/*.go
 go test ./core/gxyactor/internal/ergo -count=1
-ok   gserver/core/gxyactor/internal/ergo 1.257s
+ok   gserver/core/gxyactor/internal/ergo 1.255s
 ```
 
 The changes remain limited to the adapter, adapter tests, and this report. No Task 4 lifecycle/ownership work was added.
