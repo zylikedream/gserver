@@ -54,3 +54,15 @@ ok   gserver/core/gxyactor 0.655s
 - Activation publication, pending waiter completion, Claim/Release, and Actor Directory ownership remain outside this task. The adapter only removes its private process/PID bookkeeping on failed initialization or termination; Task 5 owns the conditional ownership release boundary.
 - Ergo's native tracing carries identity through process Send/Call. The adapter reconstructs an OpenTelemetry remote span context for GServer handlers; no Ergo type crosses the public seam.
 - No formatter, linter, or project-wide suite was run.
+
+## Committed-tree rerun
+
+After commit `d9a2de8`, the required focused command and the minimal touched-adapter command were rerun:
+
+```text
+go test ./core/gxyactor -run 'Test(Lifecycle|Actor|Timer|Trace)' -count=1
+ok   gserver/core/gxyactor 0.609s
+
+go test ./core/gxyactor/internal/ergo -run 'Test(Adapter|Start|Spawn)' -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.353s
+```
