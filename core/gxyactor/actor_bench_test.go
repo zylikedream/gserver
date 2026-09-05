@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
 
@@ -131,7 +130,7 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
 	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
-		return actor.NewPID(node, id), false, nil
+		return PID{Runtime: "ergo-v1", Node: node, ID: id, Creation: "1"}, false, nil
 	}
 	key := getActorLocateKey("role", "bench-player")
 	leaseKey := actorLocatorLeaseKey(targetNode)
@@ -151,11 +150,11 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
 		}
-		if pid == nil {
-			b.Fatal("getActor() returned nil pid")
+		if pid.IsZero() {
+			b.Fatal("getActor() returned zero pid")
 		}
-		if pid.Address != targetHost {
-			b.Fatalf("pid address = %q, want %q", pid.Address, targetHost)
+		if pid.Node != targetHost {
+			b.Fatalf("pid node = %q, want %q", pid.Node, targetHost)
 		}
 	}
 }
@@ -180,7 +179,7 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
 	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
-		return actor.NewPID(node, id), false, nil
+		return PID{Runtime: "ergo-v1", Node: node, ID: id, Creation: "1"}, false, nil
 	}
 
 	b.ResetTimer()
@@ -189,11 +188,11 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
 		}
-		if pid == nil {
-			b.Fatal("getActor() returned nil pid")
+		if pid.IsZero() {
+			b.Fatal("getActor() returned zero pid")
 		}
-		if pid.Address != expected.NodeHost {
-			b.Fatalf("pid address = %q, want %q", pid.Address, expected.NodeHost)
+		if pid.Node != expected.NodeHost {
+			b.Fatalf("pid node = %q, want %q", pid.Node, expected.NodeHost)
 		}
 	}
 }

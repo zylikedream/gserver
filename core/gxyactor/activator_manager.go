@@ -91,7 +91,7 @@ func (r *activatorRouter) HandleMessage(ctx context.Context, msg any) error {
 			hash:        msg.Id,
 		}
 		poolPID := r.GetPool(msg.Kind)
-		if poolPID == nil {
+		if poolPID.IsZero() {
 			return errors.Newf("pool %s not registered", msg.Kind)
 		}
 		CallSync(ctx, poolPID, wrapped, sender)
@@ -103,11 +103,11 @@ func (r *activatorRouter) HandleMessage(ctx context.Context, msg any) error {
 	return nil
 }
 
-func (r *activatorRouter) RegisterPool(kind string, poolPID PID) {
+func (r *activatorRouter) RegisterPool(kind string, poolPID any) {
 	r.poolPIDs = append(r.poolPIDs, struct {
 		Kind string
 		PID  PID
-	}{kind, poolPID})
+	}{kind, normalizePID(poolPID)})
 }
 
 func (r *activatorRouter) UnRegisterPool(kind string) {
@@ -122,7 +122,7 @@ func (r *activatorRouter) GetPool(kind string) PID {
 			return p.PID
 		}
 	}
-	return nil
+	return PID{}
 }
 
 type pendingActivation struct {
@@ -176,7 +176,7 @@ func decideActivation(owner ActorOwner, acquired bool, localNode string, localPI
 	if acquired {
 		// 本次 Claim 已抢到 owner，但本地已有同 ID Actor，说明 ownership
 		// 状态与本地 activation 不一致，禁止继续创建第二个 Actor。
-		if localPID != nil {
+		if !localPID.IsZero() {
 			return activationConflict
 		}
 		// 只有允许 spawn 的路径才能使用刚抢到的 owner 创建 Actor。
@@ -187,7 +187,7 @@ func decideActivation(owner ActorOwner, acquired bool, localNode string, localPI
 		return activationReleaseAndRetry
 	}
 	// owner 属于本节点且 Claim 未抢占：本地 Actor 已存在，可直接返回。
-	if localPID != nil {
+	if !localPID.IsZero() {
 		return activationReturnLocal
 	}
 	// owner 属于本节点但本地没有 Actor：这是残留 owner，条件释放后重试。
@@ -230,7 +230,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 				_ = Respond(ctx, a.Actx, ActorError("pending actor activation lost ownership"))
 				return nil
 			}
-			if sender := a.Actx.Sender(); sender != nil {
+			if sender := a.Actx.Sender(); !sender.IsZero() {
 				pending.waiters = append(pending.waiters, sender)
 			}
 			return nil
@@ -243,7 +243,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			_ = Respond(ctx, a.Actx, &pb.ActorLocateRetry{})
 			return nil
 		case activationReturnLocal:
-			_ = Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: localPID})
+			_ = Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: protoFromPID(localPID)})
 			return nil
 		case activationReleaseAndRetry:
 			// 只有 owner 完全匹配时 Release 才能删除记录，避免误删新 owner。
@@ -276,7 +276,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 
 		// 在异步 Touch 完成前登记 pending；并发请求会在上面的分支加入 waiters。
 		var waiters []PID
-		if sender := a.Actx.Sender(); sender != nil {
+		if sender := a.Actx.Sender(); !sender.IsZero() {
 			waiters = append(waiters, sender)
 		}
 		a.childs[pid] = msg.Id
@@ -327,22 +327,21 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		// Touch 成功后才登记到 ActorMgr，随后把同一个 PID 返回给全部 waiters。
 		a.meta.mgr.Add(msg.ID, msg.PID)
 		for _, waiter := range pending.waiters {
-			_ = Send(ctx, waiter, &remote.ActorPidResponse{Pid: msg.PID})
+			_ = Send(ctx, waiter, &remote.ActorPidResponse{Pid: protoFromPID(msg.PID)})
 		}
 		return nil
 
-	// 父actor spawn出来的子actor在terminate后会，给父actor发送Terminate消息
-	case *actor.Terminated:
+	// Parent-child termination is delivered through the neutral lifecycle message.
+	case ActorTerminatedMessage:
 		child := msg.Who
-		if child == nil {
+		if child.IsZero() {
 			return nil
 		}
-		a.Actx.Children()
 		id := a.childs[child]
 		if id == "" {
 			return nil
 		}
-		if pending := a.pending[id]; pending != nil && pending.pid == child {
+		if pending := a.pending[id]; pending != nil && PidEqual(pending.pid, child) {
 			delete(a.pending, id)
 			for _, waiter := range pending.waiters {
 				_ = Send(ctx, waiter, ActorError("actor terminated during initialization"))
@@ -435,7 +434,7 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 	// Create router (external entry point for remote nodes)
 	routerPID, err := SpawnNamed(
 		actor.PropsFromProducer(func() actor.Actor {
-			return NewActivatorRouter()
+			return legacyActorProducer(func() IActor { return NewActivatorRouter() }, app)()
 		}), g.getRouterName())
 	if err != nil {
 		g.stopLease()
@@ -467,7 +466,7 @@ func (g *activatorManager) getRouterName() string {
 
 func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) error {
 	actorProps := actor.PropsFromProducer(func() actor.Actor {
-		return prod()
+		return legacyActorProducer(prod, app)()
 	}, actor.WithSupervisor(newSupervisor()))
 	meta := &activatorMeta{
 		Kind:  kind,
@@ -480,7 +479,7 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 	// Create consistent-hash pool (internal)
 	poolPID, err := SpawnNamed(
 		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
-			return NewActorActivator(kind, g)
+			return legacyActorProducer(func() IActor { return NewActorActivator(kind, g) }, app)()
 		})), g.getPoolName(kind))
 	if err != nil {
 		delete(g.activatorMetas, kind)
@@ -523,24 +522,24 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 
 func (g *activatorManager) requestActor(ctx context.Context, node string, kind string, id string, allowSpawn bool) (PID, bool, error) {
 	gxylog.Debug(ctx, "request actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node), gxylog.Bool("allow_spawn", allowSpawn))
-	activator := actor.NewPID(node, g.getRouterName())
+	activator := PID{Runtime: "protoactor-v1", Node: node, ID: g.getRouterName()}
 	rsp, err := Call(ctx, activator, &pb.ActorActive{
 		Kind:       kind,
 		Id:         id,
 		AllowSpawn: allowSpawn,
 	}, actorLocateRequestTimeout)
 	if err != nil {
-		return nil, false, err
+		return PID{}, false, err
 	}
 	switch rsp := rsp.(type) {
 	case *pb.ActorLocateRetry:
-		return nil, true, nil
+		return PID{}, true, nil
 	case *pb.ActorError:
-		return nil, false, gerror.New(rsp.Reason)
+		return PID{}, false, gerror.New(rsp.Reason)
 	case *remote.ActorPidResponse:
-		return rsp.Pid, false, nil
+		return pidFromProto(rsp.Pid, nil), false, nil
 	default:
-		return nil, false, errors.Newf("unexpected actor activation response: %T", rsp)
+		return PID{}, false, errors.Newf("unexpected actor activation response: %T", rsp)
 	}
 }
 
@@ -557,12 +556,12 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 	for range actorLocateMaxAttempts {
 		owner, err := g.locator.locate(ctx, kind, id)
 		if err != nil {
-			return nil, err
+			return PID{}, err
 		}
 		if owner.NodeID != "" {
 			nodeHost := g.serviceLookup.GetAddressByNodeName(ctx, kind, owner.NodeID)
 			if nodeHost == "" {
-				return nil, errors.Newf("active actor owner address unavailable: %s", owner.NodeID)
+				return PID{}, errors.Newf("active actor owner address unavailable: %s", owner.NodeID)
 			}
 			// 已有 owner 时这是 lookup-only 请求：即使 allowSpawn=false，
 			// 远端仍需 Claim 重新校验 owner/lease，处理 locate 与请求之间的竞态。
@@ -571,7 +570,7 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 				continue
 			}
 			if err != nil {
-				return nil, err
+				return PID{}, err
 			}
 			result = "hit"
 			return pid, nil
@@ -580,23 +579,22 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 		// 没有 owner 时，spawn=false 直接返回 not found，不会发送远程 Claim。
 		if !spawn {
 			result = "not_found"
-			return nil, gerror.Newf("actor kind:%s, id:%s not found", kind, id)
+			return PID{}, gerror.Newf("actor kind:%s, id:%s not found", kind, id)
 		}
 		serviceInfo := g.serviceLookup.GetServiceInfo(ctx, kind, key, gxyregistery.ConsistentHashSelector())
 		if serviceInfo == nil || serviceInfo.NodeHost == "" {
-			return nil, gerror.Newf("find actor node failed, kind: %s, id: %s", kind, id)
+			return PID{}, gerror.Newf("find actor node failed, kind: %s, id: %s", kind, id)
 		}
 		pid, retry, err := requestActor(ctx, serviceInfo.NodeHost, kind, id, true)
 		if retry {
 			continue
 		}
 		if err != nil {
-			return nil, err
+			return PID{}, err
 		}
-		result = "miss"
 		return pid, nil
 	}
-	return nil, errActorLocateRetryExhausted
+	return PID{}, errActorLocateRetryExhausted
 }
 
 func (g *activatorManager) GetActorCount(kind string) int {
@@ -610,7 +608,7 @@ func (g *activatorManager) GetActorCount(kind string) int {
 func (g *activatorManager) GetLocalActor(kind string, id string) PID {
 	info, ok := g.activatorMetas[kind]
 	if !ok {
-		return nil
+		return PID{}
 	}
 	return info.mgr.Get(id)
 }

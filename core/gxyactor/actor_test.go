@@ -18,7 +18,7 @@ import (
 
 func TestActorMgr_AddAndGet(t *testing.T) {
 	mgr := NewActorMgr("test")
-	pid := actor.NewPID("node1", "actor1")
+	pid := PID{Runtime: "test", Node: "node1", ID: "actor1", Creation: "1"}
 	mgr.Add("id1", pid)
 	got := mgr.Get("id1")
 	if !PidEqual(got, pid) {
@@ -28,18 +28,18 @@ func TestActorMgr_AddAndGet(t *testing.T) {
 
 func TestActorMgr_GetNotFound(t *testing.T) {
 	mgr := NewActorMgr("test")
-	if got := mgr.Get("missing"); got != nil {
-		t.Fatal("expected nil for missing key")
+	if got := mgr.Get("missing"); !got.IsZero() {
+		t.Fatal("expected zero PID for missing key")
 	}
 }
 
 func TestActorMgr_Remove(t *testing.T) {
 	mgr := NewActorMgr("test")
-	pid := actor.NewPID("node1", "actor1")
+	pid := PID{Runtime: "test", Node: "node1", ID: "actor1", Creation: "1"}
 	mgr.Add("id1", pid)
 	mgr.Remove("id1")
-	if got := mgr.Get("id1"); got != nil {
-		t.Fatal("expected nil after remove")
+	if got := mgr.Get("id1"); !got.IsZero() {
+		t.Fatal("expected zero PID after remove")
 	}
 }
 
@@ -48,8 +48,8 @@ func TestActorMgr_Count(t *testing.T) {
 	if mgr.Count() != 0 {
 		t.Fatalf("expected 0, got %d", mgr.Count())
 	}
-	mgr.Add("a", actor.NewPID("n", "a"))
-	mgr.Add("b", actor.NewPID("n", "b"))
+	mgr.Add("a", PID{Runtime: "test", Node: "n", ID: "a", Creation: "1"})
+	mgr.Add("b", PID{Runtime: "test", Node: "n", ID: "b", Creation: "1"})
 	if mgr.Count() != 2 {
 		t.Fatalf("expected 2, got %d", mgr.Count())
 	}
@@ -61,8 +61,8 @@ func TestActorMgr_Count(t *testing.T) {
 
 func TestActorMgr_All(t *testing.T) {
 	mgr := NewActorMgr("test")
-	p1 := actor.NewPID("n", "a")
-	p2 := actor.NewPID("n", "b")
+	p1 := PID{Runtime: "test", Node: "n", ID: "a", Creation: "1"}
+	p2 := PID{Runtime: "test", Node: "n", ID: "b", Creation: "1"}
 	mgr.Add("a", p1)
 	mgr.Add("b", p2)
 	all := mgr.All()
@@ -81,8 +81,8 @@ func TestActorMgr_AllEmpty(t *testing.T) {
 
 func TestActorMgr_Overwrite(t *testing.T) {
 	mgr := NewActorMgr("test")
-	old := actor.NewPID("n1", "a")
-	newPid := actor.NewPID("n2", "a2")
+	old := PID{Runtime: "test", Node: "n1", ID: "a", Creation: "1"}
+	newPid := PID{Runtime: "test", Node: "n2", ID: "a2", Creation: "2"}
 	mgr.Add("id", old)
 	mgr.Add("id", newPid)
 	if mgr.Count() != 1 {
@@ -95,7 +95,7 @@ func TestActorMgr_Overwrite(t *testing.T) {
 
 func TestActivatorManager_GetLocalActor(t *testing.T) {
 	mgr := NewActivatorManager("node", "node@1")
-	pid := actor.NewPID("local", "role-1")
+	pid := PID{Runtime: "test", Node: "local", ID: "role-1", Creation: "1"}
 	mgr.activatorMetas["role"] = &activatorMeta{
 		Kind: "role",
 		mgr:  NewActorMgr("role"),
@@ -104,48 +104,48 @@ func TestActivatorManager_GetLocalActor(t *testing.T) {
 	if got := mgr.GetLocalActor("role", "1"); !PidEqual(got, pid) {
 		t.Fatalf("expected %v, got %v", pid, got)
 	}
-	if got := mgr.GetLocalActor("role", "2"); got != nil {
-		t.Fatalf("expected nil for missing actor, got %v", got)
+	if got := mgr.GetLocalActor("role", "2"); !got.IsZero() {
+		t.Fatalf("expected zero PID for missing actor, got %v", got)
 	}
-	if got := mgr.GetLocalActor("missing", "1"); got != nil {
-		t.Fatalf("expected nil for missing kind, got %v", got)
+	if got := mgr.GetLocalActor("missing", "1"); !got.IsZero() {
+		t.Fatalf("expected zero PID for missing kind, got %v", got)
 	}
 }
 
 // ========== PidEqual ==========
 
 func TestPidEqual_Same(t *testing.T) {
-	a := actor.NewPID("host", "id1")
-	b := actor.NewPID("host", "id1")
+	a := PID{Runtime: "test", Node: "host", ID: "id1", Creation: "1"}
+	b := PID{Runtime: "test", Node: "host", ID: "id1", Creation: "1"}
 	if !PidEqual(a, b) {
 		t.Fatal("expected equal")
 	}
 }
 
 func TestPidEqual_DifferentId(t *testing.T) {
-	a := actor.NewPID("host", "id1")
-	b := actor.NewPID("host", "id2")
+	a := PID{Runtime: "test", Node: "host", ID: "id1", Creation: "1"}
+	b := PID{Runtime: "test", Node: "host", ID: "id2", Creation: "1"}
 	if PidEqual(a, b) {
 		t.Fatal("expected not equal")
 	}
 }
 
 func TestPidEqual_DifferentHost(t *testing.T) {
-	a := actor.NewPID("host1", "id1")
-	b := actor.NewPID("host2", "id1")
+	a := PID{Runtime: "test", Node: "host1", ID: "id1", Creation: "1"}
+	b := PID{Runtime: "test", Node: "host2", ID: "id1", Creation: "1"}
 	if PidEqual(a, b) {
 		t.Fatal("expected not equal")
 	}
 }
 
 func TestPidEqual_NilA(t *testing.T) {
-	if PidEqual(nil, actor.NewPID("h", "i")) {
+	if PidEqual(PID{}, PID{Runtime: "test", Node: "h", ID: "i", Creation: "1"}) {
 		t.Fatal("expected not equal with nil a")
 	}
 }
 
 func TestPidEqual_NilB(t *testing.T) {
-	if PidEqual(actor.NewPID("h", "i"), nil) {
+	if PidEqual(PID{Runtime: "test", Node: "h", ID: "i", Creation: "1"}, PID{}) {
 		t.Fatal("expected not equal with nil b")
 	}
 }
@@ -403,17 +403,12 @@ func TestInjectTrace_WithEnvelope(t *testing.T) {
 
 func TestContextDecorator_WrapsArgs(t *testing.T) {
 	decorator := ContextDecorator("arg1", 42)
-	next := func(ctx actor.Context) actor.Context {
-		t.Fatal("next should not be called by this decorator")
-		return ctx
-	}
-	wrapped := decorator(next)
-	result := wrapped(nil)
-	actx, ok := result.(*ActorContext)
+	result := decorator(nil)
+	actx, ok := result.(*decoratedActorContext)
 	if !ok {
-		t.Fatal("expected *ActorContext")
+		t.Fatal("expected *decoratedActorContext")
 	}
-	if actx.Context != nil {
+	if actx.ActorContext != nil {
 		t.Fatal("expected original ctx to be preserved")
 	}
 	if len(actx.InitArgs) != 2 || actx.InitArgs[0] != "arg1" || actx.InitArgs[1] != 42 {
@@ -433,7 +428,7 @@ var _ propagation.TextMapCarrier = readonlyHeaderCarrier{}
 
 func TestActivatorRouter_RegisterGetPool(t *testing.T) {
 	r := &activatorRouter{}
-	pid := actor.NewPID("n", "pool1")
+	pid := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
 	r.RegisterPool("role", pid)
 	got := r.GetPool("role")
 	if !PidEqual(got, pid) {
@@ -443,25 +438,25 @@ func TestActivatorRouter_RegisterGetPool(t *testing.T) {
 
 func TestActivatorRouter_GetPoolNotFound(t *testing.T) {
 	r := &activatorRouter{}
-	if got := r.GetPool("missing"); got != nil {
-		t.Fatal("expected nil for unregistered kind")
+	if got := r.GetPool("missing"); !got.IsZero() {
+		t.Fatal("expected zero PID for unregistered kind")
 	}
 }
 
 func TestActivatorRouter_UnRegisterPool(t *testing.T) {
 	r := &activatorRouter{}
-	pid := actor.NewPID("n", "pool1")
+	pid := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
 	r.RegisterPool("role", pid)
 	r.UnRegisterPool("role")
-	if got := r.GetPool("role"); got != nil {
-		t.Fatal("expected nil after unregister")
+	if got := r.GetPool("role"); !got.IsZero() {
+		t.Fatal("expected zero PID after unregister")
 	}
 }
 
 func TestActivatorRouter_MultipleKinds(t *testing.T) {
 	r := &activatorRouter{}
-	p1 := actor.NewPID("n", "pool1")
-	p2 := actor.NewPID("n", "pool2")
+	p1 := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
+	p2 := PID{Runtime: "test", Node: "n", ID: "pool2", Creation: "1"}
 	r.RegisterPool("role", p1)
 	r.RegisterPool("guild", p2)
 	if !PidEqual(r.GetPool("role"), p1) {
@@ -474,8 +469,8 @@ func TestActivatorRouter_MultipleKinds(t *testing.T) {
 
 func TestActivatorRouter_RegisterOverwrite(t *testing.T) {
 	r := &activatorRouter{}
-	p1 := actor.NewPID("n", "pool1")
-	p2 := actor.NewPID("n", "pool2")
+	p1 := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
+	p2 := PID{Runtime: "test", Node: "n", ID: "pool2", Creation: "1"}
 	r.RegisterPool("role", p1)
 	r.RegisterPool("role", p2)
 	// First match wins
