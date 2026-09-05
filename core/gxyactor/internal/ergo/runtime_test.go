@@ -107,6 +107,37 @@ func TestAdapterLocalSendCallTimeoutAndStop(t *testing.T) {
 	}
 }
 
+type initFailActor struct {
+	*gxyactor.ActorBase
+}
+
+func (a *initFailActor) Init(context.Context, []any) error {
+	return errors.New("init failed")
+}
+
+func TestAdapterInitFailureDoesNotPublishPID(t *testing.T) {
+	node, err := ergo.StartNode("adapter-init-fail@localhost", gen.NodeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer node.StopWithTimeout(time.Second)
+	adapter := New(node, "adapter-init-fail@localhost")
+	if err := adapter.RegisterActorKind("test", func() gxyactor.IActor {
+		actor := &initFailActor{}
+		actor.ActorBase = gxyactor.NewActorBase(context.Background(), actor, "test")
+		return actor
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.Spawn("test", "failed"); !errors.Is(err, ErrActorInitFailed) {
+		t.Fatalf("spawn error = %v, want ErrActorInitFailed", err)
+	}
+	if actors := adapter.GetLocalActorAll("test"); len(actors) != 0 {
+		t.Fatalf("failed actor was published: %v", actors)
+	}
+}
+func (*initFailActor) HandleMessage(context.Context, any) error { return nil }
+
 type adapterTestActor struct {
 	*gxyactor.ActorBase
 	ready chan struct{}
@@ -152,8 +183,8 @@ func TestAdapterResponseErrorAndUnknownPID(t *testing.T) {
 	if _, err := adapter.Call(context.Background(), pid, "error", time.Second); err == nil {
 		t.Fatal("handler response error became a successful value")
 	}
-	if result, err := adapter.Call(context.Background(), pid, "ping", time.Second); err != nil || result != "pong" {
-		t.Fatalf("actor stopped after response error: result=%v err=%v", result, err)
+	if _, err := adapter.Call(context.Background(), pid, "ping", time.Second); !errors.Is(err, ErrUnknownPID) && !errors.Is(err, ErrActorStopped) {
+		t.Fatalf("actor remained callable after handler error: err=%v", err)
 	}
 }
 func TestMapErrorNoRouteIsRemoteUnavailable(t *testing.T) {

@@ -8,11 +8,11 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 )
 
-// protoactor 系统日志接入 gxylog(zap)
+// Legacy runtime system logging is normalized through the GServer logger.
 func glogAdapterLogging(system *actor.ActorSystem) *slog.Logger {
 	handler := (*actorLogAdapter)(gxylog.NewLogAdapter(context.Background(), "actor_sys", gxylog.LevelError))
 	return slog.New(handler).
-		With("lib", "Proto.Actor").
+		With("lib", "gserver-actor-runtime").
 		With("system", system.ID)
 }
 

@@ -209,6 +209,9 @@ func (a *Adapter) Spawn(kind, id string, initArgs ...any) (gxyactor.PID, error) 
 	logicalID := namespacedID(kind, id)
 	pid, err := a.node.Spawn(func() gen.ProcessBehavior { return newErgoActor(a, kind, id, logicalID, producer) }, gen.ProcessOptions{}, initArgs...)
 	if err != nil {
+		if pid.ID != 0 {
+			a.forgetRaw(pid)
+		}
 		return gxyactor.PID{}, wrap(ErrActorInitFailed, err)
 	}
 	normalized := a.fromErgoPID(pid, logicalID)
@@ -256,6 +259,17 @@ func (a *Adapter) Forget(pid gxyactor.PID) {
 	}
 }
 
+func (a *Adapter) forgetRaw(raw gen.PID) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for key, pid := range a.pids {
+		if pid == raw {
+			delete(a.pids, key)
+			delete(a.normalized, key)
+		}
+	}
+}
+
 func (a *Adapter) Send(ctx context.Context, pid gxyactor.PID, message any) error {
 	raw, err := a.toErgoPID(pid)
 	if err != nil {
@@ -267,6 +281,9 @@ func (a *Adapter) Send(ctx context.Context, pid gxyactor.PID, message any) error
 	wire, err := a.encodeFor(pid, message)
 	if err != nil {
 		return err
+	}
+	if process, ok := processFromContext(ctx); ok {
+		return mapError(process.Send(raw, wire))
 	}
 	if a.node == nil {
 		return errors.New("ergo node is not initialized")
@@ -315,8 +332,15 @@ func (a *Adapter) Call(ctx context.Context, pid gxyactor.PID, message any, timeo
 	if seconds < 1 {
 		seconds = 1
 	}
+	process, fromActor := processFromContext(ctx)
 	go func() {
-		value, callErr := a.node.CallWithTimeout(raw, wire, seconds)
+		var value any
+		var callErr error
+		if fromActor {
+			value, callErr = process.CallWithTimeout(raw, wire, seconds)
+		} else {
+			value, callErr = a.node.CallWithTimeout(raw, wire, seconds)
+		}
 		done <- callResult{value: value, err: callErr}
 	}()
 	timer := time.NewTimer(timeout)
@@ -334,8 +358,16 @@ func (a *Adapter) Call(ctx context.Context, pid gxyactor.PID, message any, timeo
 	}
 }
 func (a *Adapter) Respond(_ context.Context, request gxyactor.Request, message any, responseErr error) error {
-	r, ok := request.(*ergoRequest)
-	if !ok || r == nil {
+	var r *ergoRequest
+	switch value := request.(type) {
+	case *ergoRequest:
+		r = value
+	case *actorContext:
+		if value != nil {
+			r = value.request
+		}
+	}
+	if r == nil {
 		return errors.New("request does not belong to Ergo runtime")
 	}
 	if responseErr != nil {
@@ -359,6 +391,14 @@ func (a *Adapter) Stop(pid gxyactor.PID) error {
 		return mapError(err)
 	}
 	return nil
+}
+
+func processFromContext(ctx context.Context) (gen.Process, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	process, ok := ctx.Value(processContextKey{}).(gen.Process)
+	return process, ok && process != nil
 }
 
 func contextErr(ctx context.Context) error {

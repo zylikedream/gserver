@@ -2,11 +2,13 @@ package ergo
 
 import (
 	"context"
+	"encoding/binary"
 	"sync"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"gserver/core/gxyactor"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type ergoActor struct {
@@ -29,12 +31,22 @@ func (a *ergoActor) Init(args ...any) error {
 		return ErrActorInitFailed
 	}
 	a.adapter.remember(a.kind, a.callerID, a.PID())
-	a.ctx = &actorContext{adapter: a.adapter, process: a, message: gxyactor.ActorStartedMessage{Self: a.adapter.fromErgoPID(a.PID(), a.id), InitArgs: args}}
+	a.ctx = &actorContext{
+		adapter: a.adapter,
+		process: a,
+		ctx:     contextWithErgoTrace(context.Background(), a.PropagatingTrace(), a),
+		message: gxyactor.ActorStartedMessage{Self: a.adapter.fromErgoPID(a.PID(), a.id), InitArgs: args},
+	}
 	if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
 		receiver.Receive(a.ctx)
+		if lifecycle, ok := a.actor.(interface{ LifecycleError() error }); ok {
+			if err := lifecycle.LifecycleError(); err != nil {
+				return wrap(ErrActorInitFailed, err)
+			}
+		}
 		return nil
 	}
-	if err := a.actor.Init(context.Background(), args); err != nil {
+	if err := a.actor.Init(a.ctx.ctx, args); err != nil {
 		return wrap(ErrActorInitFailed, err)
 	}
 	return nil
@@ -49,12 +61,17 @@ func (a *ergoActor) HandleMessage(from gen.PID, message any) error {
 		a.ctx = &actorContext{adapter: a.adapter, process: a}
 	}
 	a.ctx.sender = a.adapter.fromErgoPID(from, "")
+	a.ctx.request = nil
+	a.ctx.ctx = contextWithErgoTrace(a.ctx.ctx, a.PropagatingTrace(), a)
 	a.ctx.message = decoded
 	if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
 		receiver.Receive(a.ctx)
+		if lifecycle, ok := a.actor.(interface{ LifecycleError() error }); ok {
+			return lifecycle.LifecycleError()
+		}
 		return nil
 	}
-	return a.actor.HandleMessage(context.Background(), decoded)
+	return a.actor.HandleMessage(a.ctx.ctx, decoded)
 }
 
 func (a *ergoActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
@@ -67,22 +84,18 @@ func (a *ergoActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, err
 	}
 	a.ctx.sender = a.adapter.fromErgoPID(from, "")
 	a.ctx.request = &ergoRequest{sender: a.ctx.sender, rawSender: from, ref: ref, process: a}
+	a.ctx.ctx = contextWithErgoTrace(a.ctx.ctx, a.PropagatingTrace(), a)
 	a.ctx.message = decoded
 	handler, ok := a.actor.(interface {
 		DoCallMsgHandler(context.Context, any) (any, error)
 	})
 	if !ok {
-		if sendErr := a.SendResponseError(from, ref, gen.ErrUnsupported); sendErr != nil {
-			return nil, sendErr
-		}
-		return nil, nil
+		return nil, gen.ErrUnsupported
 	}
-	result, err := handler.DoCallMsgHandler(context.Background(), decoded)
+	result, err := handler.DoCallMsgHandler(a.ctx.ctx, decoded)
 	if err != nil {
-		if sendErr := a.SendResponseError(from, ref, err); sendErr != nil {
-			return nil, sendErr
-		}
-		return nil, nil
+		_ = a.SendResponseError(from, ref, err)
+		return nil, err
 	}
 	if result == nil {
 		return nil, nil
@@ -109,7 +122,7 @@ func (a *ergoActor) Terminate(reason error) {
 			a.actor.Terminate(context.Background(), reason)
 		}
 		if a.adapter != nil {
-			a.adapter.Forget(a.adapter.fromErgoPID(a.PID(), a.id))
+			a.adapter.forgetRaw(a.PID())
 		}
 	})
 }
@@ -120,7 +133,6 @@ type ergoRequest struct {
 	ref       gen.Ref
 	process   *ergoActor
 }
-
 func (r *ergoRequest) Sender() gxyactor.PID {
 	if r == nil {
 		return gxyactor.PID{}
@@ -128,12 +140,37 @@ func (r *ergoRequest) Sender() gxyactor.PID {
 	return r.sender
 }
 
+type processContextKey struct{}
+
 type actorContext struct {
 	adapter *Adapter
 	process *ergoActor
 	sender  gxyactor.PID
 	message any
 	request *ergoRequest
+	ctx     context.Context
+}
+
+func contextWithErgoTrace(base context.Context, tracing gen.Tracing, process gen.Process) context.Context {
+	if base == nil {
+		base = context.Background()
+	}
+	base = context.WithValue(base, processContextKey{}, process)
+	if tracing.ID == [2]uint64{} || tracing.SpanID == 0 {
+		return base
+	}
+	var traceID trace.TraceID
+	binary.BigEndian.PutUint64(traceID[:8], tracing.ID[0])
+	binary.BigEndian.PutUint64(traceID[8:], tracing.ID[1])
+	var spanID trace.SpanID
+	binary.BigEndian.PutUint64(spanID[:], tracing.SpanID)
+	spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+		Remote:     true,
+	})
+	return trace.ContextWithRemoteSpanContext(base, spanContext)
 }
 
 func (c *actorContext) Sender() gxyactor.PID {
@@ -141,6 +178,12 @@ func (c *actorContext) Sender() gxyactor.PID {
 		return gxyactor.PID{}
 	}
 	return c.sender
+}
+func (c *actorContext) Context() context.Context {
+	if c == nil || c.ctx == nil {
+		return context.Background()
+	}
+	return c.ctx
 }
 func (c *actorContext) Message() any {
 	if c == nil {

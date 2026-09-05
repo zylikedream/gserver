@@ -3,6 +3,7 @@ package gxyactor
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -47,6 +48,72 @@ type ActorBase struct {
 	msgHandler *gxyutil.MsgHandler
 	actorKind  string
 	span       trace.Span
+
+	lifecycleMu sync.Mutex
+	initErr     error
+	ready       bool
+	active      bool
+	termOnce   sync.Once
+	receiveErr  error
+}
+
+func (a *ActorBase) LifecycleError() error {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
+	if a.initErr != nil {
+		return a.initErr
+	}
+	return a.receiveErr
+}
+
+func (a *ActorBase) setReceiveError(err error) {
+	a.lifecycleMu.Lock()
+	a.receiveErr = err
+	a.lifecycleMu.Unlock()
+}
+
+func (a *ActorBase) callbackContext(actx ActorContext) context.Context {
+	base := a.ctx
+	if base == nil {
+		base = context.Background()
+	}
+	if provider, ok := actx.(interface{ Context() context.Context }); ok {
+		incoming := provider.Context()
+		if incoming != nil {
+			return mergedContext{primary: incoming, fallback: base}
+		}
+	}
+	return base
+}
+
+type mergedContext struct {
+	primary  context.Context
+	fallback context.Context
+}
+
+func (c mergedContext) Deadline() (time.Time, bool) {
+	if deadline, ok := c.primary.Deadline(); ok {
+		return deadline, true
+	}
+	return c.fallback.Deadline()
+}
+func (c mergedContext) Done() <-chan struct{} {
+	if done := c.primary.Done(); done != nil {
+		return done
+	}
+	return c.fallback.Done()
+}
+func (c mergedContext) Err() error {
+	if err := c.primary.Err(); err != nil {
+		return err
+	}
+	return c.fallback.Err()
+}
+func (c mergedContext) Value(key any) any {
+	if value := c.primary.Value(key); value != nil {
+		return value
+	}
+	return c.fallback.Value(key)
 }
 
 func NewActorBase(ctx context.Context, actor IActor, actorKind string) *ActorBase {
@@ -60,42 +127,89 @@ func (a *ActorBase) ActorKind() string { return a.actorKind }
 // cross this public method; adapters provide the small ActorContext contract.
 func (a *ActorBase) Receive(actx ActorContext) {
 	a.Actx = actx
+	a.ctx = a.callbackContext(actx)
 	gutil.TryCatch(a.ctx, func(context.Context) {
 		if err := a.doReceive(actx); err != nil {
-			gxylog.Error(a.ctx, "actor error", gxylog.Err(err))
+			a.setReceiveError(err)
+			a.logError("actor error", err)
 			a.Stop(err)
 		}
 	}, func(_ context.Context, exception error) {
-		gxylog.Error(a.ctx, "actor internal error", gxylog.Err(exception))
+		a.setReceiveError(exception)
+		a.logError("actor internal error", exception)
 		a.Stop(exception)
 	})
+}
+
+func (a *ActorBase) logError(message string, err error) {
+	gxylog.Error(a.ctx, message,
+		gxylog.Str("actor_kind", a.ActorKind()),
+		gxylog.Str("node", a.self.Node),
+		gxylog.Str("actor_id", a.self.ID),
+		gxylog.Err(err))
+}
+
+func (a *ActorBase) initialize(ctx ActorContext, msg ActorStartedMessage) error {
+	a.self = msg.Self
+	a.lifecycleMu.Lock()
+	if a.active || a.ready || a.initErr != nil {
+		a.lifecycleMu.Unlock()
+		return nil
+	}
+	a.active = true
+	a.lifecycleMu.Unlock()
+	gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Inc()
+	a.timer = NewActorTimer(a.self)
+	if err := a.actor.Init(a.ctx, msg.InitArgs); err != nil {
+		err = gerror.Wrap(err, "init actor error")
+		a.lifecycleMu.Lock()
+		a.initErr = err
+		a.lifecycleMu.Unlock()
+		return err
+	}
+	a.msgHandler.AddHandler(a.actor)
+	if err := a.actor.DelayInit(a.ctx); err != nil {
+		err = gerror.Wrap(err, "delay init actor error")
+		a.lifecycleMu.Lock()
+		a.initErr = err
+		a.lifecycleMu.Unlock()
+		return err
+	}
+	a.lifecycleMu.Lock()
+	a.ready = true
+	a.lifecycleMu.Unlock()
+	return nil
 }
 
 func (a *ActorBase) doReceive(ctx ActorContext) error {
 	switch msg := ctx.Message().(type) {
 	case ActorStartedMessage:
-		a.self = msg.Self
-		gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Inc()
-		a.timer = NewActorTimer(a.self)
-		if err := a.actor.Init(a.ctx, msg.InitArgs); err != nil {
-			return gerror.Wrap(err, "init actor error")
-		}
-		_ = LocalSend(a.ctx, a.self, ActorInitMsg{})
+		return a.initialize(ctx, msg)
 	case *ActorStartedMessage:
 		if msg != nil {
-			return a.doReceiveWithStarted(ctx, *msg)
+			return a.initialize(ctx, *msg)
 		}
 	case ActorInitMsg, *ActorInitMsg:
-		a.msgHandler.AddHandler(a.actor)
-		if err := a.actor.DelayInit(a.ctx); err != nil {
-			return gerror.Wrap(err, "delay init actor error")
-		}
+		// Kept as a compatibility marker for older adapters. New adapters
+		// complete initialization in ProcessInit before mailbox delivery.
+		return nil
 	case ActorTimerMsg:
-		if err := gutil.Try(a.ctx, func(context.Context) { a.timer.Active(a.ctx, msg) }); err != nil {
-			gxylog.Error(a.ctx, "timer active error", gxylog.Str("timer", msg.Name), gxylog.Err(err))
+		a.lifecycleMu.Lock()
+		ready := a.ready
+		a.lifecycleMu.Unlock()
+		if !ready {
+			return gerror.New("actor is not ready")
+		}
+		if a.timer == nil {
+			return gerror.New("actor timer is not initialized")
+		}
+		if err := a.timer.Active(a.ctx, msg); err != nil {
+			return gerror.Wrap(err, "timer active error")
 		}
 	case *pb.ActorStop:
-		a.Stop(errors.New(msg.Reason))
+		if msg != nil {
+			a.Stop(errors.New(msg.Reason))
+		}
 	case LifecycleMessage:
 		switch msg {
 		case ActorStopping:
@@ -114,6 +228,12 @@ func (a *ActorBase) doReceive(ctx ActorContext) error {
 	case IUnspanMessage:
 		return a.handleMessage(msg)
 	default:
+		a.lifecycleMu.Lock()
+		ready := a.ready
+		a.lifecycleMu.Unlock()
+		if !ready {
+			return gerror.New("actor is not ready")
+		}
 		span := a.initSpan(msg)
 		a.span = span
 		savedCtx := a.ctx
@@ -128,26 +248,29 @@ func (a *ActorBase) doReceive(ctx ActorContext) error {
 }
 
 func (a *ActorBase) doReceiveWithStarted(ctx ActorContext, msg ActorStartedMessage) error {
-	a.self = msg.Self
-	gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Inc()
-	a.timer = NewActorTimer(a.self)
-	if err := a.actor.Init(a.ctx, msg.InitArgs); err != nil {
-		return gerror.Wrap(err, "init actor error")
-	}
-	_ = LocalSend(a.ctx, a.self, ActorInitMsg{})
-	return nil
+	return a.initialize(ctx, msg)
 }
 
 func (a *ActorBase) terminate(err error) {
-	if err == nil {
-		err = a.stopErr
-	}
-	gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Dec()
-	if a.timer != nil {
-		a.timer.Stop(a.ctx)
-	}
-	a.actor.Terminate(a.ctx, err)
+	a.termOnce.Do(func() {
+		if err == nil {
+			err = a.stopErr
+		}
+		if a.timer != nil {
+			a.timer.Stop(a.ctx)
+		}
+		a.actor.Terminate(a.ctx, err)
+		a.lifecycleMu.Lock()
+		active := a.active
+		a.active = false
+		a.ready = false
+		a.lifecycleMu.Unlock()
+		if active {
+			gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Dec()
+		}
+	})
 }
+
 
 func (a *ActorBase) initSpan(msg any) trace.Span {
 	headerMap := map[string]string{}
@@ -164,7 +287,7 @@ func (a *ActorBase) initSpan(msg any) trace.Span {
 func (a *ActorBase) handleMessage(msg any) error {
 	start := time.Now()
 	if err := a.actor.HandleMessage(a.ctx, msg); err != nil {
-		gxylog.Error(a.ctx, "handle msg failed", gxylog.Any("payload", msg), gxylog.Err(err))
+		a.logError("handle msg failed", err)
 		return err
 	}
 	gxymetrics.ActorMessages.WithLabelValues(a.ActorKind()).Inc()
@@ -173,14 +296,19 @@ func (a *ActorBase) handleMessage(msg any) error {
 }
 
 func (a *ActorBase) AutoHandleMsg(ctx context.Context, msg any) (any, error) {
-	rsp, err := a.callMsgHandler(a.ctx, msg)
+	if ctx == nil {
+		ctx = a.ctx
+	}
+	rsp, err := a.callMsgHandler(ctx, msg)
 	if err != nil {
-		gxylog.Error(a.ctx, "handle rpc msg failed", gxylog.Any("payload", msg), gxylog.Err(err))
-		_ = Respond(ctx, a.Actx, &pb.ActorError{Reason: err.Error()})
-		return nil, nil
+		a.logError("handle rpc msg failed", err)
+		_ = Respond(ctx, a.Actx, nil, err)
+		return nil, err
 	}
 	if rsp != nil {
-		_ = Respond(ctx, a.Actx, rsp)
+		if err := Respond(ctx, a.Actx, rsp); err != nil {
+			return nil, err
+		}
 	}
 	return rsp, nil
 }
@@ -198,7 +326,9 @@ func (a *ActorBase) DoCallMsgHandler(ctx context.Context, msg any) (any, error) 
 }
 
 func (a *ActorBase) Stop(err error) {
-	a.stopErr = err
+	if err != nil {
+		a.stopErr = err
+	}
 	if a.Actx != nil {
 		a.Actx.Stop(a.self)
 	}
