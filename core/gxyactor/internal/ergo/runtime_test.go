@@ -16,23 +16,91 @@ import (
 )
 
 func TestTraceHopContextPreservesErgoIdentity(t *testing.T) {
-	tracing := gen.Tracing{ID: [2]uint64{11, 22}, SpanID: 33}
-	local := contextWithErgoTrace(context.Background(), tracing, nil)
-	remote := contextWithErgoTrace(context.Background(), tracing, nil)
-	for name, ctx := range map[string]context.Context{"local": local, "remote": remote} {
-		t.Run(name, func(t *testing.T) {
-			got := trace.SpanContextFromContext(ctx)
-			if !got.IsValid() {
-				t.Fatal("adapter callback context has no valid trace span")
-			}
-			if got.TraceID() != traceID(tracing) || got.SpanID() != spanID(tracing) {
-				t.Fatalf("trace = %s/%s, want %s/%s", got.TraceID(), got.SpanID(), traceID(tracing), spanID(tracing))
-			}
-			if !got.IsRemote() {
-				t.Fatal("adapter callback trace must be marked remote")
-			}
-		})
+	node, err := ergo.StartNode("trace-hop@localhost", gen.NodeOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
+	defer node.StopWithTimeout(time.Second)
+	adapter := New(node, "trace-hop@localhost")
+	gxyactor.SetRuntime(adapter)
+	t.Cleanup(func() { gxyactor.SetRuntime(nil) })
+
+	tracing := gen.Tracing{ID: [2]uint64{11, 22}, SpanID: 33}
+	received := make(chan trace.SpanContext, 1)
+	target := &traceHopTarget{received: received}
+	if err := adapter.RegisterActorKind("trace-target", func() gxyactor.IActor {
+		target.ActorBase = gxyactor.NewActorBase(context.Background(), target, "trace-target")
+		return target
+	}); err != nil {
+		t.Fatal(err)
+	}
+	source := &traceHopSource{adapter: adapter, tracing: tracing}
+	if err := adapter.RegisterActorKind("trace-source", func() gxyactor.IActor {
+		source.ActorBase = gxyactor.NewActorBase(context.Background(), source, "trace-source")
+		return source
+	}); err != nil {
+		t.Fatal(err)
+	}
+	targetPID, err := adapter.Spawn("trace-target", "target")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source.target = targetPID
+	sourcePID, err := adapter.Spawn("trace-source", "source")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := adapter.Send(context.Background(), sourcePID, "hop"); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case got := <-received:
+		if got.TraceID() != traceID(tracing) {
+			t.Fatalf("trace = %s, want %s", got.TraceID(), traceID(tracing))
+		}
+		if got.SpanID() == (trace.SpanID{}) {
+			t.Fatal("receiving callback context has no transport span ID")
+		}
+		if !got.IsRemote() {
+			t.Fatal("receiving callback context must be marked remote")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for traced actor hop")
+	}
+}
+
+type traceHopSource struct {
+	*gxyactor.ActorBase
+	adapter *Adapter
+	target  gxyactor.PID
+	tracing gen.Tracing
+}
+
+func (a *traceHopSource) HandleMessage(ctx context.Context, message any) error {
+	if message != "hop" {
+		return nil
+	}
+	process, ok := ctx.Value(processContextKey{}).(gen.Process)
+	if !ok {
+		return errors.New("source callback did not retain Ergo process")
+	}
+	process.SetPropagatingTrace(a.tracing)
+	return a.adapter.Send(ctx, a.target, "hop")
+}
+
+type traceHopTarget struct {
+	*gxyactor.ActorBase
+	received chan trace.SpanContext
+}
+
+func (a *traceHopTarget) HandleMessage(context.Context, any) error {
+	actorContext, ok := a.Actx.(interface{ Context() context.Context })
+	if !ok {
+		return errors.New("target callback context is not Ergo context")
+	}
+	a.received <- trace.SpanContextFromContext(actorContext.Context())
+	return nil
 }
 
 func traceID(tracing gen.Tracing) trace.TraceID {

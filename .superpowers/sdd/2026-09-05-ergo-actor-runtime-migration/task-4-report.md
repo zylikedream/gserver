@@ -99,3 +99,14 @@ ok   gserver/core/gxyactor 0.607s
 go test ./core/gxyactor/internal/ergo -count=1
 ok   gserver/core/gxyactor/internal/ergo 1.354s
 ```
+
+## Review round 2 trace-hop fix
+
+Replaced the helper-only trace test with a real Ergo process path: a spawned source Actor sets its propagated trace and sends through `Adapter.Send` (which uses the private process callback), and a spawned target Actor inspects the incoming neutral `ActorContext.Context`. The regression asserts the exact TraceID, a nonzero transport-generated SpanID, and `Remote=true`. Ergo intentionally assigns a new send span ID while preserving the trace ID; a full two-node network hop remains outside this focused runtime test.
+
+Verification:
+
+```text
+go test ./core/gxyactor/internal/ergo -run '^TestTraceHopContextPreservesErgoIdentity$' -count=1
+ok   gserver/core/gxyactor/internal/ergo 0.231s
+```
