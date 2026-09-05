@@ -152,3 +152,40 @@ func TestAdapterResponseErrorAndUnknownPID(t *testing.T) {
 		t.Fatalf("actor stopped after response error: result=%v err=%v", result, err)
 	}
 }
+func TestMapErrorNoRouteIsRemoteUnavailable(t *testing.T) {
+	if err := mapError(gen.ErrNoRoute); !errors.Is(err, ErrRemoteNodeUnavailable) {
+		t.Fatalf("no-route error = %v", err)
+	}
+}
+
+func TestPIDMapMissFailsClosedAndResolverIsExplicit(t *testing.T) {
+	pid := gxyactor.PID{Runtime: RuntimeID, Node: "node@localhost", ID: "role/7", Creation: "42"}
+	adapter := &Adapter{nodeName: "node@localhost", creation: 42}
+	if _, err := adapter.toErgoPID(pid); !errors.Is(err, ErrUnknownPID) {
+		t.Fatalf("map miss error = %v", err)
+	}
+	adapter.resolvePID = func(gxyactor.PID) (gen.PID, error) {
+		return gen.PID{Node: "node@localhost", ID: 7, Creation: 42}, nil
+	}
+	raw, err := adapter.toErgoPID(pid)
+	if err != nil || raw.ID != 7 {
+		t.Fatalf("resolver result=%+v err=%v", raw, err)
+	}
+}
+
+func TestMessageRegistryDuplicateRegistrationIsTypedAndIdempotent(t *testing.T) {
+	registry := NewMessageRegistry()
+	constructor := func() proto.Message { return &pb.ReqAccountLogin{} }
+	if err := registry.Register("login.request", constructor); err != nil {
+		t.Fatal(err)
+	}
+	if err := registry.Register("login.request", constructor); err != nil {
+		t.Fatalf("same registration should be idempotent: %v", err)
+	}
+	if err := registry.Register("login.other", constructor); !errors.Is(err, ErrDuplicateRegistration) {
+		t.Fatalf("duplicate type error = %v", err)
+	}
+	if err := registry.Register("login.request", func() proto.Message { return &pb.RspAccountLogin{} }); !errors.Is(err, ErrDuplicateRegistration) {
+		t.Fatalf("duplicate name error = %v", err)
+	}
+}

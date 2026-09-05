@@ -61,6 +61,7 @@ type Options struct {
 	ShutdownTimeout  time.Duration
 	Network          gen.NetworkOptions
 	Activation       func(context.Context, string, string, bool) (gxyactor.PID, error)
+	ResolvePID       func(gxyactor.PID) (gen.PID, error)
 }
 
 type Adapter struct {
@@ -70,6 +71,7 @@ type Adapter struct {
 	creation      int64
 	registry      *MessageRegistry
 	activation    func(context.Context, string, string, bool) (gxyactor.PID, error)
+	resolvePID    func(gxyactor.PID) (gen.PID, error)
 
 	mu         sync.RWMutex
 	kinds      map[string]gxyactor.ActorProducer
@@ -123,9 +125,6 @@ func Start(options Options) (*Adapter, error) {
 		return nil, err
 	}
 	instance := options.NodeInstanceName
-	if instance == "" {
-		instance = name
-	}
 	a := New(node, instance)
 	a.activation = options.Activation
 	gxyactor.SetRuntime(a)
@@ -219,6 +218,17 @@ func (a *Adapter) Spawn(kind, id string, initArgs ...any) (gxyactor.PID, error) 
 	return normalized, nil
 }
 
+func (a *Adapter) remember(kind, id string, raw gen.PID) {
+	if a == nil || raw.ID == 0 {
+		return
+	}
+	normalized := a.fromErgoPID(raw, id)
+	key := kind + "\x00" + id
+	a.mu.Lock()
+	a.pids[key] = raw
+	a.normalized[key] = normalized
+	a.mu.Unlock()
+}
 func (a *Adapter) rawPID(pid gxyactor.PID) (gen.PID, bool) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
@@ -372,7 +382,7 @@ func mapError(err error) error {
 		return wrap(ErrUnknownPID, err)
 	case errors.Is(err, gen.ErrProcessTerminated):
 		return wrap(ErrActorStopped, err)
-	case errors.Is(err, gen.ErrNoConnection), errors.Is(err, gen.ErrNetworkStopped), errors.Is(err, gen.ErrNodeTerminated):
+	case errors.Is(err, gen.ErrNoConnection), errors.Is(err, gen.ErrNoRoute), errors.Is(err, gen.ErrNetworkStopped), errors.Is(err, gen.ErrNodeTerminated):
 		return wrap(ErrRemoteNodeUnavailable, err)
 	default:
 		return err

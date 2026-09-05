@@ -17,9 +17,10 @@ type GServerEnvelope struct {
 }
 
 var (
-	ErrUnknownMessageType  = errors.New("unknown gserver message type")
-	ErrMissingRegistration = errors.New("gserver message type is not registered")
-	ErrMalformedPayload    = errors.New("malformed gserver protobuf payload")
+	ErrUnknownMessageType    = errors.New("unknown gserver message type")
+	ErrMissingRegistration   = errors.New("gserver message type is not registered")
+	ErrDuplicateRegistration = errors.New("gserver message type registration already exists")
+	ErrMalformedPayload      = errors.New("malformed gserver protobuf payload")
 )
 
 type messageRegistration struct {
@@ -50,10 +51,10 @@ func (r *MessageRegistry) Register(name string, constructor func() proto.Message
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if previous, exists := r.byName[name]; exists && previous.typ != typ {
-		return fmt.Errorf("%w: %q already registered", ErrMissingRegistration, name)
+		return fmt.Errorf("%w: %q already registered", ErrDuplicateRegistration, name)
 	}
 	if previous, exists := r.byType[typ]; exists && previous != name {
-		return fmt.Errorf("%w: %s already registered as %q", ErrMissingRegistration, typ, previous)
+		return fmt.Errorf("%w: %s already registered as %q", ErrDuplicateRegistration, typ, previous)
 	}
 	r.byName[name] = messageRegistration{newMessage: constructor, typ: typ}
 	r.byType[typ] = name

@@ -27,6 +27,7 @@ func (a *ergoActor) Init(args ...any) error {
 	if a.actor == nil {
 		return ErrActorInitFailed
 	}
+	a.adapter.remember(a.kind, a.id, a.PID())
 	a.ctx = &actorContext{adapter: a.adapter, process: a, message: gxyactor.ActorStartedMessage{Self: a.adapter.fromErgoPID(a.PID(), a.id), InitArgs: args}}
 	if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
 		receiver.Receive(a.ctx)

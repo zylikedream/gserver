@@ -51,16 +51,18 @@ func (a *Adapter) toErgoPID(pid gxyactor.PID) (gen.PID, error) {
 			}
 			return raw, nil
 		}
+		if a.resolvePID != nil {
+			raw, resolveErr := a.resolvePID(pid)
+			if resolveErr != nil || raw.ID == 0 || raw.Node == "" || raw.Creation != creation {
+				if resolveErr == nil {
+					resolveErr = fmt.Errorf("resolver returned invalid or stale PID")
+				}
+				return gen.PID{}, fmt.Errorf("%w: %v", ErrUnknownPID, resolveErr)
+			}
+			return raw, nil
+		}
 	}
-	id, err := parseLogicalID(pid.ID)
-	if err != nil {
-		return gen.PID{}, fmt.Errorf("%w: unknown logical id %q", ErrUnknownPID, pid.ID)
-	}
-	node := gen.Atom(pid.Node)
-	if a != nil && a.nodeName != "" && string(node) == a.nodeName && a.transportName != "" {
-		node = gen.Atom(a.transportName)
-	}
-	return gen.PID{Node: node, ID: id, Creation: creation}, nil
+	return gen.PID{}, fmt.Errorf("%w: PID is not present in adapter map", ErrUnknownPID)
 }
 func (a *Adapter) PIDFromErgo(pid gen.PID, logicalID string) gxyactor.PID {
 	return a.fromErgoPID(pid, logicalID)
@@ -77,11 +79,4 @@ func namespacedID(kind, id string) string {
 		return id
 	}
 	return kind + "/" + id
-}
-
-func parseLogicalID(id string) (uint64, error) {
-	if slash := strings.LastIndexByte(id, '/'); slash >= 0 {
-		id = id[slash+1:]
-	}
-	return strconv.ParseUint(id, 10, 64)
 }

@@ -22,7 +22,7 @@ Focused command required by the brief:
 
 ```text
 go test ./core/gxyactor/internal/ergo -count=1
-ok   gserver/core/gxyactor/internal/ergo 1.254s
+ok   gserver/core/gxyactor/internal/ergo 1.257s
 ```
 
 The changed Go files were formatted with:
@@ -31,10 +31,23 @@ The changed Go files were formatted with:
 gofmt -w core/gxyactor/internal/ergo/*.go
 ```
 
-The focused tests were rerun against the committed tree after the final logical-PID normalization edit. No formatter output was produced. No linter or project-wide suite was run.
+The focused tests were rerun against the committed tree after the final review-round fixes. No formatter output was produced. No linter or project-wide suite was run.
 
 ## Concerns / follow-up boundaries
 
 1. Ergo's node-level `CallWithTimeout` accepts integer seconds. The adapter executes it asynchronously and applies the caller's exact `context`/duration deadline locally, so sub-second caller timeouts do not block; the underlying Ergo request may finish later and its result is discarded.
 2. Task 4 owns full activation/lifecycle observability and ownership integration. `Spawn` records the runtime PID after Ergo accepts the process; delayed business `DelayInit` confirmation and Claim/Release remain outside this adapter as required.
-3. Normalized logical IDs are mapped to Ergo's numeric PID IDs by the private map; when a remote normalized PID is reconstructed without a map, its final slash-delimited component must be numeric. Canonical node-instance to transport-node discovery remains a caller/service-discovery concern, not ownership logic.
+3. Normalized logical PID map misses now fail closed with `ErrUnknownPID`; an explicitly injected runtime-local resolver may provide the raw PID only when it returns a nonzero PID with matching creation. No numeric suffix is fabricated.
+## Review round 1 fixes
+
+The review regression tests were first run before production fixes and failed as expected: compilation reported the missing `Adapter.resolvePID` field and `ErrDuplicateRegistration`; after those symbols were added, the deterministic no-route assertion failed with `no-route error = no route`.
+
+After the fixes, the committed-tree focused command passed:
+
+```text
+gofmt -w core/gxyactor/internal/ergo/*.go
+go test ./core/gxyactor/internal/ergo -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.257s
+```
+
+The changes remain limited to the adapter, adapter tests, and this report. No Task 4 lifecycle/ownership work was added.
