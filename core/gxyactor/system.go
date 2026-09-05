@@ -187,6 +187,12 @@ func (a *actorApp) Host() string {
 func (a *actorApp) NodeInstanceName() string {
 	return a.nodeInstanceName
 }
+func (a *actorApp) GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
+	if a.activatorMgr == nil || a.activatorMgr.locator == nil {
+		return ActorOwner{}, errors.New("actor locator is not initialized")
+	}
+	return a.activatorMgr.locator.locate(ctx, kind, id)
+}
 
 func (a *actorApp) Address() string {
 	return a.system.Address()

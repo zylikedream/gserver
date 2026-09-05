@@ -85,6 +85,16 @@ func newTestGuild() *GuildActor {
 	}
 }
 
+func TestGuildActorInitAcceptsActorOwnerArgument(t *testing.T) {
+	g := &GuildActor{}
+	if err := g.Init(context.Background(), []any{int64(1), struct{}{}}); err != nil {
+		t.Fatalf("Init with shared activator owner argument: %v", err)
+	}
+	if g.GuildID != 1 {
+		t.Fatalf("GuildID = %d, want 1", g.GuildID)
+	}
+}
+
 // ========== 纯函数测试 ==========
 
 func TestRemoveMember(t *testing.T) {

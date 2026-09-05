@@ -1,12 +1,6 @@
 package logic
 
-import (
-	"github.com/cockroachdb/errors"
-)
-
-var (
-	ErrVersionConflict = errors.New("optimistic lock version conflict")
-)
+import "github.com/cockroachdb/errors"
 
 var (
 	GOLD_ITEM_ID       = 1

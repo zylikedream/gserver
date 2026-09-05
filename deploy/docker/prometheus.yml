@@ -7,6 +7,9 @@ scrape_configs:
       - targets: ['host.docker.internal:9090']
         labels:
           node: 'gate'
+      - targets: ['host.docker.internal:9096']
+        labels:
+          node: 'account'
       - targets: ['host.docker.internal:9091']
         labels:
           node: 'role'

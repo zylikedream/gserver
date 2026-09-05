@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 )
 
 func TestParseIntArg(t *testing.T) {
@@ -26,5 +27,23 @@ func TestParseFloatArg(t *testing.T) {
 	max := getFloatArg(args, "max")
 	if min != 0 || max != 5 {
 		t.Errorf("got min=%f max=%f", min, max)
+	}
+}
+func TestPlotRequestPacerEnforcesFiftyMillisecondGap(t *testing.T) {
+	current := time.Unix(0, 0)
+	var slept []time.Duration
+	pacer := plotRequestPacer{
+		now: func() time.Time { return current },
+		sleep: func(d time.Duration) {
+			slept = append(slept, d)
+			current = current.Add(d)
+		},
+	}
+
+	pacer.wait()
+	pacer.wait()
+
+	if len(slept) != 1 || slept[0] != 50*time.Millisecond {
+		t.Fatalf("sleep calls = %v, want [50ms]", slept)
 	}
 }

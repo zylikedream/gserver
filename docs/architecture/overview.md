@@ -141,9 +141,9 @@ type IApp interface {
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
-| Actor 定位 | Redis(nodeInstanceName) → Consul(地址) | 两层解耦，Redis 存轻量标识，Consul 负责地址解析 |
-| Redis TTL | 12h，不续期 | 节点宕机后 key 自动过期，无需手动清理 |
+| Actor 定位 | Redis owner Claim → Consul(地址) | Redis 保存 nodeInstanceName + epoch；Lua Claim 保证单 owner，Consul 负责地址解析 |
+| Redis TTL | owner key 无 TTL；节点 lease 15s heartbeat | owner 有效性由 node lease 判定，epoch 防止旧 actor 持久化副作用 |
 | 服务注册 | Consul + TTL 健康检查 | 与 GoFrame 原生 gsvc 接口兼容 |
 | 模块加载顺序 | 依赖先行（redis→pgx→actor→service→业务） | 确保下层基础设施在上层之前就绪 |
 | 消息传递 | protoactor-go 的 PID 寻址 | 支持跨进程透明通信 |
-| 持久化 | GORM + AutoMigrate | 自动建表迁移，降低运维成本 |
+| 持久化 | GORM + AutoMigrate + `role_actor_fence` | Role 保存事务先锁定 exact owner epoch，数据库拒绝旧 actor 的持久化副作用 |

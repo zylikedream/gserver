@@ -26,7 +26,6 @@ import (
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/util/gconv"
-	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
@@ -41,7 +40,6 @@ const (
 	SINGLE_ALIVE_INTERVAL  = 10 * time.Minute
 	PUBLIC_UPDATE_INTERVAL = 8 * time.Minute
 	SLOW_CLIENT_REQUEST    = 200 * time.Millisecond
-	ROLE_SAVE_CONCURRENCY  = 16
 )
 
 var (
@@ -61,8 +59,16 @@ var (
 		Name:     "check_session_alive",
 		Interval: SESSION_ALIVE_INTERVAL,
 	}
-	globalRoleSaveLimiter = newRoleSaveLimiter(ROLE_SAVE_CONCURRENCY)
 )
+
+func logClientProtocolError(ctx context.Context, roleID int64, msgID, msgName string, err error) {
+	gxylog.Error(ctx, "handle client protocol failed",
+		gxylog.Str("msg_id", msgID),
+		gxylog.Str("msg_name", msgName),
+		gxylog.Num("role_id", roleID),
+		gxylog.Err(err),
+	)
+}
 
 type RoleState int32
 
@@ -96,6 +102,7 @@ type RoleMain struct {
 	*gxyactor.ActorBase
 	RoleID int64
 
+	actorOwner  gxyactor.ActorOwner
 	limitConfig RoleLimitConfig
 
 	moduleByMessage map[string]string
@@ -131,6 +138,14 @@ func (r *RoleMain) Init(ctx context.Context, args []any) error {
 	if r.RoleID == 0 {
 		return gerror.Newf("roleID is invalid, roleID: %v", args[0])
 	}
+	if len(args) < 2 {
+		return gerror.New("actor owner is required in init args")
+	}
+	owner, ok := args[1].(gxyactor.ActorOwner)
+	if !ok || owner.NodeID == "" || owner.Epoch == 0 {
+		return gerror.Newf("actor owner is invalid, owner: %v", args[1])
+	}
+	r.actorOwner = owner
 	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
 	// 验证角色账号是否存在
 	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
@@ -145,6 +160,9 @@ func (r *RoleMain) Init(ctx context.Context, args []any) error {
 }
 
 func (r *RoleMain) DelayInit(ctx context.Context) error {
+	if err := advanceRoleActorFence(ctx, r.DB(), r.RoleID, r.actorOwner); err != nil {
+		return gerror.Wrapf(err, "advance role actor fence, roleID: %d", r.RoleID)
+	}
 	r.eventBus = event.NewEventBus()
 	if err := r.initRole(ctx); err != nil {
 		return gerror.Wrapf(err, "init role error, roleID: %d", r.RoleID)
@@ -355,6 +373,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 	res, err := r.DoCallMsgHandler(ctx, pbmsg)
 	if err != nil {
 		result = "error"
+		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
 		res = &pb.Ack{
 			Code:   pb.AckCode_ACK_CODE_ERROR,
 			Id:     id,
@@ -455,34 +474,23 @@ var saveRoleModule = defaultSaveRoleModule
 
 func defaultSaveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
 	modState := rmod.PersistState()
-	if modState == nil {
-		return nil
-	}
-
-	if !modState.IsDirty() {
+	if modState == nil || !modState.IsDirty() {
 		return nil
 	}
 	tableName := modState.(tabler).TableName()
 	gxylog.Debug(ctx, "save mod", gxylog.Str("table", tableName))
 
-	// 第一层：Redis 归属检查
-	if !r.checkRoleSaveOwner(ctx) {
-		return nil
-	}
-
-	release, err := globalRoleSaveLimiter.acquire(ctx)
+	err := r.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockRoleActorFence(ctx, tx, r.RoleID, r.actorOwner); err != nil {
+			return err
+		}
+		_, err := r.saveRoleModuleState(ctx, tx, rmod)
+		return err
+	})
 	if err != nil {
 		return err
 	}
-	defer release()
-
-	saved, err := r.saveRoleModuleState(ctx, r.DB(), rmod)
-	if err != nil {
-		return err
-	}
-	if saved != nil {
-		saved.state.ClearDirty()
-	}
+	modState.ClearDirty()
 	return nil
 }
 
@@ -490,50 +498,8 @@ func (r *RoleMain) SaveRoleModule(ctx context.Context, rmod IRoleModule) error {
 	return saveRoleModule(r, ctx, rmod)
 }
 
-func (r *RoleMain) checkRoleSaveOwner(ctx context.Context) bool {
-	key := rolelib.GetRoleLocateKey(r.RoleID)
-	owner, err := r.Redis().Get(ctx, key).Result()
-	if err == redis.Nil || owner == "" {
-		gxylog.Warn(ctx, "actor not claimed in redis, skip save", gxylog.Num("roleID", r.RoleID))
-		return false
-	}
-	if err != nil {
-		gxylog.Error(ctx, "redis get failed, skip save", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
-		return false
-	}
-	if owner != gxyactor.ActorApp().NodeInstanceName() {
-		gxylog.Warn(ctx, "actor claimed by another node, skip save", gxylog.Num("roleID", r.RoleID), gxylog.Str("owner", owner))
-		return false
-	}
-	return true
-}
-
 type savedRoleModule struct {
-	state          IPersistState
-	oldVersion     int64
-	versionChanged bool
-}
-
-type roleSaveLimiter struct {
-	slots chan struct{}
-}
-
-func newRoleSaveLimiter(limit int) *roleSaveLimiter {
-	if limit <= 0 {
-		limit = 1
-	}
-	return &roleSaveLimiter{
-		slots: make(chan struct{}, limit),
-	}
-}
-
-func (l *roleSaveLimiter) acquire(ctx context.Context) (func(), error) {
-	select {
-	case l.slots <- struct{}{}:
-		return func() { <-l.slots }, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	state IPersistState
 }
 
 func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IRoleModule) (*savedRoleModule, error) {
@@ -545,32 +511,14 @@ func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IR
 		return nil, nil
 	}
 	tableName := modState.(tabler).TableName()
-
-	oldVersion := modState.GetVersion()
 	modState.SetUpdateAt(time.Now())
 
-	if oldVersion == 0 {
-		// version==0 表示新号，行还不存在，直接 Save（INSERT）
-		if err := db.Save(modState).Error; err != nil {
-			return nil, errors.Wrap(err, "save mod "+tableName+" failed")
-		}
-		return &savedRoleModule{state: modState}, nil
+	// Actor mailbox 保证正常写入串行；PostgreSQL role_actor_fence
+	// 在事务开始时拒绝旧 owner，因此模块只需按 role_id 保存。
+	if err := db.Save(modState).Error; err != nil {
+		return nil, errors.Wrap(err, "save mod "+tableName+" failed")
 	}
-
-	// version>0 表示有已有行，UPDATE + WHERE version 做冲突检测
-	modState.SetVersion(oldVersion + 1)
-	result := db.Model(modState).
-		Where("role_id = ? AND version = ?", r.RoleID, oldVersion).
-		Updates(modState)
-	if result.Error != nil {
-		modState.SetVersion(oldVersion)
-		return nil, errors.Wrap(result.Error, "save mod "+tableName+" failed")
-	}
-	if result.RowsAffected == 0 {
-		modState.SetVersion(oldVersion) // 不清 dirty，下次重试
-		return nil, nil
-	}
-	return &savedRoleModule{state: modState, oldVersion: oldVersion, versionChanged: true}, nil
+	return &savedRoleModule{state: modState}, nil
 }
 
 func (r *RoleMain) save(ctx context.Context) error {
@@ -579,40 +527,29 @@ func (r *RoleMain) save(ctx context.Context) error {
 		return nil
 	}
 
-	if !r.checkRoleSaveOwner(ctx) {
-		return nil
-	}
-
-	release, err := globalRoleSaveLimiter.acquire(ctx)
-	if err != nil {
-		return err
-	}
-	defer release()
-
 	var savedMods []*savedRoleModule
-	err = r.DB().Transaction(func(tx *gorm.DB) error {
-		var errStr string
+	err := r.DB().Transaction(func(tx *gorm.DB) error {
+		if err := lockRoleActorFence(ctx, tx, r.RoleID, r.actorOwner); err != nil {
+			return err
+		}
+		var saveErr error
 		for _, rmod := range dirtyMods {
 			saved, err := r.saveRoleModuleState(ctx, tx, rmod)
 			if err != nil {
-				errStr += err.Error()
+				if saveErr == nil {
+					saveErr = err
+				} else {
+					saveErr = errors.CombineErrors(saveErr, err)
+				}
 				continue
 			}
 			if saved != nil {
 				savedMods = append(savedMods, saved)
 			}
 		}
-		if errStr != "" {
-			return errors.New(errStr)
-		}
-		return nil
+		return saveErr
 	})
 	if err != nil {
-		for _, saved := range savedMods {
-			if saved.versionChanged {
-				saved.state.SetVersion(saved.oldVersion)
-			}
-		}
 		return err
 	}
 	for _, saved := range savedMods {

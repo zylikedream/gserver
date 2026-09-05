@@ -3,7 +3,6 @@ package rolelib
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -12,11 +11,9 @@ import (
 	"gserver/core/gxymetrics"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
-	"gserver/core/gxyredis"
 	"gserver/src/lib"
 
 	"github.com/cockroachdb/errors"
-	"github.com/redis/go-redis/v9"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -33,7 +30,8 @@ var (
 		return app.NodeInstanceName()
 	}
 	roleLocateNode = func(ctx context.Context, roleID int64) (string, error) {
-		return gxyredis.Redis().Get(ctx, GetRoleLocateKey(roleID)).Result()
+		owner, err := gxyactor.GetActorOwner(ctx, lib.ROLE_ACTOR_TYPE, strconv.FormatInt(roleID, 10))
+		return owner.NodeID, err
 	}
 	getLocalActor    = gxyactor.GetLocalActor
 	getLocalActorAll = gxyactor.GetLocalActorAll
@@ -119,8 +117,8 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 		return nil
 	}
 	nodeInstanceName, err := roleLocateNode(ctx, targetRoleID)
-	if err == redis.Nil || nodeInstanceName == "" {
-		gxylog.Debug(ctx, "role notify target offline", gxylog.Num("roleID", targetRoleID))
+	if nodeInstanceName == "" {
+		gxylog.Debug(ctx, "role notify target offline", gxylog.Num("roleID", targetRoleID), gxylog.Err(err))
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "offline", "offline").Inc()
 		return nil
 	}
@@ -131,10 +129,6 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 		}
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "ok", "local").Inc()
 		return nil
-	}
-	if err != nil {
-		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "unknown").Inc()
-		return errors.Wrap(err, "get role notify target locate")
 	}
 	anyMsg := &anypb.Any{}
 	if err := anypb.MarshalFrom(anyMsg, msg, proto.MarshalOptions{}); err != nil {
@@ -163,10 +157,6 @@ func protoMessageName(msg proto.Message) string {
 		return "unknown"
 	}
 	return string(msg.ProtoReflect().Descriptor().Name())
-}
-
-func GetRoleLocateKey(roleID int64) string {
-	return fmt.Sprintf("gserver:locate:node:actor:role:%d", roleID)
 }
 
 func GetRolePid(RoleID int64) gxyactor.PID {

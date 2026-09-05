@@ -177,7 +177,7 @@ package logic
 
 // 1. 定义持久化状态
 type MyModuleState struct {
-    RolePersistState                          // 嵌入基类，包含 RoleID/UpdateAt/Version/dirty
+    RolePersistState                          // 嵌入基类，包含 RoleID/UpdateAt/dirty
     Score int64 `gorm:"column:score"`         // 业务字段
 }
 
@@ -244,9 +244,12 @@ type roleModules struct {
 每个 RoleModule 通过 `PersistState()` 暴露一个 `IPersistState`。框架的保存流程：
 
 1. `dirtyRoleModules()` 遍历所有模块，检查 `IsDirty()`
-2. 对每个脏模块执行 `UPDATE ... WHERE role_id = ? AND version = ?`
-3. 如果 `RowsAffected = 0`，说明版本冲突（其他节点已保存），保留脏标记下次重试
-4. 使用乐观锁（version 字段）做冲突检测
+2. 保存事务先锁定完全匹配的 `role_actor_fence(role_id, node_id, epoch)`
+3. fence 校验失败时拒绝整次保存，保留脏标记
+4. fence 校验通过后，各模块按 `role_id` 写入数据库
+5. 全部写入成功后调用 `ClearDirty()`
+
+Actor mailbox 保证同一个 Role Actor 的正常写入串行；`role_actor_fence` 防止旧 owner 在 ownership 转移后继续写入。
 
 整个保存流程在单库事务中执行，配合 `globalRoleSaveLimiter` 控制并发（最多 16 个同时保存）。
 
@@ -271,7 +274,6 @@ func (m *MyModule) doSomething() {
 |------|------|------|
 | role_id | bigint PK | 角色 ID |
 | update_at | timestamptz | 自动更新时间 |
-| version | bigint | 乐观锁版本号 |
 
 业务字段在子结构体中定义，可以灵活使用 JSONB：
 

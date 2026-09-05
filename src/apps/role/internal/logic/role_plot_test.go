@@ -87,9 +87,6 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	plotLocks = newMemoryPlotLockManager()
 	t.Cleanup(func() { plotLocks = oldLocks })
 
-	origSave := saveRoleModule
-	saveRoleModule = func(_ *RoleMain, _ context.Context, _ IRoleModule) error { return nil }
-	t.Cleanup(func() { saveRoleModule = origSave })
 	origCountStolen := countPlotStolen
 	countPlotStolen = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil }
 	t.Cleanup(func() { countPlotStolen = origCountStolen })

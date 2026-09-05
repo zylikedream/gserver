@@ -27,6 +27,9 @@
 	refresh_ttl = "10s"
 [trace]
 	endpoint = "{{ trace.host }}:{{ trace.port }}"
+[metrics]
+addr = ":{{ metrics_account.port | default(9096) }}"
+
 
 [gate.public]
 	host = "{{ gate.public_host | default(env.host | default('127.0.0.1')) }}"

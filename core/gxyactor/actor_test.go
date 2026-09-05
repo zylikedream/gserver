@@ -8,6 +8,7 @@ import (
 	"github.com/asynkron/protoactor-go/actor"
 	"github.com/asynkron/protoactor-go/remote"
 	"go.opentelemetry.io/otel/propagation"
+	"google.golang.org/protobuf/proto"
 
 	"gserver/core/gxyredis"
 	"gserver/protocol/pb"
@@ -189,23 +190,27 @@ func TestRegisterActorLocate(t *testing.T) {
 	})
 
 	mgr := NewActivatorManager("node", "node@1")
-	act := NewActorActivator("role", mgr)
-	act.ctx = context.Background()
-	key := getActorLocateKey("role", "player-1")
-
-	if err := act.registerActorLocate(context.Background(), key); err != nil {
-		t.Fatalf("registerActorLocate() error = %v", err)
+	if err := mgr.locator.acquireNodeLease(context.Background()); err != nil {
+		t.Fatalf("acquireNodeLease() error = %v", err)
+	}
+	owner, acquired, err := mgr.locator.claim(context.Background(), "role", "player-1")
+	if err != nil {
+		t.Fatalf("claim() error = %v", err)
+	}
+	if !acquired {
+		t.Fatal("claim() did not acquire a new owner")
 	}
 	t.Cleanup(func() {
-		gxyredis.Redis().Del(context.Background(), key)
+		_, _ = mgr.locator.release(context.Background(), "role", "player-1", owner)
+		_ = mgr.locator.releaseNodeLease(context.Background())
 	})
 
-	got, err := gxyredis.Redis().Get(context.Background(), key).Result()
+	got, err := mgr.locator.locate(context.Background(), "role", "player-1")
 	if err != nil {
-		t.Fatalf("redis get key %s error = %v", key, err)
+		t.Fatalf("locate() error = %v", err)
 	}
-	if got != mgr.nodeInstanceName {
-		t.Fatalf("redis value = %q, want %q", got, mgr.nodeInstanceName)
+	if got != owner {
+		t.Fatalf("owner = %+v, want %+v", got, owner)
 	}
 }
 
@@ -224,12 +229,16 @@ func TestGetActorLocateNodeName(t *testing.T) {
 		_ = redisApp.OnModStop(context.Background())
 	})
 
-	key := getActorLocateKey("role", "player-1")
-	if err := gxyredis.Redis().Set(context.Background(), key, "role@node-1", ActorLocateTTL).Err(); err != nil {
+	ownerKey := getActorLocateKey("role", "player-1")
+	leaseKey := actorLocatorLeaseKey("role@node-1")
+	if err := gxyredis.Redis().Set(context.Background(), ownerKey, "role@node-1|1|test-token", 0).Err(); err != nil {
 		t.Fatalf("setup redis locate key error = %v", err)
 	}
+	if err := gxyredis.Redis().Set(context.Background(), leaseKey, "test-token", actorLocateLeaseTTL).Err(); err != nil {
+		t.Fatalf("setup redis lease key error = %v", err)
+	}
 	t.Cleanup(func() {
-		gxyredis.Redis().Del(context.Background(), key)
+		gxyredis.Redis().Del(context.Background(), ownerKey, leaseKey)
 	})
 
 	got, err := getActorLocateNodeName(context.Background(), "role", "player-1")
@@ -254,6 +263,15 @@ func TestActorError(t *testing.T) {
 	}
 	if err.Reason != "something failed" {
 		t.Fatalf("expected 'something failed', got %s", err.Reason)
+	}
+}
+func TestActorLocateRetryIsProtoMessage(t *testing.T) {
+	wire, err := proto.Marshal(&pb.ActorLocateRetry{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := proto.Unmarshal(wire, &pb.ActorLocateRetry{}); err != nil {
+		t.Fatal(err)
 	}
 }
 

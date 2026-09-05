@@ -13,14 +13,46 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+const plotRequestInterval = 50 * time.Millisecond
+
+type plotRequestPacer struct {
+	now   func() time.Time
+	sleep func(time.Duration)
+	last  time.Time
+}
+
+func newPlotRequestPacer() plotRequestPacer {
+	return plotRequestPacer{
+		now:   time.Now,
+		sleep: time.Sleep,
+	}
+}
+
+func (p *plotRequestPacer) wait() {
+	now := p.now()
+	if !p.last.IsZero() {
+		if remaining := plotRequestInterval - now.Sub(p.last); remaining > 0 {
+			p.sleep(remaining)
+			now = p.now()
+		}
+	}
+	p.last = now
+}
+
 type BotActions struct {
-	client *client.Client
-	state  *BotState
-	log    *BotLogger
+	client    *client.Client
+	state     *BotState
+	log       *BotLogger
+	plotPacer plotRequestPacer
 }
 
 func NewBotActions(cl *client.Client, state *BotState, log *BotLogger) *BotActions {
-	return &BotActions{client: cl, state: state, log: log}
+	return &BotActions{
+		client:    cl,
+		state:     state,
+		log:       log,
+		plotPacer: newPlotRequestPacer(),
+	}
 }
 
 // === Arg helpers ===
@@ -198,6 +230,7 @@ func (a *BotActions) Plant(args map[string]interface{}) error {
 	if len(plotIDs) == 0 {
 		return nil
 	}
+	a.plotPacer.wait()
 	rsp, err := a.client.RequestWithResponse(&pb.ReqPlotPlant{PlotIds: plotIDs, FlowerId: flowerID})
 	if err != nil {
 		return fmt.Errorf("plant plots=%v flower=%d: %w", plotIDs, flowerID, err)
@@ -213,6 +246,7 @@ func (a *BotActions) Water(args map[string]interface{}) error {
 	if len(plotIDs) == 0 {
 		return nil
 	}
+	a.plotPacer.wait()
 	rsp, err := a.client.RequestWithResponse(&pb.ReqPlotWater{PlotIds: plotIDs})
 	if err != nil {
 		return fmt.Errorf("water plots=%v: %w", plotIDs, err)
@@ -239,6 +273,7 @@ func (a *BotActions) Harvest(args map[string]interface{}) error {
 	if len(plotIDs) == 0 {
 		return nil
 	}
+	a.plotPacer.wait()
 	rsp, err := a.client.RequestWithResponse(&pb.ReqPlotHarvest{PlotIds: plotIDs})
 	if err != nil {
 		return fmt.Errorf("harvest plots=%v: %w", plotIDs, err)

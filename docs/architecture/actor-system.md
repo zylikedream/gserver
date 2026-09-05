@@ -91,7 +91,7 @@ type IActor interface {
                               │
                    ┌──────────▼───────────┐
                    │  actorActivator       │  — 真正创建 Actor 实例
-                   │  (负责创建/管理 Actor)  │   注册 Redis、维护 childs
+                   │  (负责创建/管理 Actor)  │   Claim/Release、维护 childs
                    └──────────────────────┘
 ```
 
@@ -103,11 +103,13 @@ type IActor interface {
   ▼
 ① 查询 Redis key: gserver:locate:node:actor:{kind}:{id}
   │
-  ├── 找到 nodeInstanceName
-  │     ├── Consul 中节点仍健康 → 直接构造目标 Actor PID
-  │     └── 节点已失效 → 进入一致性哈希 fallback
+  ├── 有有效 owner
+  │     ├── Consul 解析 owner 地址失败 → fail closed
+  │     └── 请求 owner Activator
+  │           ├── 本地 ActorMgr 命中 → 返回 PID
+  │           └── 本地 activation 缺失 → 条件删除 owner，RetryLocate
   │
-  └── 未找到
+  └── 无有效 owner
         └── 通过一致性哈希选择节点 → 发送 ActorActive
               │
               ▼
@@ -117,25 +119,26 @@ type IActor interface {
 ③ 转发到 ConsistentHashPool → 落到固定 actorActivator
   │
   ▼
-④ actorActivator 创建 Actor (SpawnNamed)
+④ Claim 成功后 SpawnNamed，并进入 pending Touch
   │
-  ▼
-⑤ 注册 Redis key、跟踪 child，并异步 Touch 验证初始化
-  │
-  ├── Touch 成功 → 返回 PID
-  └── Touch 失败 → 注销 Redis、本地 PID 并返回 ActorError
+  ├── Touch 成功 → 发布到本地 ActorMgr，向所有 waiters 返回 PID
+  ├── Touch 失败 → 停止 actor、条件释放 owner、返回 ActorError
+  └── Claim 指向其他 owner → RetryLocate
 ```
 
 ### Redis 定位 Key
 
 ```
-gserver:locate:node:actor:{kind}:{id}  →  nodeInstanceName
-gserver:locate:node:actor:role:10001   →  game-2@1743529200000000000
+gserver:locate:node:actor:{kind}:{id}  →  {nodeInstanceName}|{epoch}|{leaseToken}
+gserver:locate:node:actor:role:10001   →  game-2@1743529200000000000|7|game-2@1743529200000000000
 ```
 
-- TTL: 12 小时（`ActorLocateTTL`）
-- 不续期（v2 设计）：节点宕机后自动过期
-- 注册使用 `SET key nodeInstanceName EX 12h`；Redis 写入失败时停止新建 Actor
+- owner key 不设置 TTL；只有对应节点 lease token 精确匹配时才有效
+- 节点 lease：`gserver:locate:node:lease:{nodeInstanceName}`，TTL 15 秒，节点 heartbeat 续期
+- 续租 token 不匹配立即 self-fence；Redis 错误超过本地安全 deadline 时终止进程
+- 激活前用 Lua Claim 原子检查并更新 owner；接管时递增 epoch
+- 正常退出或 Touch 失败使用 compare-and-delete
+- Redis 错误不当作定位 miss；Redis 命中必须经过 owner Activator 验活
 
 ### 注册 Actor Kind
 
@@ -170,6 +173,6 @@ actor.NewOneForOneStrategy(10, 3*time.Second, decider)
 | `core/gxyactor/system.go` | actorApp 全局单例、protoactor 集成 |
 | `core/gxyactor/helper.go` | 全局函数（Send/Call/ActivateActor 等） |
 | `core/gxyactor/activator_manager.go` | Activator 管理器、路由池 |
+| `core/gxyactor/actor_locator.go` | Redis lease、Claim/Release、epoch 和 self-fence |
 | `core/gxyactor/actor_timer.go` | Actor 定时器 |
-| `core/gxyactor/types.go` | ActorService 类型 |
 | `core/gxyactor/logger.go` | protoactor 日志适配 |
