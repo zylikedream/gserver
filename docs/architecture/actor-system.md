@@ -1,6 +1,6 @@
 # Actor 系统
 
-GServer 基于 [Ergo](https://github.com/AsynkronIT/proto) 构建通用 Actor runtime，通过 `core/gxyactor/` 中的 GServer adapter 向业务提供 runtime-neutral seam。
+GServer 基于 [Ergo](https://github.com/ergo-services/ergo) 构建通用 Actor runtime，通过 `core/gxyactor/` 中的 GServer adapter 向业务提供 runtime-neutral seam。
 
 ## 架构层次
 

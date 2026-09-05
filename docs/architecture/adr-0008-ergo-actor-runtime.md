@@ -10,7 +10,7 @@ GServer 需要替换通用 Actor 运行时，但不能改变已有的 Role singl
 
 ## 决策
 
-选择 [Ergo](https://github.com/AsynkronIT/proto) 作为 GServer 的通用 Actor runtime。`core/gxyactor` 保留为唯一业务-facing seam，Ergo 具体类型只允许存在于内部 adapter。
+选择 [Ergo](https://github.com/ergo-services/ergo) 作为 GServer 的通用 Actor runtime。`core/gxyactor` 保留为唯一业务-facing seam，Ergo 具体类型只允许存在于内部 adapter。
 
 ### 责任边界
 

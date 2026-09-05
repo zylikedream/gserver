@@ -1,6 +1,6 @@
 # GServer
 
-基于 **Actor 模型**的分布式游戏服务器框架，使用 [Ergo](https://github.com/AsynkronIT/proto) 运行时和 [GoFrame v2](https://goframe.org) 工具库。
+基于 **Actor 模型**的分布式游戏服务器框架，使用 [Ergo](https://github.com/ergo-services/ergo) 运行时和 [GoFrame v2](https://goframe.org) 工具库。
 服务器中以开发种花游戏为例，展示如何使用 Actor 模型实现分布式游戏逻辑。
 配置系统使用luban来管理, 前后端通信使用protobuf
 
