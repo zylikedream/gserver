@@ -89,3 +89,13 @@ ok   gserver/core/gxyactor 0.608s
 go test ./core/gxyactor/internal/ergo -count=1
 ok   gserver/core/gxyactor/internal/ergo 1.353s
 ```
+
+Committed-tree rerun after commit `61a663a`:
+
+```text
+go test ./core/gxyactor -run 'Test(Lifecycle|Actor|Timer|Trace)' -count=1
+ok   gserver/core/gxyactor 0.607s
+
+go test ./core/gxyactor/internal/ergo -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.354s
+```
