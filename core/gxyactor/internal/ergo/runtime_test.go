@@ -3,6 +3,7 @@ package ergo
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -192,18 +193,77 @@ func TestMessageRegistryDuplicateRegistrationIsTypedAndIdempotent(t *testing.T) 
 		t.Fatalf("duplicate name error = %v", err)
 	}
 }
-func TestStartWiresPIDResolver(t *testing.T) {
+func TestStartWiresActivationAndPIDResolver(t *testing.T) {
+	activationCalled := false
+	resolverCalled := false
 	adapter, err := Start(Options{
-		NodeName: "adapter-resolver@localhost",
-		ResolvePID: func(gxyactor.PID) (gen.PID, error) {
-			return gen.PID{Node: "adapter-resolver@localhost", ID: 1, Creation: 1}, nil
+		NodeName: "adapter-both@localhost",
+		Activation: func(context.Context, string, string, bool) (gxyactor.PID, error) {
+			activationCalled = true
+			return gxyactor.PID{Runtime: RuntimeID, Node: "adapter-both@localhost", ID: "test/1", Creation: "1"}, nil
+		},
+		ResolvePID: func(pid gxyactor.PID) (gen.PID, error) {
+			resolverCalled = true
+			creation, err := strconv.ParseInt(pid.Creation, 10, 64)
+			if err != nil {
+				return gen.PID{}, err
+			}
+			return gen.PID{Node: "adapter-both@localhost", ID: 1, Creation: creation}, nil
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer adapter.StopNode(time.Second)
-	if adapter.resolvePID == nil {
+	if _, err := adapter.ActivateActor(context.Background(), "test", "1", true); err != nil {
+		t.Fatal(err)
+	}
+	if !activationCalled {
+		t.Fatal("Start did not wire Options.Activation")
+	}
+	pid := gxyactor.PID{Runtime: RuntimeID, Node: "remote-node@localhost", ID: "test/1", Creation: strconv.FormatInt(adapter.Node().Creation(), 10)}
+	if _, err := adapter.PIDToErgo(pid); err != nil {
+		t.Fatal(err)
+	}
+	if !resolverCalled {
 		t.Fatal("Start did not wire Options.ResolvePID")
+	}
+}
+func TestSpawnCallerIDFormsUseOneMapEntryAndForget(t *testing.T) {
+	node, err := ergo.StartNode("adapter-ids@localhost", gen.NodeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer node.StopWithTimeout(time.Second)
+	adapter := New(node, "adapter-ids@localhost")
+	gxyactor.SetRuntime(adapter)
+	if err := adapter.RegisterActorKind("test", func() gxyactor.IActor {
+		actor := &adapterTestActor{}
+		actor.ActorBase = gxyactor.NewActorBase(context.Background(), actor, "test")
+		return actor
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, callerID := range []string{"2", "test/2"} {
+		pid, err := adapter.Spawn("test", callerID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if pid.ID != "test/2" {
+			t.Fatalf("normalized PID ID = %q, want test/2", pid.ID)
+		}
+		if got := len(adapter.GetLocalActorAll("test")); got != 1 {
+			t.Fatalf("local actor entries for %q = %d, want 1", callerID, got)
+		}
+		if err := adapter.Stop(pid); err != nil {
+			t.Fatal(err)
+		}
+		deadline := time.Now().Add(time.Second)
+		for len(adapter.GetLocalActorAll("test")) != 0 && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		if got := len(adapter.GetLocalActorAll("test")); got != 0 {
+			t.Fatalf("local actor entries after stopping %q = %d, want 0", callerID, got)
+		}
 	}
 }

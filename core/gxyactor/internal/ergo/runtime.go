@@ -126,6 +126,7 @@ func Start(options Options) (*Adapter, error) {
 	}
 	instance := options.NodeInstanceName
 	a := New(node, instance)
+	a.activation = options.Activation
 	a.resolvePID = options.ResolvePID
 	gxyactor.SetRuntime(a)
 	return a, nil
@@ -206,7 +207,7 @@ func (a *Adapter) Spawn(kind, id string, initArgs ...any) (gxyactor.PID, error) 
 		return gxyactor.PID{}, errors.New("ergo node is not initialized")
 	}
 	logicalID := namespacedID(kind, id)
-	pid, err := a.node.Spawn(func() gen.ProcessBehavior { return newErgoActor(a, kind, logicalID, producer) }, gen.ProcessOptions{}, initArgs...)
+	pid, err := a.node.Spawn(func() gen.ProcessBehavior { return newErgoActor(a, kind, id, logicalID, producer) }, gen.ProcessOptions{}, initArgs...)
 	if err != nil {
 		return gxyactor.PID{}, wrap(ErrActorInitFailed, err)
 	}

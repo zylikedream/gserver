@@ -11,23 +11,24 @@ import (
 
 type ergoActor struct {
 	act.Actor
-	adapter *Adapter
-	kind    string
-	id      string
-	actor   gxyactor.IActor
-	ctx     *actorContext
-	once    sync.Once
+	adapter  *Adapter
+	kind     string
+	callerID string
+	id       string
+	actor    gxyactor.IActor
+	ctx      *actorContext
+	once     sync.Once
 }
 
-func newErgoActor(adapter *Adapter, kind, id string, producer gxyactor.ActorProducer) *ergoActor {
-	return &ergoActor{adapter: adapter, kind: kind, id: id, actor: producer()}
+func newErgoActor(adapter *Adapter, kind, callerID, id string, producer gxyactor.ActorProducer) *ergoActor {
+	return &ergoActor{adapter: adapter, kind: kind, callerID: callerID, id: id, actor: producer()}
 }
 
 func (a *ergoActor) Init(args ...any) error {
 	if a.actor == nil {
 		return ErrActorInitFailed
 	}
-	a.adapter.remember(a.kind, unscopedID(a.kind, a.id), a.PID())
+	a.adapter.remember(a.kind, a.callerID, a.PID())
 	a.ctx = &actorContext{adapter: a.adapter, process: a, message: gxyactor.ActorStartedMessage{Self: a.adapter.fromErgoPID(a.PID(), a.id), InitArgs: args}}
 	if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
 		receiver.Receive(a.ctx)

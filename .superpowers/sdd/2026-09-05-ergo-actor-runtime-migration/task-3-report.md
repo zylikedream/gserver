@@ -61,7 +61,7 @@ TestAdapterLocalSendCallTimeoutAndStop: local actor entries = 2, want 1
 TestStartWiresPIDResolver: Start did not wire Options.ResolvePID
 ```
 
-The adapter now wires `Options.ResolvePID` through `Start`. Init-time PID seeding derives the caller's unscoped ID, reuses the exact Spawn map key, and therefore preserves one normalized local entry while allowing the lifecycle self-send.
+The adapter now wires `Options.ResolvePID` through `Start`. The original caller ID is carried privately into the Ergo actor bridge, so Init-time PID seeding reuses the exact Spawn map key for both scoped and already-namespaced IDs while preserving lifecycle self-send.
 
 Final committed-tree focused verification:
 
@@ -69,6 +69,29 @@ Final committed-tree focused verification:
 gofmt -w core/gxyactor/internal/ergo/*.go
 go test ./core/gxyactor/internal/ergo -count=1
 ok   gserver/core/gxyactor/internal/ergo 1.286s
+```
+
+No Task 4 lifecycle/ownership behavior was added.
+
+## Review round 3 fixes
+
+The review regressions were first run before the production fixes and failed as expected:
+
+```text
+go test ./core/gxyactor/internal/ergo -count=1
+--- FAIL:
+TestStartWiresActivationAndPIDResolver: actor activation is owned by GServer directory
+TestSpawnCallerIDFormsUseOneMapEntryAndForget: local actor entries for "test/2" = 2, want 1
+```
+
+The adapter now wires both `Options.Activation` and `Options.ResolvePID` through `Start`. The private Ergo actor bridge carries the original caller ID separately from its normalized logical ID, preventing ambiguous reverse derivation and ensuring both `Spawn("test", "2")` and `Spawn("test", "test/2")` use one exact map entry. Termination cleanup removes the entry for either form.
+
+Final focused verification:
+
+```text
+gofmt -w core/gxyactor/internal/ergo/*.go
+go test ./core/gxyactor/internal/ergo -count=1
+ok   gserver/core/gxyactor/internal/ergo 1.319s
 ```
 
 No Task 4 lifecycle/ownership behavior was added.
