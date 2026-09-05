@@ -91,3 +91,52 @@ No formatter, linter, or project-wide suite was run.
 1. The repository checkout lacks the generated `gameconfig/gosrc` package, so focused verification required a temporary local stub that was removed after each command. The committed tree contains no generated stub.
 2. The existing legacy bootstrap still depends on Protoactor internally until the later Ergo adapter task. The dependency is confined to private runtime/activator implementation paths; the public `gxyactor` contract does not expose those symbols.
 3. Business Actor packages and their runtime-specific test fakes still require the later migration tasks to consume the neutral context/PID signatures end to end. Task 2 intentionally does not migrate those business Actors.
+
+## Review round 1 fixes
+
+Commit: `984f3a0` (`fix: close runtime-neutral seam review gaps`).
+
+- Legacy Protoactor PID round trips now use a private normalized-PID → transport-PID registry. The public `PID.Node` remains the canonical node instance name while local Send, Call, CallSync, Stop, Watch, Unwatch, and timer delivery recover the exact transport address.
+- `Runtime` now includes symmetric `DeregisterActorKind` and distinct `LocalSend`; helpers dispatch both through the installed runtime.
+- Public spawning is reduced to `SpawnFunc(ActorProducer, ...)`. Legacy Props and Protoactor producers are consumed only by private `spawn*Legacy` adapter methods. The gateway caller and test fakes now use `IActor`/neutral contexts.
+- The legacy stopped lifecycle path preserves `ActorBase.stopErr`; `Terminate` receives the original non-nil stop reason. Gateway termination handling consumes `ActorTerminatedMessage`, preserving session cleanup.
+- Existing affected gateway and rolelib test fakes/callers were ported from nil/Protoactor PID assumptions to zero PID/`IsZero`, `Node`/`ID`, and neutral lifecycle/context values without changing business protocol behavior.
+
+### Fix TDD evidence
+
+Before fixes, the added focused regressions failed as expected:
+
+```text
+go test ./core/gxyactor -run 'Test(LegacyPID|ActorBaseStopped|RuntimeDispatchesLocal|Uninitialized)' -count=1
+```
+
+Observed failures:
+
+```text
+TestLegacyPIDRoundTripPreservesTransportAddress: round-trip address was "node-instance" instead of the local transport address
+TestActorBaseStoppedPreservesStopReason: Terminate error = <nil>, want handler failed
+TestRuntimeDispatchesLocalSendAndDeregister: local=<nil> deregister=""
+```
+
+After fixes, focused seam and affected-caller tests passed (using the same temporary removed generated-source stub required by the checkout):
+
+```text
+go test ./core/gxyactor ./src/apps/gateway/internal/logic ./src/lib/rolelib -run 'Test(PID|Runtime|ActorBase|ActorTimer|LegacyPID|ActorBaseStopped|RuntimeDispatchesLocal|Uninitialized|Session|PublishRoleNotify|NotifyLocal|GetRolePid)' -count=1
+ok  	gserver/core/gxyactor	0.179s
+ok  	gserver/src/apps/gateway/internal/logic	0.351s
+ok  	gserver/src/lib/rolelib	0.338s
+```
+
+Affected gateway/rolelib packages also compile with:
+
+```text
+go test ./src/apps/gateway/... ./src/lib/... -run '^$'
+```
+
+The command passed for gateway, gateway internal logic, lib, gatetoken, and rolelib. Broader chat/guild/role package compilation remains blocked by the checkout's absent generated gameconfig symbols unrelated to this seam.
+
+### Updated concerns
+
+1. The legacy PID registry is intentionally temporary and has no creation/incarnation value; `Creation` remains empty for Protoactor compatibility PIDs and must be populated by the Ergo adapter.
+2. The registry is private adapter state and is not a PID compatibility protocol. Ergo must provide its own exact transport mapping and creation value.
+3. The checkout still lacks generated `gameconfig/gosrc`, so focused commands require a temporary removed stub; no stub is committed.
