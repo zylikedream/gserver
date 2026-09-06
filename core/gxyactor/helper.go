@@ -27,36 +27,72 @@ func SpawnFunc(prod ActorProducer, initArgs ...any) (PID, error) {
 }
 
 func Send(ctx context.Context, pid PID, message any) error {
-	if runtime, err := currentRuntime(); err == nil { return runtime.Send(ctx, pid, message) }
-	if app == nil { return errors.New("actor app is not initialized") }
+	if runtime := runtimeFromContext(ctx); runtime != nil {
+		return runtime.Send(ctx, pid, message)
+	}
+	if runtime, err := currentRuntime(); err == nil {
+		return runtime.Send(ctx, pid, message)
+	}
+	if app == nil {
+		return errors.New("actor app is not initialized")
+	}
 	return app.send(ctx, pid, message)
 }
 
 func LocalSend(ctx context.Context, pid PID, message any) error {
-	if runtime, err := currentRuntime(); err == nil { return runtime.LocalSend(ctx, pid, message) }
-	if app == nil { return errors.New("actor app is not initialized") }
+	if runtime := runtimeFromContext(ctx); runtime != nil {
+		return runtime.LocalSend(ctx, pid, message)
+	}
+	if runtime, err := currentRuntime(); err == nil {
+		return runtime.LocalSend(ctx, pid, message)
+	}
+	if app == nil {
+		return errors.New("actor app is not initialized")
+	}
 	return app.localSend(ctx, pid, message)
 }
 
 func Respond(ctx context.Context, request Request, message any, responseErr ...error) error {
 	err := error(nil)
-	if len(responseErr) > 0 { err = responseErr[0] }
-	if runtime, runtimeErr := currentRuntime(); runtimeErr == nil { return runtime.Respond(ctx, request, message, err) }
-	if app == nil { return errors.New("actor app is not initialized") }
+	if len(responseErr) > 0 {
+		err = responseErr[0]
+	}
+	if bound, ok := request.(interface{ Runtime() Runtime }); ok {
+		if runtime := bound.Runtime(); runtime != nil {
+			return runtime.Respond(ctx, request, message, err)
+		}
+	}
+	if runtime := runtimeFromContext(ctx); runtime != nil {
+		return runtime.Respond(ctx, request, message, err)
+	}
+	if runtime, runtimeErr := currentRuntime(); runtimeErr == nil {
+		return runtime.Respond(ctx, request, message, err)
+	}
+	if app == nil {
+		return errors.New("actor app is not initialized")
+	}
 	return app.respond(ctx, request, message, err)
 }
 
 func Call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
-	if runtime, err := currentRuntime(); err == nil { return runtime.Call(ctx, pid, message, timeout) }
-	if app == nil { return nil, errors.New("actor app is not initialized") }
+	if runtime := runtimeFromContext(ctx); runtime != nil {
+		return runtime.Call(ctx, pid, message, timeout)
+	}
+	if runtime, err := currentRuntime(); err == nil {
+		return runtime.Call(ctx, pid, message, timeout)
+	}
+	if app == nil {
+		return nil, errors.New("actor app is not initialized")
+	}
 	return app.call(ctx, pid, message, timeout)
 }
 
 func CallSync(ctx context.Context, pid PID, message any, sender PID) error {
-	if app == nil { return errors.New("actor app is not initialized") }
+	if app == nil {
+		return errors.New("actor app is not initialized")
+	}
 	return app.callSync(ctx, pid, message, sender)
 }
-
 func GetNodeName() string { if app == nil { return "" }; return app.GetNodeName() }
 func StopActor(pid PID) error {
 	if runtime, err := currentRuntime(); err == nil { return runtime.Stop(pid) }

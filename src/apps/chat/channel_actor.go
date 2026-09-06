@@ -15,8 +15,6 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/lib/rolelib"
 
-	"github.com/asynkron/protoactor-go/actor"
-
 	"gorm.io/gorm"
 )
 
@@ -59,7 +57,7 @@ func (rb *ringBuffer) Len() int {
 }
 
 type channelMember struct {
-	Pid      *actor.PID
+	Pid      gxyactor.PID
 	RoleID   int64
 	JoinTime time.Time
 }
@@ -119,9 +117,12 @@ func (a *ChannelActor) DelayInit(ctx context.Context) error {
 func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 	switch m := msg.(type) {
 	case *pb.ChannelRegisterMsg:
-		pid := &actor.PID{
-			Address: m.Pid.Address,
-			Id:      m.Pid.Id,
+		pid := gxyactor.PID{}
+		if m.Pid != nil {
+			pid = gxyactor.PID{
+				Node: m.Pid.Address,
+				ID:   m.Pid.Id,
+			}
 		}
 		a.members[m.RoleId] = &channelMember{
 			Pid:      pid,
@@ -167,16 +168,21 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		for _, mbr := range a.members {
 			_ = rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
 		}
-
 	case *pb.ReqChatChannelHistory:
-		count := int(m.Count)
-		if count <= 0 || count > a.channel.RingBufferSize() {
-			count = a.channel.RingBufferSize()
+		rsp, err := a.ReqChatChannelHistory(ctx, m)
+		if err == nil {
+			_ = gxyactor.Respond(ctx, a.Actx, rsp)
 		}
-		msgs := a.buffer.Recent(count)
-		_ = gxyactor.Respond(ctx, a.Actx, &pb.RspChatChannelHistory{Messages: msgs})
 	}
 	return nil
+}
+
+func (a *ChannelActor) ReqChatChannelHistory(_ context.Context, m *pb.ReqChatChannelHistory) (*pb.RspChatChannelHistory, error) {
+	count := int(m.Count)
+	if count <= 0 || count > a.channel.RingBufferSize() {
+		count = a.channel.RingBufferSize()
+	}
+	return &pb.RspChatChannelHistory{Messages: a.buffer.Recent(count)}, nil
 }
 
 func (a *ChannelActor) Terminate(ctx context.Context, err error) {

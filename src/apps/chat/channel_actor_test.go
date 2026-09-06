@@ -1,7 +1,8 @@
 package chat
 
-// ChannelActor 行为测试:同包白盒,构造真实 actor 状态 + fake actor.Context,
-// 覆盖 HandleMessage 各消息分支、save 持久化与 actor 生命周期。
+// ChannelActor behavior tests construct runtime-neutral actor state and a
+// fake gxyactor.ActorContext, covering message branches, persistence, and
+// actor lifecycle.
 
 import (
 	"context"
@@ -40,10 +41,8 @@ func (f *fakeActx) Watch(gxyactor.PID) {}
 func (f *fakeActx) Unwatch(gxyactor.PID) {}
 func (f *fakeActx) Children() []gxyactor.PID { return nil }
 
-// newTestChannelActor 构造被测 actor:
-//   - 通过 Receive(&actor.Started{}) 走真实初始化路径,建立 ActorBase.timer/self
-//     (Init 因缺 args 返回错误,由 Receive 捕获,无副作用)
-//   - 测试直接注入 channel/buffer(Init 失败未设置)
+// newTestChannelActor constructs a test actor context and directly injects
+// channel state after exercising the neutral lifecycle start path.
 func newTestChannelActor(t *testing.T, ch IChannel) (*ChannelActor, *fakeActx) {
 	t.Helper()
 	a := NewChannelActor()
@@ -52,8 +51,9 @@ func newTestChannelActor(t *testing.T, ch IChannel) (*ChannelActor, *fakeActx) {
 		sender: gxyactor.PID{Runtime: "test", Node: "node", ID: "sender_pid", Creation: "1"},
 		msg:    gxyactor.ActorStartedMessage{Self: gxyactor.PID{Runtime: "test", Node: "node", ID: "test_channel", Creation: "1"}},
 	}
-	a.Receive(fake)    // Started: 初始化 timer; Init(nil args) 失败 → Stop 记录, 无 panic
+	a.Receive(fake) // neutral start initializes timer; missing init args are harmless
 	fake.stopPID = gxyactor.PID{}
+	a.channel = ch
 	a.buffer = newRingBuffer(ch.RingBufferSize())
 	return a, fake
 }
@@ -137,7 +137,7 @@ func TestChannelActor_Register_AddsMember(t *testing.T) {
 	if !ok {
 		t.Fatal("member 5 not registered")
 	}
-	if m.Pid.Id != "pid5" || m.RoleID != 5 {
+	if m.Pid.ID != "pid5" || m.RoleID != 5 {
 		t.Fatalf("unexpected member: %+v", m)
 	}
 	if m.JoinTime.IsZero() {
@@ -155,7 +155,7 @@ func TestChannelActor_Register_OverwriteExisting(t *testing.T) {
 	if err := a.HandleMessage(context.Background(), msg); err != nil {
 		t.Fatalf("second register: %v", err)
 	}
-	if a.members[5].Pid.Id != "pid_new" {
+	if a.members[5].Pid.ID != "pid_new" {
 		t.Fatalf("expected overwrite, got %+v", a.members[5])
 	}
 }

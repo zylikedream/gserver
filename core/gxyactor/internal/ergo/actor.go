@@ -198,6 +198,12 @@ func (c *actorContext) Message() any {
 	return c.message
 }
 func (c *actorContext) MessageHeader() map[string]string { return nil }
+func (c *actorContext) Runtime() gxyactor.Runtime {
+	if c == nil {
+		return nil
+	}
+	return c.adapter
+}
 func (c *actorContext) Self() gxyactor.PID {
 	if c == nil || c.adapter == nil || c.process == nil {
 		return gxyactor.PID{}

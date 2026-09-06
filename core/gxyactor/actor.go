@@ -80,7 +80,12 @@ func (a *ActorBase) callbackContext(actx ActorContext) context.Context {
 	if provider, ok := actx.(interface{ Context() context.Context }); ok {
 		incoming := provider.Context()
 		if incoming != nil {
-			return mergedContext{primary: incoming, fallback: base}
+			base = mergedContext{primary: incoming, fallback: base}
+		}
+	}
+	if provider, ok := actx.(interface{ Runtime() Runtime }); ok {
+		if runtime := provider.Runtime(); runtime != nil {
+			base = context.WithValue(base, runtimeContextKey{}, runtime)
 		}
 	}
 	return base

@@ -100,6 +100,15 @@ func currentRuntime() (Runtime, error) {
 	}
 	return runtime, nil
 }
+type runtimeContextKey struct{}
+
+func runtimeFromContext(ctx context.Context) Runtime {
+	if ctx == nil {
+		return nil
+	}
+	runtime, _ := ctx.Value(runtimeContextKey{}).(Runtime)
+	return runtime
+}
 
 func PidEqual(a, b any) bool {
 	pa, pb := normalizePID(a), normalizePID(b)

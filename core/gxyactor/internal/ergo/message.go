@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
 // GServerEnvelope is the only wire value used for remote business messages.
@@ -70,7 +72,14 @@ func (r *MessageRegistry) Encode(message proto.Message) (GServerEnvelope, error)
 	name, exists := r.byType[typ]
 	r.mu.RUnlock()
 	if !exists {
-		return GServerEnvelope{}, fmt.Errorf("%w: %s", ErrMissingRegistration, typ)
+		// Generated protobuf messages are globally registered by their package
+		// init functions. Use the descriptor name as the stable wire ID so
+		// business packages need not import this private adapter to register
+		// every message type they can send remotely.
+		name = string(message.ProtoReflect().Descriptor().FullName())
+		if name == "" {
+			return GServerEnvelope{}, fmt.Errorf("%w: %s", ErrMissingRegistration, typ)
+		}
 	}
 	data, err := proto.Marshal(message)
 	if err != nil {
@@ -86,18 +95,27 @@ func (r *MessageRegistry) Decode(envelope GServerEnvelope) (proto.Message, error
 	r.mu.RLock()
 	registration, exists := r.byName[envelope.Type]
 	r.mu.RUnlock()
-	if !exists {
+	if exists {
+		message := registration.newMessage()
+		if message == nil {
+			return nil, fmt.Errorf("%w: %q constructor returned nil", ErrMissingRegistration, envelope.Type)
+		}
+		if err := proto.Unmarshal(envelope.Data, message); err != nil {
+			return nil, fmt.Errorf("%w: %q: %v", ErrMalformedPayload, envelope.Type, err)
+		}
+		return message, nil
+	}
+	messageType, err := protoregistry.GlobalTypes.FindMessageByName(protoreflect.FullName(envelope.Type))
+	if err != nil {
 		return nil, fmt.Errorf("%w: %q", ErrUnknownMessageType, envelope.Type)
 	}
-	message := registration.newMessage()
-	if message == nil {
-		return nil, fmt.Errorf("%w: %q constructor returned nil", ErrMissingRegistration, envelope.Type)
-	}
+	message := messageType.New().Interface()
 	if err := proto.Unmarshal(envelope.Data, message); err != nil {
 		return nil, fmt.Errorf("%w: %q: %v", ErrMalformedPayload, envelope.Type, err)
 	}
 	return message, nil
 }
+
 
 func (r *MessageRegistry) Registered(name string) bool {
 	if r == nil {
