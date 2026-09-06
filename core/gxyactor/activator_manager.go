@@ -3,6 +3,7 @@ package gxyactor
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"gserver/core/gxylog"
@@ -125,6 +126,33 @@ func (r *activatorRouter) GetPool(kind string) PID {
 	return PID{}
 }
 
+type actorActivationSpawner interface {
+	spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error)
+	confirmActivatorActor(kind, id string, pid PID) error
+	stopActivatorActor(pid PID) error
+}
+
+type legacyActivationSpawner struct {
+	manager *activatorManager
+}
+
+func (s legacyActivationSpawner) spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error) {
+	meta, ok := s.manager.activatorMetas[kind]
+	if !ok || meta.Props == nil {
+		return PID{}, errors.Newf("actor kind %s is not registered", kind)
+	}
+	return app.spawnNamedLegacy(meta.Props.Clone(), id, id, owner)
+}
+
+func (s legacyActivationSpawner) confirmActivatorActor(kind, id string, pid PID) error {
+	_, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second)
+	return err
+}
+
+func (s legacyActivationSpawner) stopActivatorActor(pid PID) error {
+	return StopActor(pid)
+}
+
 type pendingActivation struct {
 	pid     PID
 	owner   ActorOwner
@@ -139,6 +167,7 @@ type actorActivator struct {
 	owners  map[PID]ActorOwner
 	pending map[string]*pendingActivation
 	meta    *activatorMeta
+	mu      sync.Mutex
 }
 
 func NewActorActivator(kind string, manager *activatorManager) *actorActivator {
@@ -174,24 +203,79 @@ func decideActivation(owner ActorOwner, acquired bool, localNode string, localPI
 		return activationRetry
 	}
 	if acquired {
-		// 本次 Claim 已抢到 owner，但本地已有同 ID Actor，说明 ownership
-		// 状态与本地 activation 不一致，禁止继续创建第二个 Actor。
 		if !localPID.IsZero() {
 			return activationConflict
 		}
-		// 只有允许 spawn 的路径才能使用刚抢到的 owner 创建 Actor。
 		if allowSpawn {
 			return activationSpawn
 		}
-		// locate-only 请求不能创建 Actor；释放刚抢到的 owner 后重试。
 		return activationReleaseAndRetry
 	}
-	// owner 属于本节点且 Claim 未抢占：本地 Actor 已存在，可直接返回。
 	if !localPID.IsZero() {
 		return activationReturnLocal
 	}
-	// owner 属于本节点但本地没有 Actor：这是残留 owner，条件释放后重试。
 	return activationReleaseAndRetry
+}
+
+func (a *actorActivator) requestLocal(ctx context.Context, id string, allowSpawn bool) (PID, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.manager == nil || a.manager.locator == nil {
+		return PID{}, errors.New("actor locator is not initialized")
+	}
+	if a.meta == nil {
+		a.meta = a.manager.activatorMetas[a.kind]
+	}
+	if a.meta == nil || a.meta.mgr == nil {
+		return PID{}, errors.Newf("actor kind %s is not registered", a.kind)
+	}
+	localPID := a.meta.mgr.Get(id)
+	if !allowSpawn && localPID.IsZero() {
+		return PID{}, gerror.Newf("actor kind:%s, id:%s not found", a.kind, id)
+	}
+	owner, acquired, err := a.manager.locator.claim(ctx, a.kind, id)
+	if err != nil {
+		return PID{}, err
+	}
+	switch decideActivation(owner, acquired, a.manager.nodeInstanceName, localPID, allowSpawn) {
+	case activationReturnLocal:
+		return localPID, nil
+	case activationRetry:
+		return PID{}, errors.Newf("actor %s/%s is owned by %s", a.kind, id, owner.NodeID)
+	case activationReleaseAndRetry:
+		_, releaseErr := a.manager.locator.release(ctx, a.kind, id, owner)
+		if releaseErr != nil {
+			return PID{}, releaseErr
+		}
+		return PID{}, gerror.Newf("actor kind:%s, id:%s not found", a.kind, id)
+	case activationConflict:
+		return PID{}, errors.Newf("claimed actor owner conflicts with local activation: %s/%s", a.kind, id)
+	case activationSpawn:
+	}
+	if a.manager.spawner == nil {
+		_, _ = a.manager.locator.release(ctx, a.kind, id, owner)
+		return PID{}, errors.New("actor activation spawner is not initialized")
+	}
+	pid, err := a.manager.spawner.spawnActivatorActor(a.kind, id, owner)
+	if err != nil {
+		_, releaseErr := a.manager.locator.release(ctx, a.kind, id, owner)
+		if releaseErr != nil {
+			return PID{}, errors.CombineErrors(err, releaseErr)
+		}
+		return PID{}, err
+	}
+	if err := a.manager.spawner.confirmActivatorActor(a.kind, id, pid); err != nil {
+		_ = a.manager.spawner.stopActivatorActor(pid)
+		_, releaseErr := a.manager.locator.release(ctx, a.kind, id, owner)
+		if releaseErr != nil {
+			return PID{}, errors.CombineErrors(err, releaseErr)
+		}
+		return PID{}, errors.Wrap(err, "actor init confirmation failed")
+	}
+	a.meta.mgr.Add(id, pid)
+	a.childs[pid] = id
+	a.owners[pid] = owner
+	return pid, nil
 }
 
 func (a *actorActivator) DelayInit(ctx context.Context) error {
@@ -262,8 +346,12 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		}
 
 		// SpawnNamed 使用原始 ID，保证 Actor PID 与后续 ActorMgr 查找一致。
-		props := a.meta.Props.Clone()
-		pid, err := app.spawnNamedLegacy(props, msg.Id, msg.Id, owner)
+		if a.manager.spawner == nil {
+			_, _ = a.manager.locator.release(ctx, a.kind, msg.Id, owner)
+			_ = Respond(ctx, a.Actx, ActorError("actor activation spawner is not initialized"))
+			return nil
+		}
+		pid, err := a.manager.spawner.spawnActivatorActor(a.kind, msg.Id, owner)
 		if err != nil {
 			// 创建失败也必须条件释放 owner，否则其他节点会看到残留 owner。
 			_, releaseErr := a.manager.locator.release(ctx, a.kind, msg.Id, owner)
@@ -274,7 +362,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			return nil
 		}
 
-		// 在异步 Touch 完成前登记 pending；并发请求会在上面的分支加入 waiters。
+		// 在异步 Init confirmation 完成前登记 pending；并发请求会在上面的分支加入 waiters。
 		var waiters []PID
 		if sender := a.Actx.Sender(); !sender.IsZero() {
 			waiters = append(waiters, sender)
@@ -292,12 +380,11 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		// 回到 mailbox，继续由 Actor 顺序处理 pending 和 waiter。
 		self := a.Actx.Self()
 		go func(id string, owner ActorOwner) {
-
-			_, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second)
+			err := a.manager.spawner.confirmActivatorActor(a.kind, id, pid)
 			if sendErr := LocalSend(context.Background(), self, &localMsgActorTouchResult{
 				ID: id, PID: pid, Owner: owner, Err: err,
 			}); sendErr != nil {
-				gxylog.Error(context.Background(), "deliver actor touch result failed",
+				gxylog.Error(context.Background(), "deliver actor init confirmation failed",
 					gxylog.Str("kind", a.kind), gxylog.Str("id", id), gxylog.Err(sendErr))
 			}
 		}(msg.Id, owner)
@@ -317,7 +404,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		// 再通知所有等待者，确保失败的 Actor 不会被当成可用实例返回。
 		if msg.Err != nil {
 			gxylog.Warn(ctx, "actor touch failed", gxylog.Str("kind", a.kind), gxylog.Str("id", msg.ID), gxylog.Err(msg.Err))
-			_ = StopActor(msg.PID)
+			_ = a.manager.spawner.stopActivatorActor(msg.PID)
 			a.unregisterActor(msg.ID, msg.PID)
 			for _, waiter := range pending.waiters {
 				_ = Send(ctx, waiter, ActorError("actor init failed or actor died"))
@@ -398,6 +485,7 @@ type activatorManager struct {
 	requestActorFunc func(ctx context.Context, node string, kind string, id string, allowSpawn bool) (PID, bool, error)
 	locator          *actorLocator
 	stopLease        func()
+	spawner          actorActivationSpawner
 }
 
 type actorServiceLookup interface {
@@ -406,7 +494,7 @@ type actorServiceLookup interface {
 }
 
 func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorManager {
-	return &activatorManager{
+	g := &activatorManager{
 		nodeName:         nodeName,
 		nodeInstanceName: nodeInstanceName,
 		activatorMetas:   make(map[string]*activatorMeta),
@@ -414,6 +502,8 @@ func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorMan
 		serviceLookup:    gxyservice.ServiceApp(),
 		locator:          newActorLocator(gxyredis.Redis(), nodeInstanceName, nodeInstanceName),
 	}
+	g.spawner = legacyActivationSpawner{manager: g}
+	return g
 }
 
 func (g *activatorManager) OnModInit(ctx context.Context) error {
