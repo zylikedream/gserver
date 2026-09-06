@@ -24,7 +24,7 @@ import (
 )
 
 // TestMain 初始化全局 actor app(不建 system)+ SessionMgr,
-// 使 CallSync/LocalSend 走 "node not initialized" 错误路径而非 nil panic。
+// 使 Send/LocalSend 走 "node not initialized" 错误路径而非 nil panic。
 func TestMain(m *testing.M) {
 	gxyactor.NewActorApp("test", "test", "127.0.0.1")
 	NewSessionMgr()
@@ -61,21 +61,22 @@ func (f *fakeEndpoint) SetData(d any)  { f.data = d }
 
 // fakeActx implements the runtime-neutral ActorContext contract.
 type fakeActx struct {
-	self gxyactor.PID
-	sender gxyactor.PID
-	stopPID gxyactor.PID
-	msg any
-	watched []gxyactor.PID
+	self      gxyactor.PID
+	sender    gxyactor.PID
+	stopPID   gxyactor.PID
+	msg       any
+	watched   []gxyactor.PID
 	unwatched []gxyactor.PID
 }
-func (f *fakeActx) Self() gxyactor.PID { return f.self }
-func (f *fakeActx) Sender() gxyactor.PID { return f.sender }
-func (f *fakeActx) Stop(pid gxyactor.PID) { f.stopPID = pid }
-func (f *fakeActx) Message() any { return f.msg }
+
+func (f *fakeActx) Self() gxyactor.PID               { return f.self }
+func (f *fakeActx) Sender() gxyactor.PID             { return f.sender }
+func (f *fakeActx) Stop(pid gxyactor.PID)            { f.stopPID = pid }
+func (f *fakeActx) Message() any                     { return f.msg }
 func (f *fakeActx) MessageHeader() map[string]string { return nil }
-func (f *fakeActx) Watch(pid gxyactor.PID) { f.watched = append(f.watched, pid) }
-func (f *fakeActx) Unwatch(pid gxyactor.PID) { f.unwatched = append(f.unwatched, pid) }
-func (f *fakeActx) Children() []gxyactor.PID { return nil }
+func (f *fakeActx) Watch(pid gxyactor.PID)           { f.watched = append(f.watched, pid) }
+func (f *fakeActx) Unwatch(pid gxyactor.PID)         { f.unwatched = append(f.unwatched, pid) }
+func (f *fakeActx) Children() []gxyactor.PID         { return nil }
 
 // unknownMsg 触发 ActorBase default 分支的 initSpan(设置 span 避免 SetName nil panic)。
 type unknownMsg struct{}
@@ -88,9 +89,9 @@ func newTestSession(t *testing.T) (*Session, *fakeActx, *fakeEndpoint) {
 	ep := newFakeEndpoint(t)
 	s := NewSession(ep)
 	fake := &fakeActx{
-		self: gxyactor.PID{Runtime: "test", Node: "node", ID: "test_session", Creation: "1"},
+		self:   gxyactor.PID{Runtime: "test", Node: "node", ID: "test_session", Creation: "1"},
 		sender: gxyactor.PID{Runtime: "test", Node: "node", ID: "sender", Creation: "1"},
-		msg: gxyactor.ActorStartedMessage{Self: gxyactor.PID{Runtime: "test", Node: "node", ID: "test_session", Creation: "1"}},
+		msg:    gxyactor.ActorStartedMessage{Self: gxyactor.PID{Runtime: "test", Node: "node", ID: "test_session", Creation: "1"}},
 	}
 	s.Receive(fake)          // Started → Init(state=Connected, 时间初始化)
 	fake.msg = &unknownMsg{} // default 分支 → initSpan
@@ -367,8 +368,8 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 			if !s.sessionInfo.RolePid.IsZero() {
 				t.Fatal("RolePid must stay nil after admission rejection")
 			}
-			// 端到端:运行时在 Stop 后投递 *actor.Stopped, Terminate 用 stopErr
-			// 计算断连标签; sentinel 错误对象必须原样到达, 不因包裹/重建而降级。
+			// 端到端:运行时在 Stop 后投递停止生命周期消息，Terminate 用
+			// stopErr 计算断连标签; sentinel 错误对象必须原样到达。
 			fake.msg = gxyactor.ActorStoppedMessage{}
 			s.Receive(fake)
 			if !ep.closed {
@@ -503,8 +504,8 @@ func TestSession_ClientMessage_NotProto(t *testing.T) {
 
 func TestSession_ClientMessage_DataPacket_NoRolePid(t *testing.T) {
 	s, _, _ := newTestSession(t) // 未握手, RolePid nil
+	// SendRoleMsg 在测试环境没有 runtime，发送错误被忽略，保持 fire-and-forget 契约。
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
-	// SendRoleMsg → CallSync(system nil) 返回错误被忽略, 应返回 nil
 	if err := s.OnHandleClientMessage(context.Background(), msg); err != nil {
 		t.Fatalf("OnHandleClientMessage: %v", err)
 	}

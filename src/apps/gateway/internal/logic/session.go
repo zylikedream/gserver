@@ -285,7 +285,11 @@ func (s *Session) SendRoleMsg(ctx context.Context, msg proto.Message, id string)
 	if err := anypb.MarshalFrom(req.Msg, msg, proto.MarshalOptions{}); err != nil {
 		return gerror.Newf("marshal req error, err: %v", err)
 	}
-	gxyactor.CallSync(ctx, s.sessionInfo.RolePid, req, s.Self())
+	// Send preserves the current actor callback as the request sender in every
+	// runtime adapter and is dispatched through the runtime-neutral seam.
+	// Preserve the historical fire-and-forget behavior: transport failure is
+	// handled by the session lifecycle.
+	_ = gxyactor.Send(ctx, s.sessionInfo.RolePid, req)
 	return nil
 }
 

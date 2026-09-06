@@ -15,7 +15,7 @@ import (
 )
 
 func testPID(id string) gxyactor.PID {
-	return gxyactor.PID{Runtime: "protoactor-v1", Node: "127.0.0.1:25011", ID: id, Creation: "test"}
+	return gxyactor.PID{Runtime: "ergo-v1", Node: "node-1", ID: id, Creation: "test"}
 }
 type notifyEnv struct {
 	selfNode     string

@@ -14,7 +14,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
+// sessionSupervisor 会话管理器。
 type gateApp struct {
 	gxyapp.App
 }

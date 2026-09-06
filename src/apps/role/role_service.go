@@ -20,7 +20,7 @@ func (r *roleService) ServiceName() string {
 }
 
 func (r *roleService) Weight() int {
-	return gxyactor.GetActorCount(r.ServiceName())
+	return len(gxyactor.GetLocalActorAll(r.ServiceName()))
 }
 
 func (r *roleService) OnModStart(ctx context.Context) error {

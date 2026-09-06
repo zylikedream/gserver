@@ -112,7 +112,31 @@ func GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, err
 	if app == nil { return ActorOwner{}, errors.New("actor app is not initialized") }
 	return app.GetActorOwner(ctx, kind, id)
 }
-func GetActorCount(kind string) int { if app == nil { return 0 }; return app.GetActorCount(kind) }
-func GetLocalActor(kind string, id string) PID { if app == nil { return PID{} }; return app.GetLocalActor(kind, id) }
-func GetLocalActorAll(kind string) []PID { if app == nil { return nil }; return app.GetLocalActorAll(kind) }
+func GetActorCount(kind string) int {
+	if runtime, err := currentRuntime(); err == nil {
+		if counter, ok := runtime.(interface{ GetActorCount(string) int }); ok { return counter.GetActorCount(kind) }
+		return 0
+	}
+	if app == nil { return 0 }
+	return app.GetActorCount(kind)
+}
+func GetLocalActor(kind string, id string) PID {
+	if runtime, err := currentRuntime(); err == nil { return runtime.GetLocalActor(kind, id) }
+	if app == nil { return PID{} }
+	return app.GetLocalActor(kind, id)
+}
+func GetLocalActorAll(kind string) []PID {
+	if runtime, err := currentRuntime(); err == nil { return runtime.GetLocalActorAll(kind) }
+	if app == nil { return nil }
+	return app.GetLocalActorAll(kind)
+}
+// NodeInstanceName returns the canonical GServer node identity used by the
+// actor directory without exposing runtime-specific node types.
+func NodeInstanceName() string {
+	if runtime, err := currentRuntime(); err == nil {
+		if named, ok := runtime.(interface{ NodeInstanceName() string }); ok { return named.NodeInstanceName() }
+	}
+	if app == nil { return "" }
+	return app.NodeInstanceName()
+}
 func ActorError(reason string) *pb.ActorError { return &pb.ActorError{Reason: reason} }

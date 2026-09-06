@@ -138,6 +138,17 @@ func (a *Adapter) Node() gen.Node {
 	}
 	return a.node
 }
+
+// NodeInstanceName is the canonical GServer identity used by ownership and
+// service discovery. It is intentionally exposed as a string-only capability
+// so business code never depends on Ergo node types.
+func (a *Adapter) NodeInstanceName() string {
+	if a == nil {
+		return ""
+	}
+	return a.nodeName
+}
+
 func (a *Adapter) Registry() *MessageRegistry {
 	if a == nil {
 		return nil
