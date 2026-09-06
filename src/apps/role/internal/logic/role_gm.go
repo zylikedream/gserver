@@ -338,7 +338,7 @@ func SendSystemMsg(ctx context.Context, content string) error {
 // 示例: stop_role 1001 从内存驱逐
 func (r *RoleGM) StopRole(roleID int64) error {
 	rolePid := rolelib.GetRolePid(roleID)
-	if rolePid == nil {
+	if rolePid.IsZero() {
 		return errors.Newf("role %d not found ", roleID)
 	}
 	_ = gxyactor.LocalSend(r.ctx, rolePid, &pb.ActorStop{

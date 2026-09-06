@@ -579,7 +579,7 @@ func roleModuleDirty(rmod IRoleModule) bool {
 var sendClient = defaultSendClient
 
 func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
-	if r.session == nil {
+	if r.session.IsZero() {
 		return
 	}
 	svrMsg, err := r.newServerMsg(msg)
@@ -713,7 +713,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	}
 	gxymetrics.RoleLogouts.WithLabelValues(roleLogoutReason(reason)).Inc()
 	r.Timer().Cancel(ctx, SessionAliveCheckTick.Name)
-	r.session = nil
+	r.session = gxyactor.PID{}
 	r.Basic.LogoutTm = time.Now()
 	r.Public.IsOnline = false
 	r.Public.UpdateRolePublic(ctx)
