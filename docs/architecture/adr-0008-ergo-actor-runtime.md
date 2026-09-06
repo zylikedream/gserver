@@ -140,3 +140,14 @@ Ergo 的 discovery、Grid、process registry 和 supervision 都不是持久化 
 - 远程业务消息增加一次 protobuf marshal/unmarshal，但获得稳定、可注册、与 Ergo EDF 解耦的 wire contract。
 - 节点分区、Redis 故障和 remote loss 可能导致短暂不可用，这是 fail-closed 与一致性优先的必然后果。
 - 不建设 shard ownership、online handoff、mailbox/state migration；只有新的业务证据和替代 ADR 才能推翻该非目标。
+
+## 迁移验证结果（2026-09-06）
+
+- `go build ./...`：通过。
+- `make lint`：通过，根模块与 `client` 均报告 `0 issues`。
+- `make test`：通过；全仓 `go test ./...` 完成，36 个包通过，26 个包无测试。
+- `go list -deps ./...`：依赖图未包含 Protoactor 模块。
+- Chat 两节点 Ergo stage：激活、注册/注销、Send、History Call、停止、重新激活通过（`-count=3`）。
+- 实际服务器 smoke：`go run node/main.go --config config/all.toml` 成功启动 Ergo 3.3.0 节点、Redis/PostgreSQL/Consul 注册和 Chat/Friend/Guild HTTP 服务；日志确认 `node start success`，随后 graceful shutdown 完成。未执行真实 Gateway 登录和跨节点业务流量回放。
+
+已知限制：本次 smoke 使用本地开发依赖和临时工作树配置；未建立第二个完整服务器节点，也未采集与迁移前基线可直接比较的延迟、mailbox 深度和内存 benchmark。
