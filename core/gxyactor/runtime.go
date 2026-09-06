@@ -1,9 +1,8 @@
 package gxyactor
 
 import (
-	"errors"
 	"context"
-	"reflect"
+	"errors"
 	"sync"
 	"time"
 )
@@ -21,21 +20,13 @@ type PID struct {
 func (p PID) IsZero() bool {
 	return p.Runtime == "" && p.Node == "" && p.ID == "" && p.Creation == ""
 }
-
 func normalizePID(value any) PID {
 	switch pid := value.(type) {
 	case PID:
 		return pid
 	case *PID:
-		if pid != nil { return *pid }
-		return PID{}
-	}
-	if value == nil { return PID{} }
-	v := reflect.Indirect(reflect.ValueOf(value))
-	if v.IsValid() && v.Kind() == reflect.Struct {
-		address, id := v.FieldByName("Address"), v.FieldByName("Id")
-		if address.IsValid() && id.IsValid() && address.Kind() == reflect.String && id.Kind() == reflect.String {
-			return PID{Runtime: "protoactor-v1", Node: address.String(), ID: id.String()}
+		if pid != nil {
+			return *pid
 		}
 	}
 	return PID{}
@@ -78,7 +69,7 @@ type Runtime interface {
 }
 
 var (
-	runtimeMu sync.RWMutex
+	runtimeMu   sync.RWMutex
 	runtimeImpl Runtime
 )
 
@@ -100,6 +91,7 @@ func currentRuntime() (Runtime, error) {
 	}
 	return runtime, nil
 }
+
 type runtimeContextKey struct{}
 
 func runtimeFromContext(ctx context.Context) Runtime {
@@ -140,4 +132,9 @@ type ActorStoppedMessage struct {
 
 type ActorTerminatedMessage struct {
 	Who PID
+}
+
+// ActorPIDResponse is an adapter-internal activation response carrying a neutral PID.
+type ActorPIDResponse struct {
+	PID PID
 }

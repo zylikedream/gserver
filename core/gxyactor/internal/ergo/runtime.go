@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -53,15 +55,16 @@ func wrap(kind, cause error) error {
 }
 
 type Options struct {
-	NodeName         string
-	NodeInstanceName string
-	Host             string
-	Port             int
-	Cookie           string
-	ShutdownTimeout  time.Duration
-	Network          gen.NetworkOptions
-	Activation       func(context.Context, string, string, bool) (gxyactor.PID, error)
-	ResolvePID       func(gxyactor.PID) (gen.PID, error)
+	NodeName          string
+	NodeInstanceName  string
+	Host              string
+	Port              int
+	Cookie            string
+	ShutdownTimeout   time.Duration
+	Network           gen.NetworkOptions
+	Activation        func(context.Context, string, string, bool) (gxyactor.PID, error)
+	ResolvePID        func(gxyactor.PID) (gen.PID, error)
+	RegisterActorKind func(string, gxyactor.ActorProducer) error
 }
 
 type Adapter struct {
@@ -72,6 +75,9 @@ type Adapter struct {
 	registry      *MessageRegistry
 	activation    func(context.Context, string, string, bool) (gxyactor.PID, error)
 	resolvePID    func(gxyactor.PID) (gen.PID, error)
+	registerKind  func(string, gxyactor.ActorProducer) error
+	host          string
+	port          int
 
 	mu         sync.RWMutex
 	kinds      map[string]gxyactor.ActorProducer
@@ -101,6 +107,7 @@ func New(node gen.Node, nodeInstanceName ...string) *Adapter {
 			gxyactor.ActorStoppedMessage{},
 			gxyactor.ActorTerminatedMessage{},
 			gxyactor.LifecycleMessage(0),
+			gxyactor.ActorPIDResponse{},
 		} {
 			_ = node.Network().RegisterType(control)
 		}
@@ -128,6 +135,8 @@ func Start(options Options) (*Adapter, error) {
 	a := New(node, instance)
 	a.activation = options.Activation
 	a.resolvePID = options.ResolvePID
+	a.registerKind = options.RegisterActorKind
+	a.host, a.port = options.Host, options.Port
 	gxyactor.SetRuntime(a)
 	return a, nil
 }
@@ -167,6 +176,14 @@ func (a *Adapter) RegisterMessageType(name string, constructor func() proto.Mess
 
 // RegisterActorKind stores only the factory. Ownership and activation remain in GServer.
 func (a *Adapter) RegisterActorKind(kind string, producer gxyactor.ActorProducer) error {
+	if a.registerKind != nil {
+		return a.registerKind(kind, producer)
+	}
+	return a.RegisterActorKindDirect(kind, producer)
+}
+
+// RegisterActorKindDirect stores a factory without invoking the bootstrap hook.
+func (a *Adapter) RegisterActorKindDirect(kind string, producer gxyactor.ActorProducer) error {
 	if kind == "" || producer == nil {
 		return errors.New("actor kind and producer are required")
 	}
@@ -218,7 +235,9 @@ func (a *Adapter) Spawn(kind, id string, initArgs ...any) (gxyactor.PID, error) 
 		return gxyactor.PID{}, errors.New("ergo node is not initialized")
 	}
 	logicalID := namespacedID(kind, id)
-	pid, err := a.node.Spawn(func() gen.ProcessBehavior { return newErgoActor(a, kind, id, logicalID, producer) }, gen.ProcessOptions{}, initArgs...)
+	pid, err := a.node.SpawnRegister(gen.Atom(logicalID), func() gen.ProcessBehavior {
+		return newErgoActor(a, kind, id, logicalID, producer)
+	}, gen.ProcessOptions{}, initArgs...)
 	if err != nil {
 		if pid.ID != 0 {
 			a.forgetRaw(pid)
@@ -231,6 +250,78 @@ func (a *Adapter) Spawn(kind, id string, initArgs ...any) (gxyactor.PID, error) 
 	a.normalized[kind+"\x00"+id] = normalized
 	a.mu.Unlock()
 	return normalized, nil
+}
+
+// SpawnAnonymous creates an unregistered business process for one-off actors such as sessions.
+func (a *Adapter) SpawnAnonymous(producer gxyactor.ActorProducer, initArgs ...any) (gxyactor.PID, error) {
+	if producer == nil || a.node == nil {
+		return gxyactor.PID{}, errors.New("actor runtime is not initialized")
+	}
+	pid, err := a.node.Spawn(func() gen.ProcessBehavior { return newErgoActor(a, "anonymous", "", "", producer) }, gen.ProcessOptions{}, initArgs...)
+	if err != nil {
+		return gxyactor.PID{}, wrap(ErrActorInitFailed, err)
+	}
+	normalized := a.fromErgoPID(pid, fmt.Sprintf("anonymous/%d", pid.ID))
+	a.mu.Lock()
+	a.pids["anonymous\x00"+normalized.ID] = pid
+	a.normalized["anonymous\x00"+normalized.ID] = normalized
+	a.mu.Unlock()
+	return normalized, nil
+}
+
+// SpawnNamed creates a registered Ergo process used by GServer control actors.
+func (a *Adapter) SpawnNamed(kind, name string, producer gxyactor.ActorProducer, initArgs ...any) (gxyactor.PID, error) {
+	if producer == nil || a.node == nil {
+		return gxyactor.PID{}, errors.New("actor runtime is not initialized")
+	}
+	pid, err := a.node.SpawnRegister(gen.Atom(name), func() gen.ProcessBehavior { return newErgoActor(a, kind, name, namespacedID(kind, name), producer) }, gen.ProcessOptions{}, initArgs...)
+	if err != nil {
+		return gxyactor.PID{}, wrap(ErrActorInitFailed, err)
+	}
+	normalized := a.fromErgoPID(pid, namespacedID(kind, name))
+	a.mu.Lock()
+	a.pids[kind+"\x00"+name] = pid
+	a.normalized[kind+"\x00"+name] = normalized
+	a.mu.Unlock()
+	return normalized, nil
+}
+
+// CallNamed addresses a registered process on a node by canonical node identity.
+func (a *Adapter) CallNamed(ctx context.Context, node, name string, message any, timeout time.Duration) (any, error) {
+	if a.node == nil {
+		return nil, errors.New("ergo node is not initialized")
+	}
+	if err := contextErr(ctx); err != nil {
+		return nil, err
+	}
+	wire, err := a.encodeFor(gxyactor.PID{Runtime: RuntimeID, Node: node, ID: name, Creation: strconv.FormatInt(a.creation, 10)}, message)
+	if err != nil {
+		return nil, err
+	}
+	seconds := int(timeout / time.Second)
+	if timeout%time.Second != 0 {
+		seconds++
+	}
+	if seconds < 1 {
+		seconds = 1
+	}
+	value, err := a.node.CallProcessID(gen.ProcessID{Name: gen.Atom(name), Node: gen.Atom(node)}, wire, seconds)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	return a.decode(value)
+}
+
+func (a *Adapter) CallSync(ctx context.Context, pid gxyactor.PID, message any, sender gxyactor.PID) error {
+	return a.Send(ctx, pid, message)
+}
+func (a *Adapter) NodeName() string { return a.nodeName }
+func (a *Adapter) Host() string     { return a.host }
+func (a *Adapter) Address() string {
+	if a.host == "" || a.port == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", a.host, a.port)
 }
 
 func (a *Adapter) remember(kind, id string, raw gen.PID) {
@@ -281,8 +372,22 @@ func (a *Adapter) forgetRaw(raw gen.PID) {
 	}
 }
 
-func (a *Adapter) Send(ctx context.Context, pid gxyactor.PID, message any) error {
+func (a *Adapter) target(pid gxyactor.PID) (gen.PID, bool, error) {
 	raw, err := a.toErgoPID(pid)
+	if err == nil {
+		return raw, false, nil
+	}
+	// Named business and control processes are addressable on remote nodes
+	// without a local PID table entry. Anonymous actors must be local-only.
+	if pid.Runtime == RuntimeID && pid.Node != "" && pid.Node != a.nodeName &&
+		pid.ID != "" && strings.Contains(pid.ID, "/") {
+		return gen.PID{}, true, nil
+	}
+	return gen.PID{}, false, err
+}
+
+func (a *Adapter) Send(ctx context.Context, pid gxyactor.PID, message any) error {
+	raw, processID, err := a.target(pid)
 	if err != nil {
 		return err
 	}
@@ -294,13 +399,22 @@ func (a *Adapter) Send(ctx context.Context, pid gxyactor.PID, message any) error
 		return err
 	}
 	if process, ok := processFromContext(ctx); ok {
+		if processID {
+			return mapError(process.SendProcessID(gen.ProcessID{Name: gen.Atom(pid.ID), Node: gen.Atom(pid.Node)}, wire))
+		}
 		return mapError(process.Send(raw, wire))
 	}
 	if a.node == nil {
 		return errors.New("ergo node is not initialized")
 	}
-	if err := a.node.Send(raw, wire); err != nil {
-		return mapError(err)
+	var sendErr error
+	if processID {
+		sendErr = a.node.Send(gen.ProcessID{Name: gen.Atom(pid.ID), Node: gen.Atom(pid.Node)}, wire)
+	} else {
+		sendErr = a.node.Send(raw, wire)
+	}
+	if sendErr != nil {
+		return mapError(sendErr)
 	}
 	return nil
 }
@@ -314,7 +428,7 @@ func (a *Adapter) Call(ctx context.Context, pid gxyactor.PID, message any, timeo
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	raw, err := a.toErgoPID(pid)
+	raw, processID, err := a.target(pid)
 	if err != nil {
 		return nil, err
 	}
@@ -348,9 +462,17 @@ func (a *Adapter) Call(ctx context.Context, pid gxyactor.PID, message any, timeo
 		var value any
 		var callErr error
 		if fromActor {
-			value, callErr = process.CallWithTimeout(raw, wire, seconds)
+			if processID {
+				value, callErr = process.CallProcessID(gen.ProcessID{Name: gen.Atom(pid.ID), Node: gen.Atom(pid.Node)}, wire, seconds)
+			} else {
+				value, callErr = process.CallWithTimeout(raw, wire, seconds)
+			}
 		} else {
-			value, callErr = a.node.CallWithTimeout(raw, wire, seconds)
+			if processID {
+				value, callErr = a.node.CallProcessID(gen.ProcessID{Name: gen.Atom(pid.ID), Node: gen.Atom(pid.Node)}, wire, seconds)
+			} else {
+				value, callErr = a.node.CallWithTimeout(raw, wire, seconds)
+			}
 		}
 		done <- callResult{value: value, err: callErr}
 	}()

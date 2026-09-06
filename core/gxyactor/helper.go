@@ -4,54 +4,61 @@ import (
 	"context"
 	"time"
 
-	"gserver/protocol/pb"
 	"github.com/cockroachdb/errors"
+	"gserver/protocol/pb"
 )
 
+func runtimeOrError() (Runtime, error) { return currentRuntime() }
+
 func RegisterActorKind(name string, prod ActorProducer) error {
-	if runtime, err := currentRuntime(); err == nil { return runtime.RegisterActorKind(name, prod) }
-	if app == nil { return errors.New("actor app is not initialized") }
-	return app.RegisterActorKind(name, prod)
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return err
+	}
+	return runtime.RegisterActorKind(name, prod)
 }
 
 func DeregisterActorKind(name string) {
-	if runtime, err := currentRuntime(); err == nil { runtime.DeregisterActorKind(name); return }
-	if app != nil { app.DeregisterActorKind(name) }
+	if runtime, err := runtimeOrError(); err == nil {
+		runtime.DeregisterActorKind(name)
+	}
 }
 
-// SpawnFunc is the only public spawn helper. Runtime-specific properties and
-// producers are private to the adapter; business code supplies ActorProducer.
+// SpawnFunc is the public anonymous-spawn helper; runtime-specific process details stay in the adapter.
 func SpawnFunc(prod ActorProducer, initArgs ...any) (PID, error) {
-	if app == nil { return PID{}, errors.New("actor app is not initialized") }
-	return app.spawnFunc(prod, initArgs...)
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return PID{}, err
+	}
+	spawner, ok := runtime.(interface {
+		SpawnAnonymous(ActorProducer, ...any) (PID, error)
+	})
+	if !ok {
+		return PID{}, errors.New("actor runtime does not support anonymous spawn")
+	}
+	return spawner.SpawnAnonymous(prod, initArgs...)
 }
 
 func Send(ctx context.Context, pid PID, message any) error {
 	if runtime := runtimeFromContext(ctx); runtime != nil {
 		return runtime.Send(ctx, pid, message)
 	}
-	if runtime, err := currentRuntime(); err == nil {
-		return runtime.Send(ctx, pid, message)
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return err
 	}
-	if app == nil {
-		return errors.New("actor app is not initialized")
-	}
-	return app.send(ctx, pid, message)
+	return runtime.Send(ctx, pid, message)
 }
-
 func LocalSend(ctx context.Context, pid PID, message any) error {
 	if runtime := runtimeFromContext(ctx); runtime != nil {
 		return runtime.LocalSend(ctx, pid, message)
 	}
-	if runtime, err := currentRuntime(); err == nil {
-		return runtime.LocalSend(ctx, pid, message)
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return err
 	}
-	if app == nil {
-		return errors.New("actor app is not initialized")
-	}
-	return app.localSend(ctx, pid, message)
+	return runtime.LocalSend(ctx, pid, message)
 }
-
 func Respond(ctx context.Context, request Request, message any, responseErr ...error) error {
 	err := error(nil)
 	if len(responseErr) > 0 {
@@ -65,78 +72,121 @@ func Respond(ctx context.Context, request Request, message any, responseErr ...e
 	if runtime := runtimeFromContext(ctx); runtime != nil {
 		return runtime.Respond(ctx, request, message, err)
 	}
-	if runtime, runtimeErr := currentRuntime(); runtimeErr == nil {
-		return runtime.Respond(ctx, request, message, err)
+	runtime, runtimeErr := runtimeOrError()
+	if runtimeErr != nil {
+		return runtimeErr
 	}
-	if app == nil {
-		return errors.New("actor app is not initialized")
-	}
-	return app.respond(ctx, request, message, err)
+	return runtime.Respond(ctx, request, message, err)
 }
-
 func Call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
 	if runtime := runtimeFromContext(ctx); runtime != nil {
 		return runtime.Call(ctx, pid, message, timeout)
 	}
-	if runtime, err := currentRuntime(); err == nil {
-		return runtime.Call(ctx, pid, message, timeout)
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return nil, err
 	}
-	if app == nil {
-		return nil, errors.New("actor app is not initialized")
-	}
-	return app.call(ctx, pid, message, timeout)
+	return runtime.Call(ctx, pid, message, timeout)
 }
-
 func CallSync(ctx context.Context, pid PID, message any, sender PID) error {
-	if app == nil {
-		return errors.New("actor app is not initialized")
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return err
 	}
-	return app.callSync(ctx, pid, message, sender)
+	syncer, ok := runtime.(interface {
+		CallSync(context.Context, PID, any, PID) error
+	})
+	if !ok {
+		return errors.New("actor runtime does not support CallSync")
+	}
+	return syncer.CallSync(ctx, pid, message, sender)
 }
-func GetNodeName() string { if app == nil { return "" }; return app.GetNodeName() }
+func GetNodeName() string {
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return ""
+	}
+	if named, ok := runtime.(interface{ NodeName() string }); ok {
+		return named.NodeName()
+	}
+	return ""
+}
 func StopActor(pid PID) error {
-	if runtime, err := currentRuntime(); err == nil { return runtime.Stop(pid) }
-	if app == nil { return errors.New("actor app is not initialized") }
-	return app.StopActor(pid)
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return err
+	}
+	return runtime.Stop(pid)
 }
 func Stop(pid PID) error { return StopActor(pid) }
-func Host() string { if app == nil { return "" }; return app.Host() }
-func Address() string { if app == nil { return "" }; return app.Address() }
-
-func ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
-	if runtime, err := currentRuntime(); err == nil { return runtime.ActivateActor(ctx, kind, id, spawn) }
-	if app == nil { return PID{}, errors.New("actor app is not initialized") }
-	return app.ActivateActor(ctx, kind, id, spawn)
+func Host() string {
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return ""
+	}
+	if v, ok := runtime.(interface{ Host() string }); ok {
+		return v.Host()
+	}
+	return ""
 }
-func GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
-	if app == nil { return ActorOwner{}, errors.New("actor app is not initialized") }
-	return app.GetActorOwner(ctx, kind, id)
+func Address() string {
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return ""
+	}
+	if v, ok := runtime.(interface{ Address() string }); ok {
+		return v.Address()
+	}
+	return ""
+}
+func ActivateActor(ctx context.Context, kind, id string, spawn bool) (PID, error) {
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return PID{}, err
+	}
+	return runtime.ActivateActor(ctx, kind, id, spawn)
+}
+func GetActorOwner(ctx context.Context, kind, id string) (ActorOwner, error) {
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return ActorOwner{}, err
+	}
+	if v, ok := runtime.(interface {
+		GetActorOwner(context.Context, string, string) (ActorOwner, error)
+	}); ok {
+		return v.GetActorOwner(ctx, kind, id)
+	}
+	return ActorOwner{}, errors.New("actor owner lookup is unavailable")
 }
 func GetActorCount(kind string) int {
-	if runtime, err := currentRuntime(); err == nil {
-		if counter, ok := runtime.(interface{ GetActorCount(string) int }); ok { return counter.GetActorCount(kind) }
+	runtime, err := runtimeOrError()
+	if err != nil {
 		return 0
 	}
-	if app == nil { return 0 }
-	return app.GetActorCount(kind)
+	return len(runtime.GetLocalActorAll(kind))
 }
-func GetLocalActor(kind string, id string) PID {
-	if runtime, err := currentRuntime(); err == nil { return runtime.GetLocalActor(kind, id) }
-	if app == nil { return PID{} }
-	return app.GetLocalActor(kind, id)
+func GetLocalActor(kind, id string) PID {
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return PID{}
+	}
+	return runtime.GetLocalActor(kind, id)
 }
 func GetLocalActorAll(kind string) []PID {
-	if runtime, err := currentRuntime(); err == nil { return runtime.GetLocalActorAll(kind) }
-	if app == nil { return nil }
-	return app.GetLocalActorAll(kind)
-}
-// NodeInstanceName returns the canonical GServer node identity used by the
-// actor directory without exposing runtime-specific node types.
-func NodeInstanceName() string {
-	if runtime, err := currentRuntime(); err == nil {
-		if named, ok := runtime.(interface{ NodeInstanceName() string }); ok { return named.NodeInstanceName() }
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return nil
 	}
-	if app == nil { return "" }
-	return app.NodeInstanceName()
+	return runtime.GetLocalActorAll(kind)
+}
+func NodeInstanceName() string {
+	runtime, err := runtimeOrError()
+	if err != nil {
+		return ""
+	}
+	if v, ok := runtime.(interface{ NodeInstanceName() string }); ok {
+		return v.NodeInstanceName()
+	}
+	return ""
 }
 func ActorError(reason string) *pb.ActorError { return &pb.ActorError{Reason: reason} }

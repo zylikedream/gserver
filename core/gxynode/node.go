@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"gserver/core/gxyactor"
+	"gserver/core/gxyactor/ergoapp"
 	"gserver/core/gxyapp"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
@@ -140,7 +140,7 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("redis", gxyredis.NewRedisApp())
 	gxyapp.RegisterApp("pgx", gxypgx.NewPGXApp())
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
-	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
+	gxyapp.RegisterApp("actor", ergoapp.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
 	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp())
 	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName))
 	gxyapp.RegisterApp("account", account.NewAccountApp(n.Host))

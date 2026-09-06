@@ -26,7 +26,6 @@ import (
 // TestMain 初始化全局 actor app(不建 system)+ SessionMgr,
 // 使 Send/LocalSend 走 "node not initialized" 错误路径而非 nil panic。
 func TestMain(m *testing.M) {
-	gxyactor.NewActorApp("test", "test", "127.0.0.1")
 	NewSessionMgr()
 	// 测试默认使用允许型登录准入器：旧握手测试显式、且不削弱生产 fail-closed 默认值
 	currentLoginAcquirer = &stubLoginAcquirer{permit: noopLoginPermit{}}

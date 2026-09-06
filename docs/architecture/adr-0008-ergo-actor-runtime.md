@@ -103,7 +103,7 @@ Ergo 使用 one-for-one 的 stop 语义：handler 错误或 panic 只停止失�
 
 ### 部署切换
 
-这是 clean cutover：发布后集群只运行 Ergo adapter，不存在 Protoactor/Ergo 混合 PID 路由、跨 runtime PID 转换或旧 PID 兼容层。Gateway 缓存的旧 PID 发送失败时重新 `ActivateActor` 或断线重连；不能把旧 PID 转换成 Ergo PID。回滚若需要，必须作为另一个完整部署决策，不能在线混跑两种 PID 协议。
+这是 clean cutover：发布后集群只运行 Ergo adapter，不存在 Ergo/Ergo 混合 PID 路由、跨 runtime PID 转换或旧 PID 兼容层。Gateway 缓存的旧 PID 发送失败时重新 `ActivateActor` 或断线重连；不能把旧 PID 转换成 Ergo PID。回滚若需要，必须作为另一个完整部署决策，不能在线混跑两种 PID 协议。
 
 ## Ownership 不变量覆盖
 
@@ -123,17 +123,15 @@ Ergo 使用 one-for-one 的 stop 语义：handler 错误或 panic 只停止失�
 
 Ergo 的 discovery、Grid、process registry 和 supervision 都不是持久化 fencing。Role 的权威副作用仍必须经过 PostgreSQL fence；Redis 查询与写库之间的 TOCTOU 仍由 PostgreSQL 解决。
 
-## 适配器边界：禁止泄漏的 Protoactor 符号
+## 适配器边界：禁止泄漏的运行时符号
 
-迁移完成后，以下旧 runtime 符号不得出现在业务包、`core/gxyactor` 公共 API 或业务测试中；如迁移期间仍需读取，只能暂存在 `core/gxyactor/internal/ergo` 适配器边界内，并最终删除：
+迁移完成后，运行时具体类型不得出现在业务包、`core/gxyactor` 公共 API 或业务测试中；它们只能暂存在 `core/gxyactor/internal/ergo` 适配器边界内：
 
-- `actor.ActorSystem`、`actor.Context`、`actor.Actor`、`actor.PID`、`actor.Props`
-- `actor.RootContext`、`actor.Future`、`actor.MessageEnvelope`
-- `actor.Started`、`actor.Stopped`、`actor.Directive`、`actor.OneForOneStrategy`
-- `remote.Remote`、`remote.Configure` 以及 Protoactor remote/process-table 类型
-- 任何 `github.com/asynkron/protoactor-go/...` import、Protoactor PID alias 或跨 runtime 转换函数
+- `gen.Node`、`gen.Process`、`gen.PID`、`gen.Network`
+- Ergo 网络、进程注册、监督和节点生命周期类型
+- 任何 Ergo 专属 PID alias 或跨运行时转换函数
 
-业务代码只能看到 GServer 的 `PID`、Actor lifecycle contract 和 Send/Call/Respond/Stop 操作。Ergo `gen.Node`、`gen.Process`、`gen.PID`、`act.Actor`、`gen.Network` 等同样只能存在于适配器实现中。
+业务代码只能看到 GServer 的 `PID`、Actor lifecycle contract 和 Send/Call/Respond/Stop 操作。适配器内部的 Ergo 类型不得通过公共 API、消息 payload 或配置对象泄漏。
 
 ## 后果
 

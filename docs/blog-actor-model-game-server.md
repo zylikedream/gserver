@@ -1,6 +1,6 @@
 # gserver：一个基于 Actor 模型的 Go 游戏服务器框架
 
-gserver 是一个用 Go 编写的分布式游戏服务器框架，基于 Actor 模型和 protoactor-go。它将游戏后端常见的需求——玩家状态管理、模块间通信、服务发现、配置管理——封装为可复用的基础设施，业务模块可以独立开发和部署。
+gserver 是一个用 Go 编写的分布式游戏服务器框架，基于 Actor 模型和 Ergo。它将游戏后端常见的需求——玩家状态管理、模块间通信、服务发现、配置管理——封装为可复用的基础设施，业务模块可以独立开发和部署。
 
 ---
 
@@ -22,7 +22,7 @@ Actor 模型对这三个问题给出了直接的解法：
 - Actor 内部是串行的——同一个 Actor 同时只处理一条消息，不需要锁。Actor 之间只通过消息通信，不共享内存。
 - 单个 Actor 崩溃，不影响其他 Actor。
 
-gserver 使用 [protoactor-go](https://github.com/asynkron/protoactor-go) 作为 Actor 运行时，它的 remote 功能让 Actor 可以分布在不同进程甚至不同机器上——业务代码不需要关心 Actor 实际跑在哪里，发消息就行了。
+gserver 使用 [Ergo](https://github.com/asynkron/Ergo) 作为 Actor 运行时，它的 remote 功能让 Actor 可以分布在不同进程甚至不同机器上——业务代码不需要关心 Actor 实际跑在哪里，发消息就行了。
 
 ## Module 机制
 
@@ -63,7 +63,7 @@ gserver 按职责分为五层：
 
 **应用框架**。`gxymodule` 定义了模块生命周期（初始化 → 启动 → 停止）和依赖管理。`gxyapp` 是业务 App 的抽象基类，业务模块继承它来接入框架。`gxynode` 是进程入口，读取 TOML 配置并加载指定的 App。
 
-**Actor 系统**。`gxyactor` 封装 protoactor-go，提供 Actor 的激活、通信和生命周期管理。`gxyservice` 实现基于 Actor 的服务 RPC。`gxymq` 提供消息队列，用于 Actor 间的异步通信。
+**Actor 系统**。`gxyactor` 封装 Ergo，提供 Actor 的激活、通信和生命周期管理。`gxyservice` 实现基于 Actor 的服务 RPC。`gxymq` 提供消息队列，用于 Actor 间的异步通信。
 
 **网络层**。`gxynet` 处理 TCP 连接（gnet v2 事件驱动），包含 LTPV 编解码和会话管理。`gxyhttp` 提供 HTTP 端点。
 
@@ -108,7 +108,7 @@ gserver 按职责分为五层：
 | 组件 | 选型 |
 |------|------|
 | 语言 | Go |
-| Actor 框架 | protoactor-go |
+| Actor 框架 | Ergo |
 | 应用框架 | GoFrame v2 |
 | 协议 | Protobuf |
 | 数据库 | PostgreSQL |

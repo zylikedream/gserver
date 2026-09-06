@@ -3,8 +3,12 @@
     host = "{{ env.host | default('127.0.0.1') }}"
 	apps = ["friend"]
 [port]
-	# Actor系统节点间通信端口（protoactor-go remoting）
+	# Ergo Actor 节点间通信端口
 	actor = {{ port.actor | default(25021) }}
+[actor]
+cookie = "{{ actor.cookie | default('gserver-ergo') }}"
+network = "ergo"
+shutdown_timeout = "15s"
 	# 好友服务HTTP端口
 	friend = {{ port.friend | default(25022) }}
 [postgres]

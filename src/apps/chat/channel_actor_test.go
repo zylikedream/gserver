@@ -21,7 +21,6 @@ import (
 // TestMain 初始化全局 actor app(不建 system/不绑端口),
 // 使 PublishRoleNotify/Respond 走 "node not initialized" 错误路径而非 nil panic。
 func TestMain(m *testing.M) {
-	gxyactor.NewActorApp("test", "test", "127.0.0.1")
 	os.Exit(m.Run())
 }
 

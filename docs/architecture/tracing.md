@@ -2,13 +2,13 @@
 
 ## 背景
 
-在基于 protoactor-go 的 Actor 模型中，消息在不同 Actor 之间异步传递。当一次用户请求需要经过 gateway → role → guild 等多个 actor 时，缺乏跨 actor 的调用链追踪，无法定位延迟瓶颈和排错。
+在基于 Ergo 的 Actor 模型中，消息在不同 Actor 之间异步传递。当一次用户请求需要经过 gateway → role → guild 等多个 actor 时，缺乏跨 actor 的调用链追踪，无法定位延迟瓶颈和排错。
 
 目标：在不动原有 actor 通信模式的前提下，实现跨 actor 的 trace 传递。
 
 ## 设计思路
 
-**不使用 protoactor-go 的 middleware 机制。** trace 上下文通过消息 header 传递，span 存在 actor 的 `a.ctx` 中，不存全局 map。
+**不使用 Ergo 的 middleware 机制。** trace 上下文通过消息 header 传递，span 存在 actor 的 `a.ctx` 中，不存全局 map。
 
 ```
 每条消息到达 → doReceive 从 header 提取 trace → 创建 span → 存入 a.ctx
@@ -122,7 +122,7 @@ func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.
 
 ### 4. 为什么不用 RootContext.RequestFuture
 
-protoactor-go 提供了 `RootContext.RequestFuture` 用于发送消息并等待回复：
+Ergo 提供了 `RootContext.RequestFuture` 用于发送消息并等待回复：
 
 ```go
 func (rc *RootContext) RequestFuture(pid *PID, message interface{}, timeout time.Duration) *Future {
@@ -165,7 +165,7 @@ RequestFuture (黑盒)
 
 ### 4.1 为什么 SenderMiddleware 会触发 EndpointWriter 崩溃
 
-`SenderMiddleware` 的问题不在于 middleware 本身，而在于 **protoactor-go 的 `RootContext` 同时被用户代码和框架内部代码使用**。
+`SenderMiddleware` 的问题不在于 middleware 本身，而在于 **Ergo 的 `RootContext` 同时被用户代码和框架内部代码使用**。
 
 **消息路径拆解：**
 
@@ -244,7 +244,7 @@ func (w *EndpointWriter) sendEnvelopes(ctx actor.Context) {
 
 这里的 `tmp` 是 mailbox 投递时 `[]interface{}` 中的原始元素，**不经过 `ctx.Message()` 的自动解包**。middleware 包装后，每个元素是 `*MessageEnvelope`，断言就失败了。
 
-**即使加 receiver middleware 也没用**——`sendEnvelopes` 的 `tmp.(*remoteDeliver)` 断言发生在 Receive 方法内部，是 Go 代码的直接类型断言，不经过 protoactor-go 的消息路由层。任何 middleware 都无法干预这段代码。
+**即使加 receiver middleware 也没用**——`sendEnvelopes` 的 `tmp.(*remoteDeliver)` 断言发生在 Receive 方法内部，是 Go 代码的直接类型断言，不经过 Ergo 的消息路由层。任何 middleware 都无法干预这段代码。
 
 **还有一个被忽视的根因：`ctx.Message()` 不处理 `[]interface{}` 里的 envelope。** 看 `actorContext.Message()` 的实现：
 
@@ -256,7 +256,7 @@ func (ctx *actorContext) Message() interface{} {
 
 `UnwrapEnvelopeMessage` 只检查**顶层**消息是否是 `*MessageEnvelope`。当 mailbox 投递的是 `[]interface{}{envelope1, envelope2, ...}` 时，顶层是 `[]interface{}`，不是 `*MessageEnvelope`，于是原样返回。切片内部的 envelope 不会被递归解包。
 
-如果 protoactor-go 在这一步做了递归处理——检测到 `[]interface{}` 后遍历每个元素解包——那么 EndpointWriter 即使有 middleware 也不会崩溃，因为 `sendEnvelopes` 拿到的 batch 中每个元素已经是 `*remoteDeliver` 了：
+如果 Ergo 在这一步做了递归处理——检测到 `[]interface{}` 后遍历每个元素解包——那么 EndpointWriter 即使有 middleware 也不会崩溃，因为 `sendEnvelopes` 拿到的 batch 中每个元素已经是 `*remoteDeliver` 了：
 
 ```
 现在：   ctx.Message() → []interface{}{MessageEnvelope{*remoteDeliver}, ...}
@@ -269,7 +269,7 @@ func (ctx *actorContext) Message() interface{} {
 
 **更深层的原因：框架设计边界模糊**
 
-`EndpointManager` 和 `EndpointWriter` 是 protoactor-go remote 模块的内部组件，但它们使用 `RootContext.Send`（全局 Root）来通信。当用户在 `RootContext` 上注册 `SenderMiddleware` 时，**无法区分"这是用户消息需要包装"和"这是框架内部消息不需要包装"**——所有经过 `RootContext` 的消息都会被包装。
+`EndpointManager` 和 `EndpointWriter` 是 Ergo remote 模块的内部组件，但它们使用 `RootContext.Send`（全局 Root）来通信。当用户在 `RootContext` 上注册 `SenderMiddleware` 时，**无法区分"这是用户消息需要包装"和"这是框架内部消息不需要包装"**——所有经过 `RootContext` 的消息都会被包装。
 
 移除 middleware 后：
 
@@ -281,7 +281,7 @@ Root.Send(endpoint.writer, rd)
   → sendEnvelopes tmp.(*remoteDeliver)         ← 断言成功 ✓
 ```
 
-**结论：SenderMiddleware 不适合在 Root 级别注册。** 如果需要在 actor 级别做 sender 拦截，protoactor-go 的 `actor.WithSenderMiddleware` 可以在 actor Props 上注册，粒度更细，不影响框架内部通信。但我们实测后发现也不需要——trace 注入收拢到 `send` 方法后更简洁。
+**结论：SenderMiddleware 不适合在 Root 级别注册。** 如果需要在 actor 级别做 sender 拦截，Ergo 的 `actor.WithSenderMiddleware` 可以在 actor Props 上注册，粒度更细，不影响框架内部通信。但我们实测后发现也不需要——trace 注入收拢到 `send` 方法后更简洁。
 
 ### 5. helper.go：薄透传
 

@@ -13,11 +13,7 @@ import (
 	"gserver/core/gxyregistery"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
-	"gserver/src/util"
 
-	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/remote"
-	"github.com/asynkron/protoactor-go/router"
 	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/errors/gerror"
 )
@@ -31,25 +27,35 @@ const (
 
 var errActorLocateRetryExhausted = errors.New("actor locate retry exhausted")
 
-// hashableActorActive wraps pb.ActorActive to implement router.Hasher
-// so the consistent-hash pool can route by actor id.
-type hashableActorActive struct {
-	*pb.ActorActive
-	hash string
+type actorActivationSpawner interface {
+	spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error)
+	confirmActivatorActor(kind, id string, pid PID) error
+	stopActivatorActor(pid PID) error
 }
 
-func (m *hashableActorActive) Hash() string { return m.hash }
+type ergoActivationSpawner struct{ manager *activatorManager }
 
-type localMsgRegisterPool struct {
-	unspanMessage
-	Kind   string
-	PoolID PID
+func (s ergoActivationSpawner) spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error) {
+	runtime, err := currentRuntime()
+	if err != nil {
+		return PID{}, err
+	}
+	spawner, ok := runtime.(interface {
+		Spawn(string, string, ActorProducer, ...any) (PID, error)
+	})
+	if !ok {
+		return PID{}, errors.New("actor runtime does not support activation spawn")
+	}
+	meta := s.manager.activatorMetas[kind]
+	if meta == nil || meta.Producer == nil {
+		return PID{}, errors.Newf("actor kind %s is not registered", kind)
+	}
+	return spawner.Spawn(kind, id, meta.Producer, id, owner)
 }
 
-type localMsgUnRegisterPool struct {
-	unspanMessage
-	Kind string
-}
+// Ergo waits for ProcessInit synchronously, so successful Spawn is the init confirmation.
+func (ergoActivationSpawner) confirmActivatorActor(string, string, PID) error { return nil }
+func (ergoActivationSpawner) stopActivatorActor(pid PID) error                { return StopActor(pid) }
 
 type localMsgActorTouchResult struct {
 	unspanMessage
@@ -59,98 +65,10 @@ type localMsgActorTouchResult struct {
 	Err   error
 }
 type activatorMeta struct {
-	Kind  string
-	Props *actor.Props
-	Pool  PID // consistent-hash pool PID (internal)
-	mgr   *ActorMgr
-}
-
-// activatorRouter is a thin proxy that receives pb.ActorActive from remote nodes
-// and forwards them as hashableActorActive to the local consistent-hash pool.
-type routerMeta struct {
-	Kind string
-	PID  PID
-}
-type activatorRouter struct {
-	*ActorBase
-	poolPIDs []routerMeta
-}
-
-func NewActivatorRouter() *activatorRouter {
-	r := &activatorRouter{}
-	ctx := gxylog.NewContext(context.Background(), "activator_router")
-	r.ActorBase = NewActorBase(ctx, r, "activator_router")
-	return r
-}
-
-func (r *activatorRouter) HandleMessage(ctx context.Context, msg any) error {
-	switch msg := msg.(type) {
-	case *pb.ActorActive:
-		sender := r.Actx.Sender()
-		wrapped := &hashableActorActive{
-			ActorActive: msg,
-			hash:        msg.Id,
-		}
-		poolPID := r.GetPool(msg.Kind)
-		if poolPID.IsZero() {
-			return errors.Newf("pool %s not registered", msg.Kind)
-		}
-		CallSync(ctx, poolPID, wrapped, sender)
-	case *localMsgRegisterPool:
-		r.RegisterPool(msg.Kind, msg.PoolID)
-	case *localMsgUnRegisterPool:
-		r.UnRegisterPool(msg.Kind)
-	}
-	return nil
-}
-
-func (r *activatorRouter) RegisterPool(kind string, poolPID any) {
-	r.poolPIDs = append(r.poolPIDs, struct {
-		Kind string
-		PID  PID
-	}{kind, normalizePID(poolPID)})
-}
-
-func (r *activatorRouter) UnRegisterPool(kind string) {
-	r.poolPIDs = util.ListDeleteFunc(r.poolPIDs, func(item routerMeta) bool {
-		return item.Kind == kind
-	})
-}
-
-func (r *activatorRouter) GetPool(kind string) PID {
-	for _, p := range r.poolPIDs {
-		if p.Kind == kind {
-			return p.PID
-		}
-	}
-	return PID{}
-}
-
-type actorActivationSpawner interface {
-	spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error)
-	confirmActivatorActor(kind, id string, pid PID) error
-	stopActivatorActor(pid PID) error
-}
-
-type legacyActivationSpawner struct {
-	manager *activatorManager
-}
-
-func (s legacyActivationSpawner) spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error) {
-	meta, ok := s.manager.activatorMetas[kind]
-	if !ok || meta.Props == nil {
-		return PID{}, errors.Newf("actor kind %s is not registered", kind)
-	}
-	return app.spawnNamedLegacy(meta.Props.Clone(), id, id, owner)
-}
-
-func (s legacyActivationSpawner) confirmActivatorActor(kind, id string, pid PID) error {
-	_, err := Call(context.Background(), pid, &actor.Touch{}, 10*time.Second)
-	return err
-}
-
-func (s legacyActivationSpawner) stopActivatorActor(pid PID) error {
-	return StopActor(pid)
+	Kind     string
+	Producer ActorProducer
+	mgr      *ActorMgr
+	control  PID
 }
 
 type pendingActivation struct {
@@ -305,7 +223,7 @@ func (a *actorActivator) unregisterActor(id string, pid PID) {
 
 func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 	switch msg := msg.(type) {
-	case *hashableActorActive:
+	case *pb.ActorActive:
 		// Claim 必须先于任何 SpawnNamed：Redis owner 是跨节点 single-writer
 		// 的裁决结果，本地 ActorMgr 只能用于确认当前节点是否已有实例。
 		owner, acquired, err := a.manager.locator.claim(ctx, a.kind, msg.Id)
@@ -333,7 +251,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 			_ = Respond(ctx, a.Actx, &pb.ActorLocateRetry{})
 			return nil
 		case activationReturnLocal:
-			_ = Respond(ctx, a.Actx, &remote.ActorPidResponse{Pid: protoFromPID(localPID)})
+			_ = Respond(ctx, a.Actx, &ActorPIDResponse{PID: localPID})
 			return nil
 		case activationReleaseAndRetry:
 			// 只有 owner 完全匹配时 Release 才能删除记录，避免误删新 owner。
@@ -420,7 +338,7 @@ func (a *actorActivator) HandleMessage(ctx context.Context, msg any) error {
 		// Touch 成功后才登记到 ActorMgr，随后把同一个 PID 返回给全部 waiters。
 		a.meta.mgr.Add(msg.ID, msg.PID)
 		for _, waiter := range pending.waiters {
-			_ = Send(ctx, waiter, &remote.ActorPidResponse{Pid: protoFromPID(msg.PID)})
+			_ = Send(ctx, waiter, &ActorPIDResponse{PID: msg.PID})
 		}
 		return nil
 
@@ -470,9 +388,6 @@ func getActorLocateNodeName(ctx context.Context, kind string, id string) (string
 }
 
 func activeActorLocator() (*actorLocator, error) {
-	if app != nil && app.activatorMgr != nil && app.activatorMgr.locator != nil {
-		return app.activatorMgr.locator, nil
-	}
 	client := gxyredis.Redis()
 	if client == nil {
 		return nil, errors.New("actor locator Redis client is not initialized")
@@ -485,7 +400,6 @@ type activatorManager struct {
 	nodeName         string
 	nodeInstanceName string
 	activatorMetas   map[string]*activatorMeta
-	routerPID        PID
 	ctx              context.Context
 	serviceLookup    actorServiceLookup
 	requestActorFunc func(ctx context.Context, node string, kind string, id string, allowSpawn bool) (PID, bool, error)
@@ -508,7 +422,7 @@ func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorMan
 		serviceLookup:    gxyservice.ServiceApp(),
 		locator:          newActorLocator(gxyredis.Redis(), nodeInstanceName, nodeInstanceName),
 	}
-	g.spawner = legacyActivationSpawner{manager: g}
+	g.spawner = ergoActivationSpawner{manager: g}
 	return g
 }
 
@@ -527,18 +441,6 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 		)
 	})
 
-	// Create router (external entry point for remote nodes)
-	routerPID, err := app.spawnNamedLegacy(
-		actor.PropsFromProducer(func() actor.Actor {
-			return legacyActorProducer(func() IActor { return NewActivatorRouter() }, app)()
-		}), g.getRouterName())
-	if err != nil {
-		g.stopLease()
-		g.stopLease = nil
-		_ = g.locator.releaseNodeLease(ctx)
-		return err
-	}
-	g.routerPID = routerPID
 	return nil
 }
 
@@ -548,44 +450,39 @@ func (g *activatorManager) OnModStop(ctx context.Context) error {
 		g.stopLease = nil
 	}
 	_ = g.locator.releaseNodeLease(ctx)
-	_ = StopActor(g.routerPID)
 	return nil
 }
 
-func (g *activatorManager) getPoolName(kind string) string {
-	return fmt.Sprintf("%s_%s", "ActivatorPool", kind)
-}
-
-func (g *activatorManager) getRouterName() string {
-	return "ActivatorRouter"
-}
+func (g *activatorManager) getActivatorName(kind string) string { return "Activator/" + kind }
 
 func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) error {
-	actorProps := actor.PropsFromProducer(func() actor.Actor {
-		return legacyActorProducer(prod, app)()
-	}, actor.WithSupervisor(newSupervisor()))
-	meta := &activatorMeta{
-		Kind:  kind,
-		Props: actorProps,
-	}
-
-	meta.mgr = NewActorMgr(fmt.Sprintf("%s_%s", "actorMgr", kind))
-	g.activatorMetas[kind] = meta
-
-	// Create consistent-hash pool (internal)
-	poolPID, err := app.spawnNamedLegacy(
-		router.NewConsistentHashPool(5, actor.WithProducer(func() actor.Actor {
-			return legacyActorProducer(func() IActor { return NewActorActivator(kind, g) }, app)()
-		})), g.getPoolName(kind))
+	runtime, err := currentRuntime()
 	if err != nil {
-		delete(g.activatorMetas, kind)
 		return err
 	}
-	_ = LocalSend(g.ctx, g.routerPID, &localMsgRegisterPool{
-		Kind:   kind,
-		PoolID: poolPID,
+	if err := runtime.RegisterActorKind(kind, prod); err != nil {
+		return err
+	}
+	meta := &activatorMeta{Kind: kind, Producer: prod, mgr: NewActorMgr(fmt.Sprintf("%s_%s", "actorMgr", kind))}
+	g.activatorMetas[kind] = meta
+	spawner, ok := runtime.(interface {
+		SpawnNamed(string, string, ActorProducer, ...any) (PID, error)
 	})
-	meta.Pool = poolPID
+	if !ok {
+		delete(g.activatorMetas, kind)
+		runtime.DeregisterActorKind(kind)
+		return errors.New("actor runtime does not support named activation")
+	}
+	meta.control, err = spawner.SpawnNamed("activator", g.getActivatorName(kind), func() IActor {
+		activator := NewActorActivator(kind, g)
+		activator.meta = meta
+		return activator
+	})
+	if err != nil {
+		delete(g.activatorMetas, kind)
+		runtime.DeregisterActorKind(kind)
+		return err
+	}
 	return nil
 }
 
@@ -608,22 +505,26 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 	if n := info.mgr.Count(); n > 0 {
 		gxylog.Warn(g.ctx, "actors still alive after drain", gxylog.Str("kind", kind), gxylog.Num("count", int64(n)))
 	}
+	if !info.control.IsZero() {
+		_ = StopActor(info.control)
+	}
 
-	_ = StopActor(info.Pool)
-	_ = LocalSend(g.ctx, g.routerPID, &localMsgUnRegisterPool{
-		Kind: kind,
-	})
 	delete(g.activatorMetas, kind)
 }
 
 func (g *activatorManager) requestActor(ctx context.Context, node string, kind string, id string, allowSpawn bool) (PID, bool, error) {
 	gxylog.Debug(ctx, "request actor", gxylog.Str("kind", kind), gxylog.Str("id", id), gxylog.Str("node", node), gxylog.Bool("allow_spawn", allowSpawn))
-	activator := PID{Runtime: "protoactor-v1", Node: node, ID: g.getRouterName()}
-	rsp, err := Call(ctx, activator, &pb.ActorActive{
-		Kind:       kind,
-		Id:         id,
-		AllowSpawn: allowSpawn,
-	}, actorLocateRequestTimeout)
+	runtime, runtimeErr := currentRuntime()
+	if runtimeErr != nil {
+		return PID{}, false, runtimeErr
+	}
+	caller, ok := runtime.(interface {
+		CallNamed(context.Context, string, string, any, time.Duration) (any, error)
+	})
+	if !ok {
+		return PID{}, false, errors.New("actor runtime does not support named calls")
+	}
+	rsp, err := caller.CallNamed(ctx, node, g.getActivatorName(kind), &pb.ActorActive{Kind: kind, Id: id, AllowSpawn: allowSpawn}, actorLocateRequestTimeout)
 	if err != nil {
 		return PID{}, false, err
 	}
@@ -632,11 +533,18 @@ func (g *activatorManager) requestActor(ctx context.Context, node string, kind s
 		return PID{}, true, nil
 	case *pb.ActorError:
 		return PID{}, false, gerror.New(rsp.Reason)
-	case *remote.ActorPidResponse:
-		return pidFromProto(rsp.Pid, nil), false, nil
+	case *ActorPIDResponse:
+		return rsp.PID, false, nil
 	default:
 		return PID{}, false, errors.Newf("unexpected actor activation response: %T", rsp)
 	}
+}
+
+func (g *activatorManager) ActivateActor(ctx context.Context, kind, id string, spawn bool) (PID, error) {
+	return g.getActor(ctx, kind, id, spawn)
+}
+func (g *activatorManager) GetActorOwner(ctx context.Context, kind, id string) (ActorOwner, error) {
+	return g.locator.locate(ctx, kind, id)
 }
 
 func (g *activatorManager) getActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {

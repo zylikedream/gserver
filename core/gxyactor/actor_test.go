@@ -5,13 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/remote"
-	"go.opentelemetry.io/otel/propagation"
-	"google.golang.org/protobuf/proto"
-
 	"gserver/core/gxyredis"
-	"gserver/protocol/pb"
 )
 
 // ========== ActorMgr ==========
@@ -257,31 +251,8 @@ func TestGetActorLocateNodeName(t *testing.T) {
 // ========== ActorError ==========
 
 func TestActorError(t *testing.T) {
-	err := ActorError("something failed")
-	if err == nil {
-		t.Fatal("expected non-nil")
-	}
-	if err.Reason != "something failed" {
-		t.Fatalf("expected 'something failed', got %s", err.Reason)
-	}
-}
-func TestActorLocateRetryIsProtoMessage(t *testing.T) {
-	wire, err := proto.Marshal(&pb.ActorLocateRetry{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := proto.Unmarshal(wire, &pb.ActorLocateRetry{}); err != nil {
-		t.Fatal(err)
-	}
-}
-
-// ========== hashableActorActive ==========
-
-func TestHashableActorActive_Hash(t *testing.T) {
-	inner := &pb.ActorActive{Kind: "role", Id: "player_42"}
-	h := &hashableActorActive{ActorActive: inner, hash: "player_42"}
-	if h.Hash() != "player_42" {
-		t.Fatalf("expected player_42, got %s", h.Hash())
+	if got := ActorError("something failed"); got.Reason != "something failed" {
+		t.Fatalf("reason = %q", got.Reason)
 	}
 }
 
@@ -327,78 +298,6 @@ func TestReadonlyHeaderCarrier_KeysEmpty(t *testing.T) {
 	}
 }
 
-// ========== messageEnvelopeCarrier ==========
-
-func TestMessageEnvelopeCarrier_GetWithHeader(t *testing.T) {
-	env := &actor.MessageEnvelope{}
-	env.SetHeader("k", "v")
-	c := messageEnvelopeCarrier{envelope: env}
-	if got := c.Get("k"); got != "v" {
-		t.Fatalf("expected v, got %s", got)
-	}
-}
-
-func TestMessageEnvelopeCarrier_GetNoHeader(t *testing.T) {
-	c := messageEnvelopeCarrier{envelope: &actor.MessageEnvelope{}}
-	if got := c.Get("k"); got != "" {
-		t.Fatalf("expected empty, got %s", got)
-	}
-}
-
-func TestMessageEnvelopeCarrier_GetNilEnvelope(t *testing.T) {
-	c := messageEnvelopeCarrier{}
-	if got := c.Get("k"); got != "" {
-		t.Fatalf("expected empty, got %s", got)
-	}
-}
-
-func TestMessageEnvelopeCarrier_Set(t *testing.T) {
-	env := &actor.MessageEnvelope{}
-	c := messageEnvelopeCarrier{envelope: env}
-	c.Set("k", "v")
-	if env.Header.Get("k") != "v" {
-		t.Fatal("expected header to be set")
-	}
-}
-
-func TestMessageEnvelopeCarrier_Keys(t *testing.T) {
-	env := &actor.MessageEnvelope{}
-	env.SetHeader("a", "1")
-	env.SetHeader("b", "2")
-	c := messageEnvelopeCarrier{envelope: env}
-	keys := c.Keys()
-	if len(keys) != 2 {
-		t.Fatalf("expected 2 keys, got %d", len(keys))
-	}
-}
-
-func TestMessageEnvelopeCarrier_KeysNilHeader(t *testing.T) {
-	c := messageEnvelopeCarrier{envelope: &actor.MessageEnvelope{}}
-	if keys := c.Keys(); keys != nil {
-		t.Fatalf("expected nil, got %v", keys)
-	}
-}
-
-// ========== injectTrace ==========
-
-func TestInjectTrace_NoSpan(t *testing.T) {
-	ctx := context.Background()
-	result := injectTrace(ctx, &pb.ReqGuildInfo{})
-	if result != nil {
-		t.Fatal("expected nil when no span in context")
-	}
-}
-
-func TestInjectTrace_WithEnvelope(t *testing.T) {
-	// Without a valid span, injectTrace returns nil even with envelope
-	ctx := context.Background()
-	env := &actor.MessageEnvelope{Message: "test"}
-	result := injectTrace(ctx, env)
-	if result != nil {
-		t.Fatal("expected nil when no span in context")
-	}
-}
-
 // ========== ContextDecorator ==========
 
 func TestContextDecorator_WrapsArgs(t *testing.T) {
@@ -413,79 +312,5 @@ func TestContextDecorator_WrapsArgs(t *testing.T) {
 	}
 	if len(actx.InitArgs) != 2 || actx.InitArgs[0] != "arg1" || actx.InitArgs[1] != 42 {
 		t.Fatalf("unexpected args: %v", actx.InitArgs)
-	}
-}
-
-// ========== messageEnvelopeCarrier implements propagation.TextMapCarrier ==========
-
-var _ propagation.TextMapCarrier = messageEnvelopeCarrier{}
-
-// ========== readonlyHeaderCarrier implements propagation.TextMapCarrier ==========
-
-var _ propagation.TextMapCarrier = readonlyHeaderCarrier{}
-
-// ========== activatorRouter pool management ==========
-
-func TestActivatorRouter_RegisterGetPool(t *testing.T) {
-	r := &activatorRouter{}
-	pid := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
-	r.RegisterPool("role", pid)
-	got := r.GetPool("role")
-	if !PidEqual(got, pid) {
-		t.Fatalf("expected pool pid, got %v", got)
-	}
-}
-
-func TestActivatorRouter_GetPoolNotFound(t *testing.T) {
-	r := &activatorRouter{}
-	if got := r.GetPool("missing"); !got.IsZero() {
-		t.Fatal("expected zero PID for unregistered kind")
-	}
-}
-
-func TestActivatorRouter_UnRegisterPool(t *testing.T) {
-	r := &activatorRouter{}
-	pid := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
-	r.RegisterPool("role", pid)
-	r.UnRegisterPool("role")
-	if got := r.GetPool("role"); !got.IsZero() {
-		t.Fatal("expected zero PID after unregister")
-	}
-}
-
-func TestActivatorRouter_MultipleKinds(t *testing.T) {
-	r := &activatorRouter{}
-	p1 := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
-	p2 := PID{Runtime: "test", Node: "n", ID: "pool2", Creation: "1"}
-	r.RegisterPool("role", p1)
-	r.RegisterPool("guild", p2)
-	if !PidEqual(r.GetPool("role"), p1) {
-		t.Fatal("expected role pool")
-	}
-	if !PidEqual(r.GetPool("guild"), p2) {
-		t.Fatal("expected guild pool")
-	}
-}
-
-func TestActivatorRouter_RegisterOverwrite(t *testing.T) {
-	r := &activatorRouter{}
-	p1 := PID{Runtime: "test", Node: "n", ID: "pool1", Creation: "1"}
-	p2 := PID{Runtime: "test", Node: "n", ID: "pool2", Creation: "1"}
-	r.RegisterPool("role", p1)
-	r.RegisterPool("role", p2)
-	// First match wins
-	got := r.GetPool("role")
-	if !PidEqual(got, p1) {
-		t.Fatal("expected first registered pool")
-	}
-}
-
-// ========== remote.ActorPidResponse ==========
-
-func TestActorPidResponse_Unwrap(t *testing.T) {
-	pid := actor.NewPID("host", "id")
-	rsp := &remote.ActorPidResponse{Pid: pid}
-	if !PidEqual(rsp.Pid, pid) {
-		t.Fatal("pid mismatch")
 	}
 }

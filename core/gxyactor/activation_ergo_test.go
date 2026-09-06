@@ -16,7 +16,7 @@ import (
 // termination cleanup, lease expiry, and Redis availability.
 
 // activationSpawner is the private seam the Activator uses to create actor
-// processes after a successful Claim. The legacy Protoactor bridge and the Ergo
+// processes after a successful Claim. The legacy legacy runtime bridge and the Ergo
 // adapter both implement it; tests use it to observe and fail the spawn step.
 type activationSpawner interface {
 	spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error)

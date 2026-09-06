@@ -172,7 +172,7 @@ func TestPIDConversionPreservesCreationAndRejectsWrongRuntime(t *testing.T) {
 	if normalized != (gxyactor.PID{Runtime: RuntimeID, Node: "node@localhost", ID: "role/7", Creation: "42"}) {
 		t.Fatalf("normalized PID = %+v", normalized)
 	}
-	if _, err := adapter.toErgoPID(gxyactor.PID{Runtime: "protoactor-v1", Node: "node@localhost", ID: "role/7", Creation: "42"}); !errors.Is(err, ErrUnknownPID) {
+	if _, err := adapter.toErgoPID(gxyactor.PID{Runtime: "other-runtime", Node: "node@localhost", ID: "role/7", Creation: "42"}); !errors.Is(err, ErrUnknownPID) {
 		t.Fatalf("wrong runtime error = %v", err)
 	}
 	if _, err := adapter.toErgoPID(gxyactor.PID{Runtime: RuntimeID, Node: "node@localhost", ID: "role/7", Creation: "41"}); !errors.Is(err, ErrUnknownPID) {

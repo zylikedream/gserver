@@ -148,7 +148,7 @@ systemctl --user stop gserver@role          # 腾出 25011/9091 端口
 # 结束:terminate 会话 → systemctl --user start gserver@role 恢复托管
 ```
 
-判定:断点命中,堆栈完整(protoactor mailbox → gxyactor.Receive → AutoHandleMsg → HandleClientMsg),`r.RoleID` 与玩家对应。玩家业务路径入口:
+判定:断点命中,堆栈完整(Ergo mailbox → gxyactor.Receive → AutoHandleMsg → HandleClientMsg),`r.RoleID` 与玩家对应。玩家业务路径入口:
 - `RoleMain.HandleClientMsg`(role_main.go:250)—— 所有玩家客户端消息
 - `Session.handleHandshake`(gateway session.go)—— 登录握手
 

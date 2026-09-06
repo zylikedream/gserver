@@ -76,7 +76,7 @@ msg  ts  level  caller  stacktrace  trace_id  ctx_id
 
 ## 第三方库日志
 
-- protoactor / gnet 已通过 `gxylog.LogAdapter` 自动接入,进同一个 JSON 文件与 Loki(阈值 error)
+- Ergo / gnet 已通过 `gxylog.LogAdapter` 自动接入,进同一个 JSON 文件与 Loki(阈值 error)
 - **不要**直接使用 goframe `glog`(默认 logger 已静音;http 访问日志例外,走独立 glog 到 stdout)
 
 ## 反模式

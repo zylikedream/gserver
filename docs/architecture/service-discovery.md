@@ -87,7 +87,7 @@ type Watcher struct {
 1. Node 启动 → 加载配置 → `registerApps()`
 2. Actor App 初始化（启动 Remote，获得动态地址）
 3. Service App 启动 → 使用 `NodeInstanceName` 注册到 Consul
-4. 地址格式：`{host}:{dynamic_port}`（来自 protoactor-go Remote）
+4. 地址格式：`{host}:{dynamic_port}`（来自 Ergo Remote）
 
 ### 服务注销
 
