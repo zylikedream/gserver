@@ -231,7 +231,13 @@ func (a *actorActivator) requestLocal(ctx context.Context, id string, allowSpawn
 	}
 	localPID := a.meta.mgr.Get(id)
 	if !allowSpawn && localPID.IsZero() {
-		return PID{}, gerror.Newf("actor kind:%s, id:%s not found", a.kind, id)
+		owner, err := a.manager.locator.locate(ctx, a.kind, id)
+		if err != nil {
+			return PID{}, err
+		}
+		if owner.NodeID == "" {
+			return PID{}, gerror.Newf("actor kind:%s, id:%s not found", a.kind, id)
+		}
 	}
 	owner, acquired, err := a.manager.locator.claim(ctx, a.kind, id)
 	if err != nil {

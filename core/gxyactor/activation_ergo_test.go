@@ -319,6 +319,9 @@ func TestActivationRedisErrorFailsClosed(t *testing.T) {
 // exists and the claim would otherwise be acquireable.
 func TestActivationAllowSpawnFalseNeverSpawns(t *testing.T) {
 	activator, _, spawner, _, _ := newActivationTestHarness(t)
+	if _, acquired, err := activator.manager.locator.claim(context.Background(), "role", "player-1"); err != nil || !acquired {
+		t.Fatalf("seed locate-only owner acquired=%v err=%v", acquired, err)
+	}
 
 	if _, err := requestActivation(t, activator, "player-1", false); err == nil {
 		t.Fatal("locate-only activation returned success without an actor")
@@ -326,8 +329,6 @@ func TestActivationAllowSpawnFalseNeverSpawns(t *testing.T) {
 	if got := len(spawner.spawnedOnce()); got != 0 {
 		t.Fatalf("locate-only activation spawned = %d, want 0", got)
 	}
-	// The transient claim taken by the locate-only request must be released,
-	// leaving no residual owner entry.
 	if owner, err := activator.manager.locator.locate(context.Background(), "role", "player-1"); err != nil {
 		t.Fatal(err)
 	} else if owner.NodeID != "" {

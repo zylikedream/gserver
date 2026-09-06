@@ -33,3 +33,17 @@ The changed Go files were formatted with `gofmt`. No project-wide suite or linte
 - The default production spawner remains the private Protoactor bridge. Task 8 performs the clean dependency cutover after all business consumers migrate.
 - Redis lease, Claim/Release, epoch, and PostgreSQL `role_actor_fence` remain authoritative. Ergo PID identity is not ownership metadata.
 - Pending activation confirmation remains mailbox-serialized in the existing activator; the new spawner seam supplies the runtime-specific confirmation operation.
+
+## Review correction
+
+The locate-only regression was tightened after review: it now seeds an existing owner before calling `allowSpawn=false`, exercising Claim/release without spawning. A no-owner locate-only request still returns not-found before Claim, preserving fail-closed behavior and avoiding an unnecessary transient owner.
+
+Final rerun:
+
+```text
+go test ./core/gxyactor -run '(Activation|Locator|Fence|Ownership)' -count=1
+ok   gserver/core/gxyactor 0.677s
+
+go test ./src/apps/role/internal/logic -run '(Activation|Locator|Fence|Ownership)' -count=1
+ok   gserver/src/apps/role/internal/logic 0.184s
+```
