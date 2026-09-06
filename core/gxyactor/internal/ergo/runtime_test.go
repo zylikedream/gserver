@@ -3,16 +3,16 @@ package ergo
 import (
 	"context"
 	"encoding/binary"
-	"errors"
-	"strconv"
-	"testing"
-	"time"
 	"ergo.services/ergo"
 	"ergo.services/ergo/gen"
+	"errors"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 	"gserver/core/gxyactor"
 	"gserver/protocol/pb"
+	"strconv"
+	"testing"
+	"time"
 )
 
 func TestTraceHopContextPreservesErgoIdentity(t *testing.T) {
@@ -107,12 +107,6 @@ func traceID(tracing gen.Tracing) trace.TraceID {
 	var id trace.TraceID
 	binary.BigEndian.PutUint64(id[:8], tracing.ID[0])
 	binary.BigEndian.PutUint64(id[8:], tracing.ID[1])
-	return id
-}
-
-func spanID(tracing gen.Tracing) trace.SpanID {
-	var id trace.SpanID
-	binary.BigEndian.PutUint64(id[:], tracing.SpanID)
 	return id
 }
 

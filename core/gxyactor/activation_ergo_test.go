@@ -15,15 +15,6 @@ import (
 // boundaries the Activator must defend: Claim, spawn, init confirmation,
 // termination cleanup, lease expiry, and Redis availability.
 
-// activationSpawner is the private seam the Activator uses to create actor
-// processes after a successful Claim. The legacy legacy runtime bridge and the Ergo
-// adapter both implement it; tests use it to observe and fail the spawn step.
-type activationSpawner interface {
-	spawnActivatorActor(kind, id string, owner ActorOwner) (PID, error)
-	confirmActivatorActor(kind, id string, pid PID) error
-	stopActivatorActor(pid PID) error
-}
-
 // fakeActivationSpawner records spawn requests and can be programmed to fail
 // spawn or confirmation for specific actor ids.
 type fakeActivationSpawner struct {

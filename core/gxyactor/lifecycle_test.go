@@ -3,19 +3,20 @@ package gxyactor
 import (
 	"context"
 	"errors"
-	"testing"
-	"time"
 	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
+	"testing"
+	"time"
 )
+
 type lifecycleProbeActor struct {
 	*ActorBase
-	events      []string
+	events       []string
 	terminateErr error
-	initErr     error
-	delayErr    error
-	handlerErr  error
-	panicHandle bool
+	initErr      error
+	delayErr     error
+	handlerErr   error
+	panicHandle  bool
 }
 
 func newLifecycleProbe() *lifecycleProbeActor {
@@ -43,7 +44,7 @@ func (p *lifecycleProbeActor) Terminate(_ context.Context, err error) {
 	p.events = append(p.events, "terminate")
 	p.terminateErr = err
 }
-func (p *lifecycleProbeActor) Timer() *ActorTimer { return p.ActorBase.timer }
+func (p *lifecycleProbeActor) Timer() *ActorTimer { return p.timer }
 
 type lifecycleContext struct {
 	message any
@@ -51,14 +52,14 @@ type lifecycleContext struct {
 	stops   []PID
 }
 
-func (c *lifecycleContext) Sender() PID                       { return PID{} }
+func (c *lifecycleContext) Sender() PID                      { return PID{} }
 func (c *lifecycleContext) Message() any                     { return c.message }
 func (c *lifecycleContext) MessageHeader() map[string]string { return nil }
 func (c *lifecycleContext) Self() PID                        { return c.self }
 func (c *lifecycleContext) Stop(pid PID)                     { c.stops = append(c.stops, pid) }
-func (*lifecycleContext) Watch(PID)                           {}
-func (*lifecycleContext) Unwatch(PID)                         {}
-func (*lifecycleContext) Children() []PID                     { return nil }
+func (*lifecycleContext) Watch(PID)                          {}
+func (*lifecycleContext) Unwatch(PID)                        {}
+func (*lifecycleContext) Children() []PID                    { return nil }
 
 func TestLifecycleInitDelayInitMessageTerminateOrdering(t *testing.T) {
 	probe := newLifecycleProbe()
@@ -182,7 +183,7 @@ type lifecycleCronState struct {
 	updated time.Time
 }
 
-func (s *lifecycleCronState) GetCronTm() time.Time { return time.Time{} }
+func (s *lifecycleCronState) GetCronTm() time.Time   { return time.Time{} }
 func (s *lifecycleCronState) SetCronTm(tm time.Time) { s.updated = tm }
 
 func TestTimerCronStateChangesOnlyWhenMailboxActivates(t *testing.T) {

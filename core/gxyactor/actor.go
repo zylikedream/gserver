@@ -53,7 +53,7 @@ type ActorBase struct {
 	initErr     error
 	ready       bool
 	active      bool
-	termOnce   sync.Once
+	termOnce    sync.Once
 	receiveErr  error
 }
 
@@ -125,7 +125,7 @@ func NewActorBase(ctx context.Context, actor IActor, actorKind string) *ActorBas
 	return &ActorBase{ctx: ctx, actor: actor, actorKind: actorKind, msgHandler: gxyutil.NewMsgHandler()}
 }
 
-func (a *ActorBase) Span() trace.Span { return a.span }
+func (a *ActorBase) Span() trace.Span  { return a.span }
 func (a *ActorBase) ActorKind() string { return a.actorKind }
 
 // Receive is the sole adapter entrypoint. Runtime-specific contexts never
@@ -252,10 +252,6 @@ func (a *ActorBase) doReceive(ctx ActorContext) error {
 	return nil
 }
 
-func (a *ActorBase) doReceiveWithStarted(ctx ActorContext, msg ActorStartedMessage) error {
-	return a.initialize(ctx, msg)
-}
-
 func (a *ActorBase) terminate(err error) {
 	a.termOnce.Do(func() {
 		if err == nil {
@@ -275,7 +271,6 @@ func (a *ActorBase) terminate(err error) {
 		}
 	})
 }
-
 
 func (a *ActorBase) initSpan(msg any) trace.Span {
 	headerMap := map[string]string{}
@@ -352,19 +347,28 @@ func (a *ActorBase) Stop(err error) {
 	}
 }
 
-func (a *ActorBase) Timer() *ActorTimer { return a.timer }
-func (a *ActorBase) Self() PID { return a.self }
+func (a *ActorBase) Timer() *ActorTimer                { return a.timer }
+func (a *ActorBase) Self() PID                         { return a.self }
 func (a *ActorBase) Init(context.Context, []any) error { return nil }
-func (a *ActorBase) DelayInit(context.Context) error { return nil }
-func (a *ActorBase) Terminate(context.Context, error) {}
+func (a *ActorBase) DelayInit(context.Context) error   { return nil }
+func (a *ActorBase) Terminate(context.Context, error)  {}
 func (a *ActorBase) Sender() PID {
-	if a.Actx == nil { return PID{} }
+	if a.Actx == nil {
+		return PID{}
+	}
 	return a.Actx.Sender()
 }
 func (a *ActorBase) Context() context.Context { return a.ctx }
-func (a *ActorBase) SetLogValue(key string, val any) *ActorBase { a.ctx = gxylog.WithValue(a.ctx, key, val); return a }
-func (a *ActorBase) AddMsgHandler(handler any, prefix ...string) []*gxyutil.MethodMeta { return a.msgHandler.AddHandler(handler, prefix...) }
-func (a *ActorBase) CallHandlerMsg(ctx context.Context, msg any) (any, error) { return a.msgHandler.CallWithMsg(ctx, msg) }
+func (a *ActorBase) SetLogValue(key string, val any) *ActorBase {
+	a.ctx = gxylog.WithValue(a.ctx, key, val)
+	return a
+}
+func (a *ActorBase) AddMsgHandler(handler any, prefix ...string) []*gxyutil.MethodMeta {
+	return a.msgHandler.AddHandler(handler, prefix...)
+}
+func (a *ActorBase) CallHandlerMsg(ctx context.Context, msg any) (any, error) {
+	return a.msgHandler.CallWithMsg(ctx, msg)
+}
 
 func ContextDecorator(args ...any) ActorContextDecorator {
 	return func(ctx ActorContext) ActorContext {
@@ -372,13 +376,18 @@ func ContextDecorator(args ...any) ActorContextDecorator {
 	}
 }
 
-type decoratedActorContext struct { ActorContext; InitArgs []any }
+type decoratedActorContext struct {
+	ActorContext
+	InitArgs []any
+}
 
-type readonlyHeaderCarrier struct { mp map[string]string }
+type readonlyHeaderCarrier struct{ mp map[string]string }
+
 func (c readonlyHeaderCarrier) Set(key, value string) { c.mp[key] = value }
 func (c readonlyHeaderCarrier) Get(key string) string { return c.mp[key] }
-func (c readonlyHeaderCarrier) Keys() []string { return gutil.Keys(c.mp) }
+func (c readonlyHeaderCarrier) Keys() []string        { return gutil.Keys(c.mp) }
 
-type IUnspanMessage interface { Unspan() }
+type IUnspanMessage interface{ Unspan() }
 type unspanMessage struct{}
+
 func (*unspanMessage) Unspan() {}

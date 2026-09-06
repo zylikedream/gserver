@@ -460,7 +460,13 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 	if err != nil {
 		return err
 	}
-	if err := runtime.RegisterActorKind(kind, prod); err != nil {
+	register := runtime.RegisterActorKind
+	if direct, ok := runtime.(interface {
+		RegisterActorKindDirect(string, ActorProducer) error
+	}); ok {
+		register = direct.RegisterActorKindDirect
+	}
+	if err := register(kind, prod); err != nil {
 		return err
 	}
 	meta := &activatorMeta{Kind: kind, Producer: prod, mgr: NewActorMgr(fmt.Sprintf("%s_%s", "actorMgr", kind))}
