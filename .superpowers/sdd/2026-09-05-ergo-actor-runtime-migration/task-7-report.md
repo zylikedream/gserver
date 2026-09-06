@@ -62,3 +62,20 @@ result: No matches found
 - The legacy `CallSync` helper remains private to the legacy activation/runtime internals; no Task 7 business caller uses it. Session request delivery uses neutral `Send` and intentionally continues to ignore transport errors as before.
 - Ownership, Claim/Release, epoch checks, PostgreSQL role fencing, mailbox serialization, timers, dirty tracking, and periodic save logic were not weakened or moved. Existing focused tests cover login rejection, termination cleanup, duplicate-login behavior, and fence-sensitive saves.
 - Protoactor module removal and production bootstrap/configuration cleanup remain Task 8 work.
+
+## Committed-tree rerun
+
+After commit `dd85127`, the required package command was rerun:
+
+```text
+go test ./src/apps/gateway ./src/apps/guild ./src/apps/role ./src/lib/... -count=1
+?    gserver/src/apps/gateway [no test files]
+?    gserver/src/apps/guild [no test files]
+ok   gserver/src/apps/role 0.603s
+?    gserver/src/lib [no test files]
+ok   gserver/src/lib/gatetoken 0.579s
+?    gserver/src/lib/guildlib [no test files]
+ok   gserver/src/lib/rolelib 0.594s
+```
+
+The prohibited-symbol grep was rerun against the committed production trees and returned `No matches found`; the worktree was clean after verification.
