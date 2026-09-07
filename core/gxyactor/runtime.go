@@ -66,6 +66,7 @@ type Runtime interface {
 	Send(context.Context, PID, any) error
 	LocalSend(context.Context, PID, any) error
 	Call(context.Context, PID, any, time.Duration) (any, error)
+	CallNamed(context.Context, string, string, any, time.Duration) (any, error)
 	Respond(context.Context, Request, any, error) error
 	Stop(PID) error
 }

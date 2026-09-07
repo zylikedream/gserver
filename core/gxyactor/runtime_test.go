@@ -52,6 +52,20 @@ func TestRuntimeExposesActorCreationContract(t *testing.T) {
 		t.Fatalf("spawned PID = %#v, want ID spawned", pid)
 	}
 }
+func TestRuntimeExposesNamedCallContract(t *testing.T) {
+	runtime := &testRuntime{}
+	response, err := callNamedThroughRuntime(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response != "called" {
+		t.Fatalf("named call response = %#v, want called", response)
+	}
+}
+
+func callNamedThroughRuntime(runtime Runtime) (any, error) {
+	return runtime.CallNamed(context.Background(), "node-a", "Activator/role", "activate", time.Second)
+}
 
 func spawnThroughRuntime(runtime Runtime) (PID, error) {
 	return runtime.Spawn("test", "id", "init")
@@ -65,6 +79,9 @@ type testRuntime struct {
 
 func (r *testRuntime) Spawn(string, string, ...any) (PID, error) {
 	return PID{Runtime: "test", Node: "node-a", ID: "spawned", Creation: "1"}, nil
+}
+func (r *testRuntime) CallNamed(context.Context, string, string, any, time.Duration) (any, error) {
+	return "called", nil
 }
 func (r *testRuntime) SpawnNamed(string, string, ActorProducer, ...any) (PID, error) {
 	return PID{Runtime: "test", Node: "node-a", ID: "named", Creation: "1"}, nil

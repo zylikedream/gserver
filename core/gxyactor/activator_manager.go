@@ -510,13 +510,7 @@ func (g *activatorManager) requestActor(ctx context.Context, node string, kind s
 	if runtimeErr != nil {
 		return PID{}, false, runtimeErr
 	}
-	caller, ok := runtime.(interface {
-		CallNamed(context.Context, string, string, any, time.Duration) (any, error)
-	})
-	if !ok {
-		return PID{}, false, errors.New("actor runtime does not support named calls")
-	}
-	rsp, err := caller.CallNamed(ctx, node, g.getActivatorName(kind), &pb.ActorActive{Kind: kind, Id: id, AllowSpawn: allowSpawn}, actorLocateRequestTimeout)
+	rsp, err := runtime.CallNamed(ctx, node, g.getActivatorName(kind), &pb.ActorActive{Kind: kind, Id: id, AllowSpawn: allowSpawn}, actorLocateRequestTimeout)
 	if err != nil {
 		return PID{}, false, err
 	}
