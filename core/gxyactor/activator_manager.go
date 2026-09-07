@@ -40,17 +40,11 @@ func (s ergoActivationSpawner) spawnActivatorActor(kind, id string, owner ActorO
 	if err != nil {
 		return PID{}, err
 	}
-	spawner, ok := runtime.(interface {
-		Spawn(string, string, ActorProducer, ...any) (PID, error)
-	})
-	if !ok {
-		return PID{}, errors.New("actor runtime does not support activation spawn")
-	}
 	meta := s.manager.activatorMetas[kind]
 	if meta == nil || meta.Producer == nil {
 		return PID{}, errors.Newf("actor kind %s is not registered", kind)
 	}
-	return spawner.Spawn(kind, id, meta.Producer, id, owner)
+	return runtime.Spawn(kind, id, id, owner)
 }
 
 // Ergo waits for ProcessInit synchronously, so successful Spawn is the init confirmation.
@@ -471,15 +465,7 @@ func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) er
 	}
 	meta := &activatorMeta{Kind: kind, Producer: prod, mgr: NewActorMgr(fmt.Sprintf("%s_%s", "actorMgr", kind))}
 	g.activatorMetas[kind] = meta
-	spawner, ok := runtime.(interface {
-		SpawnNamed(string, string, ActorProducer, ...any) (PID, error)
-	})
-	if !ok {
-		delete(g.activatorMetas, kind)
-		runtime.DeregisterActorKind(kind)
-		return errors.New("actor runtime does not support named activation")
-	}
-	meta.control, err = spawner.SpawnNamed("activator", g.getActivatorName(kind), func() IActor {
+	meta.control, err = runtime.SpawnNamed("activator", g.getActivatorName(kind), func() IActor {
 		activator := NewActorActivator(kind, g)
 		activator.meta = meta
 		return activator

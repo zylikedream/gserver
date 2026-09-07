@@ -58,6 +58,8 @@ type ActorContext interface {
 type Runtime interface {
 	RegisterActorKind(string, ActorProducer) error
 	DeregisterActorKind(string)
+	Spawn(string, string, ...any) (PID, error)
+	SpawnNamed(string, string, ActorProducer, ...any) (PID, error)
 	ActivateActor(context.Context, string, string, bool) (PID, error)
 	GetLocalActor(string, string) PID
 	GetLocalActorAll(string) []PID

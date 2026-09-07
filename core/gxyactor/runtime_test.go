@@ -42,6 +42,20 @@ func TestRuntimeNeutralHelpersAcceptOpaqueMessages(t *testing.T) {
 		t.Fatalf("sent %#v, want %#v", runtime.sent, message)
 	}
 }
+func TestRuntimeExposesActorCreationContract(t *testing.T) {
+	runtime := &testRuntime{}
+	pid, err := spawnThroughRuntime(runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pid.ID != "spawned" {
+		t.Fatalf("spawned PID = %#v, want ID spawned", pid)
+	}
+}
+
+func spawnThroughRuntime(runtime Runtime) (PID, error) {
+	return runtime.Spawn("test", "id", "init")
+}
 
 type testRuntime struct {
 	sent       any
@@ -49,6 +63,12 @@ type testRuntime struct {
 	deregister string
 }
 
+func (r *testRuntime) Spawn(string, string, ...any) (PID, error) {
+	return PID{Runtime: "test", Node: "node-a", ID: "spawned", Creation: "1"}, nil
+}
+func (r *testRuntime) SpawnNamed(string, string, ActorProducer, ...any) (PID, error) {
+	return PID{Runtime: "test", Node: "node-a", ID: "named", Creation: "1"}, nil
+}
 func (r *testRuntime) RegisterActorKind(string, ActorProducer) error { return nil }
 func (r *testRuntime) DeregisterActorKind(kind string)               { r.deregister = kind }
 func (r *testRuntime) ActivateActor(context.Context, string, string, bool) (PID, error) {
