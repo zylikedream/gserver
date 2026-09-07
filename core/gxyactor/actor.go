@@ -38,6 +38,8 @@ type IActor interface {
 
 type ActorContextDecorator func(ActorContext) ActorContext
 
+// ActorBase state is confined to the runtime process callback goroutine.
+// Adapters must query lifecycle state on that same callback path.
 type ActorBase struct {
 	timer      *ActorTimer
 	self       PID
@@ -49,17 +51,14 @@ type ActorBase struct {
 	actorKind  string
 	span       trace.Span
 
-	lifecycleMu sync.Mutex
-	initErr     error
-	ready       bool
-	active      bool
-	termOnce    sync.Once
-	receiveErr  error
+	initErr    error
+	ready      bool
+	active     bool
+	termOnce   sync.Once
+	receiveErr error
 }
 
 func (a *ActorBase) LifecycleError() error {
-	a.lifecycleMu.Lock()
-	defer a.lifecycleMu.Unlock()
 	if a.initErr != nil {
 		return a.initErr
 	}
@@ -67,9 +66,7 @@ func (a *ActorBase) LifecycleError() error {
 }
 
 func (a *ActorBase) setReceiveError(err error) {
-	a.lifecycleMu.Lock()
 	a.receiveErr = err
-	a.lifecycleMu.Unlock()
 }
 
 func (a *ActorBase) callbackContext(actx ActorContext) context.Context {
@@ -156,33 +153,24 @@ func (a *ActorBase) logError(message string, err error) {
 
 func (a *ActorBase) initialize(ctx ActorContext, msg ActorStartedMessage) error {
 	a.self = msg.Self
-	a.lifecycleMu.Lock()
 	if a.active || a.ready || a.initErr != nil {
-		a.lifecycleMu.Unlock()
 		return nil
 	}
 	a.active = true
-	a.lifecycleMu.Unlock()
 	gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Inc()
 	a.timer = NewActorTimer(a.self)
 	if err := a.actor.Init(a.ctx, msg.InitArgs); err != nil {
 		err = gerror.Wrap(err, "init actor error")
-		a.lifecycleMu.Lock()
 		a.initErr = err
-		a.lifecycleMu.Unlock()
 		return err
 	}
 	a.msgHandler.AddHandler(a.actor)
 	if err := a.actor.DelayInit(a.ctx); err != nil {
 		err = gerror.Wrap(err, "delay init actor error")
-		a.lifecycleMu.Lock()
 		a.initErr = err
-		a.lifecycleMu.Unlock()
 		return err
 	}
-	a.lifecycleMu.Lock()
 	a.ready = true
-	a.lifecycleMu.Unlock()
 	return nil
 }
 
@@ -199,10 +187,7 @@ func (a *ActorBase) doReceive(ctx ActorContext) error {
 		// complete initialization in ProcessInit before mailbox delivery.
 		return nil
 	case ActorTimerMsg:
-		a.lifecycleMu.Lock()
-		ready := a.ready
-		a.lifecycleMu.Unlock()
-		if !ready {
+		if !a.ready {
 			return gerror.New("actor is not ready")
 		}
 		if a.timer == nil {
@@ -233,10 +218,7 @@ func (a *ActorBase) doReceive(ctx ActorContext) error {
 	case IUnspanMessage:
 		return a.handleMessage(msg)
 	default:
-		a.lifecycleMu.Lock()
-		ready := a.ready
-		a.lifecycleMu.Unlock()
-		if !ready {
+		if !a.ready {
 			return gerror.New("actor is not ready")
 		}
 		span := a.initSpan(msg)
@@ -261,11 +243,9 @@ func (a *ActorBase) terminate(err error) {
 			a.timer.Stop(a.ctx)
 		}
 		a.actor.Terminate(a.ctx, err)
-		a.lifecycleMu.Lock()
 		active := a.active
 		a.active = false
 		a.ready = false
-		a.lifecycleMu.Unlock()
 		if active {
 			gxymetrics.ActorActiveCount.WithLabelValues(a.ActorKind()).Dec()
 		}
