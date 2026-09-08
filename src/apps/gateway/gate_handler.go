@@ -49,7 +49,7 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 	sessPid, ok := ep.GetData().(gxyactor.PID)
-	if sessPid != nil && ok {
+	if ok && !sessPid.IsZero() {
 		reason := "noraml"
 		if err != nil {
 			reason = err.Error()

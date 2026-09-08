@@ -7,7 +7,7 @@
 
 ## 根因
 
-Protoactor-go 的 **Spawn 与 Init 分离** 的设计导致：
+Ergo 的 **Spawn 与 Init 分离** 的设计导致：
 
 ```
 spawnActor (同步)                       actor goroutine (异步)

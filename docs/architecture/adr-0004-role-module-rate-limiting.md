@@ -57,7 +57,7 @@ func (b *Bucket) Allow() bool
 
 ### 自动识别 owning module
 
-`gxyutil.MsgHandler.AddHandler` 返回本次注册的 `MethodMeta`;`gxyactor.ActorBase.AddMsgHandler` 透传该返回值。已有调用者可以忽略返回值,其分发行为不变。
+`gxyutil.MsgHandler.AddHandler` 返回本次注册的 `MethodMeta`;`ActorContext.AddMsgHandler` 透传该返回值。已有调用者可以忽略返回值,其分发行为不变。
 
 `RoleMain.initMsgHandler` 注册每个真实业务模块时,用返回的消息元数据建立:
 

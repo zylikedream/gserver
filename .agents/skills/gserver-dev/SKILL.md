@@ -5,7 +5,7 @@ description: GServer 项目开发知识库——架构、环境、协议、构�
 
 # GServer 开发知识库
 
-分布式游戏服务器(protoactor-go Actor 模型 + GoFrame v2)。源码:`/home/zyr/workspace/gserver_github`。
+分布式游戏服务器(Ergo Actor 模型 + GoFrame v2)。源码:`/home/zyr/workspace/gserver_github`。
 
 ## 架构
 

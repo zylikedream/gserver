@@ -10,12 +10,11 @@ import (
 	"gserver/src/apps/gateway/internal/logic"
 	"gserver/src/lib/gatetoken"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
+// sessionSupervisor 会话管理器。
 type gateApp struct {
 	gxyapp.App
 }
@@ -66,7 +65,7 @@ func (s *gateApp) OnModStop(ctx context.Context) error {
 }
 
 func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
-	return gxyactor.SpawnFunc(func() actor.Actor {
+	return gxyactor.SpawnFunc(func() gxyactor.IActor {
 		return logic.NewSession(ep)
 	})
 }

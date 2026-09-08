@@ -15,8 +15,6 @@ import (
 	"gserver/protocol/pb"
 	"gserver/src/lib/rolelib"
 
-	"github.com/asynkron/protoactor-go/actor"
-
 	"gorm.io/gorm"
 )
 
@@ -59,14 +57,13 @@ func (rb *ringBuffer) Len() int {
 }
 
 type channelMember struct {
-	Pid      *actor.PID
+	Pid      gxyactor.PID
 	RoleID   int64
 	JoinTime time.Time
 }
 
 type ChannelActor struct {
 	gxymodule.ModuleBase
-	*gxyactor.ActorBase
 	ChannelType  int32
 	ChannelID    int64
 	channel      IChannel
@@ -77,16 +74,13 @@ type ChannelActor struct {
 }
 
 func NewChannelActor() *ChannelActor {
-	ctx := gxylog.NewContext(context.Background(), "channel")
-	a := &ChannelActor{
+	return &ChannelActor{
 		members: make(map[int64]*channelMember),
 		db:      gxypgx.DB(),
 	}
-	a.ActorBase = gxyactor.NewActorBase(ctx, a, "channel")
-	return a
 }
 
-func (a *ChannelActor) Init(ctx context.Context, args []any) error {
+func (a *ChannelActor) Init(ctx gxyactor.ActorContext, args []any) error {
 	// 从 actor name（"channelType_channelID"）解析频道类型和 ID
 	if len(args) < 1 {
 		return errors.New("channel actor init: need channelType_channelID]")
@@ -106,9 +100,9 @@ func (a *ChannelActor) Init(ctx context.Context, args []any) error {
 	return nil
 }
 
-func (a *ChannelActor) DelayInit(ctx context.Context) error {
+func (a *ChannelActor) DelayInit(ctx gxyactor.ActorContext) error {
 	if a.channel.SaveInterval() > 0 {
-		a.Timer().AddTick(ctx, &gxytimer.Tick{
+		ctx.Timer().AddTick(ctx, &gxytimer.Tick{
 			Name:     "channel_save",
 			Interval: a.channel.SaveInterval(),
 		}, a.TickSave)
@@ -116,37 +110,40 @@ func (a *ChannelActor) DelayInit(ctx context.Context) error {
 	return nil
 }
 
-func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
+func (a *ChannelActor) HandleMessage(ctx gxyactor.ActorContext, msg any) error {
 	switch m := msg.(type) {
 	case *pb.ChannelRegisterMsg:
-		pid := &actor.PID{
-			Address: m.Pid.Address,
-			Id:      m.Pid.Id,
+		pid := gxyactor.PID{}
+		if m.Pid != nil {
+			pid = gxyactor.PID{
+				Node: m.Pid.Address,
+				ID:   m.Pid.Id,
+			}
 		}
 		a.members[m.RoleId] = &channelMember{
 			Pid:      pid,
 			RoleID:   m.RoleId,
 			JoinTime: time.Now(),
 		}
-		a.Timer().Cancel(ctx, stopTimerName)
+		ctx.Timer().Cancel(ctx, stopTimerName)
 
 	case *pb.ChannelUnregisterMsg:
 		delete(a.members, m.RoleId)
 		if len(a.members) == 0 {
 			a.save(ctx)
-			a.Timer().AddOnce(ctx, &gxytimer.Once{
+			ctx.Timer().AddOnce(ctx, &gxytimer.Once{
 				Name:  stopTimerName,
 				After: 30 * time.Minute,
-			}, func(_ context.Context, _ gxytimer.TimerActiveInfo) {
+			}, func(_ gxyactor.ActorContext, _ gxytimer.TimerActiveInfo) {
 				if len(a.members) == 0 {
-					a.Stop(nil)
+					ctx.Stop(nil)
 				}
 			})
 		}
 
 	case *pb.ReqChannelSend:
 		if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
-			_ = gxyactor.Respond(ctx, a.Actx, gxyactor.ActorError(err.Error()))
+			_ = ctx.Respond(gxyactor.ActorError(err.Error()))
 			return nil
 		}
 		chatMsg := &pb.PChatMsg{
@@ -167,24 +164,29 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		for _, mbr := range a.members {
 			_ = rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
 		}
-
 	case *pb.ReqChatChannelHistory:
-		count := int(m.Count)
-		if count <= 0 || count > a.channel.RingBufferSize() {
-			count = a.channel.RingBufferSize()
+		rsp, err := a.ReqChatChannelHistory(ctx, m)
+		if err == nil {
+			_ = ctx.Respond(rsp)
 		}
-		msgs := a.buffer.Recent(count)
-		_ = gxyactor.Respond(ctx, a.Actx, &pb.RspChatChannelHistory{Messages: msgs})
 	}
 	return nil
 }
 
-func (a *ChannelActor) Terminate(ctx context.Context, err error) {
+func (a *ChannelActor) ReqChatChannelHistory(_ context.Context, m *pb.ReqChatChannelHistory) (*pb.RspChatChannelHistory, error) {
+	count := int(m.Count)
+	if count <= 0 || count > a.channel.RingBufferSize() {
+		count = a.channel.RingBufferSize()
+	}
+	return &pb.RspChatChannelHistory{Messages: a.buffer.Recent(count)}, nil
+}
+
+func (a *ChannelActor) Terminate(ctx gxyactor.ActorContext, err error) {
 	a.save(ctx)
 	_ = a.StopModule(ctx)
 }
 
-func (a *ChannelActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (a *ChannelActor) TickSave(ctx gxyactor.ActorContext, _ gxytimer.TimerActiveInfo) {
 	a.save(ctx)
 }
 

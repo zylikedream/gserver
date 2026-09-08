@@ -21,7 +21,7 @@ make pb
 
 ## Architecture
 
-Distributed game server on the **Actor model** (protoactor-go) + GoFrame v2.
+Distributed game server on the **Actor model** (Ergo) + GoFrame v2.
 
 ### 5-Layer Architecture
 

@@ -9,7 +9,7 @@ gate(:11086, TCP 网关)  role(:25011)  chat(:25041)  friend(:25021)  guild(:250
         └── 每个 app 独立进程,通过 Consul 服务发现通信;account 签发登录 gate_token(prelogin)
 ```
 
-多进程模式的意义:app↔app 消息走真实 TCP + protobuf 序列化(protoactor-go 对同地址 PID 走本地投递,all-in-one 会掩盖序列化/路由/超时问题)。
+多进程模式的意义:app↔app 消息走真实 TCP + protobuf 序列化(Ergo 对同地址 PID 走本地投递,all-in-one 会掩盖序列化/路由/超时问题)。
 
 ## 进程管理(systemd)
 

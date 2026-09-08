@@ -16,8 +16,8 @@ func NewActorMgr(name string) *ActorMgr {
 	}
 }
 
-func (s *ActorMgr) Add(id any, pid PID) {
-	s.actors.Set(id, pid)
+func (s *ActorMgr) Add(id any, pid any) {
+	s.actors.Set(id, normalizePID(pid))
 }
 
 func (s *ActorMgr) Remove(id any) {

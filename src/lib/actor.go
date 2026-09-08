@@ -13,7 +13,7 @@ const (
 func GetRoleActor(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 	pid, err := gxyactor.ActivateActor(ctx, ROLE_ACTOR_TYPE, strconv.Itoa(int(roleID)), false)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	return pid, nil
 }
@@ -21,7 +21,7 @@ func GetRoleActor(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 func ActivateRole(ctx context.Context, roleID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
 	pid, err := gxyactor.ActivateActor(ctx, ROLE_ACTOR_TYPE, strconv.Itoa(int(roleID)), true)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	return pid, nil
 }
@@ -33,7 +33,7 @@ const (
 func GetGuildActor(ctx context.Context, guildID int64) (gxyactor.PID, error) {
 	pid, err := gxyactor.ActivateActor(ctx, GUILD_ACTOR_TYPE, strconv.Itoa(int(guildID)), true)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	return pid, nil
 }

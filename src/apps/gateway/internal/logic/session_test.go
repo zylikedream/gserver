@@ -93,7 +93,7 @@ func TestSession_LoginAdmission_EmptyTokenSkipsAcquirer(t *testing.T) {
 	restore := swapLoginAcquirer(stub)
 	defer restore()
 
-	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: ""}); err == nil {
+	if err := s.handleHandshake(fake, &pb.ReqHandShake{GateToken: ""}); err == nil {
 		t.Fatal("expected empty token error")
 	}
 	if stub.calls != 0 {
@@ -112,7 +112,7 @@ func TestSession_LoginAdmission_InvalidTokenSkipsAcquirer(t *testing.T) {
 	})
 	defer restoreToken()
 
-	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "bad"}); err == nil {
+	if err := s.handleHandshake(fake, &pb.ReqHandShake{GateToken: "bad"}); err == nil {
 		t.Fatal("expected token verification error")
 	}
 	if stub.calls != 0 {

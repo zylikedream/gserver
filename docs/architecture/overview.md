@@ -1,6 +1,6 @@
 # 系统架构概览
 
-GServer 是一个基于 **Actor 模型**的分布式游戏服务器，使用 [protoactor-go](https://github.com/asynkron/protoactor-go) 作为 Actor 运行时，[GoFrame v2](https://goframe.org) 作为工具框架。
+GServer 是一个基于 **Actor 模型**的分布式游戏服务器，使用 [Ergo](https://github.com/asynkron/Ergo) 作为 Actor 运行时，[GoFrame v2](https://goframe.org) 作为工具框架。
 
 ## 架构分层
 
@@ -15,7 +15,7 @@ GServer 是一个基于 **Actor 模型**的分布式游戏服务器，使用 [pr
 │  └──────────┘ └──────────┘ └──────────┘ └────────┘ │
 │  ┌─────────────────────────────────────────────────┐ │
 │  │              Actor System                        │ │
-│  │  protoactor-go + Activator + Remote              │ │
+│  │  Ergo + Activator + Remote              │ │
 │  └─────────────────────────────────────────────────┘ │
 │  ┌──────────────┐          ┌──────────────────────┐  │
 │  │  Gate App    │          │    Role App           │  │
@@ -127,7 +127,7 @@ type IApp interface {
 | 系统 | 位置 | 说明 |
 |------|------|------|
 | 模块系统 | `core/gxymodule/` | 生命周期管理、模块树 |
-| Actor 系统 | `core/gxyactor/` | protoactor-go 封装、Activator |
+| Actor 系统 | `core/gxyactor/` | Ergo 封装、Activator |
 | 网络 | `core/gxynet/` | TCP (gnet v2)、LTPV 编解码 |
 | 服务发现 | `core/gxyregistery/` | Consul/etcd、Watcher、选择器 |
 | 持久化 | `core/gxypgx/` | GORM + PostgreSQL |
@@ -145,5 +145,5 @@ type IApp interface {
 | Redis TTL | owner key 无 TTL；节点 lease 15s heartbeat | owner 有效性由 node lease 判定，epoch 防止旧 actor 持久化副作用 |
 | 服务注册 | Consul + TTL 健康检查 | 与 GoFrame 原生 gsvc 接口兼容 |
 | 模块加载顺序 | 依赖先行（redis→pgx→actor→service→业务） | 确保下层基础设施在上层之前就绪 |
-| 消息传递 | protoactor-go 的 PID 寻址 | 支持跨进程透明通信 |
+| 消息传递 | Ergo 的 PID 寻址 | 支持跨进程透明通信 |
 | 持久化 | GORM + AutoMigrate + `role_actor_fence` | Role 保存事务先锁定 exact owner epoch，数据库拒绝旧 actor 的持久化副作用 |

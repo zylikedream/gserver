@@ -8,11 +8,39 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+	"gserver/core/gxyactor"
 	"gserver/core/gxytimer"
+	"gserver/core/gxyutil"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/pkg/gameconfig"
 )
+
+type guildTestContext struct {
+	context.Context
+	timer   *gxyactor.ActorTimer
+	stopped error
+}
+
+func newGuildTestContext() *guildTestContext {
+	self := gxyactor.PID{Runtime: "test", Node: "node", ID: "guild", Creation: "1"}
+	return &guildTestContext{Context: context.Background(), timer: gxyactor.NewActorTimer(self)}
+}
+func (*guildTestContext) Sender() gxyactor.PID { return gxyactor.PID{} }
+func (*guildTestContext) Self() gxyactor.PID {
+	return gxyactor.PID{Runtime: "test", Node: "node", ID: "guild", Creation: "1"}
+}
+func (c *guildTestContext) Stop(err error)                                   { c.stopped = err }
+func (*guildTestContext) Watch(gxyactor.PID)                                 {}
+func (*guildTestContext) Unwatch(gxyactor.PID)                               {}
+func (*guildTestContext) Children() []gxyactor.PID                           { return nil }
+func (c *guildTestContext) Timer() *gxyactor.ActorTimer                      { return c.timer }
+func (c *guildTestContext) Span() trace.Span                                 { return trace.SpanFromContext(c) }
+func (*guildTestContext) SetLogValue(string, any)                            {}
+func (*guildTestContext) AddMsgHandler(any, ...string) []*gxyutil.MethodMeta { return nil }
+func (*guildTestContext) AutoHandleMsg(any) (any, error)                     { return nil, nil }
+func (*guildTestContext) Respond(any, ...error) error                        { return nil }
 
 // ========== test setup ==========
 
@@ -87,7 +115,7 @@ func newTestGuild() *GuildActor {
 
 func TestGuildActorInitAcceptsActorOwnerArgument(t *testing.T) {
 	g := &GuildActor{}
-	if err := g.Init(context.Background(), []any{int64(1), struct{}{}}); err != nil {
+	if err := g.Init(newGuildTestContext(), []any{int64(1), struct{}{}}); err != nil {
 		t.Fatalf("Init with shared activator owner argument: %v", err)
 	}
 	if g.GuildID != 1 {
@@ -287,7 +315,7 @@ func TestOnDayRefresh_ClearsExpired(t *testing.T) {
 		{ID: 3, Status: 1, ExpireAt: now.Add(-1 * time.Hour)},
 		{ID: 4, Status: 0, ExpireAt: now.Add(24 * time.Hour)},
 	}
-	g.onDayRefresh(context.Background(), gxytimer.TimerActiveInfo{})
+	g.onDayRefresh(newGuildTestContext(), gxytimer.TimerActiveInfo{})
 	if len(g.Data.ApplyList) != 3 {
 		t.Fatalf("expected 3, got %d", len(g.Data.ApplyList))
 	}
@@ -304,7 +332,7 @@ func TestOnDayRefresh_AllValid(t *testing.T) {
 		{ID: 1, Status: 0, ExpireAt: time.Now().Add(1 * time.Hour)},
 		{ID: 2, Status: 1, ExpireAt: time.Now().Add(-1 * time.Hour)},
 	}
-	g.onDayRefresh(context.Background(), gxytimer.TimerActiveInfo{})
+	g.onDayRefresh(newGuildTestContext(), gxytimer.TimerActiveInfo{})
 	if len(g.Data.ApplyList) != 2 {
 		t.Fatalf("expected 2, got %d", len(g.Data.ApplyList))
 	}
@@ -383,8 +411,7 @@ func TestGuildLogs(t *testing.T) {
 
 func TestSetPosition_LeaderSetsViceLeader(t *testing.T) {
 	g := newTestGuild()
-	// SetPosition calls notifyGuildInfo → need to avoid nil ActorBase
-	// Test the permission logic directly
+	// SetPosition calls notifyGuildInfo; test the permission logic directly.
 	op := g.getMember(100)
 	target := g.getMember(300)
 	if op == nil || op.Position >= int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {

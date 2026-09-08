@@ -31,7 +31,6 @@ const MaxLogCount = 100
 
 type GuildActor struct {
 	gxymodule.ModuleBase
-	*gxyactor.ActorBase
 	GuildID int64
 	Data    *Guild
 
@@ -40,15 +39,12 @@ type GuildActor struct {
 }
 
 func NewGuildActor() *GuildActor {
-	ctx := gxylog.NewContext(context.Background(), "guild")
-	g := &GuildActor{db: gxypgx.DB(), cfg: gameconfig.Get()}
-	g.ActorBase = gxyactor.NewActorBase(ctx, g, "guild")
-	return g
+	return &GuildActor{db: gxypgx.DB(), cfg: gameconfig.Get()}
 }
 
 // ===== IActor 接口 =====
 
-func (g *GuildActor) Init(ctx context.Context, args []any) error {
+func (g *GuildActor) Init(ctx gxyactor.ActorContext, args []any) error {
 	// args[1] 可能是共享 Activator 追加的 ActorOwner,非 guild 参数,忽略。
 	if len(args) < 1 {
 		return errors.New("guild actor init args error")
@@ -60,13 +56,13 @@ func (g *GuildActor) Init(ctx context.Context, args []any) error {
 	return nil
 }
 
-func (g *GuildActor) DelayInit(ctx context.Context) error {
+func (g *GuildActor) DelayInit(ctx gxyactor.ActorContext) error {
 	if err := g.loadFromDB(ctx); err != nil {
 		return err
 	}
 
-	g.Timer().AddTick(ctx, &gxytimer.Tick{Name: "guild_save", Interval: 600 * time.Second}, g.TickSave)
-	g.Timer().AddCron(ctx, gxytimer.DayRefresh, g.onDayRefresh)
+	ctx.Timer().AddTick(ctx, &gxytimer.Tick{Name: "guild_save", Interval: 600 * time.Second}, g.TickSave)
+	ctx.Timer().AddCron(ctx, gxytimer.DayRefresh, g.onDayRefresh)
 
 	gxylog.Info(ctx, "guild actor started", gxylog.Num("guildID", g.GuildID), gxylog.Num("members", len(g.Data.Members)), gxylog.Num("applies", len(g.Data.ApplyList)))
 	return nil
@@ -81,12 +77,12 @@ func (g *GuildActor) loadFromDB(ctx context.Context) error {
 	return nil
 }
 
-func (g *GuildActor) Terminate(ctx context.Context, err error) {
+func (g *GuildActor) Terminate(ctx gxyactor.ActorContext, err error) {
 	_ = g.StopModule(ctx)
 }
 
-func (g *GuildActor) HandleMessage(ctx context.Context, msg any) error {
-	_, err := g.AutoHandleMsg(ctx, msg)
+func (g *GuildActor) HandleMessage(ctx gxyactor.ActorContext, msg any) error {
+	_, err := ctx.AutoHandleMsg(msg)
 	return err
 }
 
@@ -105,11 +101,11 @@ func (g *GuildActor) save(ctx context.Context) {
 	g.db.Save(g.Data)
 }
 
-func (g *GuildActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (g *GuildActor) TickSave(ctx gxyactor.ActorContext, _ gxytimer.TimerActiveInfo) {
 	g.save(ctx)
 }
 
-func (g *GuildActor) onDayRefresh(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (g *GuildActor) onDayRefresh(ctx gxyactor.ActorContext, _ gxytimer.TimerActiveInfo) {
 	// 清理过期申请
 	now := time.Now()
 	valid := make([]*GuildApply, 0, len(g.Data.ApplyList))
@@ -637,7 +633,7 @@ func (g *GuildActor) LeaveGuild(ctx context.Context, req *pb.ReqGuildLeave) (*pb
 }
 
 // DisbandGuild — 解散公会
-func (g *GuildActor) DisbandGuild(ctx context.Context, req *pb.ReqGuildDisband) (*pb.RspGuildDisband, error) {
+func (g *GuildActor) DisbandGuild(ctx gxyactor.ActorContext, req *pb.ReqGuildDisband) (*pb.RspGuildDisband, error) {
 	op := g.getMember(req.RoleId)
 	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
 		return nil, errors.WithStack(ErrPermissionDenied)
@@ -655,7 +651,7 @@ func (g *GuildActor) DisbandGuild(ctx context.Context, req *pb.ReqGuildDisband) 
 	g.db.Model(&GuildRoleState{}).
 		Where("guild_id = ?", g.GuildID).Update("guild_id", 0)
 	// 停止 actor
-	g.Stop(nil)
+	ctx.Stop(nil)
 	return &pb.RspGuildDisband{}, nil
 }
 

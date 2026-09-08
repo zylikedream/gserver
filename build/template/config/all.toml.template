@@ -3,8 +3,12 @@
     host = "{{ env.host | default('127.0.0.1') }}"
 	apps = ["chat", "role", "friend", "guild"]
 [port]
-	# Actor系统节点间通信端口（protoactor-go remoting）
+	# Ergo Actor 节点间通信端口
 	actor = {{ port.actor | default(25101) }}
+[actor]
+cookie = "{{ actor.cookie | default('gserver-ergo') }}"
+network = "ergo"
+shutdown_timeout = "15s"
 	# 聊天服务HTTP端口
 	chat = {{ port.chat | default(25102) }}
 	# 角色服务HTTP端口

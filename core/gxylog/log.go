@@ -96,7 +96,7 @@ func SetLevel(l string) {
 	level.SetLevel(parseLevel(l))
 }
 
-// LogAdapter 适配第三方库(protoactor/gnet)的日志接入,阈值比较用 Level 常量
+// LogAdapter 适配第三方库(Ergo/gnet)的日志接入,阈值比较用 Level 常量
 type LogAdapter struct {
 	Ctx   context.Context
 	Level int

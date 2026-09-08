@@ -21,7 +21,6 @@ import (
 	"gserver/src/lib"
 	"gserver/src/lib/gatetoken"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
@@ -52,12 +51,12 @@ var activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error)
 func activateRoleWithLoginPermit(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 	permit, err := currentLoginAcquirer.acquire(ctx)
 	if err != nil {
-		return nil, err
+		return gxyactor.PID{}, err
 	}
 	defer permit.Release()
 	pid, err := activateRole(ctx, roleID)
 	if err != nil {
-		return nil, gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
+		return gxyactor.PID{}, gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
 	}
 	return pid, nil
 }
@@ -102,25 +101,21 @@ type SessionInfo struct {
 	RolePid          gxyactor.PID // 角色PID
 }
 
-// Session 会话Actor，继承自ActorBase
+// Session 会话Actor。
 type Session struct {
-	*gxyactor.ActorBase
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
 	sessionInfo *SessionInfo      // 会话信息
 }
 
 func NewSession(ep endpoint.Endpoint) *Session {
-	s := &Session{
+	return &Session{
 		endpoint:    ep,
 		sessionInfo: &SessionInfo{},
 	}
-	ctx := gxylog.NewContext(context.Background(), "session")
-	s.ActorBase = gxyactor.NewActorBase(ctx, s, "session")
-	return s
 }
 
-func (s *Session) HandleMessage(ctx context.Context, msg any) error {
+func (s *Session) HandleMessage(ctx gxyactor.ActorContext, msg any) error {
 	switch msg := msg.(type) {
 	case *message.Message:
 		gxylog.Debug(ctx, "handle client msg", gxylog.Str("payload", gxyutil.FormatObject(msg)))
@@ -131,20 +126,20 @@ func (s *Session) HandleMessage(ctx context.Context, msg any) error {
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
 			return gerror.Wrap(err, "handle server message error")
 		}
-	case *actor.Terminated:
+	case gxyactor.ActorTerminatedMessage:
 		if gxyactor.PidEqual(msg.Who, s.sessionInfo.RolePid) {
-			s.sessionInfo.RolePid = nil
-			s.Stop(errors.New("role terminated"))
+			s.sessionInfo.RolePid = gxyactor.PID{}
+			ctx.Stop(errors.New("role terminated"))
 		}
 	case *pb.ActorError:
-		s.Stop(gerror.New(msg.Reason))
+		ctx.Stop(gerror.New(msg.Reason))
 	}
 	return nil
 }
 
 // NewSession 创建会话
 // OnModInit Actor初始化
-func (s *Session) Init(ctx context.Context, args []any) error {
+func (s *Session) Init(ctx gxyactor.ActorContext, args []any) error {
 	s.sessionInfo = &SessionInfo{
 		ConnectTime:      time.Now(),
 		ClientLastActive: time.Now(),
@@ -155,8 +150,8 @@ func (s *Session) Init(ctx context.Context, args []any) error {
 	return nil
 }
 
-func (s *Session) DelayInit(ctx context.Context) error {
-	s.Timer().AddTick(ctx, &gxytimer.Tick{
+func (s *Session) DelayInit(ctx gxyactor.ActorContext) error {
+	ctx.Timer().AddTick(ctx, &gxytimer.Tick{
 		Name:     "check",
 		Interval: SESSION_CHECK_INTERVAL,
 	}, s.sessionCheck)
@@ -165,21 +160,20 @@ func (s *Session) DelayInit(ctx context.Context) error {
 	return nil
 }
 
-func (s *Session) sessionCheck(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (s *Session) sessionCheck(ctx gxyactor.ActorContext, _ gxytimer.TimerActiveInfo) {
 	clientIdleTime := time.Since(s.sessionInfo.ClientLastActive)
 	if clientIdleTime > SESSION_CLIENT_IDLE_TIMEOUT {
-		s.Stop(errors.New("client idle timeout"))
+		ctx.Stop(errors.New("client idle timeout"))
 		return
 	}
 	serverIdleTime := time.Since(s.sessionInfo.ServerLastActive)
 	// 客户端发了包，但是服务器超过时间没有响应
 	if serverIdleTime > SESSION_SERVER_IDLE_TIMEOUT {
-		s.Stop(errors.New("server idle timeout"))
-		return
+		ctx.Stop(errors.New("server idle timeout"))
 	}
 }
 
-func (s *Session) handleHandshake(ctx context.Context, msg any) error {
+func (s *Session) handleHandshake(ctx gxyactor.ActorContext, msg any) error {
 	firstpacket, ok := msg.(*pb.ReqHandShake)
 	if !ok {
 		return gerror.Newf("first packet is not pb.ReqHandShake, msg: %v", msg)
@@ -187,7 +181,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	if gateMaintenanceEnabled() {
 		return gerror.New("gate maintenance")
 	}
-	s.Span().SetName(fmt.Sprintf("%T", firstpacket))
+	ctx.Span().SetName(fmt.Sprintf("%T", firstpacket))
 
 	identity, err := resolveHandshakeIdentity(firstpacket.GetGateToken())
 	if err != nil {
@@ -196,7 +190,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.sessionInfo.AccountID = identity.AccountID
 	s.sessionInfo.RoleID = identity.RoleID
 
-	s.SetLogValue(gxylog.ContextKeyRoleID, identity.RoleID)
+	ctx.SetLogValue(gxylog.ContextKeyRoleID, identity.RoleID)
 	rolePid, err := activateRoleWithLoginPermit(ctx, identity.RoleID)
 	if err != nil {
 		return err
@@ -204,7 +198,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	gxylog.Info(ctx, "get role pid", gxylog.Any("rolePid", rolePid))
 	s.sessionInfo.RolePid = rolePid
 
-	s.Actx.Watch(rolePid)
+	ctx.Watch(rolePid)
 	rsp := &pb.RspHandShake{
 		AccountUid: identity.AccountID,
 		RoleId:     identity.RoleID,
@@ -212,10 +206,10 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	if err := s.sendClientMsg(ctx, rsp); err != nil {
 		return err
 	}
-	SessionMgr().Add(identity.RoleID, s.Self())
+	SessionMgr().Add(identity.RoleID, ctx.Self())
 	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
 	s.state = StateHandshake
-	s.Span().SetAttributes(
+	ctx.Span().SetAttributes(
 		attribute.String("accountUid", identity.AccountID),
 		attribute.Int64("roleID", identity.RoleID),
 	)
@@ -242,13 +236,13 @@ func resolveHandshakeIdentity(token string) (*handshakeIdentity, error) {
 }
 
 // OnHandleMessage 处理异步消息
-func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Message) error {
+func (s *Session) OnHandleClientMessage(ctx gxyactor.ActorContext, msg *message.Message) error {
 	s.updateClientLastActive()
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
 		if err := s.handleHandshake(ctx, msg.Msg); err != nil {
 			if isLoginAdmissionRejection(err) {
-				s.Stop(err)
+				ctx.Stop(err)
 				return nil
 			}
 			return gerror.Wrap(err, "handle handshake error")
@@ -259,13 +253,13 @@ func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Messag
 		if !ok {
 			return gerror.Newf("msg is not pb.RemoteReqMsg, msg: %s", gxyutil.FormatObject(pbmsg))
 		}
-		s.Span().SetName(fmt.Sprintf("%T", pbmsg))
-		s.Span().SetAttributes(
+		ctx.Span().SetName(fmt.Sprintf("%T", pbmsg))
+		ctx.Span().SetAttributes(
 			attribute.Int64("roleID", s.sessionInfo.RoleID),
 		)
 		switch pbmsg.(type) {
 		case *pb.ReqAccountLogout:
-			s.Stop(gerror.New("client account logout"))
+			ctx.Stop(gerror.New("client account logout"))
 		default:
 			gxylog.Debug(ctx, "recv client msg", gxylog.Str("path", msg.Path), gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
 			if err := s.SendRoleMsg(ctx, pbmsg, msg.Path); err != nil {
@@ -286,11 +280,15 @@ func (s *Session) SendRoleMsg(ctx context.Context, msg proto.Message, id string)
 	if err := anypb.MarshalFrom(req.Msg, msg, proto.MarshalOptions{}); err != nil {
 		return gerror.Newf("marshal req error, err: %v", err)
 	}
-	gxyactor.CallSync(ctx, s.sessionInfo.RolePid, req, s.Self())
+	// Send preserves the current actor callback as the request sender in every
+	// runtime adapter and is dispatched through the runtime-neutral seam.
+	// Preserve the historical fire-and-forget behavior: transport failure is
+	// handled by the session lifecycle.
+	_ = gxyactor.Send(ctx, s.sessionInfo.RolePid, req)
 	return nil
 }
 
-func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) error {
+func (s *Session) OnHandleServerMessage(ctx gxyactor.ActorContext, msg *pb.ServerMsg) error {
 	s.updateServerLastActive()
 	// 解析响应消息
 	pbmsg, err := anypb.UnmarshalNew(msg.GetMsg(), proto.UnmarshalOptions{})
@@ -298,8 +296,8 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 		return gerror.Wrap(err, "unmarshal rsp error, err: %v")
 	}
 
-	s.Span().SetName(fmt.Sprintf("%T", pbmsg))
-	s.Span().SetAttributes(
+	ctx.Span().SetName(fmt.Sprintf("%T", pbmsg))
+	ctx.Span().SetAttributes(
 		attribute.Int64("roleID", s.sessionInfo.RoleID),
 	)
 	switch pbmsg.(type) {
@@ -318,17 +316,17 @@ func (s *Session) OnHandleServerMessage(ctx context.Context, msg *pb.ServerMsg) 
 	return nil
 }
 
-func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
+func (s *Session) sendClientMsg(ctx gxyactor.ActorContext, msg proto.Message) error {
 	if err := s.endpoint.SendMsg(msg); err != nil {
 		gxylog.Debug(ctx, "send client msg failed, stop session", gxylog.Err(err))
-		s.Stop(errors.Wrap(err, "conn closed: send client msg failed"))
+		ctx.Stop(errors.Wrap(err, "conn closed: send client msg failed"))
 		return nil
 	}
 	return nil
 }
 
 // Terminate 终止会话
-func (s *Session) Terminate(ctx context.Context, err error) {
+func (s *Session) Terminate(ctx gxyactor.ActorContext, err error) {
 	gxylog.Debug(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
 	SessionMgr().Remove(s.sessionInfo.RoleID)
 	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
@@ -338,8 +336,8 @@ func (s *Session) Terminate(ctx context.Context, err error) {
 		s.endpoint.SetData(nil)
 		s.endpoint.Close()
 	}
-	if s.sessionInfo.RolePid != nil {
-		s.Actx.Unwatch(s.sessionInfo.RolePid)
+	if !s.sessionInfo.RolePid.IsZero() {
+		ctx.Unwatch(s.sessionInfo.RolePid)
 		msg := &pb.ReqAccountLogout{
 			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
 		}

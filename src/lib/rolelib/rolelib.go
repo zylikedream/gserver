@@ -23,15 +23,16 @@ const roleNotifyTopicPrefix = "gserver:notify:role:"
 // 可替换函数变量:测试注入 fake(编译期安全,非 gomonkey;ADR-0001)。
 var (
 	actorNodeInstance = func() string {
-		app := gxyactor.ActorApp()
-		if app == nil {
-			return ""
-		}
-		return app.NodeInstanceName()
+		return gxyactor.NodeInstanceName()
 	}
 	roleLocateNode = func(ctx context.Context, roleID int64) (string, error) {
-		owner, err := gxyactor.GetActorOwner(ctx, lib.ROLE_ACTOR_TYPE, strconv.FormatInt(roleID, 10))
-		return owner.NodeID, err
+		// Lookup-only activation returns the normalized PID of an existing
+		// actor, including its canonical owner node, without spawning.
+		pid, err := gxyactor.ActivateActor(ctx, lib.ROLE_ACTOR_TYPE, strconv.FormatInt(roleID, 10), false)
+		if err != nil {
+			return "", err
+		}
+		return pid.Node, nil
 	}
 	getLocalActor    = gxyactor.GetLocalActor
 	getLocalActorAll = gxyactor.GetLocalActorAll
@@ -39,7 +40,7 @@ var (
 	mqSubscribe      = func(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error) error {
 		return gxymq.MessageQueue().Subscribe(ctx, topic, handler)
 	}
-	mqPublish = func(ctx context.Context, topic, msg string) error {
+	mqPublish = func(ctx context.Context, topic string, msg string) error {
 		return gxymq.MessageQueue().Publish(ctx, topic, msg)
 	}
 )
@@ -99,7 +100,7 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 
 func notifyLocal(ctx context.Context, targetRoleID int64, msg proto.Message) error {
 	pid := getLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
-	if pid == nil {
+	if pid.IsZero() {
 		gxylog.Debug(ctx, "role notify target not local online", gxylog.Num("roleID", targetRoleID))
 		return nil
 	}

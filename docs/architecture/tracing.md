@@ -2,18 +2,18 @@
 
 ## 背景
 
-在基于 protoactor-go 的 Actor 模型中，消息在不同 Actor 之间异步传递。当一次用户请求需要经过 gateway → role → guild 等多个 actor 时，缺乏跨 actor 的调用链追踪，无法定位延迟瓶颈和排错。
+在基于 Ergo 的 Actor 模型中，消息在不同 Actor 之间异步传递。当一次用户请求需要经过 gateway → role → guild 等多个 actor 时，缺乏跨 actor 的调用链追踪，无法定位延迟瓶颈和排错。
 
 目标：在不动原有 actor 通信模式的前提下，实现跨 actor 的 trace 传递。
 
 ## 设计思路
 
-**不使用 protoactor-go 的 middleware 机制。** trace 上下文通过消息 header 传递，span 存在 actor 的 `a.ctx` 中，不存全局 map。
+**不使用 Ergo 的 middleware 机制。** trace 上下文通过消息 envelope 传递，span
+绑定在 callback-scoped `ActorContext` 上，不存全局 map。
 
 ```
-每条消息到达 → doReceive 从 header 提取 trace → 创建 span → 存入 a.ctx
-→ 下游 Send/Call 读到 a.ctx 中的 span → inject 到出站消息 header
-→ 消息处理完 → 清理 a.ctx 中的 span
+每条消息到达 → Ergo adapter 准备 ActorContext → 提取 propagating trace
+→ 本地消息创建 actor span → HandleMessage → callback 返回时结束/恢复 span
 ```
 
 ## 架构
@@ -21,43 +21,30 @@
 ```
 ┌──────────────────────────────────────────────────────────┐
 │ helper.go                                                │
-│  Send/LocalSend/Call/CallSync (exported)                │
-│    → 透传 ctx 给 app.send/app.call                       │
+│  Send/LocalSend/Call/CallSync (exported)                  │
+│    → 透传 ctx 给 app.send/app.call                         │
 ├──────────────────────────────────────────────────────────┤
 │ system.go                                                │
-│  app.send(ctx)           ←── 单一下行出口，所有消息经过   │
-│    ├─ injectTrace(ctx, msg) → 有 span? → 发 envelope     │
-│    └─ 无 span? → 发裸消息                                │
-│                                                          │
-│  app.call(ctx)  → 创建 Future envelope → app.send(ctx)   │
-│  app.callSync   → 创建 Sender envelope  → app.send(ctx)  │
-│  app.localSend  → app.send(ctx)                          │
+│  app.send(ctx)           ←── 单一下行出口，所有消息经过     │
+│    ├─ injectTrace(ctx, msg) → 有 span? → 发 envelope       │
+│    └─ 无 span? → 发裸消息                                  │
 ├──────────────────────────────────────────────────────────┤
-│ actor.go                                                 │
-│  doReceive default case                                   │
-│    → Extract header → Start span → 注入 a.ctx            │
-│    → HandleMessage → defer 清理 a.ctx → defer span.End() │
+│ internal/ergo/actor.go                                   │
+│  Ergo Init/HandleMessage/HandleCall/Terminate             │
+│    → prepare callback context                             │
+│    → ActorProcess → ActorContext                          │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ## 组件详解
 
-### 1. 入站：span 创建（actor.go doReceive）
+### 1. 入站：callback context 与 span
 
-每条业务消息到达 actor 时，从 `MessageHeader` 提取 trace 上下文，创建 span 挂到 `a.ctx`：
+Ergo adapter 在每条消息 callback 开始时准备新的 `ActorContext`。Ergo 传入的
+propagating trace 会作为 callback context 的远程父上下文；本地消息则创建一个
+新的 actor span，并在 callback 返回后恢复上一次 context。
 
-```go
-// doReceive default case
-carrier := readonlyHeaderCarrier{a.Actx.MessageHeader()}
-extCtx := otel.GetTextMapPropagator().Extract(a.ctx, carrier)
-_, span := otel.Tracer("gserver/actor").Start(extCtx, fmt.Sprintf("%T", msg))
-defer span.End()
-savedCtx := a.ctx
-a.ctx = trace.ContextWithSpan(a.ctx, span)
-defer func() { a.ctx = savedCtx }()
-```
-
-关键：`a.ctx` 是 ActorBase 的持久化字段，消息处理完后必须恢复，否则 span 会泄漏到后续消息（如 timer 回调）。
+业务 Actor 只通过 `ctx.Span()` 和 `ctx` 传递 trace，不持有跨消息的 context 或 span。
 
 ### 2. 出站：trace 注入（system.go injectTrace + send）
 
@@ -122,7 +109,7 @@ func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.
 
 ### 4. 为什么不用 RootContext.RequestFuture
 
-protoactor-go 提供了 `RootContext.RequestFuture` 用于发送消息并等待回复：
+Ergo 提供了 `RootContext.RequestFuture` 用于发送消息并等待回复：
 
 ```go
 func (rc *RootContext) RequestFuture(pid *PID, message interface{}, timeout time.Duration) *Future {
@@ -165,7 +152,7 @@ RequestFuture (黑盒)
 
 ### 4.1 为什么 SenderMiddleware 会触发 EndpointWriter 崩溃
 
-`SenderMiddleware` 的问题不在于 middleware 本身，而在于 **protoactor-go 的 `RootContext` 同时被用户代码和框架内部代码使用**。
+`SenderMiddleware` 的问题不在于 middleware 本身，而在于 **Ergo 的 `RootContext` 同时被用户代码和框架内部代码使用**。
 
 **消息路径拆解：**
 
@@ -244,7 +231,7 @@ func (w *EndpointWriter) sendEnvelopes(ctx actor.Context) {
 
 这里的 `tmp` 是 mailbox 投递时 `[]interface{}` 中的原始元素，**不经过 `ctx.Message()` 的自动解包**。middleware 包装后，每个元素是 `*MessageEnvelope`，断言就失败了。
 
-**即使加 receiver middleware 也没用**——`sendEnvelopes` 的 `tmp.(*remoteDeliver)` 断言发生在 Receive 方法内部，是 Go 代码的直接类型断言，不经过 protoactor-go 的消息路由层。任何 middleware 都无法干预这段代码。
+**即使加 receiver middleware 也没用**——`sendEnvelopes` 的 `tmp.(*remoteDeliver)` 断言发生在 Receive 方法内部，是 Go 代码的直接类型断言，不经过 Ergo 的消息路由层。任何 middleware 都无法干预这段代码。
 
 **还有一个被忽视的根因：`ctx.Message()` 不处理 `[]interface{}` 里的 envelope。** 看 `actorContext.Message()` 的实现：
 
@@ -256,7 +243,7 @@ func (ctx *actorContext) Message() interface{} {
 
 `UnwrapEnvelopeMessage` 只检查**顶层**消息是否是 `*MessageEnvelope`。当 mailbox 投递的是 `[]interface{}{envelope1, envelope2, ...}` 时，顶层是 `[]interface{}`，不是 `*MessageEnvelope`，于是原样返回。切片内部的 envelope 不会被递归解包。
 
-如果 protoactor-go 在这一步做了递归处理——检测到 `[]interface{}` 后遍历每个元素解包——那么 EndpointWriter 即使有 middleware 也不会崩溃，因为 `sendEnvelopes` 拿到的 batch 中每个元素已经是 `*remoteDeliver` 了：
+如果 Ergo 在这一步做了递归处理——检测到 `[]interface{}` 后遍历每个元素解包——那么 EndpointWriter 即使有 middleware 也不会崩溃，因为 `sendEnvelopes` 拿到的 batch 中每个元素已经是 `*remoteDeliver` 了：
 
 ```
 现在：   ctx.Message() → []interface{}{MessageEnvelope{*remoteDeliver}, ...}
@@ -269,7 +256,7 @@ func (ctx *actorContext) Message() interface{} {
 
 **更深层的原因：框架设计边界模糊**
 
-`EndpointManager` 和 `EndpointWriter` 是 protoactor-go remote 模块的内部组件，但它们使用 `RootContext.Send`（全局 Root）来通信。当用户在 `RootContext` 上注册 `SenderMiddleware` 时，**无法区分"这是用户消息需要包装"和"这是框架内部消息不需要包装"**——所有经过 `RootContext` 的消息都会被包装。
+`EndpointManager` 和 `EndpointWriter` 是 Ergo remote 模块的内部组件，但它们使用 `RootContext.Send`（全局 Root）来通信。当用户在 `RootContext` 上注册 `SenderMiddleware` 时，**无法区分"这是用户消息需要包装"和"这是框架内部消息不需要包装"**——所有经过 `RootContext` 的消息都会被包装。
 
 移除 middleware 后：
 
@@ -281,7 +268,7 @@ Root.Send(endpoint.writer, rd)
   → sendEnvelopes tmp.(*remoteDeliver)         ← 断言成功 ✓
 ```
 
-**结论：SenderMiddleware 不适合在 Root 级别注册。** 如果需要在 actor 级别做 sender 拦截，protoactor-go 的 `actor.WithSenderMiddleware` 可以在 actor Props 上注册，粒度更细，不影响框架内部通信。但我们实测后发现也不需要——trace 注入收拢到 `send` 方法后更简洁。
+**结论：SenderMiddleware 不适合在 Root 级别注册。** 如果需要在 actor 级别做 sender 拦截，Ergo 的 `actor.WithSenderMiddleware` 可以在 actor Props 上注册，粒度更细，不影响框架内部通信。但我们实测后发现也不需要——trace 注入收拢到 `send` 方法后更简洁。
 
 ### 5. helper.go：薄透传
 
@@ -298,31 +285,28 @@ func Call(ctx context.Context, pid PID, message proto.Message, timeout time.Dura
 
 ## 数据流
 
-```
 gateway OnMessage(ctx=context.Background())
   → Send(ctx, rolePID, msg)
     → app.send → injectTrace: 无 span → 裸消息
 
-role actor doReceive default case
-  → header 空 → Start → 创建根 span（新 trace）
-  → a.ctx = trace.ContextWithSpan(a.ctx, span)
-  → HandleMessage → Send(a.ctx, guildPID, req)
-    → app.send → injectTrace: 读到 span → 注入 W3C  header
+role Ergo HandleMessage
+  → adapter.prepareContext → ActorContext
+  → HandleMessage → gxyactor.Send(ctx, guildPID, req)
+    → app.send → injectTrace: 读到 span → 注入 W3C header
     → 发送 MessageEnvelope{Header: trace, Message: req}
 
-guild actor doReceive default case
-  → Extract header → 还原父 span context
-  → Start → 创建子 span
-  → HandleMessage
+guild Ergo HandleMessage
+  → adapter.prepareContext → ActorContext
+  → 提取远程父上下文并执行 HandleMessage
 
-返回 → defer 恢复 a.ctx → defer span.End()
+callback 返回 → 恢复 callback context → span.End()
 ```
 
 ## 与内置 OTel middleware 对比
 
 | 特性 | 内置 middleware | 我们的方案 |
 |------|---------------|-----------|
-| 存储 | sync.Map (PID → span) | a.ctx 字段（actor 本地） |
+| 存储 | sync.Map (PID → span) | callback-scoped ActorContext |
 | 中间件依赖 | Sender + Receiver + Spawn 三层 | 无中间件 |
 | 出站注入 | 全局拦截全部消息 | 收拢到 `send` 一个方法 |
 | envelope 嵌套 | RequestFuture 产生嵌套，需额外处理 | type switch 直接复用 |
@@ -481,7 +465,8 @@ gate: *pb.ReqGuildInfo  ██████████████████�
 子 span    ██████████████████████   ← 超出父 span
 ```
 
-正常情况下子 span 必须在父 span 时间范围内。超出说明时间记录有误 — 通常原因是 `a.ctx` 中的 span 泄漏（`doReceive` 的 `savedCtx` 恢复逻辑未正确执行），或 goroutine 中使用了错误的 ctx。
+正常情况下子 span 必须在父 span 时间范围内。超出说明时间记录有误 — 通常原因是 callback
+上下文被跨消息保存，或 goroutine 中使用了错误的 ctx。
 
 **模式六：多个独立根 span（链路断裂）**
 
@@ -503,8 +488,9 @@ gate: *pb.ReqGuildInfo  ██████████████████�
 - **子 span 之间有大间隔** → 可能是网络延迟（跨节点 Call 的 RTT）或本地计算瓶颈，需结合 span 的 service 名判断
 - **子 span 重叠** → 正常的并发行为（异步 Send 多个下游），不需要处理
 - **链路断裂**（独立根 span）→ 检查调用是否使用了正确的 `ctx`，是否经过 `send`/`Call`
-- **span 超出父 span 范围** → 检查 `doReceive` 中 `savedCtx` 恢复逻辑是否正确
+- **span 超出父 span 范围** → 检查 callback context 是否跨消息保存
 
 ### IUnspanMessage
 
-实现了 `IUnspanMessage` 接口的消息会跳过 span 创建（在 `doReceive` 中直接走 `handleMessage`）。用于 Actor 内部消息（如 `ActorActive` 等），避免产生大量无意义的离散 trace。
+实现了 `IUnspanMessage` 接口的消息会跳过 adapter 的 span 创建，直接交给
+`ActorProcess.HandleMessage`。用于 Actor 内部消息，避免产生大量无意义的离散 trace。

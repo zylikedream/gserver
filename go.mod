@@ -6,7 +6,6 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/apache/pulsar-client-go v0.11.0
-	github.com/asynkron/protoactor-go v0.0.0-20250909165758-e952b3c0850e
 	github.com/cockroachdb/errors v1.14.0
 	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/gogf/gf/contrib/nosql/redis/v2 v2.9.4
@@ -28,6 +27,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.19.0
 	google.golang.org/protobuf v1.36.11
+	ergo.services/ergo v1.999.330
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
