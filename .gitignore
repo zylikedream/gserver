@@ -76,3 +76,4 @@ __pycache__/
 
 # Release artifacts
 /dist/
+.superpowers/
