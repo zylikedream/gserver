@@ -201,3 +201,55 @@ ergo node (每进程一个,cmd/gserver 或 per-app main)
 3. 复核点设在 P1 完成 + 真实开服压测后:用压测数据(gserver-pressure-testing 流程)而非感觉决定 P2/P3 是否投入、何时投入。
 
 废弃清单(随对应 P 阶段执行):`gxyapp`、`gxymodule`、`ergoapp.actorApp`(并入 GServerApp)、`gxyregistery`(P2-2.4)、`CallSync`、字符串版 `App.Deps()`、`IActor`/`ActorProcess`(P3-3.1 逐 app 完成后)。
+
+## 13. 全文档精读差缺补漏(2026-09-08,逐章学习 docs.ergo.services 后)
+
+前 11 章基于源码与官方文档精读,本节是按文档目录(basics/actors/meta-processes/networking/testing/advanced)逐章通读后的**增量结论**——只记录此前章节没覆盖、且影响 TODO 或认知的点。
+
+### 13.1 修正/加强既有认知
+
+1. **SendResponseError 的正确定位(docs/advanced/handle-sync.md)**:官方明确 guidance——SendResponse 走 result 通道(业务结果,包括"预期内的错误":not found/校验失败);SendResponseError 只用于"调用方应与传输错误同等对待的基础设施错误"(依赖挂了/连接池满)。**我们 P0-0.3 的结论与此完全一致,但补一个细则**:activator 的基础设施类失败(节点不可达、Claim 后端异常)可以考虑走 SendResponseError,业务激活失败(result 里报错)。当前 actor.go:108 一刀切走 SendResponseError,迁移时应按此二分。
+2. **HandleCall 的 err 返回值是终止原因不是响应(actors/actor.md:163-184)**:文档用独立章节反复强调。我们的 seam 已对齐(Respond 分离),但 P3 迁移每个业务 actor 时这是最容易踩的坑,应写进迁移 checklist。
+3. **`gen.DefaultNetworkFlags` 全有全无陷阱(network-stack.md:247-253)**:一旦手写 `Flags: gen.NetworkFlags{Enable: true, ...}`,所有未写字段变 false(fragmentation/important delivery/tracing/keepalive 全关)。**节点启动代码必须从 `gen.DefaultNetworkFlags` 拷贝再改**——这条要进 ADR-0009 的实现规范。
+4. **本节点消息不拷贝、共享内存是纪律不是约束(actor-model.md:57-59)**:文档首次明确"同节点传 map/slice/pointer 两边共享同一内存",官方用 argus vet 工具(A1001 规则)静态检查。**GServer 语义是 proto envelope,天然值语义,不受影响**;但 P3 迁移后允许 Go 值消息时必须建立"发送即移交所有权"规约,可把 `ergo.tools/argus` 加进 CI。
+5. **links 单向、父 exit 不可 trap(links-and-monitors.md:37-41, actor.md:333)**:与 Erlang 双向 link 不同。P1-1.2 死亡感知设计时,activator 对业务 actor 的 Watch 是 monitor 语义(不死),supervisor 的父子则是双 link(可强制杀子树)——两者别混用。
+6. **Mailbox Preservation 的精确语义(process.md:111-149, supervisor.md:457-525)**:仅 OFO/SOFO 可用(AFO/RFO init 拒绝);触发消息本身不重放(防毒丸循环);at-least-once 语义要求 handler 幂等;Exit cascade 也触发捕获,Normal/Shutdown 不触发。P1-1.4 role_sup 启用时要按"玩家 actor 消息是否幂等"逐个评估——非幂等的(扣钱、发奖)宁可丢消息也不能重放,或业务层带 requestId 去重。
+7. **per-child restart counter 的适用边界(supervisor.md:284-299)**:per-child Intensity 只对 OFO/SOFO 合法,AFO/RFO 直接 init 报错。**P1-1.4 的 role_sup 是 SOFO,可用 per-instance 预算 + OnExceedDisable;控制 actor 的 dir_sup 若是 OFO 也可用;这与 TODO 1.4 写法兼容**。
+8. **Kill 与 Zombee 状态(process.md:153)**:对 Running/WaitResponse 进程 Kill 进入 Zombee,所有操作返回 ErrNotAllowed,当前消息处理完才终止。activator 的"迁移中强杀"路径要预期这个窗口——**Claim 释放与进程真正终止之间有延迟,释放逻辑不能假设 Kill 立即生效**(现状已用条件 release 覆盖,保持)。
+
+### 13.2 之前遗漏、现在补上的主题
+
+| 主题 | 要点 | 对 GServer 的影响 |
+|---|---|---|
+| **Pool 无背压且静默丢弃**(pool.md:64-77) | 满载消息 drop+计数(`ergo:messages_unhandled`),Call 侧表现为超时,Fallback 不生效(Forward 绕过) | 若 P3 后需要并发处理网关消息,不能拿 act.Pool 当限流器;限流必须在自己代码里做(pool 放池化是无状态 worker 用的) |
+| **Router 不保留 mailbox、无 intensity**(router.md:170-174) | 自带 slot 重启是"无限重试",严格重启契约要外部 supervisor;slot 内禁放 supervisor | 分服/分桶路由(P3 的 moduleByMessage 分发思路)若要 Router,拓扑是 SupRoot 平级持有 pool+router,router 免费解析注册名 |
+| **Application Stop 是等待全树而非成员**(application.md:232) | teardown 等待 ProcessesTotal 归零(含成员派生的无 supervisor 孤儿,框架发 exit+日志点名) | 迁移后 GServerApp.Stop 的 drain 语义白得:draining tag + Stop 回调先行,框架等全树退出,孤儿会被点名——**这个日志要接进告警** |
+| **CoreEvent 总线**(events.md:138-173) | 节点自带 `gen.CoreEvent`:app running/stopped、peer 连/断,Buffer 1000,跨节点可订阅 | P2-2.4 去 Consul 后的"应用上下线感知"直接订阅各节点 CoreEvent,不再需要 gxyservice 的 watch 机制;Observer/告警都能复用 |
+| **NodeOptions.Events 预注册解决订阅竞态**(events.md:114-136) | 节点启动时预注册 open event,任何 actor 的 Init 可直接 LinkEvent,不会 ErrEventUnknown | P2-2.3 广播事件清单应走 `NodeOptions.Events` 预注册(player.logged_in 等),而非各 actor 运行时注册 |
+| **Cron 与 Dst/时钟跳变**(cron.md:117-129) | 弹回的重复小时只跑一次;分钟级校验丢弃 NTP 跳变;宏(@daily 等)故意偏移错峰 | P1-1.5 cron 类评估直接用 native,gtimer 桥的"cron 重放"问题顺带消失 |
+| **软件 keepalive**(network-stack.md:109-136) | 3.3 新增,应用层死链检测(15s×3 miss 默认),双方都开才生效 | k8s 内网默认即够用;跨机房/公网部署(若有)应显式调小 period |
+| **Trace 日志级别只能启动时设**(logging.md:51) | SetLevel 不能动态开 Trace,防洪水 | 排障预案:预置 `--tags verbose` + LogLevelTrace 的诊断镜像/启动参数,而不是期望线上动态开 |
+| **进程级 Logger 注册会静默自身**(logging.md:272) | LoggerAddPID 后该进程自己日志被 Disabled,防自我循环 | 若做 actor 化日志收集器,注意它自己的错误要用其他通道输出 |
+| **四个构建标签**(debugging.md) | pprof(goroutine 按 PID 标记!)/norecover/latency(mailbox 积压年龄)/typestats | **压测(pressure-testing)脚本应加 `-tags latency`**,mailbox 延迟直接进 ProcessShortInfo;pprof 标签的 PID 标注让我们能按 actor 定位卡死,这是排障利器 |
+| **EDF 错误跨节点身份三定律**(network-transparency.md:372-467) | ①哨兵必须 errors.New 且双侧 RegisterError;②*gen.Error 不能注册(Errorf 链可以带已注册哨兵跨节点);③error 字段里自定义具体类型降级为纯文本 | **再次验证 P0-0.3 决策**:业务错误走 pb envelope 完全绕开这套限制;若 P1-1.6 要注册哨兵,只注册"类"标记(code:xxx 分组),成员标记按需 |
+| **Wrap 链跨节点的组/成员模式**(network-transparency.md:435-467) | 组标记(ErrCodeInvalidArgument)与成员标记(ErrInvalidArgB)同时 %w,接收方可按组匹配新成员 | P1-1.6 哨兵清单设计采用两级模式:粗粒度组标记注册、细粒度按需 |
+| **Meta-process 双 goroutine 模型**(meta-processes.md) | External Reader(阻塞 IO)+ Actor Handler(消息),不能 Call/不能主动 link,Start 返回即终止 | GServer 暂无阻塞 IO 内嵌需求;gateway 的长连接若将来要从外部网关迁进来,TCP meta + WebWorker 是官方姿势,记入远期备选 |
+| **WebWorker + WebHandler**(webworker.md) | HTTP 请求→actor 消息,按方法回调,Done 保证;配 act.Pool 扩并发 | gxyhttp 替代远期可评估;现阶段 k8s Service + ergo Call 已覆盖 |
+| **Leader actor(Raft 选举)**(building-a-cluster.md:388-570) | extra-library 现成 leader.Actor,Bootstrap ProcessID 列表,150-300ms 选举 | **活动/全服类逻辑的"单写者"可以直接用**,替代手搓 Redis 分布式锁的候选;记入 backlog 不进本轮 TODO |
+| **Metrics actor 内置基础指标**(building-a-cluster.md:572-601) | ergo_node_uptime/processes_total/memory/remote_messages 等,10 行接入 | P3-3.3 指标源切换的最低成本路径:先起 metrics actor 保底,再决定是否自研 collector |
+| **unit/stage 测试框架**(project-structure.md:930-1064) | unit.Spawn 断言 ShouldSend;stage 起多节点真网络 | GServer 的 stage_ergo_test 已在用;unit 框架适合 P3 逐 actor 迁移时的单测(比手写 fake node 省事) |
+
+### 13.3 认知校准:文档与源码不一致处
+
+通读中发现文档滞后于 v3.3.0 源码的仅一处:文档多处仍写 `node.Network().RegisterType`(单数),源码与 FAQ 推荐 `RegisterTypes`(复数,自动解依赖顺序)。跟随源码。
+
+### 13.4 对 TODO 总表的修订
+
+1. **P0 增加实现规范条目**:节点启动 flags 必须从 `gen.DefaultNetworkFlags` 拷贝(13.1.3);argus 进 CI 的评估放 P3 开始时。
+2. **P1-1.4 细化**:role_sup 启用 PreserveMailbox 前逐 actor 评估幂等性;SOFO+per-instance Intensity+OnExceedDisable 确认可行。
+3. **P1-1.6 细化**:哨兵注册采用"组标记+成员标记"两级;activator 错误二分(基础设施→error 通道,业务→result)。
+4. **P2-2.3 细化**:广播事件用 NodeOptions.Events 预注册(避免竞态),订阅方 Init 直接 LinkEvent。
+5. **P2-2.4 补充**:去 Consul 后节点/应用上下线感知来源 = registrar events(etcd)+ 各节点 CoreEvent,不重建 watch。
+6. **压测预案**:pressure-testing 跑 ergo 场景时构建加 `-tags latency`(可观测 mailbox 积压),报告记录 ProcessShortInfo 分布。
+7. **backlog(不进本轮)**:leader.Actor 替代 Redis 锁评估;TCP/Web meta 评估 gateway 内嵌;act.Pool 用于无状态 worker 的场景评估。
+
