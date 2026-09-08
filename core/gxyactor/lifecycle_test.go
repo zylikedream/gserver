@@ -61,6 +61,24 @@ func (*lifecycleContext) Watch(PID)                          {}
 func (*lifecycleContext) Unwatch(PID)                        {}
 func (*lifecycleContext) Children() []PID                    { return nil }
 
+func TestActorProcessMapsLifecycleDirectly(t *testing.T) {
+	probe := newLifecycleProbe()
+	process := NewActorProcess("lifecycle-test", probe)
+	ctx := &lifecycleContext{self: PID{Runtime: "test", Node: "node", ID: "direct", Creation: "1"}}
+
+	if err := process.Init(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := process.HandleMessage(ctx, "business"); err != nil {
+		t.Fatal(err)
+	}
+	process.Terminate(ctx, errors.New("stop"))
+
+	if got, want := probe.events, []string{"init", "delay-init", "message", "terminate"}; !equalStrings(got, want) {
+		t.Fatalf("lifecycle events = %v, want %v", got, want)
+	}
+}
+
 func TestLifecycleInitDelayInitMessageTerminateOrdering(t *testing.T) {
 	probe := newLifecycleProbe()
 	ctx := &lifecycleContext{self: PID{Runtime: "test", Node: "node", ID: "lifecycle", Creation: "1"}}
