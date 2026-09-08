@@ -102,11 +102,7 @@ func New(node gen.Node, nodeInstanceName ...string) *Adapter {
 		a.creation = node.Creation()
 		for _, control := range []any{
 			GServerEnvelope{},
-			gxyactor.ActorInitMsg{},
-			gxyactor.ActorStartedMessage{},
-			gxyactor.ActorStoppedMessage{},
 			gxyactor.ActorTerminatedMessage{},
-			gxyactor.LifecycleMessage(0),
 			gxyactor.ActorPIDResponse{},
 		} {
 			_ = node.Network().RegisterType(control)

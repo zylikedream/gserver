@@ -15,6 +15,91 @@ import (
 	"time"
 )
 
+type DirectLifecycleCall struct{}
+
+type directLifecycleActor struct {
+	initArgs   chan []any
+	delayInit  chan struct{}
+	message    chan any
+	terminated chan error
+}
+
+func (a *directLifecycleActor) Init(_ gxyactor.ActorContext, args []any) error {
+	a.initArgs <- args
+	return nil
+}
+func (a *directLifecycleActor) DelayInit(gxyactor.ActorContext) error {
+	close(a.delayInit)
+	return nil
+}
+func (a *directLifecycleActor) HandleMessage(_ gxyactor.ActorContext, message any) error {
+	a.message <- message
+	return nil
+}
+func (a *directLifecycleActor) Terminate(_ gxyactor.ActorContext, reason error) {
+	a.terminated <- reason
+}
+func (*directLifecycleActor) HandleDirectLifecycleCall(context.Context, *DirectLifecycleCall) (string, error) {
+	return "called", nil
+}
+
+func TestAdapterDirectActorLifecycle(t *testing.T) {
+	node, err := ergo.StartNode("direct-lifecycle@localhost", gen.NodeOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer node.StopWithTimeout(time.Second)
+
+	adapter := New(node, "direct-lifecycle@localhost")
+	probe := &directLifecycleActor{
+		initArgs:   make(chan []any, 1),
+		delayInit:  make(chan struct{}),
+		message:    make(chan any, 1),
+		terminated: make(chan error, 1),
+	}
+	if err := adapter.RegisterActorKind("direct", func() gxyactor.IActor { return probe }); err != nil {
+		t.Fatal(err)
+	}
+	pid, err := adapter.Spawn("direct", "1", "arg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if args := <-probe.initArgs; len(args) != 1 || args[0] != "arg" {
+		t.Fatalf("init args = %#v, want [arg]", args)
+	}
+	select {
+	case <-probe.delayInit:
+	default:
+		t.Fatal("DelayInit was not called before Spawn returned")
+	}
+	if err := adapter.Send(context.Background(), pid, "message"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-probe.message:
+		if got != "message" {
+			t.Fatalf("message = %#v, want message", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for message")
+	}
+	result, err := adapter.Call(context.Background(), pid, &DirectLifecycleCall{}, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result != "called" {
+		t.Fatalf("call result = %#v, want called", result)
+	}
+	if err := adapter.Stop(pid); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-probe.terminated:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for termination")
+	}
+}
+
 func TestTraceHopContextPreservesErgoIdentity(t *testing.T) {
 	node, err := ergo.StartNode("trace-hop@localhost", gen.NodeOptions{})
 	if err != nil {
@@ -29,14 +114,12 @@ func TestTraceHopContextPreservesErgoIdentity(t *testing.T) {
 	received := make(chan trace.SpanContext, 1)
 	target := &traceHopTarget{received: received}
 	if err := adapter.RegisterActorKind("trace-target", func() gxyactor.IActor {
-		target.ActorBase = gxyactor.NewActorBase(context.Background(), target, "trace-target")
 		return target
 	}); err != nil {
 		t.Fatal(err)
 	}
 	source := &traceHopSource{adapter: adapter, tracing: tracing}
 	if err := adapter.RegisterActorKind("trace-source", func() gxyactor.IActor {
-		source.ActorBase = gxyactor.NewActorBase(context.Background(), source, "trace-source")
 		return source
 	}); err != nil {
 		t.Fatal(err)
@@ -71,13 +154,12 @@ func TestTraceHopContextPreservesErgoIdentity(t *testing.T) {
 }
 
 type traceHopSource struct {
-	*gxyactor.ActorBase
 	adapter *Adapter
 	target  gxyactor.PID
 	tracing gen.Tracing
 }
 
-func (a *traceHopSource) HandleMessage(ctx context.Context, message any) error {
+func (a *traceHopSource) HandleMessage(ctx gxyactor.ActorContext, message any) error {
 	if message != "hop" {
 		return nil
 	}
@@ -88,20 +170,21 @@ func (a *traceHopSource) HandleMessage(ctx context.Context, message any) error {
 	process.SetPropagatingTrace(a.tracing)
 	return a.adapter.Send(ctx, a.target, "hop")
 }
+func (*traceHopSource) Init(gxyactor.ActorContext, []any) error { return nil }
+func (*traceHopSource) DelayInit(gxyactor.ActorContext) error   { return nil }
+func (*traceHopSource) Terminate(gxyactor.ActorContext, error)  {}
 
 type traceHopTarget struct {
-	*gxyactor.ActorBase
 	received chan trace.SpanContext
 }
 
-func (a *traceHopTarget) HandleMessage(context.Context, any) error {
-	actorContext, ok := a.Actx.(interface{ Context() context.Context })
-	if !ok {
-		return errors.New("target callback context is not Ergo context")
-	}
-	a.received <- trace.SpanContextFromContext(actorContext.Context())
+func (a *traceHopTarget) HandleMessage(ctx gxyactor.ActorContext, _ any) error {
+	a.received <- trace.SpanContextFromContext(ctx)
 	return nil
 }
+func (*traceHopTarget) Init(gxyactor.ActorContext, []any) error { return nil }
+func (*traceHopTarget) DelayInit(gxyactor.ActorContext) error   { return nil }
+func (*traceHopTarget) Terminate(gxyactor.ActorContext, error)  {}
 
 func traceID(tracing gen.Tracing) trace.TraceID {
 	var id trace.TraceID
@@ -182,9 +265,7 @@ func TestAdapterLocalSendCallTimeoutAndStop(t *testing.T) {
 	adapter := New(node, "adapter-test@localhost")
 	gxyactor.SetRuntime(adapter)
 	if err := adapter.RegisterActorKind("test", func() gxyactor.IActor {
-		actor := &adapterTestActor{ready: make(chan struct{})}
-		actor.ActorBase = gxyactor.NewActorBase(context.Background(), actor, "test")
-		return actor
+		return &adapterTestActor{ready: make(chan struct{})}
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -201,12 +282,12 @@ func TestAdapterLocalSendCallTimeoutAndStop(t *testing.T) {
 	if pid.ID != "test/1" {
 		t.Fatalf("normalized logical ID = %q, want test/1", pid.ID)
 	}
-	result, err := adapter.Call(context.Background(), pid, "ping", time.Second)
+	result, err := adapter.Call(context.Background(), pid, &AdapterPing{}, time.Second)
 	if err != nil || result != "pong" {
 		t.Fatalf("call result=%v err=%v", result, err)
 	}
 	start := time.Now()
-	if _, err := adapter.Call(context.Background(), pid, "slow", 20*time.Millisecond); !errors.Is(err, ErrTimeout) {
+	if _, err := adapter.Call(context.Background(), pid, &AdapterSlow{}, 20*time.Millisecond); !errors.Is(err, ErrTimeout) {
 		t.Fatalf("slow call error=%v", err)
 	}
 	if time.Since(start) > 500*time.Millisecond {
@@ -221,10 +302,9 @@ func TestAdapterLocalSendCallTimeoutAndStop(t *testing.T) {
 }
 
 type initFailActor struct {
-	*gxyactor.ActorBase
 }
 
-func (a *initFailActor) Init(context.Context, []any) error {
+func (a *initFailActor) Init(gxyactor.ActorContext, []any) error {
 	return errors.New("init failed")
 }
 
@@ -236,9 +316,7 @@ func TestAdapterInitFailureDoesNotPublishPID(t *testing.T) {
 	defer node.StopWithTimeout(time.Second)
 	adapter := New(node, "adapter-init-fail@localhost")
 	if err := adapter.RegisterActorKind("test", func() gxyactor.IActor {
-		actor := &initFailActor{}
-		actor.ActorBase = gxyactor.NewActorBase(context.Background(), actor, "test")
-		return actor
+		return &initFailActor{}
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -249,31 +327,37 @@ func TestAdapterInitFailureDoesNotPublishPID(t *testing.T) {
 		t.Fatalf("failed actor was published: %v", actors)
 	}
 }
-func (*initFailActor) HandleMessage(context.Context, any) error { return nil }
+func (*initFailActor) DelayInit(gxyactor.ActorContext) error          { return nil }
+func (*initFailActor) HandleMessage(gxyactor.ActorContext, any) error { return nil }
+func (*initFailActor) Terminate(gxyactor.ActorContext, error)         {}
 
 type adapterTestActor struct {
-	*gxyactor.ActorBase
 	ready chan struct{}
 }
 
-func (a *adapterTestActor) HandleMessage(_ context.Context, message any) error {
-	if message == "send" {
+func (*adapterTestActor) Init(gxyactor.ActorContext, []any) error { return nil }
+func (*adapterTestActor) DelayInit(gxyactor.ActorContext) error   { return nil }
+func (a *adapterTestActor) HandleMessage(_ gxyactor.ActorContext, message any) error {
+	if message == "send" && a.ready != nil {
 		close(a.ready)
 	}
 	return nil
 }
-func (a *adapterTestActor) DoCallMsgHandler(_ context.Context, message any) (any, error) {
-	switch message {
-	case "ping":
-		return "pong", nil
-	case "slow":
-		time.Sleep(time.Second)
-		return "late", nil
-	case "error":
-		return nil, errors.New("handler error")
-	default:
-		return nil, errors.New("unknown request")
-	}
+func (*adapterTestActor) Terminate(gxyactor.ActorContext, error) {}
+
+type AdapterPing struct{}
+type AdapterSlow struct{}
+type AdapterError struct{}
+
+func (*adapterTestActor) HandleAdapterPing(context.Context, *AdapterPing) (string, error) {
+	return "pong", nil
+}
+func (*adapterTestActor) HandleAdapterSlow(context.Context, *AdapterSlow) (string, error) {
+	time.Sleep(time.Second)
+	return "late", nil
+}
+func (*adapterTestActor) HandleAdapterError(context.Context, *AdapterError) (string, error) {
+	return "", errors.New("handler error")
 }
 func TestAdapterResponseErrorAndUnknownPID(t *testing.T) {
 	node, err := ergo.StartNode("adapter-error@localhost", gen.NodeOptions{})
@@ -283,9 +367,7 @@ func TestAdapterResponseErrorAndUnknownPID(t *testing.T) {
 	defer node.StopWithTimeout(time.Second)
 	adapter := New(node, "adapter-error@localhost")
 	if err := adapter.RegisterActorKind("test", func() gxyactor.IActor {
-		actor := &adapterTestActor{}
-		actor.ActorBase = gxyactor.NewActorBase(context.Background(), actor, "test")
-		return actor
+		return &adapterTestActor{}
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -293,10 +375,10 @@ func TestAdapterResponseErrorAndUnknownPID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.Call(context.Background(), pid, "error", time.Second); err == nil {
+	if _, err := adapter.Call(context.Background(), pid, &AdapterError{}, time.Second); err == nil {
 		t.Fatal("handler response error became a successful value")
 	}
-	if _, err := adapter.Call(context.Background(), pid, "ping", time.Second); !errors.Is(err, ErrUnknownPID) && !errors.Is(err, ErrActorStopped) {
+	if _, err := adapter.Call(context.Background(), pid, &AdapterPing{}, time.Second); !errors.Is(err, ErrUnknownPID) && !errors.Is(err, ErrActorStopped) {
 		t.Fatalf("actor remained callable after handler error: err=%v", err)
 	}
 }
@@ -382,9 +464,7 @@ func TestSpawnCallerIDFormsUseOneMapEntryAndForget(t *testing.T) {
 	adapter := New(node, "adapter-ids@localhost")
 	gxyactor.SetRuntime(adapter)
 	if err := adapter.RegisterActorKind("test", func() gxyactor.IActor {
-		actor := &adapterTestActor{}
-		actor.ActorBase = gxyactor.NewActorBase(context.Background(), actor, "test")
-		return actor
+		return &adapterTestActor{}
 	}); err != nil {
 		t.Fatal(err)
 	}

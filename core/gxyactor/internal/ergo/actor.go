@@ -3,12 +3,16 @@ package ergo
 import (
 	"context"
 	"encoding/binary"
-	"sync"
+	"fmt"
+	"time"
 
 	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
-	"gserver/core/gxyactor"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"gserver/core/gxyactor"
+	"gserver/core/gxyutil"
 )
 
 type ergoActor struct {
@@ -17,36 +21,28 @@ type ergoActor struct {
 	kind     string
 	callerID string
 	id       string
-	actor    gxyactor.IActor
+	host     *gxyactor.ActorProcess
 	ctx      *actorContext
-	once     sync.Once
 }
 
 func newErgoActor(adapter *Adapter, kind, callerID, id string, producer gxyactor.ActorProducer) *ergoActor {
-	return &ergoActor{adapter: adapter, kind: kind, callerID: callerID, id: id, actor: producer()}
+	return &ergoActor{
+		adapter:  adapter,
+		kind:     kind,
+		callerID: callerID,
+		id:       id,
+		host:     gxyactor.NewActorProcess(kind, producer()),
+	}
 }
 
 func (a *ergoActor) Init(args ...any) error {
-	if a.actor == nil {
+	if a.host == nil {
 		return ErrActorInitFailed
 	}
 	a.adapter.remember(a.kind, a.callerID, a.PID())
-	a.ctx = &actorContext{
-		adapter: a.adapter,
-		process: a,
-		ctx:     contextWithErgoTrace(context.Background(), a.PropagatingTrace(), a),
-		message: gxyactor.ActorStartedMessage{Self: a.adapter.fromErgoPID(a.PID(), a.id), InitArgs: args},
-	}
-	if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
-		receiver.Receive(a.ctx)
-		if lifecycle, ok := a.actor.(interface{ LifecycleError() error }); ok {
-			if err := lifecycle.LifecycleError(); err != nil {
-				return wrap(ErrActorInitFailed, err)
-			}
-		}
-		return nil
-	}
-	if err := a.actor.Init(a.ctx.ctx, args); err != nil {
+	a.ctx = &actorContext{adapter: a.adapter, process: a}
+	a.prepareContext()
+	if err := a.host.Init(a.ctx, args); err != nil {
 		return wrap(ErrActorInitFailed, err)
 	}
 	return nil
@@ -57,21 +53,43 @@ func (a *ergoActor) HandleMessage(from gen.PID, message any) error {
 	if err != nil {
 		return err
 	}
+	switch down := decoded.(type) {
+	case gen.MessageDownPID:
+		decoded = gxyactor.ActorTerminatedMessage{Who: a.adapter.fromErgoPID(down.PID, "")}
+	case *gen.MessageDownPID:
+		if down != nil {
+			decoded = gxyactor.ActorTerminatedMessage{Who: a.adapter.fromErgoPID(down.PID, "")}
+		}
+	}
 	if a.ctx == nil {
 		a.ctx = &actorContext{adapter: a.adapter, process: a}
 	}
 	a.ctx.sender = a.adapter.fromErgoPID(from, "")
 	a.ctx.request = nil
-	a.ctx.ctx = contextWithErgoTrace(context.Background(), a.PropagatingTrace(), a)
-	a.ctx.message = decoded
-	if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
-		receiver.Receive(a.ctx)
-		if lifecycle, ok := a.actor.(interface{ LifecycleError() error }); ok {
-			return lifecycle.LifecycleError()
-		}
-		return nil
+	a.prepareContext()
+	if _, unspanned := decoded.(gxyactor.IUnspanMessage); unspanned {
+		return a.host.HandleMessage(a.ctx, decoded)
 	}
-	return a.actor.HandleMessage(a.ctx.ctx, decoded)
+	previous := a.ctx.ctx
+	parent := trace.SpanContextFromContext(previous)
+	if parent.IsRemote() {
+		span := trace.SpanFromContext(previous)
+		span.SetName(fmt.Sprintf("%T", decoded))
+		span.SetAttributes(attribute.String("actor_kind", a.kind), attribute.String("msg", gxyutil.FormatObject(decoded)))
+		return a.host.HandleMessage(a.ctx, decoded)
+	}
+	ctx, span := otel.Tracer("gserver/actor").Start(previous, fmt.Sprintf("%T", decoded))
+	span.SetAttributes(attribute.String("actor_kind", a.kind), attribute.String("msg", gxyutil.FormatObject(decoded)))
+	a.ctx.ctx = ctx
+	defer func() {
+		span.End()
+		a.ctx.ctx = previous
+	}()
+	if err := a.host.HandleMessage(a.ctx, decoded); err != nil {
+		span.RecordError(err)
+		return err
+	}
+	return nil
 }
 
 func (a *ergoActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
@@ -84,15 +102,8 @@ func (a *ergoActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, err
 	}
 	a.ctx.sender = a.adapter.fromErgoPID(from, "")
 	a.ctx.request = &ergoRequest{sender: a.ctx.sender, rawSender: from, ref: ref, process: a}
-	a.ctx.ctx = contextWithErgoTrace(context.Background(), a.PropagatingTrace(), a)
-	a.ctx.message = decoded
-	handler, ok := a.actor.(interface {
-		DoCallMsgHandler(context.Context, any) (any, error)
-	})
-	if !ok {
-		return nil, gen.ErrUnsupported
-	}
-	result, err := handler.DoCallMsgHandler(a.ctx.ctx, decoded)
+	a.prepareContext()
+	result, err := a.host.HandleCall(a.ctx, decoded)
 	if err != nil {
 		_ = a.SendResponseError(from, ref, err)
 		return nil, err
@@ -108,23 +119,21 @@ func (a *ergoActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, err
 }
 
 func (a *ergoActor) Terminate(reason error) {
-	a.once.Do(func() {
-		if a.actor == nil {
-			return
+	if a.host != nil {
+		if a.ctx == nil {
+			a.ctx = &actorContext{adapter: a.adapter, process: a}
 		}
-		if receiver, ok := a.actor.(interface{ Receive(gxyactor.ActorContext) }); ok {
-			if a.ctx == nil {
-				a.ctx = &actorContext{adapter: a.adapter, process: a}
-			}
-			a.ctx.message = gxyactor.ActorStoppedMessage{Err: reason}
-			receiver.Receive(a.ctx)
-		} else {
-			a.actor.Terminate(context.Background(), reason)
-		}
-		if a.adapter != nil {
-			a.adapter.forgetRaw(a.PID())
-		}
-	})
+		a.prepareContext()
+		a.host.Terminate(a.ctx, reason)
+	}
+	if a.adapter != nil {
+		a.adapter.forgetRaw(a.PID())
+	}
+}
+
+func (a *ergoActor) prepareContext() {
+	incoming := contextWithErgoTrace(context.Background(), a.PropagatingTrace(), a)
+	a.ctx.ctx = a.host.Context(incoming, a.adapter)
 }
 
 type ergoRequest struct {
@@ -133,6 +142,7 @@ type ergoRequest struct {
 	ref       gen.Ref
 	process   *ergoActor
 }
+
 func (r *ergoRequest) Sender() gxyactor.PID {
 	if r == nil {
 		return gxyactor.PID{}
@@ -146,7 +156,6 @@ type actorContext struct {
 	adapter *Adapter
 	process *ergoActor
 	sender  gxyactor.PID
-	message any
 	request *ergoRequest
 	ctx     context.Context
 }
@@ -173,36 +182,21 @@ func contextWithErgoTrace(base context.Context, tracing gen.Tracing, process gen
 	return trace.ContextWithRemoteSpanContext(base, spanContext)
 }
 
-func (c *actorContext) Sender() gxyactor.PID {
-	if c == nil {
-		return gxyactor.PID{}
-	}
-	return c.sender
-}
 func (c *actorContext) Context() context.Context {
 	if c == nil || c.ctx == nil {
 		return context.Background()
 	}
 	return c.ctx
 }
-func (c *actorContext) RequestHandle() gxyactor.Request {
+func (c *actorContext) Deadline() (time.Time, bool) { return c.Context().Deadline() }
+func (c *actorContext) Done() <-chan struct{}       { return c.Context().Done() }
+func (c *actorContext) Err() error                  { return c.Context().Err() }
+func (c *actorContext) Value(key any) any           { return c.Context().Value(key) }
+func (c *actorContext) Sender() gxyactor.PID {
 	if c == nil {
-		return nil
+		return gxyactor.PID{}
 	}
-	return c.request
-}
-func (c *actorContext) Message() any {
-	if c == nil {
-		return nil
-	}
-	return c.message
-}
-func (c *actorContext) MessageHeader() map[string]string { return nil }
-func (c *actorContext) Runtime() gxyactor.Runtime {
-	if c == nil {
-		return nil
-	}
-	return c.adapter
+	return c.sender
 }
 func (c *actorContext) Self() gxyactor.PID {
 	if c == nil || c.adapter == nil || c.process == nil {
@@ -210,11 +204,12 @@ func (c *actorContext) Self() gxyactor.PID {
 	}
 	return c.adapter.fromErgoPID(c.process.PID(), c.process.id)
 }
-func (c *actorContext) Stop(pid gxyactor.PID) {
-	if c == nil || c.adapter == nil {
+func (c *actorContext) Stop(reason error) {
+	if c == nil || c.adapter == nil || c.process == nil {
 		return
 	}
-	_ = c.adapter.Stop(pid)
+	c.process.host.SetStopReason(reason)
+	_ = c.adapter.Stop(c.Self())
 }
 func (c *actorContext) Watch(pid gxyactor.PID) {
 	if c == nil || c.process == nil {
@@ -233,3 +228,48 @@ func (c *actorContext) Unwatch(pid gxyactor.PID) {
 	}
 }
 func (c *actorContext) Children() []gxyactor.PID { return nil }
+func (c *actorContext) Timer() *gxyactor.ActorTimer {
+	if c == nil || c.process == nil {
+		return nil
+	}
+	return c.process.host.Timer()
+}
+func (c *actorContext) Span() trace.Span { return trace.SpanFromContext(c) }
+func (c *actorContext) SetLogValue(key string, value any) {
+	if c == nil || c.process == nil {
+		return
+	}
+	c.ctx = c.process.host.SetLogValue(c.Context(), key, value)
+}
+func (c *actorContext) AddMsgHandler(handler any, prefix ...string) []*gxyutil.MethodMeta {
+	if c == nil || c.process == nil {
+		return nil
+	}
+	return c.process.host.AddMsgHandler(handler, prefix...)
+}
+func (c *actorContext) AutoHandleMsg(message any) (any, error) {
+	if c == nil || c.process == nil {
+		return nil, gen.ErrProcessUnknown
+	}
+	return c.process.host.AutoHandleMsg(c, message)
+}
+func (c *actorContext) Respond(message any, responseErr ...error) error {
+	if c == nil || c.adapter == nil {
+		return gen.ErrProcessUnknown
+	}
+	if c.request == nil {
+		return nil
+	}
+	var err error
+	if len(responseErr) > 0 {
+		err = responseErr[0]
+	}
+	return c.adapter.Respond(c, c.request, message, err)
+}
+func (c *actorContext) MessageHeader() map[string]string { return nil }
+func (c *actorContext) Runtime() gxyactor.Runtime {
+	if c == nil {
+		return nil
+	}
+	return c.adapter
+}

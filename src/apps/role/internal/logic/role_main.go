@@ -99,7 +99,6 @@ type roleModules struct {
 type RoleMain struct {
 	gxymodule.ModuleBase
 	roleModules
-	*gxyactor.ActorBase
 	RoleID int64
 
 	actorOwner  gxyactor.ActorOwner
@@ -118,19 +117,16 @@ type RoleMain struct {
 }
 
 func NewRoleMain() *RoleMain {
-	r := &RoleMain{
+	return &RoleMain{
 		state:       RoleStateInit,
 		limitConfig: roleLimitConfig,
 		newBucket:   newLimitBucket,
 		// 组装根:填充全局单例;测试可覆盖注入 mock。
 		deps: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()},
 	}
-	ctx := gxylog.NewContext(context.Background(), "role")
-	r.ActorBase = gxyactor.NewActorBase(ctx, r, "role")
-	return r
 }
 
-func (r *RoleMain) Init(ctx context.Context, args []any) error {
+func (r *RoleMain) Init(ctx gxyactor.ActorContext, args []any) error {
 	if len(args) == 0 {
 		return gerror.New("roleID is required in init args")
 	}
@@ -146,7 +142,7 @@ func (r *RoleMain) Init(ctx context.Context, args []any) error {
 		return gerror.Newf("actor owner is invalid, owner: %v", args[1])
 	}
 	r.actorOwner = owner
-	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
+	ctx.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
 	// 验证角色账号是否存在
 	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
 	if err != nil {
@@ -159,7 +155,7 @@ func (r *RoleMain) Init(ctx context.Context, args []any) error {
 	return nil
 }
 
-func (r *RoleMain) DelayInit(ctx context.Context) error {
+func (r *RoleMain) DelayInit(ctx gxyactor.ActorContext) error {
 	if err := advanceRoleActorFence(ctx, r.DB(), r.RoleID, r.actorOwner); err != nil {
 		return gerror.Wrapf(err, "advance role actor fence, roleID: %d", r.RoleID)
 	}
@@ -174,12 +170,12 @@ func (r *RoleMain) DelayInit(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleMain) initRole(ctx context.Context) error {
+func (r *RoleMain) initRole(ctx gxyactor.ActorContext) error {
 	if err := r.initModules(ctx); err != nil {
 		return err
 	}
 	r.initTimer(ctx)
-	if err := r.initMsgHandler(); err != nil {
+	if err := r.initMsgHandler(ctx); err != nil {
 		return err
 	}
 	r.state = RoleStateLoad
@@ -187,11 +183,11 @@ func (r *RoleMain) initRole(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleMain) afterInitRole(ctx context.Context) error {
+func (r *RoleMain) afterInitRole(ctx gxyactor.ActorContext) error {
 	if err := r.StartModule(ctx); err != nil {
 		return err
 	}
-	r.Timer().RestoreCron(ctx)
+	ctx.Timer().RestoreCron(ctx)
 	return nil
 }
 
@@ -302,12 +298,12 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 	return true
 }
 
-func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
-	_, err := r.AutoHandleMsg(ctx, msg)
+func (r *RoleMain) HandleMessage(ctx gxyactor.ActorContext, msg any) error {
+	_, err := ctx.AutoHandleMsg(msg)
 	return err
 }
 
-func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
+func (r *RoleMain) HandleClientMsg(ctx gxyactor.ActorContext, climsg *pb.ClientMsg) (proto.Message, error) {
 	id := climsg.Id
 	start := time.Now()
 	msgID := id
@@ -370,7 +366,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		}
 	}
 	var rsp proto.Message
-	res, err := r.DoCallMsgHandler(ctx, pbmsg)
+	res, err := ctx.AutoHandleMsg(pbmsg)
 	if err != nil {
 		result = "error"
 		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
@@ -419,22 +415,22 @@ func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
 	return rspMsg, nil
 }
 
-func (r *RoleMain) initTimer(ctx context.Context) {
-	r.Timer().SetCronState(r.Extra)
-	r.Timer().AddTick(ctx, PersistTick, r.TickSave)
-	r.Timer().AddCron(ctx, gxytimer.DayRefresh, r.DayRefresh)
-	r.Timer().AddTick(ctx, PublicUpdateTick, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (r *RoleMain) initTimer(ctx gxyactor.ActorContext) {
+	ctx.Timer().SetCronState(r.Extra)
+	ctx.Timer().AddTick(ctx, PersistTick, r.TickSave)
+	ctx.Timer().AddCron(ctx, gxytimer.DayRefresh, r.DayRefresh)
+	ctx.Timer().AddTick(ctx, PublicUpdateTick, func(ctx gxyactor.ActorContext, _ gxytimer.TimerActiveInfo) {
 		r.Public.UpdateRolePublic(ctx)
 	})
 }
 
-func (r *RoleMain) initMsgHandler() error {
+func (r *RoleMain) initMsgHandler(ctx gxyactor.ActorContext) error {
 	// 把各个模块的handle也添加到msgHandler中,方便自动处理协议
 	moduleByMessage := make(map[string]string)
 	seen := make(map[string]struct{})
 	moduleNames := make([]string, 0, len(r.Modules()))
 	for _, mod := range r.Modules() {
-		metas := r.AddMsgHandler(mod)
+		metas := ctx.AddMsgHandler(mod)
 		if len(metas) == 0 {
 			continue
 		}
@@ -457,16 +453,16 @@ func (r *RoleMain) initMsgHandler() error {
 	return nil
 }
 
-func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+func (r *RoleMain) TickSave(ctx gxyactor.ActorContext, _info gxytimer.TimerActiveInfo) {
 	if err := r.save(ctx); err != nil {
 		gxylog.Error(ctx, "save error", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
 		// 终止当前进程
-		r.Stop(err)
+		ctx.Stop(err)
 		return
 	}
 }
 
-func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
+func (r *RoleMain) DayRefresh(ctx gxyactor.ActorContext, info gxytimer.TimerActiveInfo) {
 }
 
 // saveRoleModule 可替换函数变量:测试可拦截保存(编译期安全)。
@@ -608,7 +604,7 @@ func (r *RoleMain) SubscribeRoleEvent(eventType event.EventType, handler func(ct
 	return r.eventBus.Subscribe(eventType, handler)
 }
 
-func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin) (rsp *pb.RspAccountLogin, err error) {
+func (r *RoleMain) ReqAccountLogin(ctx gxyactor.ActorContext, req *pb.ReqAccountLogin) (rsp *pb.RspAccountLogin, err error) {
 	result := "ok"
 	defer func() {
 		if err != nil {
@@ -616,7 +612,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 		}
 		gxymetrics.RoleLogins.WithLabelValues(result).Inc()
 	}()
-	newSession := r.Sender()
+	newSession := ctx.Sender()
 	if r.state == RoleStateLogined && !gxyactor.PidEqual(r.session, newSession) { // 表示重复登录
 		// 断开旧连接
 		_ = gxyactor.Send(ctx, r.session, &pb.ActorStop{
@@ -636,7 +632,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
 		gxylog.Info(ctx, "role reconnect", gxylog.Num("roleID", r.RoleID))
 	}
-	r.Timer().Cancel(ctx, SignleAliveOnce.Name)
+	ctx.Timer().Cancel(ctx, SignleAliveOnce.Name)
 	r.state = RoleStateLogined
 	r.Public.IsOnline = true
 	if err := r.afterRoleLogin(ctx); err != nil {
@@ -669,12 +665,12 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
+func (r *RoleMain) afterRoleLogin(ctx gxyactor.ActorContext) error {
 	r.sessionActiveTime = time.Now()
-	r.Timer().AddTick(ctx, SessionAliveCheckTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	ctx.Timer().AddTick(ctx, SessionAliveCheckTick, func(ctx gxyactor.ActorContext, _info gxytimer.TimerActiveInfo) {
 		r.checkSessionAlive(ctx)
 	})
-	r.Timer().AddTick(ctx, PublicUpdateTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	ctx.Timer().AddTick(ctx, PublicUpdateTick, func(ctx gxyactor.ActorContext, _info gxytimer.TimerActiveInfo) {
 		r.Public.UpdateRolePublic(ctx)
 	})
 	for _, mod := range r.Modules() {
@@ -692,27 +688,27 @@ func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
 	return nil
 }
 
-func (r *RoleMain) checkSessionAlive(ctx context.Context) {
+func (r *RoleMain) checkSessionAlive(ctx gxyactor.ActorContext) {
 	if time.Since(r.sessionActiveTime) <= SESSION_ALIVE_INTERVAL {
 		return
 	}
 	_ = r.dologout(ctx, "session alive timeout")
 }
 
-func (r *RoleMain) ReqAccountLogout(ctx context.Context, req *pb.ReqAccountLogout) error {
-	sender := r.Sender()
+func (r *RoleMain) ReqAccountLogout(ctx gxyactor.ActorContext, req *pb.ReqAccountLogout) error {
+	sender := ctx.Sender()
 	if !gxyactor.PidEqual(sender, r.session) {
 		return nil
 	}
 	return r.dologout(ctx, req.Reason)
 }
 
-func (r *RoleMain) dologout(ctx context.Context, reason string) error {
+func (r *RoleMain) dologout(ctx gxyactor.ActorContext, reason string) error {
 	if r.state == RoleStateLogout {
 		return nil
 	}
 	gxymetrics.RoleLogouts.WithLabelValues(roleLogoutReason(reason)).Inc()
-	r.Timer().Cancel(ctx, SessionAliveCheckTick.Name)
+	ctx.Timer().Cancel(ctx, SessionAliveCheckTick.Name)
 	r.session = gxyactor.PID{}
 	r.Basic.LogoutTm = time.Now()
 	r.Public.IsOnline = false
@@ -720,8 +716,8 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	if err := r.save(ctx); err != nil {
 		return err
 	}
-	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
-		r.Stop(errors.New("single alive timeout"))
+	ctx.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx gxyactor.ActorContext, _info gxytimer.TimerActiveInfo) {
+		ctx.Stop(errors.New("single alive timeout"))
 	})
 	r.state = RoleStateLogout
 	for _, mod := range r.Modules() {
@@ -746,7 +742,7 @@ func roleLogoutReason(reason string) string {
 	}
 }
 
-func (r *RoleMain) Terminate(ctx context.Context, err error) {
+func (r *RoleMain) Terminate(ctx gxyactor.ActorContext, err error) {
 	gxylog.Debug(ctx, "role stopped", gxylog.Err(err))
 	if serr := r.StopModule(ctx); serr != nil {
 		gxylog.Error(ctx, "stop module error", gxylog.Err(serr))

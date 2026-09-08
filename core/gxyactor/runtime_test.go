@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 )
@@ -111,45 +110,10 @@ func TestBusinessActorContractHasNoRuntimeActorRequirement(t *testing.T) {
 
 type contractActor struct{}
 
-func (*contractActor) Init(context.Context, []any) error        { return nil }
-func (*contractActor) DelayInit(context.Context) error          { return nil }
-func (*contractActor) Terminate(context.Context, error)         {}
-func (*contractActor) Timer() *ActorTimer                       { return nil }
-func (*contractActor) Self() PID                                { return PID{} }
-func (*contractActor) HandleMessage(context.Context, any) error { return nil }
-
-func TestActorBaseStoppedPreservesStopReason(t *testing.T) {
-	reason := errors.New("handler failed")
-	actorImpl := &terminationActor{}
-	base := NewActorBase(context.Background(), actorImpl, "test")
-	base.stopErr = reason
-	if err := base.doReceive(&testActorContext{message: ActorStoppedMessage{}}); err != nil {
-		t.Fatal(err)
-	}
-	if actorImpl.terminatedErr != reason {
-		t.Fatalf("Terminate error = %v, want %v", actorImpl.terminatedErr, reason)
-	}
-}
-
-type terminationActor struct{ terminatedErr error }
-
-func (*terminationActor) Init(context.Context, []any) error        { return nil }
-func (*terminationActor) DelayInit(context.Context) error          { return nil }
-func (a *terminationActor) Terminate(_ context.Context, err error) { a.terminatedErr = err }
-func (*terminationActor) Timer() *ActorTimer                       { return nil }
-func (*terminationActor) Self() PID                                { return PID{} }
-func (*terminationActor) HandleMessage(context.Context, any) error { return nil }
-
-type testActorContext struct{ message any }
-
-func (c *testActorContext) Sender() PID                      { return PID{} }
-func (c *testActorContext) Message() any                     { return c.message }
-func (c *testActorContext) MessageHeader() map[string]string { return nil }
-func (c *testActorContext) Self() PID                        { return PID{} }
-func (*testActorContext) Stop(PID)                           {}
-func (*testActorContext) Watch(PID)                          {}
-func (*testActorContext) Unwatch(PID)                        {}
-func (*testActorContext) Children() []PID                    { return nil }
+func (*contractActor) Init(ActorContext, []any) error        { return nil }
+func (*contractActor) DelayInit(ActorContext) error          { return nil }
+func (*contractActor) Terminate(ActorContext, error)         {}
+func (*contractActor) HandleMessage(ActorContext, any) error { return nil }
 
 func TestRuntimeDispatchesLocalSendAndDeregister(t *testing.T) {
 	var runtime testRuntime

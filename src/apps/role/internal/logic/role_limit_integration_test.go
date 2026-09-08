@@ -53,7 +53,7 @@ func newRoleMainForLimitTest(t *testing.T, config RoleLimitConfig, factory bucke
 		rmod.SetRole(r)
 	}
 	r.newBucket = factory
-	if err := r.initMsgHandler(); err != nil {
+	if err := r.initMsgHandler(newRoleTestContext()); err != nil {
 		t.Fatalf("initMsgHandler: %v", err)
 	}
 	return r
@@ -124,7 +124,7 @@ func TestRoleLimitIntegration_RateLimited(t *testing.T) {
 	limitedBefore := admissionCounter("RoleBasic", "limited")
 	reqBefore := clientRequestCounter(reqID, &pb.ReqBasicInfo{}, "limited")
 
-	res, err := r.HandleClientMsg(context.Background(), clientMsg(t, reqID, &pb.ReqBasicInfo{}))
+	res, err := r.HandleClientMsg(newRoleTestContext(), clientMsg(t, reqID, &pb.ReqBasicInfo{}))
 	if err != nil {
 		t.Fatalf("HandleClientMsg: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestRoleLimitIntegration_Disabled(t *testing.T) {
 	reqID := "req-2"
 	disabledBefore := admissionCounter("RoleBasic", "disabled")
 
-	res, err := r.HandleClientMsg(context.Background(), clientMsg(t, reqID, &pb.ReqBasicInfo{}))
+	res, err := r.HandleClientMsg(newRoleTestContext(), clientMsg(t, reqID, &pb.ReqBasicInfo{}))
 	if err != nil {
 		t.Fatalf("HandleClientMsg: %v", err)
 	}
@@ -206,7 +206,7 @@ func TestRoleLimitIntegration_PermittedReachesHandler(t *testing.T) {
 	reqID := "req-3"
 	okBefore := admissionCounter("RoleBasic", "ok")
 
-	res, err := r.HandleClientMsg(context.Background(), clientMsg(t, reqID, &pb.ReqBasicInfo{}))
+	res, err := r.HandleClientMsg(newRoleTestContext(), clientMsg(t, reqID, &pb.ReqBasicInfo{}))
 	if err != nil {
 		t.Fatalf("HandleClientMsg: %v", err)
 	}

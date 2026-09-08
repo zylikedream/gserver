@@ -5,6 +5,10 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"gserver/core/gxyutil"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // PID is the runtime-neutral identity of an actor process. Runtime, Node, ID,
@@ -39,17 +43,27 @@ type Request interface {
 	Sender() PID
 }
 
-// ActorContext is the runtime-neutral callback context supplied by an adapter.
-// Message delivery and lifecycle control stay behind this interface.
+// ActorContext is the callback-scoped runtime interface available to business
+// Actors. It is valid only while the current Actor callback is executing.
 type ActorContext interface {
+	context.Context
 	Request
-	Message() any
-	MessageHeader() map[string]string
 	Self() PID
-	Stop(PID)
+	Stop(error)
 	Watch(PID)
 	Unwatch(PID)
 	Children() []PID
+	Timer() *ActorTimer
+	Span() trace.Span
+	SetLogValue(string, any)
+	AddMsgHandler(any, ...string) []*gxyutil.MethodMeta
+	AutoHandleMsg(any) (any, error)
+	Respond(any, ...error) error
+}
+
+func ActorContextFrom(ctx context.Context) (ActorContext, bool) {
+	actx, ok := ctx.(ActorContext)
+	return actx, ok
 }
 
 // Runtime owns process operations while the package exposes only normalized
@@ -111,26 +125,6 @@ func PidEqual(a, b any) bool {
 		return false
 	}
 	return pa == pb
-}
-
-// LifecycleMessage is a runtime-neutral lifecycle marker. The adapter turns
-// its private process callbacks into these values before invoking ActorBase.
-type LifecycleMessage uint8
-
-const (
-	ActorStarted LifecycleMessage = iota + 1
-	ActorStopping
-	ActorStopped
-	ActorAutoRespond
-)
-
-type ActorStartedMessage struct {
-	Self     PID
-	InitArgs []any
-}
-
-type ActorStoppedMessage struct {
-	Err error
 }
 
 type ActorTerminatedMessage struct {

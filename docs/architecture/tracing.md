@@ -8,12 +8,12 @@
 
 ## 设计思路
 
-**不使用 Ergo 的 middleware 机制。** trace 上下文通过消息 header 传递，span 存在 actor 的 `a.ctx` 中，不存全局 map。
+**不使用 Ergo 的 middleware 机制。** trace 上下文通过消息 envelope 传递，span
+绑定在 callback-scoped `ActorContext` 上，不存全局 map。
 
 ```
-每条消息到达 → doReceive 从 header 提取 trace → 创建 span → 存入 a.ctx
-→ 下游 Send/Call 读到 a.ctx 中的 span → inject 到出站消息 header
-→ 消息处理完 → 清理 a.ctx 中的 span
+每条消息到达 → Ergo adapter 准备 ActorContext → 提取 propagating trace
+→ 本地消息创建 actor span → HandleMessage → callback 返回时结束/恢复 span
 ```
 
 ## 架构
@@ -21,43 +21,30 @@
 ```
 ┌──────────────────────────────────────────────────────────┐
 │ helper.go                                                │
-│  Send/LocalSend/Call/CallSync (exported)                │
-│    → 透传 ctx 给 app.send/app.call                       │
+│  Send/LocalSend/Call/CallSync (exported)                  │
+│    → 透传 ctx 给 app.send/app.call                         │
 ├──────────────────────────────────────────────────────────┤
 │ system.go                                                │
-│  app.send(ctx)           ←── 单一下行出口，所有消息经过   │
-│    ├─ injectTrace(ctx, msg) → 有 span? → 发 envelope     │
-│    └─ 无 span? → 发裸消息                                │
-│                                                          │
-│  app.call(ctx)  → 创建 Future envelope → app.send(ctx)   │
-│  app.callSync   → 创建 Sender envelope  → app.send(ctx)  │
-│  app.localSend  → app.send(ctx)                          │
+│  app.send(ctx)           ←── 单一下行出口，所有消息经过     │
+│    ├─ injectTrace(ctx, msg) → 有 span? → 发 envelope       │
+│    └─ 无 span? → 发裸消息                                  │
 ├──────────────────────────────────────────────────────────┤
-│ actor.go                                                 │
-│  doReceive default case                                   │
-│    → Extract header → Start span → 注入 a.ctx            │
-│    → HandleMessage → defer 清理 a.ctx → defer span.End() │
+│ internal/ergo/actor.go                                   │
+│  Ergo Init/HandleMessage/HandleCall/Terminate             │
+│    → prepare callback context                             │
+│    → ActorProcess → ActorContext                          │
 └──────────────────────────────────────────────────────────┘
 ```
 
 ## 组件详解
 
-### 1. 入站：span 创建（actor.go doReceive）
+### 1. 入站：callback context 与 span
 
-每条业务消息到达 actor 时，从 `MessageHeader` 提取 trace 上下文，创建 span 挂到 `a.ctx`：
+Ergo adapter 在每条消息 callback 开始时准备新的 `ActorContext`。Ergo 传入的
+propagating trace 会作为 callback context 的远程父上下文；本地消息则创建一个
+新的 actor span，并在 callback 返回后恢复上一次 context。
 
-```go
-// doReceive default case
-carrier := readonlyHeaderCarrier{a.Actx.MessageHeader()}
-extCtx := otel.GetTextMapPropagator().Extract(a.ctx, carrier)
-_, span := otel.Tracer("gserver/actor").Start(extCtx, fmt.Sprintf("%T", msg))
-defer span.End()
-savedCtx := a.ctx
-a.ctx = trace.ContextWithSpan(a.ctx, span)
-defer func() { a.ctx = savedCtx }()
-```
-
-关键：`a.ctx` 是 ActorBase 的持久化字段，消息处理完后必须恢复，否则 span 会泄漏到后续消息（如 timer 回调）。
+业务 Actor 只通过 `ctx.Span()` 和 `ctx` 传递 trace，不持有跨消息的 context 或 span。
 
 ### 2. 出站：trace 注入（system.go injectTrace + send）
 
@@ -298,31 +285,28 @@ func Call(ctx context.Context, pid PID, message proto.Message, timeout time.Dura
 
 ## 数据流
 
-```
 gateway OnMessage(ctx=context.Background())
   → Send(ctx, rolePID, msg)
     → app.send → injectTrace: 无 span → 裸消息
 
-role actor doReceive default case
-  → header 空 → Start → 创建根 span（新 trace）
-  → a.ctx = trace.ContextWithSpan(a.ctx, span)
-  → HandleMessage → Send(a.ctx, guildPID, req)
-    → app.send → injectTrace: 读到 span → 注入 W3C  header
+role Ergo HandleMessage
+  → adapter.prepareContext → ActorContext
+  → HandleMessage → gxyactor.Send(ctx, guildPID, req)
+    → app.send → injectTrace: 读到 span → 注入 W3C header
     → 发送 MessageEnvelope{Header: trace, Message: req}
 
-guild actor doReceive default case
-  → Extract header → 还原父 span context
-  → Start → 创建子 span
-  → HandleMessage
+guild Ergo HandleMessage
+  → adapter.prepareContext → ActorContext
+  → 提取远程父上下文并执行 HandleMessage
 
-返回 → defer 恢复 a.ctx → defer span.End()
+callback 返回 → 恢复 callback context → span.End()
 ```
 
 ## 与内置 OTel middleware 对比
 
 | 特性 | 内置 middleware | 我们的方案 |
 |------|---------------|-----------|
-| 存储 | sync.Map (PID → span) | a.ctx 字段（actor 本地） |
+| 存储 | sync.Map (PID → span) | callback-scoped ActorContext |
 | 中间件依赖 | Sender + Receiver + Spawn 三层 | 无中间件 |
 | 出站注入 | 全局拦截全部消息 | 收拢到 `send` 一个方法 |
 | envelope 嵌套 | RequestFuture 产生嵌套，需额外处理 | type switch 直接复用 |
@@ -481,7 +465,8 @@ gate: *pb.ReqGuildInfo  ██████████████████�
 子 span    ██████████████████████   ← 超出父 span
 ```
 
-正常情况下子 span 必须在父 span 时间范围内。超出说明时间记录有误 — 通常原因是 `a.ctx` 中的 span 泄漏（`doReceive` 的 `savedCtx` 恢复逻辑未正确执行），或 goroutine 中使用了错误的 ctx。
+正常情况下子 span 必须在父 span 时间范围内。超出说明时间记录有误 — 通常原因是 callback
+上下文被跨消息保存，或 goroutine 中使用了错误的 ctx。
 
 **模式六：多个独立根 span（链路断裂）**
 
@@ -503,8 +488,9 @@ gate: *pb.ReqGuildInfo  ██████████████████�
 - **子 span 之间有大间隔** → 可能是网络延迟（跨节点 Call 的 RTT）或本地计算瓶颈，需结合 span 的 service 名判断
 - **子 span 重叠** → 正常的并发行为（异步 Send 多个下游），不需要处理
 - **链路断裂**（独立根 span）→ 检查调用是否使用了正确的 `ctx`，是否经过 `send`/`Call`
-- **span 超出父 span 范围** → 检查 `doReceive` 中 `savedCtx` 恢复逻辑是否正确
+- **span 超出父 span 范围** → 检查 callback context 是否跨消息保存
 
 ### IUnspanMessage
 
-实现了 `IUnspanMessage` 接口的消息会跳过 span 创建（在 `doReceive` 中直接走 `handleMessage`）。用于 Actor 内部消息（如 `ActorActive` 等），避免产生大量无意义的离散 trace。
+实现了 `IUnspanMessage` 接口的消息会跳过 adapter 的 span 创建，直接交给
+`ActorProcess.HandleMessage`。用于 Actor 内部消息，避免产生大量无意义的离散 trace。

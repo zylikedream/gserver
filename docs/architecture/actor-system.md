@@ -27,7 +27,7 @@ GServer 基于 [Ergo](https://github.com/ergo-services/ergo) 构建通用 Actor 
 - **地址**：Node 的传输地址由 Ergo network 提供；业务使用 `nodeInstanceName` 通过服务发现解析地址，不把地址写入 Actor owner key 或 PID。
 - **公共操作**：提供 runtime-neutral 的 `Send`、`Call`、`Respond`、`Stop`、`ActivateActor` 等操作；Ergo `gen.*` 类型不出现在业务 API。
 
-### GServer Actor contract（`actor.go`）
+### GServer Actor contract（`actor.go`、`process.go`）
 
 业务 Actor 只实现以下契约，不嵌入具体 runtime 类型：
 
@@ -35,16 +35,21 @@ GServer 基于 [Ergo](https://github.com/ergo-services/ergo) 构建通用 Actor 
 - `DelayInit(ctx)`：handler 注册后的延迟初始化；完成前不接收普通业务消息。
 - `HandleMessage(ctx, message)`：在 mailbox 中串行处理 opaque 业务消息。
 - `Terminate(ctx, err)`：ProcessTerminate 阶段清理资源。
-- `Timer()`、`Self()`：分别提供 timer 管理和规范化 GServer PID。
 
-生命周期固定为 `ProcessInit → Init → handler 注册 → DelayInit → message handling → ProcessTerminate → Terminate`。初始化成功并经激活确认后才发布 PID 到本地 `ActorMgr`；handler error 或 panic 按 one-for-one stop 语义终止当前 Actor。
+Ergo adapter 持有 `ActorProcess`，并把 Ergo 原生 `Init`、`HandleMessage`、
+`HandleCall`、`Terminate` 回调直接映射到它。业务运行时能力通过回调期间有效的
+`ActorContext` 提供，包括 `Self`、`Sender`、`Timer`、`Watch`、`Respond`、
+handler dispatch、trace 和 stop reason。
 
-### ActorBase
+生命周期固定为 `ProcessInit → Init → handler 注册 → DelayInit → message handling → ProcessTerminate → Terminate`。
+初始化成功并经激活确认后才发布 PID 到本地 `ActorMgr`；handler error 或 panic 按 one-for-one stop 语义终止当前 Actor。
 
-默认基类通过 GServer adapter 接入 Ergo mailbox，提供：
+### ActorProcess
+
+`ActorProcess` 是 adapter 持有的 runtime-neutral process wrapper，负责：
 
 - handler 自动分发、panic 捕获、日志和 trace 上下文传递；
-- `Call`、`Send`、`Respond`、`Stop` 等 runtime-neutral 操作；
+- callback-scoped `ActorContext` 上的 `Call`、`Send`、`Respond`、`Stop` 等能力；
 - timer 事件经 mailbox 串行投递，并在 Terminate 前取消；
 - 初始化失败不发布 PID，Terminate 只执行一次。
 
@@ -134,12 +139,12 @@ Ergo 配置 one-for-one stop supervision：
 ## 节点关闭
 
 节点进入 drain 后停止新 activation 和 Spawn，等待已有 Actor 保存并正常终止；超时后保存并断线重连。节点无法在安全截止时间内确认 Redis lease 续租时必须 self-fence，停止新请求并终止进程。节点崩溃后只能在 lease 到期且 epoch 递增后被接管，不迁移在线 Actor 的 PID、mailbox 或内存状态。
-
 ## 源码位置
 
 | 文件 | 内容 |
 |------|------|
-| `core/gxyactor/actor.go` | GServer Actor contract、ActorBase 实现 |
+| `core/gxyactor/actor.go` | GServer Actor contract |
+| `core/gxyactor/process.go` | adapter-owned lifecycle, handler and timer process wrapper |
 | `core/gxyactor/actor_mgr.go` | 本地规范化 PID 管理器 |
 | `core/gxyactor/system.go` | actorApp、Ergo adapter 集成 |
 | `core/gxyactor/helper.go` | 全局函数（Send/Call/ActivateActor 等） |

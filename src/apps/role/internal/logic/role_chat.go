@@ -88,7 +88,11 @@ func (r *RoleChat) JoinChannel(ctx context.Context, channelType int32, channelID
 	if err != nil {
 		return gxyactor.PID{}, err
 	}
-	self := r.Role.Self()
+	actx, ok := gxyactor.ActorContextFrom(ctx)
+	if !ok {
+		return gxyactor.PID{}, errors.New("role actor context is unavailable")
+	}
+	self := actx.Self()
 	_ = gxyactor.Send(ctx, channel, &pb.ChannelRegisterMsg{
 		RoleId: r.RoleID,
 		Pid: &pb.ActorPid{
