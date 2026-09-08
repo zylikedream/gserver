@@ -153,7 +153,7 @@ ergo node (每进程一个,cmd/gserver 或 per-app main)
 |---|---|---|---|
 | 0.1 | 起草 ADR-0009(ergo-native 改造) | 收编本文档;首个决策点:node naming | ADR |
 | 0.2 | **node naming 定案** | ergo node name 从 `game@<hexnano>` 改为 `game@<POD_IP|host>`(真实可路由 host);牵动 Redis owner `NodeID` 与 PID 语义,adapter 已有 transportName↔nodeName 双身份映射(pid.go:22-24)可承接 | ADR 决策记录 |
-| 0.3 | **Call 错误通道定案** | 二选一:维持 adapter 的 `SendResponseError` 桥(偏离官方但稳定)或切官方 `result=error` 约定;`CallSync` 遗留接口一并清理 | ADR 决策记录 |
+| 0.3 | **Call 错误通道定案** | 已定:**切官方 `result=error` 约定**——业务错误走 result 值(pb envelope,与消息同通道),`HandleCall` 返回的 err 只作终止原因;同节点错误对象直传(含栈)、跨节点走 pb 后身份/栈问题消失;`gen.Error` 仅限框架三场景(线格式/Mailbox Preservation/supervisor 退出原因),业务代码禁用;`CallSync` 遗留接口一并清理;adapter 自定义 `Error{Kind,Cause}`(runtime.go:27-55)删除,`mapError` 改 cockroachdb `Wrap` | ADR-0009 决策记录 |
 | 0.4 | registrar 选型定案 | dev=内嵌/关网;k8s 生产=etcd(默认推荐,client 已在依赖树);Saturn 仅远期数百节点再评估 | ADR 决策记录 |
 
 ### P1 激活链路瘦身 + Application 重构(核心结构性改动)
@@ -165,6 +165,7 @@ ergo node (每进程一个,cmd/gserver 或 per-app main)
 | 1.3b | gxymodule/gxyapp 退役 | 全量盘点(15 消费方)确认无人使用模块树能力;基础设施 app→GServerApp 回调;`rolelib.RoleNotify`/`lib.Broadcast`→Group 成员 actor;**RoleMain 假树改显式 `[]IRoleModule`**(删 ModuleBase/AddModule 嵌入,role 自有聚合逻辑保留,`IRoleModule` 接口保留);两套 Deps 中字符串版删除、`deps.Deps` 注入保留(ADR-0001 资产) |
 | 1.4 | supervisor 接管容错 | `role_sup`(SOFO,PreserveMailbox,per-child Intensity+OnExceedDisable)管有状态玩家 actor;控制 actor 挂 OFO;**Claim 成功才 StartChild,顺序不倒** |
 | 1.5 | timer 换 native | ActorTimer 内部 gtimer/gcron → `SendEvery/SendAfter`(API 不变);cron 类评估 `NodeOptions.Cron`;actor 死 timer 自动失效 |
+| 1.6 | 错误边界收口 | 落实 P0-0.3:删 adapter `Error{Kind,Cause}`;节点启动时 `Network().RegisterError(...)` 注册跨节点哨兵清单(EDF ErrCache,`errors.Is` 身份跨节点存活);error-handling.md 补 3 条 Ergo 边界规则(哨兵注册 / 禁用 gen.Error 当业务错误 / 错误分支基于注册哨兵不依赖同异节点差异) |
 
 ### P2 发现层与通信层去 Consul 化
 
