@@ -174,3 +174,30 @@ func factoryMyActor() gen.ProcessBehavior { return &MyActor{} }
 8. PID 含 Creation(节点启动秒):节点重启后旧 PID 失配(ErrProcessIncarnation)——GServer 的 ownership 层需注意。
 9. 定时器用 lib timer 池;跨 goroutine 可变配置(priority/compression/log level)已全部原子化,运行时可调。
 10. fork 补丁提示:fork 的 `Whereis` 需 rebase 到 v3.3(上游 `ProcessPID` 已提供等价能力,可能可直接弃用 fork 补丁)。
+
+## 11. 官方文档逐章精读(docs.ergo.services,2026-09-08 起)
+
+### 第 1 章 Actor Model(basics/actor-model)
+
+- 心智模型:actor = 私有状态 + 行为 + 邮箱;逐条串行处理消息;只做三件事(发消息/建 actor/决定下一条怎么处理)。
+- **关键边界(Go 特有)**:内存隔离是纪律不是约束——同节点消息按 Go 值直接投递,**零拷贝零序列化**;发 map/slice/pointer 则两进程共享内存。跨节点消息才编码(即拷贝)。规则:发值不引用,或发送即放弃所有权。`argus` vet 工具 A1001 规则检测此违规。
+- 对 GServer:同节点高频路径(如 chat 广播)本地 Send 无序列化开销,这是相对 protoactor 的性能预期基础;但共享可变消息体就是 data race,迁移审查点。
+
+### 第 2 章 Generic Types(basics/generic-types)
+
+寻址五类型(源码 gen/types.go 已核对字段):
+
+| 类型 | 结构 | 用途 | 打印形态 |
+|---|---|---|---|
+| `gen.Atom` | string | 节点名/进程名/事件名;网络栈对 atom 做缓存映射省带宽 | `'name'` |
+| `gen.PID` | Node+ID(uint64)+Creation(int64) | 唯一进程标识;Creation=节点启动代际,重启即变 | `<CRC32.hi.lo>` |
+| `gen.ProcessID` | Name+Node | 按注册名寻址,跨重启稳定 | `<CRC32.name>` |
+| `gen.Ref` | Node+Creation+ID[3]uint64 | Call 关联/事件 token;ID[2] 可嵌 deadline,`IsAlive()` 判过期 | `Ref#<CRC32.a.b.c>` |
+| `gen.Alias` | = Ref 结构 | 临时地址,无需注册名;meta 进程主标识 | `Alias#<...>` |
+
+- 打印里的 CRC32 是节点名 CRC32(自定义多项式 crc32q)——日志可读性设计,非加密。
+- `gen.Env`:环境变量名大小写不敏感,统一转大写。
+- **`gen.Error`**(exit reason 专用,gen/errors.go:20):`{Msg, Wrapped []error, Mailbox *ProcessMailbox}`;`gen.Errorf` ≈ fmt.Errorf 但保留 wrap 链;**`Unwrap() []error` 多错误形态,`errors.Unwrap`/`errors.Join` 对它返回 nil**,判型必须 `errors.Is/As`。Mailbox 字段 `edf:"-"` 不上网。
+- 两大内建用途:supervisor 重启预算溢出 reason(`errors.Is(err, gen.ErrExceeded)` 可查)、panic 进程邮箱捕获(`PreserveMailbox`)随重启回放。
+- 接口分层:`gen.Node`(任意 goroutine 可调)/`gen.Process`(状态机门禁)/`gen.Network`/`gen.RemoteNode`/`gen.Application`。业务结构体内嵌 `act.Actor` 即获得 Process 方法面。
+- 对 GServer:PID.Creation 语义 = P0.2 node naming 决策的强约束——节点重启后旧 PID 全部失配(ErrProcessIncarnation),Redis ownership 记录的 PID 必须接受代际翻转;`gen.Error` 的 Wrapped 语义是 P0.3 Call 错误通道选型的关键事实(跨节点错误身份可保留,前提是 sentinel 已注册)。
