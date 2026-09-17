@@ -102,8 +102,12 @@ options.Network.Flags = flags
 
 ```text
 简单 registrar 可用：Register 为 no-op，Resolve 返回 {Host:"", Port:N}
-  → ergo 在 Host 为空时用 name.Host() 填充（node/network.go）
-  → Resolve 返回的 Route 必须带 HandshakeVersion/ProtoVersion，否则连接失败并报 "no route"
+  → ergo 在 Host 为空时用 name.Host() 填充（node/network.go connect()）
+  → Resolve 返回的 Route 必须自带 HandshakeVersion/ProtoVersion；不填则 connect() 找不到
+     handler，最终以 gen.ErrNoRoute 冒泡（实测）
+     【与静态路由的差异】AddRoute 会给未填的版本补 n.defaultHandshake/defaultProto，
+     所以文档说静态路由的版本"不设则用默认"是对的；Resolver 返回的 Route 走
+     gen.NetworkRoute{Route: route} 直接构造，无此补默认步骤，两者不可类推
 GetConnection 先查 connections 缓存，仅在未连接时调用 Resolver.Resolve
 SimpleOneForOne 的 StartChild 不注册名字（act/supervisor_sofo.go 从不设置 register）
 OneForOne / AllForOne / RestForOne 的 spec.Name 会注册到节点（cs.register = true）
@@ -112,6 +116,34 @@ AddChild 可在 OneForOne 运行时追加命名子进程（源码 act/supervisor
   cs.register = true；本轮未做端到端验证，OFO 要求 Init 时至少一个 child spec，
   且占位 child 正常终止会触发 supervisor auto-shutdown）
 meta-process 的 Spawn 只接受 MetaBehavior，无法创建普通进程
+```
+
+### 追踪（据文档，未逐项实测）
+
+```text
+TracingFlags：Send（Sent 观测）/ Receive（Delivered + Processed，业务 span 也走它）
+              / Procs（Spawn + Terminate）/ Inherit（子进程继承）
+TracingKind ：Send / Request / Response / Spawn / Terminate
+采样器      ：TracingSamplerAlways / Ratio(f) / RateLimit(n)；仅在没有活动 trace 时被咨询
+不被追踪    ：SendExit（控制面）、SendEvent（避免扇出风暴）、SendAfter（定时动作，
+              每次触发是独立采样起点）
+Trace 级别  ：不能在运行期用 SetLevel 打开，只能启动时经 NodeOptions.Log.Level 或
+              ProcessOptions.LogLevel 设置（防误操作刷爆存储）
+```
+
+后三条影响追踪适配器的预期：跨 actor 的链路是完整的，但控制面与事件路径不在其中，排障时不要据此判定"消息未送达"。
+
+### 日志（据文档 + 实测）
+
+```text
+gen.LogLevelPanic = 框架捕获了 actor 回调内的 panic，节点继续运行
+  → 不得映射到 gxylog.Fatal（后者 os.Exit(1)），否则单个 actor panic 会终止整个进程
+默认 logger 写到 os.Stdout；生产模式应 DefaultLogger.Disable = true 并注册自定义 logger，
+  否则与 gxylog 的 console core 重复输出（实测）
+注册 API 有两种形态，不要混用：
+  node.LoggerAdd(name string, logger gen.LoggerBehavior, filter ...gen.LogLevel) error   // 运行期
+  gen.NodeOptions{Log: gen.LogOptions{Loggers: []gen.Logger{{Name, Logger, Filter}}}}    // 启动期
+LoggerAddPID 会把该进程自身日志级别设为 Disabled（防 logger 递归），LoggerDeletePID 恢复
 ```
 
 ### protobuf 与 EDF

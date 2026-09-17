@@ -16,15 +16,24 @@
 | 用到的子包 | 3（`actor` / `remote` / `router`） |
 | `core/gxyactor` 非测试代码 | 1910 行（总 3821，测试占 1911） |
 
-`gxyactor` 之所以有这么大体积，根因是 **protoactor 只提供裸 mailbox 循环**：`actor.Actor` 接口仅有一个 `Receive(actor.Context)`，`actor.Context` 无版本化的消息头，也没有 `Call` 应答、进程句柄、监督回调、日志或追踪接口。项目为此手写补齐了生命周期派发、进程句柄、Init 参数传递、OTel 追踪注入、supervisor 决策、日志适配和 activator 状态机。
+`gxyactor` 之所以有这么大体积，根因是 **protoactor 的 actor 抽象层过薄，需要用户补齐样板**：
 
-评估候选框架后选定 `ergo-services/ergo`：Erlang/OTP 思路的 Go 实现（`name@host` 节点、进程、监督树、Link/Monitor、EDF 序列化），MIT、零依赖、Go 1.21+、实发版本 `v1.999.330`（2026-09-04）。
+- `actor.Actor` 接口只有 `Receive(c Context)` 一个方法（`actor/message.go:12`）。生命周期与服务消息（`*actor.Started` / `*Stopping` / `*Stopped` / `*Terminated` / `AutoRespond` / `*Restarting` / `*ReceiveTimeout`）全部从同一入口进入，需用户手写分发——即 `ActorBase.doReceive` 那 54 行 switch。
+- **无 typed 调用应答**：primitive 是有的（`Context.Request` / `RequestFuture` / `Respond` / `Sender`），但接收方需把请求当普通消息处理并手动 `Respond`，没有"入参即 handler、返回值即应答"的形态。项目据此自建了 `AutoHandleMsg` / `CallHandlerMsg` 的反射派发。
+- **`Context` 是单条消息的临时对象**：`Self` / `Sender` / `Respond` 只在回调内有效，跨消息复用需要自行缓存——`ActorBase` 的 `actx` / `self` 字段即为此。
+- **无 kind/id 目录与虚拟 actor 语义**：`SpawnNamed` 存在，但"按 kind+id 惰性激活""跨节点 Claim 归属"不在框架内，需要自建 activator（含 ADR-0006 的 lease/epoch）。
+
+需要澄清的是 **protoactor 并非在各处都缺能力**，以下几项它实际提供，本 ADR 不把它们算作迁移理由：`Context.Logger()` 与 `WithLoggerFactory`（日志）、`Context.Self/Parent/Children`（进程句柄）、`Watch`/`Unwatch`（监视）、`WithSupervisor` + `OneForOneStrategy` + `Decider`（监督策略，项目当前即在使用）。其 otel 集成位于 `actor/middleware/opentelemetry`（sender/receiver/spawn 中间件与信封传播），但受 RootContext 与 remote 层交互缺陷限制而不可用——该问题已在 `docs/architecture/tracing.md` 中记录，项目因此改为手写头注入。
+
+ergo 的对应能力是 `act.Actor` 的 `Init` / `HandleMessage` / `HandleCall` / `Terminate` 回调拆分、内嵌 `gen.Process` 的进程方法、节点级原生追踪，以及自带的 `SupervisorSpec`。
+
+评估范围说明：本决策基于对 ergo 能力的逐项核对与项目约束的匹配，**未对其他候选框架做系统评估**。
 
 ## 决策
 
 ### 1. 替换范围
 
-- `gxynode`（147 行）**保留**：它是配置驱动的装配根，无网络能力。ergo node 顶替的是 `gxyactor` 内的 `actor.ActorSystem + remote.Remote`。
+- `gxynode`（153 行）**保留**：它是配置驱动的装配根，无网络能力。ergo node 顶替的是 `gxyactor` 内的 `actor.ActorSystem + remote.Remote`。
 - `gxymodule` / `gxyapp`（生命周期与装配）**保留**，**不引入** `ergo.app.Application`：后者与 `gxymodule` 职责重叠，引入会得到双份生命周期与两套失败语义。
 - `gxyregistery` / `gxyservice`（服务注册与 kind 目录）**保留**，仅收窄职责。
 - `gxytimer`（cron/补发）**保留调度语义**，定时器实现改由 ergo 承担。
@@ -47,7 +56,8 @@ type WireEnvelope struct {
 - ergo 节点名 = `${node.name}@${host}`（host 取 `POD_IP`），**稳定身份**。
 - **移除** `NodeInstanceName` 中的 nanotime。ergo 用 `gen.PID.Creation`（节点启动时间戳）原生解决陈旧引用问题，其秒级精度不足以承担唯一性。
 - redis lease 的 `nodeID` 直接用 ergo 节点名；`leaseToken` 改为**独立随机值**（不再与 nodeID 同值），`SetNX` 改为无条件 `SET` + token 校验。
-- **必须成对修改**：nodeID 稳定后若 `leaseToken` 仍等于 nodeID，`claim` 会命中 `already_owned` 分支而**不递增 epoch**，导致新老世代共享同一 epoch，`role_actor_fence` 将放行旧 writer。`leaseToken` 独立是 ADR-0006 fencing 的前提。
+- **必须成对修改，否则 ADR-0006 的 fencing 失效**。失效链路：nodeID 稳定后若 `leaseToken` 仍与之同值，则同节点新老进程的 token 字符串相同——旧进程的 `renewLease`（Lua 比对 `GET leaseKey == ARGV[1]`）**仍会成功**，不会被 fence；同时 `claim` 读到的残留 owner 记录 `nodeID|epoch|nodeID` 会命中 `already_owned` 分支而**不递增 epoch**（`actorLocatorClaimScript` 中 `currentLease == currentToken and currentNode == candidateNode`）。
+  具体危险场景：旧进程与 Redis 分区但可达 PostgreSQL，其 deadline（15s）尚未到期仍在写库；此时 lease key 已过期、新进程以同一 nodeID 接管并沿用旧 epoch。**两者 `(node_id, epoch)` 完全相同，`role_actor_fence` 的 `WHERE` 条件对双方都放行**，产生 ADR-0006 明确要防的双写。`leaseToken` 独立为随机值后，新进程的 `currentLease` 与旧记录的 `currentToken` 不等，`claim` 走 `INCR epoch` 分支，旧进程的写入被 fence 拒绝。
 
 ### 4. 服务发现
 
@@ -59,14 +69,15 @@ type WireEnvelope struct {
 | kind → 节点列表 | 哪些节点能承载 role | `gxyservice` + `ConsistentHashSelector`（现状保留） |
 | id → 归属 | roleID 归哪个节点的哪个世代 | redis lease + epoch（ADR-0006，保留） |
 
-- **不引入** ergo 的 `ApplicationRoute` / `ResolveApplication`：它无 `Host` 字段（一个节点上多个 HTTP 服务端口各异，`Node` 粒度表达不了）、无 `Draining` 语义、无按 key 哈希的原语；且 `gxyservice` 因承载 4 个 HTTP 端点的发现而**无论如何都要保留**，迁入 `ApplicationRoute` 只会形成两套机制。
+- **不引入** ergo 的 `ApplicationRoute` / `ResolveApplication`，根本原因是**粒度不匹配**：ergo 的发现以**节点**为单位（`Resolve(node)` 给出该节点的 ergo 协议地址，`ApplicationRoute` 只带 `Node`/`Name`/`Tags`/`State`/`Weight`，**地址需另行 `Resolve(node)` 获取**）；而项目需要在**端点**粒度发现——同一节点上并存多个服务，其中 4 个是 HTTP 端点且端口各异，`Node` 粒度无法表达（ergo 文档将 HTTP 层的负载与发现划归编排器，不在框架职责内）。由于 `gxyservice` 必须为 HTTP 端点保留，actor kind 随之复用同一套机制，避免在 Consul 中并存两种记录类型并让激活路径多一次查询。
+  需澄清的是，以下两条**不**构成理由：`Draining` 语义可用 `Tags`（ergo 文档将 Tags 用于维护态标记）表达；按 key 哈希的放置策略可在调用侧对 `ResolveApplication` 返回的**全部**节点自行实现（该接口返回全部匹配节点，排序才是加权轮转）。
 - 不新增给 ergo 用的独立节点记录：`gen.Registrar.Register` 不额外写记录，`Resolver.Resolve` 读 `gxyservice` 已有的 `ServiceInfo.NodeHost`。**全系统只有 `gxyservice` 一个组件写 Consul。**
 - actor 端口可交由系统分配（`AcceptorOptions{Port: 0}`），端口随 `NodeHost` 一并落 Consul，因此**不需要固定端口约定，也不需要端口表**。
 - 不采用静态路由：`AddRoute` 是每节点本地的，且静态路由**独占**（匹配后不再回退发现，失败即 `ErrNoRoute`），线上横向扩容需要所有已有节点改配置。
 
 ### 5. Actor 门面
 
-`core/gxyactor` 重写，**删除约 900 行补偿代码**（生命周期派发、追踪注入、Init 参数传递、进程句柄、supervisor 决策、日志适配、activator 状态机中依赖 protoactor 竞态的部分）。
+`core/gxyactor` 重写，**删除约 980 行补偿代码**（按符号逐个统计：生命周期派发 66、追踪注入族 77、`ActorContext`/`ContextDecorator`/`ActorInitMsg` 18、`Self`/`Sender`/`Stop`/`respond` 18、`newSupervisor`/`decider` 7、`logger.go` 68、`activator_manager.go`+`actor_mgr.go` 667、remote/地址族 62）。该数字是符号级合计的估算，实际删改量随适配层写法浮动。
 
 保留不动：`gxyutil.MsgHandler`（按消息类型反射派发）、`gxytimer` 调度语义、`SetLogValue`/`Context()`、metrics 埋点、`actor_locator.go`（ADR-0006）。
 
@@ -107,14 +118,17 @@ type WireEnvelope struct {
 
 ### 10. 定时与 lease 的形态
 
-- lease 心跳**保持 goroutine**（`gxymodule` 生命周期内），不 actor 化：自 fence 是节点级决策（`gxylog.Fatal` → 进程退出），且续约是阻塞 I/O，actor 化会让 deadline 安全网排在 mailbox 之后而迟到。
+- lease 心跳**保持 goroutine**（`gxymodule` 生命周期内），不 actor 化：
+  - 自 fence 是节点级决策，最终落点是 `gxylog.Fatal` → `os.Exit(1)`。actor 内可用的 `node.StopForce()` 是异步的（实测调用后 actor 继续执行），达不到即时终止，actor 化在此无收益。
+  - 续约是阻塞 I/O。**推断**（未经实测）：actor 化后若在 handler 内联续约，deadline 检查消息会排在 mailbox 之后而迟到，削弱"续约卡住时按安全截止时间 fence"的保障；要修就得再拆 worker actor，复杂度高于现状。
+  - 该组件的状态（`fenced` / `leaseDeadline`）以 atomic 与其它路径共享，这是 ergo 文档对 meta-process 明示推荐的做法，不构成 actor 化理由。
 - meta-process 不适用：其 `Spawn` 只接受 `MetaBehavior`，**无法创建普通进程**。
 
 ## 后果
 
 ### 正面
 
-- 去掉不再维护的依赖；`gxyactor` 从 1910 行降到约 700–900 行。
+- 去掉不再维护的依赖；`gxyactor` 从 1910 行（非测试）降到约 900–1000 行。
 - 激活路径不再被 `Spawn`/`Init` 分离的竞态驱动，`pending` / `waiters` / `Touch(10s)` / `30s` 请求超时这一整套会合机制可以删除。
 - 获得原生能力：跨节点追踪与采样、`PreserveMailbox`、消息分片、每进程压缩、`SendImportant`/RR-2PC 投递语义、`ErrProcessIncarnation` 陈旧 PID 检测、mailbox 延迟与每类型编解码统计（`-tags=latency` / `-tags=typestats`）、Observer UI、mTLS。
 - 只有 `gxyservice` 写 Consul；ergo 侧节点发现零外部依赖、零 keep-alive。
@@ -152,7 +166,7 @@ type WireEnvelope struct {
 
 ### 用 ergo 的 `ApplicationRoute` 承载 kind 目录
 
-见决策 4：缺少 `Host` 与 `Draining`，且 `gxyservice` 无法删除。
+见决策 4：`ApplicationRoute` 为节点粒度，地址需另行 `Resolve(node)`，无法表达同一节点上端口各异的多个端点（含 4 个 HTTP 服务）；且 `gxyservice` 为 HTTP 端点必须保留，迁入会形成两套机制。`Draining` 与哈希放置均**不是**拒绝理由（可分别用 `Tags` 与调用侧哈希实现）。
 
 ### 用静态路由替代节点发现
 
@@ -160,7 +174,12 @@ type WireEnvelope struct {
 
 ### 用 `SimpleOneForOne` + `StartChild` 承载角色
 
-需要串行化以避免重复 spawn（`StartChild` 同步阻塞 supervisor mailbox），且子进程需自注册名字，从而依赖"`RegisterName` 必须在 `Init` 第一行"和"必须吞掉 `StartChild` 的 error"两条编码纪律。`node.SpawnRegister` 的良性竞态消解了这两条约束。
+两个问题：
+
+1. **激活吞吐被串行化**：`StartChild` 同步阻塞到子进程 `Init` 返回，而 supervisor 的 `HandleMessage` 一次只处理一条消息，因此单 supervisor 的激活吞吐 = 1 / `Init` 耗时。实测 3 次含 400ms `Init` 的 `StartChild` 严格串行（共约 1200ms）。这是 mailbox 的固有属性，不是可以靠调用方式规避的竞态。
+2. **依赖两条编码纪律**：SOFO 的 `StartChild` 走 `Spawn` 路径不注册名字，需子进程在 `Init` 内自注册；被拒绝的重复激活因此会执行 `Init`（在注册点失败）并继续执行 `Terminate` → `OnModStop` → `save()`。而 `lockRoleActorFence` 的 `WHERE` 是 `node_id + epoch`，同节点重复激活会**放行**，唯一防护是 `save()` 的 dirty 检查——即要求"`RegisterName` 必须在 `Init` 第一行"且"必须吞掉 `StartChild` 的 error"（后者漏掉会因返回值成为 supervisor 自身的终止原因而打死 supervisor）。
+
+`node.SpawnRegister` 的良性竞态消解了这两条约束。
 
 ### 为异步初始化失败建墓碑
 
