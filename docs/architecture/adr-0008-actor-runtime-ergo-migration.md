@@ -6,7 +6,7 @@
 
 ## 背景
 
-底层 actor 运行时 `github.com/asynkron/protoactor-go` 已不再维护，继续依赖它意味着无人修复的缺陷和无人应答的兼容性问题。
+底层 actor 运行时 `github.com/asynkron/protoactor-go` 已不再维护，继续依赖它意味着无人修复的缺陷和无人应答的兼容性问题。这是本次迁移的驱动因素。
 
 耦合面实测（静态统计）：
 
@@ -16,18 +16,11 @@
 | 用到的子包 | 3（`actor` / `remote` / `router`） |
 | `core/gxyactor` 非测试代码 | 1910 行（总 3821，测试占 1911） |
 
-`gxyactor` 之所以有这么大体积，根因是 **protoactor 的 actor 抽象层过薄，需要用户补齐样板**：
+候选运行时选定 `ergo-services/ergo`：Erlang/OTP 思路的 Go 实现（`name@host` 节点、进程、监督树、Link/Monitor、EDF 序列化），MIT、零依赖、Go 1.21+，实发版本 `v1.999.330`（2026-09-04）。
 
-- `actor.Actor` 接口只有 `Receive(c Context)` 一个方法（`actor/message.go:12`）。生命周期与服务消息（`*actor.Started` / `*Stopping` / `*Stopped` / `*Terminated` / `AutoRespond` / `*Restarting` / `*ReceiveTimeout`）全部从同一入口进入，需用户手写分发——即 `ActorBase.doReceive` 那 54 行 switch。
-- **无 typed 调用应答**：primitive 是有的（`Context.Request` / `RequestFuture` / `Respond` / `Sender`），但接收方需把请求当普通消息处理并手动 `Respond`，没有"入参即 handler、返回值即应答"的形态。项目据此自建了 `AutoHandleMsg` / `CallHandlerMsg` 的反射派发。
-- **`Context` 是单条消息的临时对象**：`Self` / `Sender` / `Respond` 只在回调内有效，跨消息复用需要自行缓存——`ActorBase` 的 `actx` / `self` 字段即为此。
-- **无 kind/id 目录与虚拟 actor 语义**：`SpawnNamed` 存在，但"按 kind+id 惰性激活""跨节点 Claim 归属"不在框架内，需要自建 activator（含 ADR-0006 的 lease/epoch）。
+`gxyactor` 的规模来自它自行补齐的那一层：生命周期分发、请求-应答、进程句柄、Init 参数传递、追踪注入、日志适配、监督决策、激活协调。ergo 的 `act.Actor` 与 node 层已原生提供其中大部分，因此本次迁移预期以**删除**为主而非改写；逐符号映射见设计文档第二节。
 
-需要澄清的是 **protoactor 并非在各处都缺能力**，以下几项它实际提供，本 ADR 不把它们算作迁移理由：`Context.Logger()` 与 `WithLoggerFactory`（日志）、`Context.Self/Parent/Children`（进程句柄）、`Watch`/`Unwatch`（监视）、`WithSupervisor` + `OneForOneStrategy` + `Decider`（监督策略，项目当前即在使用）。其 otel 集成位于 `actor/middleware/opentelemetry`（sender/receiver/spawn 中间件与信封传播），但受 RootContext 与 remote 层交互缺陷限制而不可用——该问题已在 `docs/architecture/tracing.md` 中记录，项目因此改为手写头注入。
-
-ergo 的对应能力是 `act.Actor` 的 `Init` / `HandleMessage` / `HandleCall` / `Terminate` 回调拆分、内嵌 `gen.Process` 的进程方法、节点级原生追踪，以及自带的 `SupervisorSpec`。
-
-评估范围说明：本决策基于对 ergo 能力的逐项核对与项目约束的匹配，**未对其他候选框架做系统评估**。
+评估范围：本决策基于对 ergo 能力的逐项核对与项目约束的匹配，未对其他候选框架做系统评估。
 
 ## 决策
 
@@ -130,7 +123,8 @@ type WireEnvelope struct {
 
 - 去掉不再维护的依赖；`gxyactor` 从 1910 行（非测试）降到约 900–1000 行。
 - 激活路径不再被 `Spawn`/`Init` 分离的竞态驱动，`pending` / `waiters` / `Touch(10s)` / `30s` 请求超时这一整套会合机制可以删除。
-- 获得原生能力：跨节点追踪与采样、`PreserveMailbox`、消息分片、每进程压缩、`SendImportant`/RR-2PC 投递语义、`ErrProcessIncarnation` 陈旧 PID 检测、mailbox 延迟与每类型编解码统计（`-tags=latency` / `-tags=typestats`）、Observer UI、mTLS。
+- 本次决策依赖或引用的 ergo 能力：节点级跨节点追踪与采样（决策 9）、important delivery 的即时错误语义（决策 7，用于区分"需激活"与"节点不可达"）、`gen.PID.Creation` 的陈旧引用检测（决策 3 据此移除 nanotime）。
+- 另有若干未纳入本次范围的能力可用：`PreserveMailbox`、消息分片、每进程压缩、mailbox 延迟与类型编解码统计（`-tags=latency` / `-tags=typestats`）、Observer UI、mTLS。
 - 只有 `gxyservice` 写 Consul；ergo 侧节点发现零外部依赖、零 keep-alive。
 
 ### 风险与约束
@@ -152,13 +146,9 @@ type WireEnvelope struct {
 
 ## 拒绝的方案
 
-### 继续使用 protoactor-go 并自行 vendor 打补丁
+### 继续使用 protoactor-go 并自行 fork 维护
 
-需长期自持一个无上游的运行时，且 `gxyactor` 为补齐其缺失能力而写的手工代码仍要维护。
-
-### 替换为其他 actor 框架
-
-候选（`anthdm/hollywood`、`goakt`、NATS 派生 actor、Dapr actors、gRPC + 分片）在远程传输、监督语义或 protobuf 处理上均需重新评估，未取得优于 ergo 的证据。
+该运行时已无上游，选择自持意味着长期承担安全更新与 Go 版本兼容；迁移到仍在维护的运行时成本可控且一次性。
 
 ### 为每个 protobuf 类型实现 EDF `MarshalEDF`
 
