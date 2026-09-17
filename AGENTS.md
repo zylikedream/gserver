@@ -15,6 +15,14 @@ make pb
 
 - **Plan first**: for architecture changes or new features, present a plan before writing code
 - **ADR**: architecture decisions recorded in `docs/architecture/adr-*.md`; new architecture changes write an ADR before code
+- **架构约束清单 `docs/architecture/invariants.md`**: 唯一有约束力的架构约束来源, 写 ADR 前必读。规则:
+  - **ADR 只写思考过程**, 不写实现(代码/函数/字段/配置键/行数); 具体细节放零约束力的 notes 文档
+  - **一个 ADR 只记一个决策**, 保持精简; 多决策合并会导致改一处被迫重开全部
+  - 正文**点名本次触碰的不变量编号**; 保留/取代映射写在 `invariants.md`, 不在 ADR 重复
+  - 状态为 `Proposed` 的 ADR、设计/实测文档、机制描述、被拒方案**零约束力**, 不得作为论据压设计
+  - 需求 / 承载的分类由设计者决定; 审查方只提供来源事实(它当初是否为了迁就旧实现才长成这样), 不代为分类
+  - **只提「不处理会导致状态损坏」且「实际可达」的问题**(三个条件同时成立: 已验证 / 后果是状态损坏而非单次操作失败 / 现实路径可达)。理论可达但代价可接受的情形: 不提出、不记录、不讨论; 已否决或已搁置的议题不得重复提出
+  - 审查与讨论**只引用 `invariants.md` 或代码**; 引用 ADR 正文前必须对代码重验一遍
 - **Feature branch + PR**: develop on feature branches, merge via PR
 - **gofmt**: format all Go code with `gofmt -w` before committing
 - **Commit style**: concise, focus on why not what (Chinese or English OK)
