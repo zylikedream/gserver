@@ -28,7 +28,7 @@ func withFakeRolePublic(t *testing.T) {
 
 func TestApplyGuild_DuplicateApply(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.ApplyList = []*GuildApply{{ID: 1, RoleID: 400, Status: 0}}
 
 	_, err := g.ApplyGuild(context.Background(), &pb.ReqGuildApply{RoleId: 400})
@@ -43,7 +43,7 @@ func TestApplyGuild_DuplicateApply(t *testing.T) {
 func TestApplyGuild_NeedApproval_CreatesApply(t *testing.T) {
 	initGuildTestConfig(t)
 	withFakeRolePublic(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.NeedApproval = true
 	g.Data.ApplyList = nil
 	g.Data.Members = nil // 清空成员: notifyApplyUpdate 遍历成员会触达未初始化 Redis
@@ -65,7 +65,7 @@ func TestApplyGuild_NeedApproval_CreatesApply(t *testing.T) {
 
 func TestApplyGuild_DirectJoin(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.NeedApproval = false
 
 	// NeedApproval=false 应走 joinDirect(而非 createApply):
@@ -92,7 +92,7 @@ func TestApplyGuild_DirectJoin(t *testing.T) {
 
 func TestAddMember_AlreadyInGuild(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	gormDB, mock := newGuildDBMock(t)
 	g.db = gormDB
 
@@ -113,7 +113,7 @@ func TestAddMember_AlreadyInGuild(t *testing.T) {
 
 func TestAddMember_GuildFull(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	// 填满成员到 MemberLimit(配表 Level 1 上限)
 	limit := int(g.cfg.TbGuildLevel.Get(g.Data.Level).MemberLimit)
 	for i := 0; i < limit; i++ {
@@ -127,7 +127,7 @@ func TestAddMember_GuildFull(t *testing.T) {
 
 func TestAddMember_Success(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	gormDB, mock := newGuildDBMock(t)
 	g.db = gormDB
 
@@ -160,7 +160,7 @@ func TestAddMember_Success(t *testing.T) {
 
 func TestProcessSingleApply_Reject(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.ApplyList = []*GuildApply{{ID: 5, RoleID: 400, Status: 0}}
 
 	if err := g.processSingleApply(context.Background(), 5, false); err != nil {
@@ -176,7 +176,7 @@ func TestProcessSingleApply_Reject(t *testing.T) {
 
 func TestProcessSingleApply_Approve(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	gormDB, mock := newGuildDBMock(t)
 	g.db = gormDB
 	g.Data.ApplyList = []*GuildApply{{ID: 5, RoleID: 400, Status: 0}}
@@ -204,7 +204,7 @@ func TestProcessSingleApply_Approve(t *testing.T) {
 
 func TestProcessSingleApply_NotFound(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 
 	if err := g.processSingleApply(context.Background(), 999, true); !errors.Is(err, ErrApplyExpired) {
 		t.Fatalf("expected ErrApplyExpired, got %v", err)

@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/asynkron/protoactor-go/actor"
-	"gserver/core/gxyactor"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 
@@ -20,7 +18,7 @@ import (
 // newTestGuildNeg 负 RoleID 版本: 通知遍历成员时不触达全局 Redis。
 func newTestGuildNeg(t *testing.T) *GuildActor {
 	t.Helper()
-	g := newTestGuild()
+	g := newTestGuild(t)
 	for _, m := range g.Data.Members {
 		m.RoleID = -m.RoleID
 	}
@@ -283,8 +281,6 @@ func TestDisbandGuild_Success(t *testing.T) {
 	g := newTestGuildNeg(t)
 	gormDB, mock := newGuildDBMock(t)
 	g.db = gormDB
-	// DisbandGuild 最后调 g.Stop(nil) → Actx.Stop, 注入 fake
-	g.ActorBase = &gxyactor.ActorBase{Actx: &disbandFakeActx{}}
 	// 只剩会长 1 人
 	g.Data.Members = g.Data.Members[:1]
 	g.Data.MemberCount = 1
@@ -302,6 +298,9 @@ func TestDisbandGuild_Success(t *testing.T) {
 	_, err := g.DisbandGuild(context.Background(), &pb.ReqGuildDisband{RoleId: -100})
 	if err != nil {
 		t.Fatalf("DisbandGuild: %v", err)
+	}
+	if !g.StopRequested() {
+		t.Fatal("DisbandGuild must request actor termination")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("sql expectations: %v", err)
@@ -378,13 +377,5 @@ func TestGetGuildApplyList(t *testing.T) {
 		t.Fatalf("unexpected applies: %+v", rsp.Applies)
 	}
 }
-
-// disbandFakeActx 最小 actor.Context: DisbandGuild 的 g.Stop 需要 Actx.Stop。
-type disbandFakeActx struct {
-	actor.Context
-	stopped *actor.PID
-}
-
-func (f *disbandFakeActx) Stop(pid *actor.PID) { f.stopped = pid }
 
 // timeNow 避免直接依赖 time 构造(测试内嵌)。

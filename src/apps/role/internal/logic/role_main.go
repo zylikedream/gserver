@@ -10,9 +10,10 @@ import (
 	"gserver/core/gxynet/codec"
 	"gserver/core/gxypgx"
 	"gserver/core/gxyredis"
-	"gserver/core/gxytimer"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
+
+	"ergo.services/ergo/gen"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
@@ -42,23 +43,12 @@ const (
 	SLOW_CLIENT_REQUEST    = 200 * time.Millisecond
 )
 
-var (
-	PersistTick = &gxytimer.Tick{
-		Name:     "save_role",
-		Interval: PERSIST_INTERVAL,
-	}
-	SignleAliveOnce = &gxytimer.Once{
-		Name:  "signle_alive",
-		After: SINGLE_ALIVE_INTERVAL, // 10min 连接断开后存活时间
-	}
-	PublicUpdateTick = &gxytimer.Tick{
-		Name:     "update_role_public",
-		Interval: PUBLIC_UPDATE_INTERVAL,
-	}
-	SessionAliveCheckTick = &gxytimer.Tick{
-		Name:     "check_session_alive",
-		Interval: SESSION_ALIVE_INTERVAL,
-	}
+// 定时任务名。周期取上面的常量,名字在此集中定义以便取消与日志引用。
+const (
+	PersistTickName           = "save_role"
+	SignleAliveOnceName       = "signle_alive"
+	PublicUpdateTickName      = "update_role_public"
+	SessionAliveCheckTickName = "check_session_alive"
 )
 
 func logClientProtocolError(ctx context.Context, roleID int64, msgID, msgName string, err error) {
@@ -99,7 +89,7 @@ type roleModules struct {
 type RoleMain struct {
 	gxymodule.ModuleBase
 	roleModules
-	*gxyactor.ActorBase
+	*gxyactor.Actor
 	RoleID int64
 
 	actorOwner  gxyactor.ActorOwner
@@ -125,12 +115,16 @@ func NewRoleMain() *RoleMain {
 		// 组装根:填充全局单例;测试可覆盖注入 mock。
 		deps: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()},
 	}
-	ctx := gxylog.NewContext(context.Background(), "role")
-	r.ActorBase = gxyactor.NewActorBase(ctx, r, "role")
+	r.Actor = gxyactor.NewActor("role", r)
 	return r
 }
 
-func (r *RoleMain) Init(ctx context.Context, args []any) error {
+// Init 是运行时回调:只做内存校验与标识绑定。
+//
+// 耗时的加载不在这里——它由初始化期间自投的消息驱动(见 asyncInit),
+// 这样创建调用不必等数据库往返,而业务消息因邮箱串行仍排在加载之后。
+func (r *RoleMain) Init(args ...any) error {
+	ctx := r.Ctx
 	if len(args) == 0 {
 		return gerror.New("roleID is required in init args")
 	}
@@ -138,16 +132,18 @@ func (r *RoleMain) Init(ctx context.Context, args []any) error {
 	if r.RoleID == 0 {
 		return gerror.Newf("roleID is invalid, roleID: %v", args[0])
 	}
-	if len(args) < 2 {
-		return gerror.New("actor owner is required in init args")
-	}
-	owner, ok := args[1].(gxyactor.ActorOwner)
-	if !ok || owner.NodeID == "" || owner.Epoch == 0 {
-		return gerror.Newf("actor owner is invalid, owner: %v", args[1])
-	}
-	r.actorOwner = owner
 	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
-	// 验证角色账号是否存在
+
+	// 所有权由基类在同步段取得(见 invariants #3)。
+	if err := r.Actor.Init(args...); err != nil {
+		return err
+	}
+	r.actorOwner = r.Owner()
+	if r.actorOwner.NodeID == "" || r.actorOwner.Epoch == 0 {
+		return gerror.Newf("actor owner is invalid, owner: %v", r.actorOwner)
+	}
+
+	// 账号存在性校验留在同步段:它决定该 role 是否可激活。
 	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
 	if err != nil {
 		return err
@@ -156,10 +152,13 @@ func (r *RoleMain) Init(ctx context.Context, args []any) error {
 		return gerror.Newf("role account not exist, roleID: %d", r.RoleID)
 	}
 
-	return nil
+	// 自投初始化消息,驱动异步加载;此时队列为空,故它必然最先被处理。
+	return r.SendSelfInit()
 }
 
-func (r *RoleMain) DelayInit(ctx context.Context) error {
+// asyncInit 完成耗时的加载(数据库 fence、模块状态、定时器)。
+func (r *RoleMain) asyncInit() error {
+	ctx := r.Ctx
 	if err := advanceRoleActorFence(ctx, r.DB(), r.RoleID, r.actorOwner); err != nil {
 		return gerror.Wrapf(err, "advance role actor fence, roleID: %d", r.RoleID)
 	}
@@ -178,7 +177,7 @@ func (r *RoleMain) initRole(ctx context.Context) error {
 	if err := r.initModules(ctx); err != nil {
 		return err
 	}
-	r.initTimer(ctx)
+	r.initTimer()
 	if err := r.initMsgHandler(); err != nil {
 		return err
 	}
@@ -191,7 +190,6 @@ func (r *RoleMain) afterInitRole(ctx context.Context) error {
 	if err := r.StartModule(ctx); err != nil {
 		return err
 	}
-	r.Timer().RestoreCron(ctx)
 	return nil
 }
 
@@ -302,9 +300,21 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 	return true
 }
 
-func (r *RoleMain) HandleMessage(ctx context.Context, msg any) error {
-	_, err := r.AutoHandleMsg(ctx, msg)
-	return err
+// HandleMessage 是运行时回调。初始化消息在此驱动异步加载,其余走分派。
+func (r *RoleMain) HandleMessage(from gen.PID, raw any) error {
+	msg, err := gxyactor.UnwrapWire(raw)
+	if err != nil {
+		gxylog.Error(r.Ctx, "decode wire message failed", gxylog.Err(err))
+		return nil
+	}
+	if _, ok := msg.(*gxyactor.ActorInitMsg); ok {
+		if err := r.asyncInit(); err != nil {
+			gxylog.Error(r.Ctx, "role async init failed", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
+			return err
+		}
+		return nil
+	}
+	return r.Actor.HandleMessage(from, msg)
 }
 
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
@@ -370,7 +380,7 @@ func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (p
 		}
 	}
 	var rsp proto.Message
-	res, err := r.DoCallMsgHandler(ctx, pbmsg)
+	res, err := r.DispatchDefault(pbmsg)
 	if err != nil {
 		result = "error"
 		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
@@ -419,11 +429,9 @@ func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
 	return rspMsg, nil
 }
 
-func (r *RoleMain) initTimer(ctx context.Context) {
-	r.Timer().SetCronState(r.Extra)
-	r.Timer().AddTick(ctx, PersistTick, r.TickSave)
-	r.Timer().AddCron(ctx, gxytimer.DayRefresh, r.DayRefresh)
-	r.Timer().AddTick(ctx, PublicUpdateTick, func(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (r *RoleMain) initTimer() {
+	r.Timer().AddTick(PersistTickName, PERSIST_INTERVAL, r.TickSave)
+	r.Timer().AddTick(PublicUpdateTickName, PUBLIC_UPDATE_INTERVAL, func(ctx context.Context) {
 		r.Public.UpdateRolePublic(ctx)
 	})
 }
@@ -457,16 +465,13 @@ func (r *RoleMain) initMsgHandler() error {
 	return nil
 }
 
-func (r *RoleMain) TickSave(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+func (r *RoleMain) TickSave(ctx context.Context) {
 	if err := r.save(ctx); err != nil {
 		gxylog.Error(ctx, "save error", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
 		// 终止当前进程
 		r.Stop(err)
 		return
 	}
-}
-
-func (r *RoleMain) DayRefresh(ctx context.Context, info gxytimer.TimerActiveInfo) {
 }
 
 // saveRoleModule 可替换函数变量:测试可拦截保存(编译期安全)。
@@ -579,7 +584,7 @@ func roleModuleDirty(rmod IRoleModule) bool {
 var sendClient = defaultSendClient
 
 func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
-	if r.session == nil {
+	if gxyactor.PIDIsZero(r.session) {
 		return
 	}
 	svrMsg, err := r.newServerMsg(msg)
@@ -636,7 +641,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
 		gxylog.Info(ctx, "role reconnect", gxylog.Num("roleID", r.RoleID))
 	}
-	r.Timer().Cancel(ctx, SignleAliveOnce.Name)
+	r.Timer().Cancel(ctx, SignleAliveOnceName)
 	r.state = RoleStateLogined
 	r.Public.IsOnline = true
 	if err := r.afterRoleLogin(ctx); err != nil {
@@ -671,10 +676,10 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 
 func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
 	r.sessionActiveTime = time.Now()
-	r.Timer().AddTick(ctx, SessionAliveCheckTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	r.Timer().AddTick(SessionAliveCheckTickName, SESSION_ALIVE_INTERVAL, func(ctx context.Context) {
 		r.checkSessionAlive(ctx)
 	})
-	r.Timer().AddTick(ctx, PublicUpdateTick, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	r.Timer().AddTick(PublicUpdateTickName, PUBLIC_UPDATE_INTERVAL, func(ctx context.Context) {
 		r.Public.UpdateRolePublic(ctx)
 	})
 	for _, mod := range r.Modules() {
@@ -712,15 +717,15 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 		return nil
 	}
 	gxymetrics.RoleLogouts.WithLabelValues(roleLogoutReason(reason)).Inc()
-	r.Timer().Cancel(ctx, SessionAliveCheckTick.Name)
-	r.session = nil
+	r.Timer().Cancel(ctx, SessionAliveCheckTickName)
+	r.session = gxyactor.PID{}
 	r.Basic.LogoutTm = time.Now()
 	r.Public.IsOnline = false
 	r.Public.UpdateRolePublic(ctx)
 	if err := r.save(ctx); err != nil {
 		return err
 	}
-	r.Timer().AddOnce(ctx, SignleAliveOnce, func(ctx context.Context, _info gxytimer.TimerActiveInfo) {
+	r.Timer().AddOnce(SignleAliveOnceName, SINGLE_ALIVE_INTERVAL, func(ctx context.Context) {
 		r.Stop(errors.New("single alive timeout"))
 	})
 	r.state = RoleStateLogout
@@ -746,12 +751,15 @@ func roleLogoutReason(reason string) string {
 	}
 }
 
-func (r *RoleMain) Terminate(ctx context.Context, err error) {
+// Terminate 是运行时回调:先走模块停止(含落盘),再交给基类释放所有权。
+// 顺序不可颠倒——先释放所有权会让新持有者推进世代,使本次落盘被拒绝。
+func (r *RoleMain) Terminate(err error) {
+	ctx := r.Ctx
+	defer r.Actor.Terminate(err)
 	gxylog.Debug(ctx, "role stopped", gxylog.Err(err))
 	if serr := r.StopModule(ctx); serr != nil {
 		gxylog.Error(ctx, "stop module error", gxylog.Err(serr))
 	}
-
 	gxylog.Debug(ctx, "role actor terminate", gxylog.Err(err))
 }
 

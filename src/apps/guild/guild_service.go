@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"gserver/core/gxyactor"
+
+	"ergo.services/ergo/act"
 	guildlogic "gserver/src/apps/guild/logic"
 	"gserver/src/lib"
 )
@@ -21,7 +23,7 @@ func (s *guildService) ServiceName() string {
 }
 
 func (s *guildService) OnModStart(ctx context.Context) error {
-	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
+	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() act.ActorBehavior {
 		return guildlogic.NewGuildActor()
 	}); err != nil {
 		return err

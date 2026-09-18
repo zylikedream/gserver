@@ -5,68 +5,21 @@ import (
 	"errors"
 	"testing"
 
-	"gserver/core/gxyregistery"
+	"ergo.services/ergo/gen"
 
-	"github.com/asynkron/protoactor-go/actor"
+	"gserver/core/gxyregistery"
 )
 
 type activationTestLookup struct {
-	addresses map[string]string
 	candidate *gxyregistery.ServiceInfo
-}
-
-func (l *activationTestLookup) GetAddressByNodeName(_ context.Context, _ string, nodeInstanceName string) string {
-	return l.addresses[nodeInstanceName]
 }
 
 func (l *activationTestLookup) GetServiceInfo(context.Context, string, string, gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
 	return l.candidate
 }
 
-func TestActivationClaimLostRetries(t *testing.T) {
-	action := decideActivation(ActorOwner{NodeID: "node-b", Epoch: 7}, false, "node-a", nil, true)
-	if action != activationRetry {
-		t.Fatalf("action = %v, want retry", action)
-	}
-}
-
-func TestActivationExistingLocalActorReturnsPID(t *testing.T) {
-	pid := actor.NewPID("node-a:1", "player-1")
-	action := decideActivation(ActorOwner{NodeID: "node-a", Epoch: 7}, false, "node-a", pid, false)
-	if action != activationReturnLocal {
-		t.Fatalf("action = %v, want return local", action)
-	}
-}
-
-func TestActivationMissingLocalActorReleasesAndRetries(t *testing.T) {
-	action := decideActivation(ActorOwner{NodeID: "node-a", Epoch: 7}, false, "node-a", nil, false)
-	if action != activationReleaseAndRetry {
-		t.Fatalf("action = %v, want release and retry", action)
-	}
-}
-
-func TestActivationClaimedResolveOnlyReleasesAndRetries(t *testing.T) {
-	action := decideActivation(ActorOwner{NodeID: "node-a", Epoch: 7}, true, "node-a", nil, false)
-	if action != activationReleaseAndRetry {
-		t.Fatalf("action = %v, want release and retry", action)
-	}
-}
-
-func TestActivationClaimWinnerCanSpawn(t *testing.T) {
-	action := decideActivation(ActorOwner{NodeID: "node-a", Epoch: 7}, true, "node-a", nil, true)
-	if action != activationSpawn {
-		t.Fatalf("action = %v, want spawn", action)
-	}
-}
-
-func TestActivationClaimedWithExistingLocalActorConflicts(t *testing.T) {
-	pid := actor.NewPID("node-a:1", "player-1")
-	action := decideActivation(ActorOwner{NodeID: "node-a", Epoch: 7}, true, "node-a", pid, true)
-	if action != activationConflict {
-		t.Fatalf("action = %v, want conflict", action)
-	}
-}
-
+// TestGetActorRetryRelocatesOfflineActor 陈旧记录指向其他节点时,重定位到候选节点。
+// 第一次请求收到"需重试",第二次请求以允许创建的方式再次发起。
 func TestGetActorRetryRelocatesOfflineActor(t *testing.T) {
 	ownerLocator, callerLocator, _ := newActorLocatorTestPair(t)
 	ctx := context.Background()
@@ -81,31 +34,36 @@ func TestGetActorRetryRelocatesOfflineActor(t *testing.T) {
 	mgr := NewActivatorManager("node-b", "node-b")
 	mgr.locator = callerLocator
 	mgr.serviceLookup = &activationTestLookup{
-		addresses: map[string]string{"node-a": "node-a:1001"},
-		candidate: gxyregistery.NewServiceInfo("role", "node-b", "node-b:1002", "test", 1),
+		candidate: gxyregistery.NewServiceInfo("role", "node-c", "node-c:1002", "test", 1),
 	}
 	var calls []bool
 	mgr.requestActorFunc = func(ctx context.Context, node, kind, id string, allowSpawn bool) (PID, bool, error) {
 		calls = append(calls, allowSpawn)
 		if !allowSpawn {
+			// 旧持有者已不在:释放陈旧记录,让调用方重新定位。
 			_, err := ownerLocator.release(ctx, kind, id, owner)
-			return nil, true, err
+			return PID{}, true, err
 		}
-		return actor.NewPID(node, id), false, nil
+		return pidFromRemote(node, actorName(kind, id)), false, nil
 	}
 
 	pid, err := mgr.getActor(ctx, "role", "player-1", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pid == nil || pid.Address != "node-b:1002" {
-		t.Fatalf("pid = %v, want node-b:1002", pid)
+	if pid.Node() != "node-c" {
+		t.Fatalf("pid node = %q, want node-c", pid.Node())
+	}
+	if pid.Name() != "role/player-1" {
+		t.Fatalf("pid name = %q, want role/player-1", pid.Name())
 	}
 	if len(calls) != 2 || calls[0] || !calls[1] {
 		t.Fatalf("allowSpawn calls = %v, want [false true]", calls)
 	}
 }
 
+// TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup 只读查询遇到陈旧记录时
+// 清理并重试,最终返回未找到——不得因为清理而误创建实例。
 func TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup(t *testing.T) {
 	ownerLocator, callerLocator, _ := newActorLocatorTestPair(t)
 	ctx := context.Background()
@@ -119,7 +77,7 @@ func TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup(t *testing.T) {
 
 	mgr := NewActivatorManager("node-b", "node-b")
 	mgr.locator = callerLocator
-	mgr.serviceLookup = &activationTestLookup{addresses: map[string]string{"node-a": "node-a:1001"}}
+	mgr.serviceLookup = &activationTestLookup{}
 	requests := 0
 	mgr.requestActorFunc = func(ctx context.Context, _, kind, id string, allowSpawn bool) (PID, bool, error) {
 		requests++
@@ -127,7 +85,7 @@ func TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup(t *testing.T) {
 			t.Fatal("spawn request sent for spawn=false lookup")
 		}
 		_, err := ownerLocator.release(ctx, kind, id, owner)
-		return nil, true, err
+		return PID{}, true, err
 	}
 
 	if _, err := mgr.getActor(ctx, "role", "player-1", false); err == nil {
@@ -138,7 +96,9 @@ func TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup(t *testing.T) {
 	}
 }
 
-func TestGetActorDoesNotStealWhenOwnerAddressUnavailable(t *testing.T) {
+// TestGetActorDoesNotStealWhenOwnerUnreachable 所有权在其他节点时,
+// 即使请求该节点失败也不得在本地创建实例——那会产生第二个 writer。
+func TestGetActorDoesNotStealWhenOwnerUnreachable(t *testing.T) {
 	ownerLocator, callerLocator, _ := newActorLocatorTestPair(t)
 	ctx := context.Background()
 	if err := ownerLocator.acquireNodeLease(ctx); err != nil {
@@ -152,26 +112,34 @@ func TestGetActorDoesNotStealWhenOwnerAddressUnavailable(t *testing.T) {
 	mgr := NewActivatorManager("node-b", "node-b")
 	mgr.locator = callerLocator
 	mgr.serviceLookup = &activationTestLookup{
-		addresses: map[string]string{},
-		candidate: gxyregistery.NewServiceInfo("role", "node-b", "node-b:1002", "test", 1),
+		candidate: gxyregistery.NewServiceInfo("role", "node-c", "node-c:1002", "test", 1),
 	}
-	mgr.requestActorFunc = func(context.Context, string, string, string, bool) (PID, bool, error) {
-		t.Fatal("requestActor called without an address for the live owner")
-		return nil, false, nil
+	var askedNode string
+	mgr.requestActorFunc = func(_ context.Context, node string, _ string, _ string, allowSpawn bool) (PID, bool, error) {
+		if allowSpawn {
+			t.Fatal("must not request a spawn while another node owns the actor")
+		}
+		askedNode = node
+		return PID{}, false, errors.New("node unreachable")
 	}
 
 	if _, err := mgr.getActor(ctx, "role", "player-1", true); err == nil {
-		t.Fatal("getActor accepted an unavailable address for a live owner")
+		t.Fatal("getActor must fail when the owner node is unreachable")
+	}
+	// 询问的必须是所有者节点,而不是重新选出的候选节点。
+	if askedNode != owner.NodeID {
+		t.Fatalf("asked node = %q, want owner %q", askedNode, owner.NodeID)
 	}
 	got, err := callerLocator.locate(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != owner {
-		t.Fatalf("owner after unavailable address = %+v, want %+v", got, owner)
+		t.Fatalf("ownership must be unchanged, got %+v want %+v", got, owner)
 	}
 }
 
+// TestGetActorRetryIsBounded 重定位重试次数有上限,不会无界循环。
 func TestGetActorRetryIsBounded(t *testing.T) {
 	ownerLocator, callerLocator, _ := newActorLocatorTestPair(t)
 	ctx := context.Background()
@@ -184,11 +152,11 @@ func TestGetActorRetryIsBounded(t *testing.T) {
 
 	mgr := NewActivatorManager("node-b", "node-b")
 	mgr.locator = callerLocator
-	mgr.serviceLookup = &activationTestLookup{addresses: map[string]string{"node-a": "node-a:1001"}}
+	mgr.serviceLookup = &activationTestLookup{}
 	requests := 0
 	mgr.requestActorFunc = func(context.Context, string, string, string, bool) (PID, bool, error) {
 		requests++
-		return nil, true, nil
+		return PID{}, true, nil
 	}
 
 	if _, err := mgr.getActor(ctx, "role", "player-1", true); !errors.Is(err, errActorLocateRetryExhausted) {
@@ -198,3 +166,29 @@ func TestGetActorRetryIsBounded(t *testing.T) {
 		t.Fatalf("requests = %d, want %d", requests, actorLocateMaxAttempts)
 	}
 }
+
+// TestRemoteRefUsesNameAddressing 跨节点引用按"节点 + 注册名"构造。
+// 运行时进程标识跨节点会被代际校验,对端重启后即失效;注册名是稳定身份。
+func TestRemoteRefUsesNameAddressing(t *testing.T) {
+	mgr := NewActivatorManager("node-a", "node-a")
+	pid := mgr.remoteRef("node-b", "role", "1001")
+
+	if pid.Node() != "node-b" {
+		t.Fatalf("node = %q, want node-b", pid.Node())
+	}
+	if pid.Name() != "role/1001" {
+		t.Fatalf("name = %q, want role/1001", pid.Name())
+	}
+	if pid.local.Node != "" {
+		t.Fatal("remote ref must not carry a local runtime pid")
+	}
+}
+
+// TestActorNameIsKindScoped 注册名带 kind 前缀,不同 kind 的同 id 不冲突。
+func TestActorNameIsKindScoped(t *testing.T) {
+	if actorName("role", "1") == actorName("guild", "1") {
+		t.Fatal("actor name must be scoped by kind")
+	}
+}
+
+var _ = gen.PID{}

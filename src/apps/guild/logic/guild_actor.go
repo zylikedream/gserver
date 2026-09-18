@@ -11,7 +11,6 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
-	"gserver/core/gxytimer"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role"
@@ -22,6 +21,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm/clause"
@@ -31,7 +31,7 @@ const MaxLogCount = 100
 
 type GuildActor struct {
 	gxymodule.ModuleBase
-	*gxyactor.ActorBase
+	*gxyactor.Actor
 	GuildID int64
 	Data    *Guild
 
@@ -40,16 +40,15 @@ type GuildActor struct {
 }
 
 func NewGuildActor() *GuildActor {
-	ctx := gxylog.NewContext(context.Background(), "guild")
 	g := &GuildActor{db: gxypgx.DB(), cfg: gameconfig.Get()}
-	g.ActorBase = gxyactor.NewActorBase(ctx, g, "guild")
+	g.Actor = gxyactor.NewActor("guild", g)
 	return g
 }
 
 // ===== IActor 接口 =====
 
-func (g *GuildActor) Init(ctx context.Context, args []any) error {
-	// args[1] 可能是共享 Activator 追加的 ActorOwner,非 guild 参数,忽略。
+// Init 是运行时回调:只绑标识与取所有权;加载由自投消息驱动。
+func (g *GuildActor) Init(args ...any) error {
 	if len(args) < 1 {
 		return errors.New("guild actor init args error")
 	}
@@ -57,37 +56,59 @@ func (g *GuildActor) Init(ctx context.Context, args []any) error {
 	if g.GuildID <= 0 {
 		return errors.New("guild actor init args error")
 	}
-	return nil
+	if err := g.Actor.Init(args...); err != nil {
+		return err
+	}
+	return g.SendSelfInit()
 }
 
-func (g *GuildActor) DelayInit(ctx context.Context) error {
+// asyncInit 完成耗时加载并启动定时器。
+func (g *GuildActor) asyncInit() error {
+	ctx := g.Ctx
 	if err := g.loadFromDB(ctx); err != nil {
 		return err
 	}
-
-	g.Timer().AddTick(ctx, &gxytimer.Tick{Name: "guild_save", Interval: 600 * time.Second}, g.TickSave)
-	g.Timer().AddCron(ctx, gxytimer.DayRefresh, g.onDayRefresh)
+	g.Timer().AddTick("guild_save", 600*time.Second, g.TickSave)
+	g.Timer().AddDaily("day_refresh", 5, g.onDayRefresh)
 
 	gxylog.Info(ctx, "guild actor started", gxylog.Num("guildID", g.GuildID), gxylog.Num("members", len(g.Data.Members)), gxylog.Num("applies", len(g.Data.ApplyList)))
 	return nil
 }
 
 // loadFromDB 从数据库加载公会数据(与 timer 启动解耦,便于测试)。
+// 只在加载成功后才写入 Data:否则失败路径会留下一个空对象,
+// 终止路径的落盘会把它当作有效状态写回数据库。
 func (g *GuildActor) loadFromDB(ctx context.Context) error {
-	g.Data = &Guild{}
-	if err := g.db.First(g.Data, g.GuildID).Error; err != nil {
+	data := &Guild{}
+	if err := g.db.First(data, g.GuildID).Error; err != nil {
 		return err
 	}
+	g.Data = data
 	return nil
 }
 
-func (g *GuildActor) Terminate(ctx context.Context, err error) {
-	_ = g.StopModule(ctx)
+// Terminate 是运行时回调:先落盘,再交给基类停定时器并释放所有权。
+func (g *GuildActor) Terminate(err error) {
+	defer g.Actor.Terminate(err)
+	g.save(g.Ctx)
+	gxylog.Info(g.Ctx, "guild actor stopped", gxylog.Num("guildID", g.GuildID))
 }
 
-func (g *GuildActor) HandleMessage(ctx context.Context, msg any) error {
-	_, err := g.AutoHandleMsg(ctx, msg)
-	return err
+// HandleMessage 是运行时回调。初始化消息在此驱动加载,其余走分派。
+func (g *GuildActor) HandleMessage(from gen.PID, raw any) error {
+	msg, err := gxyactor.UnwrapWire(raw)
+	if err != nil {
+		gxylog.Error(g.Ctx, "decode wire message failed", gxylog.Err(err))
+		return nil
+	}
+	if _, ok := msg.(*gxyactor.ActorInitMsg); ok {
+		if err := g.asyncInit(); err != nil {
+			gxylog.Error(g.Ctx, "guild async init failed", gxylog.Num("guildID", g.GuildID), gxylog.Err(err))
+			return err
+		}
+		return nil
+	}
+	return g.Actor.HandleMessage(from, msg)
 }
 
 // ===== Module 生命周期 =====
@@ -105,11 +126,11 @@ func (g *GuildActor) save(ctx context.Context) {
 	g.db.Save(g.Data)
 }
 
-func (g *GuildActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (g *GuildActor) TickSave(ctx context.Context) {
 	g.save(ctx)
 }
 
-func (g *GuildActor) onDayRefresh(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (g *GuildActor) onDayRefresh(ctx context.Context) {
 	// 清理过期申请
 	now := time.Now()
 	valid := make([]*GuildApply, 0, len(g.Data.ApplyList))

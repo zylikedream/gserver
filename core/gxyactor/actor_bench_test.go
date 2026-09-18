@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/asynkron/protoactor-go/actor"
 	"github.com/gogf/gf/v2/frame/g"
 	"github.com/gogf/gf/v2/os/gcfg"
 
@@ -87,8 +86,9 @@ func BenchmarkRegisterActorLocate(b *testing.B) {
 	}
 }
 
-func BenchmarkGetActorLocateNodeName(b *testing.B) {
+func BenchmarkLocateOwner(b *testing.B) {
 	benchRedisReady(b)
+	mgr := NewActivatorManager("bench", "bench@node")
 	key := getActorLocateKey("role", "bench-player")
 	leaseKey := actorLocatorLeaseKey("bench@node")
 	if err := gxyredis.Redis().Set(context.Background(), key, "bench@node|1|bench-token", 0).Err(); err != nil {
@@ -103,12 +103,12 @@ func BenchmarkGetActorLocateNodeName(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		node, err := getActorLocateNodeName(context.Background(), "role", "bench-player")
+		owner, err := mgr.locator.locate(context.Background(), "role", "bench-player")
 		if err != nil {
-			b.Fatalf("getActorLocateNodeName() error = %v", err)
+			b.Fatalf("locate() error = %v", err)
 		}
-		if node != "bench@node" {
-			b.Fatalf("getActorLocateNodeName() = %q, want %q", node, "bench@node")
+		if owner.NodeID != "bench@node" {
+			b.Fatalf("locate() = %q, want %q", owner.NodeID, "bench@node")
 		}
 	}
 }
@@ -131,7 +131,7 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
 	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
-		return actor.NewPID(node, id), false, nil
+		return pidFromRemote(node, actorName("role", id)), false, nil
 	}
 	key := getActorLocateKey("role", "bench-player")
 	leaseKey := actorLocatorLeaseKey(targetNode)
@@ -151,11 +151,11 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
 		}
-		if pid == nil {
-			b.Fatal("getActor() returned nil pid")
+		if pid.IsZero() {
+			b.Fatal("getActor() returned empty pid")
 		}
-		if pid.Address != targetHost {
-			b.Fatalf("pid address = %q, want %q", pid.Address, targetHost)
+		if pid.Node() != targetHost {
+			b.Fatalf("pid node = %q, want %q", pid.Node(), targetHost)
 		}
 	}
 }
@@ -180,7 +180,7 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
 	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
-		return actor.NewPID(node, id), false, nil
+		return pidFromRemote(node, actorName("role", id)), false, nil
 	}
 
 	b.ResetTimer()
@@ -189,11 +189,11 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
 		}
-		if pid == nil {
-			b.Fatal("getActor() returned nil pid")
+		if pid.IsZero() {
+			b.Fatal("getActor() returned empty pid")
 		}
-		if pid.Address != expected.NodeHost {
-			b.Fatalf("pid address = %q, want %q", pid.Address, expected.NodeHost)
+		if pid.Node() != expected.NodeHost {
+			b.Fatalf("pid node = %q, want %q", pid.Node(), expected.NodeHost)
 		}
 	}
 }

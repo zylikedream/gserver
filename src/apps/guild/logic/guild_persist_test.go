@@ -71,6 +71,10 @@ func TestGuildActor_LoadFromDB_NotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing guild")
 	}
+	// 加载失败不得留下空数据:否则终止路径会把它写回数据库。
+	if g.Data != nil {
+		t.Fatalf("Data must stay nil when load fails, got %+v", g.Data)
+	}
 }
 
 func TestGuildActor_Save(t *testing.T) {
@@ -94,6 +98,29 @@ func TestGuildActor_Save(t *testing.T) {
 	g.save(context.Background())
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("sql expectations: %v", err)
+	}
+}
+
+func TestGuildActor_TerminatePersists(t *testing.T) {
+	// 走真实构造路径:验证终止路径确实接上了落盘。
+	g := NewGuildActor()
+	g.GuildID = 1
+	g.Data = &Guild{
+		ID: 1, Name: "TestGuild", Level: 2, LeaderID: 100, MemberCount: 1,
+		Members: []*GuildMember{{RoleID: 100, Position: 1, JoinedAt: 1000}},
+	}
+	gormDB, mock := newGuildDBMock(t)
+	g.db = gormDB
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "guild" SET .* WHERE .*`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	g.Terminate(nil)
+
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("actor 停止时必须落盘: %v", err)
 	}
 }
 

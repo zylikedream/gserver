@@ -7,6 +7,9 @@
 	actor = {{ port.actor | default(25106) }}
 	# 账号服务HTTP端口
 	account = {{ port.account | default(18080) }}
+[network]
+	# 集群内节点互连的共享密钥。所有节点必须一致,否则握手失败(跨节点不可用)。
+	cookie = "{{ network.cookie | default('replace-me') }}"
 [postgres]
 	url = "postgresql://{{ postgres.user }}:{{ postgres.password | urlencode }}@{{ postgres.host }}:{{ postgres.port }}/{{ postgres.database }}?sslmode={{ postgres.sslmode }}"
 [redis]
