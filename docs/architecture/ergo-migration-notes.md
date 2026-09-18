@@ -218,7 +218,7 @@ supervisor StartChild × 200（批量）      每次 =  3µs
 | `Self` / `Sender` / `Stop` / `respond` | 18 | 改 `PID()` / handler `from` 参数 / `return` |
 | `newSupervisor` / `decider` | 7 | 改 `SupervisorSpec` |
 | `logger.go`（slog 适配） | 68 | 重写为 `gen.LoggerBehavior`（约 40 行） |
-| `activator_manager.go` + `actor_mgr.go` | 667 | 重写（约 100–150 行，仅保留 lease 与分片调度） |
+| `activator_manager.go` + `actor_mgr.go` | 667 | 重写：保留租约（#6）、分片调度、能力目录选择与重定位循环、陈旧记录的条件释放与重试（#8）；删除会合机制与本地实例索引（`actor_mgr.go` 随之删除） |
 | `newSystem` / `Address` / `StopActor` / send 四件套 | ~62 | 改 ergo node |
 | `actor_locator.go` | 418 | 保留（改成：`nodeID` 用稳定节点名、`leaseToken` 改为每实例随机；获取方式不变） |
 | `gxyutil.MsgHandler` | — | 全部保留 |
@@ -230,11 +230,12 @@ supervisor StartChild × 200（批量）      每次 =  3µs
 | `Timer()` | 17 | 19 | 不变 |
 | `Sender()` | 17 | 26 | 改用 handler 的 `from` 参数 |
 | `Self()` | 13 | 22 | 改用 `PID()` |
-| `ActivateActor` | 4 | 0 | 改 `SpawnRegister` / `StartChild` |
+| `ActivateActor` | 4 | 0 | 改 node 级 `SpawnRegister`（名字注册式创建，不挂监督者） |
 | `PidEqual` | 3 | 0 | 改 `gen.PID` 比较（含 `Creation`） |
 | `CallSync` | 1 | 2 | 改 `Call` + 显式 sender |
 | `AutoHandleMsg` | 2 | 0 | 改响应机制 |
-| `GetLocalActor` | 2 | 0 | 改 `ProcessRangeShortInfo` |
+| `GetLocalActor` | 2 | 0 | 改按名查表（常数时间，非扫描）；本地实例索引随之删除 |
+| `GetLocalActorAll` | 1 | 0 | 改 `ProcessRangeShortInfo`（枚举本机进程） |
 | `Respond` | 2 | 1 | 改 `return` |
 | `AddMsgHandler` | 1 | 0 | 不变 |
 | `Span()` | 7 | — | 删 `SetName`（冗余）；`SetAttributes` → `SetTracingSpanAttribute` |
