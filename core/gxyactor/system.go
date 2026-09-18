@@ -6,6 +6,7 @@ import (
 
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
+	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 
 	"ergo.services/ergo"
@@ -107,6 +108,12 @@ func (a *actorApp) OnModStart(ctx context.Context) error {
 	if err := a.activator.OnModStart(ctx); err != nil {
 		return err
 	}
+	// 登记节点级地址记录,使其它节点能按节点名解析到本节点的 actor 地址。
+	// 与承载哪些能力无关,因此纯网关节点也能被解析(见 ADR 0011)。
+	if svc := gxyservice.ServiceApp(); svc != nil {
+		svc.LoadService(ctx, &ActorNodeService{})
+	}
+
 	gxylog.Info(ctx, "actor started", gxylog.Str("nodeName", a.nodeName), gxylog.Str("address", a.Address()))
 	return nil
 }
@@ -144,7 +151,7 @@ func (a *actorApp) spawnNamed(kind string, name string, prod ActorProducer, init
 	if a.node == nil {
 		return PID{}, gerror.New("actor node not initialized")
 	}
-	pid, err := a.node.SpawnRegister(gen.Atom(name), asFactory(prod), gen.ProcessOptions{}, initArgs...)
+	pid, err := a.node.SpawnRegister(gen.Atom(name), asFactory(kind, prod), gen.ProcessOptions{}, initArgs...)
 	if err != nil {
 		return PID{}, err
 	}
@@ -157,7 +164,8 @@ func (a *actorApp) spawnUnnamed(prod ActorProducer, initArgs ...any) (PID, error
 	if a.node == nil {
 		return PID{}, gerror.New("actor node not initialized")
 	}
-	pid, err := a.node.Spawn(asFactory(prod), gen.ProcessOptions{}, initArgs...)
+	// 无名实例不参与按名寻址,没有注册表的键可作为权威能力名,沿用构造时的标签。
+	pid, err := a.node.Spawn(asFactory("", prod), gen.ProcessOptions{}, initArgs...)
 	if err != nil {
 		return PID{}, err
 	}
@@ -180,17 +188,9 @@ func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
 	return a.node.Send(target, out)
 }
 
-// localSend 本地发送。ergo 不区分本地与远程的发送 API,本机消息不会经过序列化。
-func (a *actorApp) localSend(ctx context.Context, pid PID, message any) error {
-	return a.send(ctx, pid, message)
-}
-
 // call 同步调用并等待响应。
 // 业务错误由被调方作为响应消息返回(见 ADR 0013)。
 func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
-	if a.node == nil {
-		return nil, gerror.New("actor node not initialized")
-	}
 	if a.node == nil {
 		return nil, gerror.New("actor node not initialized")
 	}

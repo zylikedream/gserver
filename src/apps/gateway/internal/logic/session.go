@@ -299,7 +299,7 @@ func (s *Session) SendRoleMsg(ctx context.Context, msg proto.Message, id string)
 	}
 	// 投递失败不使客户端消息处理失败:对端的回复会回到本进程邮箱。
 	// 与既有语义一致(发送错误只记日志),不在此处改变会话状态。
-	if err := gxyactor.Send(ctx, s.sessionInfo.RolePid, req); err != nil {
+	if err := s.SendTo(s.sessionInfo.RolePid, req); err != nil {
 		gxylog.Warn(ctx, "send role msg failed",
 			gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
 	}

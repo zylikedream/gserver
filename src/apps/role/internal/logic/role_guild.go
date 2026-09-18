@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"time"
 
-	"gserver/core/gxyactor"
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
 	"gserver/protocol/pb"
@@ -162,7 +161,7 @@ func (r *RoleGuild) withGuildActor(ctx context.Context, req proto.Message) (any,
 	if err != nil {
 		return nil, errors.Wrap(err, "获取公会 actor 失败")
 	}
-	return gxyactor.Call(ctx, pid, req, 10*time.Second)
+	return r.Role.Call(pid, req, 10*time.Second)
 }
 
 func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*pb.RspGuildApply, error) {
@@ -170,7 +169,7 @@ func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*
 	if err != nil {
 		return nil, errors.Wrap(err, "获取公会 actor 失败")
 	}
-	rsp, err := gxyactor.Call(ctx, pid, &pb.ReqGuildApply{RoleId: r.RoleID, GuildId: req.GuildId}, 10*time.Second)
+	rsp, err := r.Role.Call(pid, &pb.ReqGuildApply{RoleId: r.RoleID, GuildId: req.GuildId}, 10*time.Second)
 	if err != nil {
 		return nil, err
 	}

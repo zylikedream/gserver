@@ -12,6 +12,7 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
 	"gserver/protocol/pb"
+	"gserver/src/lib"
 	"gserver/src/lib/rolelib"
 
 	"ergo.services/ergo/gen"
@@ -79,7 +80,7 @@ func NewChannelActor() *ChannelActor {
 		members: make(map[int64]*channelMember),
 		db:      gxypgx.DB(),
 	}
-	a.Actor = gxyactor.NewActor("channel", a)
+	a.Actor = gxyactor.NewActor(lib.CHANNEL_ACTOR_TYPE, a)
 	return a
 }
 

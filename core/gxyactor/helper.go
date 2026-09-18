@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"time"
 
 	"gserver/protocol/pb"
 )
@@ -21,19 +20,13 @@ func SpawnFunc(prod ActorProducer, initArgs ...any) (PID, error) {
 	return app.spawnUnnamed(prod, initArgs...)
 }
 
-// Send 发送消息(异步)。
-func Send(ctx context.Context, pid PID, message any) error {
+// SendAsNode 以**节点身份**发送消息(发送者是节点本身,不是某个 actor)。
+//
+// 只给没有进程身份的调用方用:网络回调、生命周期钩子等。actor 内部请用
+// Actor.SendTo / Actor.Call —— 用本函数会让接收方把发送者记成节点,回包
+// 发到节点上并丢失。名字里的 AsNode 就是提醒这一点。
+func SendAsNode(ctx context.Context, pid PID, message any) error {
 	return app.send(ctx, pid, message)
-}
-
-// LocalSend 本地发送。运行时中本地投递不经过序列化。
-func LocalSend(ctx context.Context, pid PID, message any) error {
-	return app.localSend(ctx, pid, message)
-}
-
-// Call 同步调用并等待响应,超时返回错误。
-func Call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
-	return app.call(ctx, pid, message, timeout)
 }
 
 // ActivateActor 解析或创建 actor,返回可寻址的引用。

@@ -21,9 +21,21 @@ import (
 // 直接返回运行时的行为接口——门面不再做一层包装,业务结构体内嵌 *Actor 即满足。
 type ActorProducer func() act.ActorBehavior
 
-// asFactory 把业务生产者适配成运行时的进程工厂。
-func asFactory(prod ActorProducer) gen.ProcessFactory {
-	return func() gen.ProcessBehavior { return prod() }
+// asFactory 把业务生产者适配成运行时的进程工厂,并把**注册名**交给实例。
+//
+// 注册式 actor 的能力名必须与注册表的键一致:所有权键按能力名区分,
+// 与查询方使用的键不一致会让同一实体的第二次激活查不到归属而重复创建。
+// 因此能力名由框架在此处一次性写入,实例不再自行推断。
+func asFactory(kind string, prod ActorProducer) gen.ProcessFactory {
+	return func() gen.ProcessBehavior {
+		behavior := prod()
+		if kind != "" {
+			if a, ok := behavior.(*Actor); ok {
+				a.kind = kind
+			}
+		}
+		return behavior
+	}
 }
 
 // ActorInitMsg 是业务在初始化期间自投的消息。
@@ -153,11 +165,18 @@ func (a *Actor) AcceptMessage(from gen.PID, message any) error {
 		gxylog.Error(a.Ctx, "decode wire message failed", gxylog.Err(err))
 		return nil
 	}
-	_, err = a.dispatchTo(decoded)
+	rsp, err := a.dispatchTo(decoded)
 	gxymetrics.ActorMessages.WithLabelValues(a.kind).Inc()
 	if err != nil {
 		gxylog.Error(a.Ctx, "handle msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
 		return err
+	}
+	// 异步消息的响应是处理函数的返回值(如客户端请求的应答):回给发送者。
+	// 没有返回值表示该消息不需要应答(如通知类)。
+	if rsp != nil && from != (gen.PID{}) {
+		if sendErr := a.Reply(from, rsp); sendErr != nil {
+			gxylog.Warn(a.Ctx, "reply to sender failed", gxylog.Err(sendErr))
+		}
 	}
 	return a.StopReason()
 }
@@ -174,13 +193,16 @@ func (a *Actor) AcceptCall(from gen.PID, ref gen.Ref, request any) (any, error) 
 	}
 	rsp, err := a.dispatchTo(decoded)
 	gxymetrics.ActorMessages.WithLabelValues(a.kind).Inc()
+	// 同步请求的应答必须走响应通道(带上调用方的 ref):用普通发送回包,
+	// 调用方的 Call 收不到结果会超时,而迟到的应答会被当成一条新消息投递,
+	// 在调用方触发"无对应处理器"。
 	if err != nil {
 		gxylog.Error(a.Ctx, "handle rpc msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
-		if sendErr := a.Reply(from, &pb.ActorError{Reason: err.Error()}); sendErr != nil {
+		if sendErr := a.ReplyCall(from, ref, &pb.ActorError{Reason: err.Error()}); sendErr != nil {
 			gxylog.Warn(a.Ctx, "reply business error failed", gxylog.Err(sendErr))
 		}
 	} else if rsp != nil {
-		if sendErr := a.Reply(from, rsp); sendErr != nil {
+		if sendErr := a.ReplyCall(from, ref, rsp); sendErr != nil {
 			gxylog.Warn(a.Ctx, "reply failed", gxylog.Err(sendErr))
 		}
 	}

@@ -592,7 +592,7 @@ func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
 		gxylog.Error(ctx, "new server msg error", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
 		return
 	}
-	_ = gxyactor.Send(ctx, r.session, svrMsg)
+	_ = r.SendTo(r.session, svrMsg)
 }
 
 func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
@@ -624,7 +624,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	newSession := r.Sender()
 	if r.state == RoleStateLogined && !gxyactor.PidEqual(r.session, newSession) { // 表示重复登录
 		// 断开旧连接
-		_ = gxyactor.Send(ctx, r.session, &pb.ActorStop{
+		_ = r.SendTo(r.session, &pb.ActorStop{
 			Reason: "multi login",
 		})
 	}

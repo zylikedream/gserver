@@ -52,16 +52,18 @@ func (r *serviceRegistrar) Register(node gen.NodeRegistrar, routes gen.RegisterR
 func (r *serviceRegistrar) Resolver() gen.Resolver { return r }
 
 // Resolve 把节点名解析为可达地址。
-// 节点名形如 "role@10.0.0.5":能力名即 "@" 之前的部分,地址取自注册表中
-// 该能力下同名节点的记录。
+//
+// 地址取自节点级服务记录(见 ActorNodeService):运行时的入口只给节点名,
+// 而一个节点可以承载多种能力、也可以一种都不承载,因此按能力名反推地址
+// 不成立。
 func (r *serviceRegistrar) Resolve(node gen.Atom) ([]gen.Route, error) {
 	name := string(node)
-	kind, host, ok := splitNodeName(name)
+	_, host, ok := splitNodeName(name)
 	if !ok {
 		return nil, gen.ErrIncorrect
 	}
 
-	addr := resolveNodeHost(kind, name)
+	addr := resolveNodeHost(ActorNodeServiceName, name)
 	if addr == "" {
 		return nil, gen.ErrUnknown
 	}
@@ -143,11 +145,12 @@ func splitNodeName(name string) (kind string, host string, ok bool) {
 	return name[:at], name[at+1:], true
 }
 
-// resolveNodeHost 从服务注册表查询指定节点的协议地址。
-func resolveNodeHost(kind string, nodeName string) string {
+// resolveNodeHost 从服务注册表查询指定节点在某服务下的地址。
+// 按节点名(而非能力名)过滤,因此一个记录下可以并存多个节点。
+func resolveNodeHost(serviceName string, nodeName string) string {
 	svc := gxyservice.ServiceApp()
 	if svc == nil {
 		return ""
 	}
-	return svc.GetAddressByNodeName(context.Background(), kind, nodeName)
+	return svc.GetAddressByNodeName(context.Background(), serviceName, nodeName)
 }

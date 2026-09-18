@@ -341,7 +341,7 @@ func (r *RoleGM) StopRole(roleID int64) error {
 	if gxyactor.PIDIsZero(rolePid) {
 		return errors.Newf("role %d not found ", roleID)
 	}
-	_ = gxyactor.LocalSend(r.ctx, rolePid, &pb.ActorStop{
+	_ = r.Role.SendTo(rolePid, &pb.ActorStop{
 		Reason: "gm stop role",
 	})
 	return nil
