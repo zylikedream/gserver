@@ -8,6 +8,13 @@
 
 > **本文件零约束力。** 它记录的是"当时的理由与实测结果"，不是规则。有约束力的只有 `invariants.md` 与状态为 `Accepted` 的 ADR（见 `invariants.md` 效力规则 1）。引用本文内容压设计前，必须对代码或 ergo 源码重验一遍。
 
+> **前提（本项目部署事实，非 ergo 保证，零约束力）**
+>
+> 下列是迁移设计依赖的**本项目部署事实**，不是架构不变量，因此不进 `invariants.md`。它们失效时，上表相关不变量的**承载**需重估：
+>
+> - **A 同一节点名至多一个活进程**（编排约束，一名一实例）。注意换用自定义 registrar 后，运行时**不再**替我们拒绝重名——默认 registrar 才返回 `ErrTaken`（`ergo-foundation.md` §5）。这是不变量 #6 的 `SetNX` 成为承重项的原因；失效则重估 #5（身份分层是否还有必要）、#6。
+> - **B 编排器会重启启动失败的实例**（k8s 默认 `restartPolicy: Always`，`deploy/k8s/` 未显式覆盖）。这是不变量 #6 以"获取失败即启动失败"为承载的前提——失败必须能被自动吸收；失效则重估 #6。
+
 ## 一、已实测的 ergo 语义
 
 以下结论来自本机对 `v1.999.330` 的实测与文档核对。**与本文件不一致之处，以 `ergo-foundation.md`（源码勘测，带行号）为准**——本节的"配置陷阱""其他"两节已按该勘测纠正过三处（端口分配、Flags 代入链、静态路由版本补全）。
@@ -291,7 +298,7 @@ activator 内部消化 relocate 循环上限沿用 `actorLocateMaxAttempts = 3`�
 
 1. **wire envelope**：`WireEnvelope` + `Pack`/`Unpack`，节点启动时 `Network().RegisterType`。
 2. **`consulRegistrar`**：`gen.Registrar` 适配（`Register` no-op、`Resolve` 读 Consul）。
-3. **身份改造**：`nodeID` = ergo 节点名；`leaseToken` 独立随机；租约获取**保持"仅当不存在时写入"**（不变量 #6，获取失败即启动失败）。
+3. **身份改造**：`nodeID` = ergo 节点名；`leaseToken` 独立随机；租约获取**保持"仅当不存在时写入"**（不变量 #6，获取失败即启动失败；其可接受性依赖前提 B）。
 4. **`gxyactor` 门面重写**：`ActorBase` → `act.Actor` 适配（含 `ctx` 串联、error 语义转换、metrics 埋点搬移、`gen.Logger`）。
 5. **activator 重写**：分片 + supervisor + `node` 级 `SpawnRegister`；删除 `pending`/`waiters`/`Touch`/`actor_mgr`；所有权获取/释放移出协调层。
 6. **角色初始化拆分**：同步段做**所有权获取 + 纯内存校验**（不变量 #3），耗时加载与外部访问移入异步段；终止路径先落库再释放（不变量 #4，且不得依据死亡通知释放）。
