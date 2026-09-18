@@ -1,13 +1,7 @@
 package logic
 
-import (
-	"context"
-	"time"
-)
-
 type RoleExtraPersistState struct {
 	RolePersistState
-	CronTm time.Time `gorm:"column:cron_tm"`
 }
 
 func (RoleExtraPersistState) TableName() string { return "role_extra" }
@@ -23,18 +17,4 @@ type RoleExtra struct {
 
 func (r *RoleExtra) PersistState() IPersistState {
 	return &r.RoleExtraPersistState
-}
-
-func (r *RoleExtra) OnModInit(ctx context.Context) error {
-	r.CronTm = time.Now()
-	return nil
-}
-
-func (r *RoleExtra) GetCronTm() time.Time {
-	return r.CronTm
-}
-
-func (r *RoleExtra) SetCronTm(tm time.Time) {
-	r.CronTm = tm
-	r.MarkDirty()
 }
