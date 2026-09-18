@@ -88,6 +88,11 @@ Distributed game server on the **Actor model** (protoactor-go) + GoFrame v2.
 
 ## development tips
 - **每次开发功能需要先拉取新分支来开发, 如果开发之前有未提交的更改，提醒我先提交**
+- **提交粒度: 功能开发期间用碎提交做检查点, 功能完成、验证通过后压缩为一条提交再推送/合并**。要求:
+  - 碎提交只存在于本地, **不要推送中间态** —— 推送后再压缩需要 force-push, 会破坏远端历史
+  - 若中途确需推送(长时间任务备份/跑 CI), 推送前先问一句, 由使用者决定是否接受后续 force-push
+  - 压缩用 `git reset --soft <base>` 后重新提交, 或 `git rebase -i` 合并; 压缩后确认 `git diff <base>...HEAD` 与压缩前一致
+  - 一条提交 = 一个功能, 提交信息写清为什么做、做了什么、怎么验证
 - **提交并推送后必须检查 CI action 结果**: 推送后查看 GitHub Actions 对应 run, 有报错先修复(workflow 解析失败/lint/test 失败均算), 确认全绿后才可合并或继续下一步
 - **错误处理规范**: 见 `docs/development/error-handling.md`(cockroachdb/errors 唯一错误库, 错误产生点带栈, 禁止 %s/%v 吞错误)
 - **日志规范**: 见 `docs/development/logging.md`(统一 gxylog, 结构化字段, 错误必须 gxylog.Err(err) 打栈, 打印点只在最终处理处)
