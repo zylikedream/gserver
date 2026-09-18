@@ -64,7 +64,7 @@ MonitorPID 的 MessageDownPID            → 在 Terminate 完成【之前】到
 node.Stop()                            → 等待全部 Terminate，并行执行（3×400ms → 401ms）
 ```
 
-**推论：`Down` / `HandleChildTerminate` / 进程表消失都不是"已存盘"屏障。** 需要存盘屏障时必须自建 flush + ack 协议；且 drainer 不能在 `HandleMessage` 里同步等待 ack（会堵死自己的 mailbox，ack 进不来），必须写成异步状态机。
+**推论：`Down` / `HandleChildTerminate` / 进程表消失都不是"已存盘"屏障。** 这是所有权释放不能依据死亡通知的原因——释放必须放在 actor 自己的终止路径内、且在落库之后（不变量 #4），而不是靠外部观察进程消失来推断。
 
 ### Link / Monitor
 
@@ -312,6 +312,6 @@ activator 内部消化 relocate 循环上限沿用 `actorLocateMaxAttempts = 3`�
 - wire：双节点真实 pb 载荷往返（已先行验证方案可行性）。
 - 激活：并发同名激活仅产生一个实例；`Init`/`Terminate` 不重复执行。
 - ownership：跨节点接管后旧 epoch 的保存被 `role_actor_fence` 拒绝。
-- 关停：`node.Stop()` 等待全部 `Terminate`；存盘屏障由显式 flush + ack 协议保障。
+- 关停：`node.Stop()` 等待全部 `Terminate` 回调完成——停机的存盘保障由此提供（不变量 #10），无需另建屏障。
 - 可观测性：`/metrics` 单端点同时含业务与 ergo 指标；Tempo 中可见跨节点 trace。
 - 时序：`ServiceInfo.NodeHost` 中的端口与 ergo 实际监听端口一致。
