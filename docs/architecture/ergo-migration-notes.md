@@ -271,7 +271,10 @@ supervisor StartChild × 200（批量）      每次 =  3µs
 ```text
 ActivateRole(roleID)
   ├─ locate(roleID)
-  │    ├─ 有 owner → owner.NodeID 即 ergo 节点名 → 直接 CallImportant（不经 Consul）
+  │    ├─ 有 owner → 发往 owner 节点的协调层，由其校验本地实例：
+  │    │    ├─ 本地有该实例 → 返回 PID
+  │    │    └─ 本地无该实例 → 条件释放陈旧记录 + RetryLocate（不变量 #8；ADR 0006 #7/#8）
+  │    │         ※ 不得直接按名构造 PID 调用——那会绕开 #8，陈旧记录永不收敛
   │    └─ 无 owner → ConsistentHashSelector 从 kind 记录选候选节点
   │         → 发给该节点分片 activator：{kind}_activator_{hash(id)%N}
   │
