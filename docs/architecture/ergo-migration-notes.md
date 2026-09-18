@@ -10,7 +10,7 @@
 
 ## 一、已实测的 ergo 语义
 
-以下结论均在本机对 `v1.999.330` 实测得出，不是文档推断。
+以下结论来自本机对 `v1.999.330` 的实测与文档核对。**与本文件不一致之处，以 `ergo-foundation.md`（源码勘测，带行号）为准**——本节的"配置陷阱""其他"两节已按该勘测纠正过三处（端口分配、Flags 代入链、静态路由版本补全）。
 
 ### 进程注册名
 
@@ -86,11 +86,16 @@ NodeInfo 不暴露该字段，只能从 pid.Creation 或 node.PID() 取
 node/Network().Info() 与 node.Info() 均为 (值, error) 双返回
 ```
 
-**跨节点发送时 Creation 不符会直接返回 `ErrProcessIncarnation`，不发包。** 但秒级精度不能承担实例唯一性（见 ADR 0008 决策 3）。
+**跨节点发送时 Creation 不符会直接返回 `ErrProcessIncarnation`，不发包。** 秒级精度不足以单独承担实例唯一性：其碰撞由"租约仅当不存在时写入"（不变量 #6）与每实例随机令牌共同吸收。
 
 ### 配置陷阱
 
-`gen.DefaultNetworkFlags` 只在 `Flags.Enable == false` 时被代入。一旦写出 `Flags: gen.NetworkFlags{Enable: true, ...}` 字面量，未列出的字段**全部为 false**（会静默关闭 `EnableTracing`、`EnableSoftwareKeepAlive` 等）。正确写法：
+`gen.DefaultNetworkFlags` 的代入分两级，不能一概而论（勘测见 `ergo-foundation.md` §0）：
+
+- **网络级**：仅当 `Flags.Enable == false` 时**整体替换**为 `DefaultNetworkFlags`。因此写 `Flags: gen.NetworkFlags{Enable: true, ...}` 字面量会让未列出项保持 false（会静默关闭 `EnableTracing`、`EnableSoftwareKeepAlive` 等）。
+- **acceptor 级**：另有代入链（handshake 的 flags → 网络级 options.Flags → `DefaultNetworkFlags`），即使字面量 `Enable=false` 也会被逐级代入。
+
+正确写法（改一项时从默认值派生）：
 
 ```go
 flags := gen.DefaultNetworkFlags
@@ -98,7 +103,7 @@ flags.EnableRemoteSpawn = false // 只改需要改的
 options.Network.Flags = flags
 ```
 
-`StartNode` 需要 `NodeName@host` 且 host 可解析；`AcceptorOptions.Port` 为 `uint16`，传 `0` 表示系统分配。
+`StartNode` 需要 `NodeName@host` 且 host 可解析；`AcceptorOptions.Port` 为 `uint16`，传 `0` **不是**系统随机端口——它被改写为 `gen.DefaultPort`(11144) 后按 `PortRange` 向后扫描，实际端口须经 `Acceptors()` 读取（勘测纠正见 `ergo-foundation.md` §0）。
 
 ### 其他
 
@@ -208,7 +213,7 @@ supervisor StartChild × 200（批量）      每次 =  3µs
 | `logger.go`（slog 适配） | 68 | 重写为 `gen.LoggerBehavior`（约 40 行） |
 | `activator_manager.go` + `actor_mgr.go` | 667 | 重写（约 100–150 行，仅保留 lease 与分片调度） |
 | `newSystem` / `Address` / `StopActor` / send 四件套 | ~62 | 改 ergo node |
-| `actor_locator.go` | 418 | 保留（仅改 `leaseToken` 来源与 `SetNX`） |
+| `actor_locator.go` | 418 | 保留（改成：`nodeID` 用稳定节点名、`leaseToken` 改为每实例随机；获取方式不变） |
 | `gxyutil.MsgHandler` | — | 全部保留 |
 
 ### 业务侧调用点改造
@@ -253,6 +258,8 @@ supervisor StartChild × 200（批量）      每次 =  3µs
 
 ### 激活链路
 
+> 与既有实现的差异：所有权获取（claim）与释放**不再由激活协调层代管**，改由角色进程自身在初始化同步段获取、在终止路径释放（不变量 #3/#4）。协调层只做能力目录选择、重定位循环，以及"记录指向本节点但本地无实例"时的条件释放与重试（#8）。
+
 ```text
 ActivateRole(roleID)
   ├─ locate(roleID)
@@ -261,8 +268,9 @@ ActivateRole(roleID)
   │         → 发给该节点分片 activator：{kind}_activator_{hash(id)%N}
   │
   └─ 候选节点侧 activator
-       ├─ Claim（redis Lua，blocking I/O —— 分片的原因）
-       ├─ node.SpawnRegister("role/"+id, factory, opts, id, owner)   ← node 级
+       ├─ node.SpawnRegister("role/"+id, factory, opts, id)   ← node 级
+       │    └─ Init 同步段：claim（redis Lua，blocking I/O —— 分片的原因）
+       │         → 校验通过才开始处理消息；失败即终止（不变量 #3）
        └─ 返回 PID
 
 调用方发送业务消息（CallImportant）
@@ -271,21 +279,26 @@ ActivateRole(roleID)
   └─ ErrNoConnection / ErrRetryExhausted → 失败
 ```
 
+角色进程终止路径（不变量 #4）：先完成最终落库（写事务内锁定 `role_id + node_id + epoch`，不变量 #2），**之后**才条件释放所有权。不得依据死亡通知释放——运行时的名字释放与 Down 通知都早于终止回调完成（`ergo-foundation.md` §1）。
+
 activator 内部消化 relocate 循环上限沿用 `actorLocateMaxAttempts = 3`。`ErrRelocate` 不冒泡给客户端。
 
-分片数 N 待定：`Init` 已降为纯内存操作，activator 的串行瓶颈只剩 `Claim` 的 redis 往返，N 应由该往返耗时与预期登录峰值倒推，而非照搬旧实现的 5 路池。
+分片数 N 待定：串行瓶颈只是 claim 的 redis 往返（初始化其余部分为纯内存或异步），N 应由该往返耗时与预期登录峰值倒推，而非照搬旧实现的 5 路池。
 
 ## 三、实现顺序
 
+> 与绑定不变量冲突处以 `invariants.md` 为准。本清单是执行序，不是决策依据。
+
 1. **wire envelope**：`WireEnvelope` + `Pack`/`Unpack`，节点启动时 `Network().RegisterType`。
 2. **`consulRegistrar`**：`gen.Registrar` 适配（`Register` no-op、`Resolve` 读 Consul）。
-3. **身份改造**：`nodeID` = ergo 节点名、`leaseToken` 独立随机、`SetNX` → `SET`；`actor_locator` 与相关测试同步。
+3. **身份改造**：`nodeID` = ergo 节点名；`leaseToken` 独立随机；租约获取**保持"仅当不存在时写入"**（不变量 #6，获取失败即启动失败）。
 4. **`gxyactor` 门面重写**：`ActorBase` → `act.Actor` 适配（含 `ctx` 串联、error 语义转换、metrics 埋点搬移、`gen.Logger`）。
-5. **activator 重写**：分片 + supervisor + `node` 级 `SpawnRegister`；删除 `pending`/`waiters`/`Touch`/`actor_mgr`。
-6. **`Init` 拆分**：`Init` 纯内存，DB 移入异步初始化。
+5. **activator 重写**：分片 + supervisor + `node` 级 `SpawnRegister`；删除 `pending`/`waiters`/`Touch`/`actor_mgr`；所有权获取/释放移出协调层。
+6. **角色初始化拆分**：同步段做**所有权获取 + 纯内存校验**（不变量 #3），耗时加载与外部访问移入异步段；终止路径先落库再释放（不变量 #4，且不得依据死亡通知释放）。
 7. **业务侧替换**：`Sender()` / `Self()` / `PidEqual` / `ActivateActor` 等 30+ 处。
 8. **可观测性**：追踪适配器、metrics 合并、日志、cron 迁移。
-9. **文档更新**：`docs/architecture/` 下 `actor-system.md`、`tracing.md`、`service-discovery.md`、`actor-init-race.md`、`networking.md`、`overview.md`、`docs/blog-actor-model-game-server.md`、`README.md`、`AGENTS.md` 中 protoactor 相关描述；`tracing.md` 与 `docs/bugfix/issue-protoactor-go-endpointwriter.md` 可归档。
+9. **停机顺序**：确认 actor 域先于共享客户端（数据库、缓存）停止，且用等待终止回调完成的优雅停止（不变量 #10）。
+10. **文档更新**：`docs/architecture/` 下 `actor-system.md`、`tracing.md`、`service-discovery.md`、`actor-init-race.md`、`networking.md`、`overview.md`、`docs/blog-actor-model-game-server.md`、`README.md`、`AGENTS.md` 中 protoactor 相关描述；`tracing.md` 与 `docs/bugfix/issue-protoactor-go-endpointwriter.md` 可归档。
 
 ## 四、验证要求
 
