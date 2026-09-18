@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"gserver/core/gxyactor"
 	"gserver/core/gxyapp"
@@ -60,7 +59,10 @@ func (n *node) OnModInit(ctx context.Context) error {
 	if h := os.Getenv("HOSTNAME"); h != "" && strings.HasPrefix(h, n.Name+"-") {
 		podName = h
 	}
-	n.NodeInstanceName = fmt.Sprintf("%s@%x", podName, time.Now().UnixNano())
+	// 节点身份必须是稳定的、可寻址的名字(ADR 0010):
+	// 它同时用于服务注册、跨节点按名寻址与运行时节点名,三者必须一致。
+	// 实例唯一性不由此处承担,而由租约令牌(每实例随机)与世代承担。
+	n.NodeInstanceName = fmt.Sprintf("%s@%s", podName, n.Host)
 	if n.Name == "" {
 		return gerror.New("no node name '")
 	}

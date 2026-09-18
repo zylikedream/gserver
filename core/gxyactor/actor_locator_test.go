@@ -17,7 +17,7 @@ func newActorLocatorTestPair(t *testing.T) (*actorLocator, *actorLocator, *minir
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return newActorLocator(client, "node-a", "token-a"), newActorLocator(client, "node-b", "token-b"), server
+	return newActorLocator(client, "node-a"), newActorLocator(client, "node-b"), server
 }
 
 func TestActorLocatorClaimConcurrentHasSingleWinner(t *testing.T) {
@@ -181,14 +181,15 @@ func TestActorLocatorRenewDoesNotRefreshDifferentToken(t *testing.T) {
 	if err := first.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	stale := newActorLocator(first.redis, first.nodeID, "stale-token")
+	// 同一节点名的另一个实例:租约令牌每实例随机,因此它不持有当前租约。
+	other := newActorLocator(first.redis, first.nodeID)
 	server.FastForward(time.Second)
-	refreshed, err := stale.renewNodeLease(ctx)
+	refreshed, err := other.renewNodeLease(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if refreshed {
-		t.Fatal("stale token renewed active lease")
+		t.Fatal("a different instance renewed the active lease")
 	}
 }
 

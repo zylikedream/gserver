@@ -8,34 +8,24 @@ import (
 	"gserver/core/gxylog"
 	"gserver/protocol/pb"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
-
-	"github.com/asynkron/protoactor-go/actor"
-	"github.com/asynkron/protoactor-go/remote"
-	"github.com/cockroachdb/errors"
+	"ergo.services/ergo"
+	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// actorApp 基础Actor模块
+// actorApp 基础Actor模块:持有 ergo 节点,是整个 actor 运行时的入口。
 type actorApp struct {
 	gxyapp.App
-	system           *actor.ActorSystem
-	remote           *remote.Remote
-	nodeName         string
-	nodeInstanceName string
-	host             string
-	activatorMgr     *activatorManager
+	node      gen.Node
+	nodeName  string
+	host      string
+	activator *activatorManager
 }
-
-const (
-	CLUSTER_NAME = "gcluster"
-)
 
 var app *actorApp
 
-// ActorSystem 获取基础Actor模块
+// ActorApp 获取基础Actor模块。
 func ActorApp() *actorApp {
 	return app
 }
@@ -44,113 +34,179 @@ func (a *actorApp) NodeName() string {
 	return a.nodeName
 }
 
-// NewActorSystem创建基础Actor模块
+func (a *actorApp) Host() string {
+	return a.host
+}
+
+// NewActorApp 创建基础Actor模块。
+// nodeInstanceName 已废弃:路由身份用稳定节点名,所有权身份由运行时节点启动时刻承担(ADR 0010)。
 func NewActorApp(nodeName string, nodeInstanceName string, host string) *actorApp {
 	app = &actorApp{
-		nodeName:         nodeName,
-		nodeInstanceName: nodeInstanceName,
-		host:             host,
+		nodeName: nodeName,
+		host:     host,
 	}
-
 	return app
 }
 
-func (a *actorApp) newSystem() *actor.ActorSystem {
-	return actor.NewActorSystem(actor.WithLoggerFactory(glogAdapterLogging))
-}
-
-// OnModInit Actor模块初始化 - 启动节点
+// OnModInit 启动 ergo 节点。
 func (a *actorApp) OnModInit(ctx context.Context) error {
 	port := g.Cfg().MustGet(ctx, "port.actor").Int()
-	a.system = a.newSystem()
-	config := remote.Configure(a.host, port)
-	a.remote = remote.NewRemote(a.system, config)
-	a.remote.Start()
-	a.activatorMgr = NewActivatorManager(a.nodeName, a.nodeInstanceName)
-	if err := a.AddModule(ctx, a.activatorMgr); err != nil {
+
+	options := gen.NodeOptions{}
+	options.Network.Mode = gen.NetworkModeEnabled
+	// 节点互连的共享密钥。为空时运行时会为每个节点生成随机值,
+	// 导致跨节点握手失败(单节点自测不受影响),因此必须显式配置。
+	cookie := g.Cfg().MustGet(ctx, "network.cookie").String()
+	if cookie == "" {
+		gxylog.Warn(ctx, "network cookie is empty; cross-node communication will fail",
+			gxylog.Str("node", a.nodeName))
+	}
+	options.Network.Cookie = cookie
+	// 节点发现接项目已有的服务注册表:运行时只按节点名解析地址,
+	// 适配器据此从注册表取回地址(见 ADR 0011)。
+	options.Network.Registrar = newServiceRegistrar()
+	options.Network.Acceptors = []gen.AcceptorOptions{
+		{
+			Host: a.host,
+			Port: uint16(port),
+		},
+	}
+	// 必须从默认值派生:写字面量会让未列出项保持 false,静默关闭能力(见 ergo-foundation §5)。
+	flags := gen.DefaultNetworkFlags
+	options.Network.Flags = flags
+
+	options.Log.Level = gen.LogLevelInfo
+	// 必须显式关闭默认 logger,否则与 gxylog 的控制台输出重复(见 ADR 0013)。
+	options.Log.DefaultLogger.Disable = true
+	options.Log.Loggers = []gen.Logger{
+		{Name: "gxylog", Logger: newErgoLogger()},
+	}
+
+	nodeName := gen.Atom(a.nodeName + "@" + a.host)
+	node, err := ergo.StartNode(nodeName, options)
+	if err != nil {
+		return gerror.Wrapf(err, "start ergo node %s", nodeName)
+	}
+	a.node = node
+
+	// 跨节点消息统一走信封,因此只需向运行时注册这一个类型(见 ADR 0009)。
+	if err := node.Network().RegisterType(WireEnvelope{}); err != nil {
+		node.Stop()
+		return gerror.Wrap(err, "register wire envelope")
+	}
+
+	a.activator = NewActivatorManager(a.nodeName, string(nodeName))
+	if err := a.activator.OnModInit(ctx); err != nil {
+		node.Stop()
 		return err
 	}
 	return nil
 }
 
 func (a *actorApp) OnModStart(ctx context.Context) error {
-	gxylog.Info(ctx, "actor started ", gxylog.Str("nodeName", a.nodeName), gxylog.Str("address", a.Address()))
-	// 启动服务
+	if err := a.activator.OnModStart(ctx); err != nil {
+		return err
+	}
+	gxylog.Info(ctx, "actor started", gxylog.Str("nodeName", a.nodeName), gxylog.Str("address", a.Address()))
 	return nil
 }
 
-// OnModStop 停止Actor模块 - 停止节点
+// OnModStop 优雅停止节点。
+//
+// 必须用优雅停止:它会等待所有进程的终止回调返回,而终止回调里包含最终落库
+// 与所有权释放。强制停止会跳过该等待,导致每次停机静默丢失最后一次存盘
+// (见 invariants.md #10)。
 func (a *actorApp) OnModStop(ctx context.Context) error {
-	a.system.Shutdown()
-	gxylog.Info(ctx, "actor system stopped ", gxylog.Str("address", a.Address()))
+	if a.activator != nil {
+		if err := a.activator.OnModStop(ctx); err != nil {
+			gxylog.Error(ctx, "stop activator failed", gxylog.Err(err))
+		}
+	}
+	if a.node != nil {
+		a.node.Stop()
+	}
+	gxylog.Info(ctx, "actor system stopped", gxylog.Str("address", a.Address()))
 	return nil
 }
 
 func (a *actorApp) RegisterActorKind(name string, prod ActorProducer) error {
-	return a.activatorMgr.RegisterActorKind(name, prod)
+	return a.activator.RegisterActorKind(name, prod)
 }
 
 func (a *actorApp) DeregisterActorKind(name string) {
-	a.activatorMgr.DeregisterActorKind(name)
+	a.activator.DeregisterActorKind(name)
 }
 
-// SpawnRegister创建新的Actor
-func (a *actorApp) spawnNamed(props *actor.Props, name string, initArgs ...any) (PID, error) {
-	if len(initArgs) > 0 {
-		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
+// spawnNamed 以名字注册方式创建 actor。
+// 名字在初始化之前由运行时原子注册,因此并发同名创建是良性的:
+// 败者既不执行初始化,也不执行终止。
+func (a *actorApp) spawnNamed(kind string, name string, prod ActorProducer, initArgs ...any) (PID, error) {
+	if a.node == nil {
+		return PID{}, gerror.New("actor node not initialized")
 	}
-	return a.system.Root.SpawnNamed(props, name)
+	pid, err := a.node.SpawnRegister(gen.Atom(name), asFactory(prod), gen.ProcessOptions{}, initArgs...)
+	if err != nil {
+		return PID{}, err
+	}
+	return pidFromLocal(pid), nil
 }
 
-func (a *actorApp) spawn(props *actor.Props, initArgs ...any) (PID, error) {
-	if a.system == nil {
-		return nil, errors.Newf("node not initialized")
+// spawnUnnamed 创建一个不带名字的 actor。
+// 这类实例不能按名寻址,生命周期由创建者负责(会话、临时 worker)。
+func (a *actorApp) spawnUnnamed(prod ActorProducer, initArgs ...any) (PID, error) {
+	if a.node == nil {
+		return PID{}, gerror.New("actor node not initialized")
 	}
-	if len(initArgs) > 0 {
-		props = props.Configure(actor.WithContextDecorator(ContextDecorator(initArgs...)))
+	pid, err := a.node.Spawn(asFactory(prod), gen.ProcessOptions{}, initArgs...)
+	if err != nil {
+		return PID{}, err
 	}
-	return a.system.Root.Spawn(props), nil
+	return pidFromLocal(pid), nil
 }
 
-// Send 发送消息
+// send 向进程发送消息。跨节点时自动装信封(见 ADR 0009)。
 func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
-	if a.system == nil {
-		return errors.Newf("node not initialized")
+	if a.node == nil {
+		return gerror.New("actor node not initialized")
 	}
-	if env := injectTrace(ctx, message); env != nil {
-		a.system.Root.Send(pid, env)
-		return nil
+	target := pid.target()
+	if target == nil {
+		return gerror.New("send to empty pid")
 	}
-	a.system.Root.Send(pid, message)
-	return nil
+	out, err := a.prepareOutbound(message, pid.Node())
+	if err != nil {
+		return err
+	}
+	return a.node.Send(target, out)
 }
 
-// LocalSend 发送消息给本地actor, 不经过序列化, 所以可以发送any
+// localSend 本地发送。ergo 不区分本地与远程的发送 API,本机消息不会经过序列化。
 func (a *actorApp) localSend(ctx context.Context, pid PID, message any) error {
 	return a.send(ctx, pid, message)
 }
 
-func (a *actorApp) respond(ctx context.Context, actx actor.Context, message any) error {
-	sender := actx.Sender()
-	if sender == nil {
-		gxylog.Warn(ctx, "sener is nil, can not respond")
-		return nil
-	}
-	return a.send(ctx, sender, message)
-}
-
+// call 同步调用并等待响应。
+// 业务错误由被调方作为响应消息返回(见 ADR 0013)。
 func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
-	// Extract trace headers and unwrap inner message
-	future := actor.NewFuture(a.system, timeout)
-	env := &actor.MessageEnvelope{
-		Message: message,
-		Sender:  future.PID(),
+	if a.node == nil {
+		return nil, gerror.New("actor node not initialized")
 	}
-	err := a.send(ctx, pid, env)
+	if a.node == nil {
+		return nil, gerror.New("actor node not initialized")
+	}
+	target := pid.target()
+	if target == nil {
+		return nil, gerror.New("call on empty pid")
+	}
+	out, err := a.prepareOutbound(message, pid.Node())
 	if err != nil {
 		return nil, err
 	}
-	result, err := future.Result()
+	result, err := a.node.CallWithTimeout(target, out, int(timeout.Seconds()))
+	if err != nil {
+		return nil, err
+	}
+	result, err = UnwrapWire(result)
 	if err != nil {
 		return nil, err
 	}
@@ -160,115 +216,116 @@ func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.
 	return result, nil
 }
 
-func (a *actorApp) callSync(ctx context.Context, pid PID, message any, sender PID) error {
-	env := &actor.MessageEnvelope{
-		Message: message,
-		Sender:  sender,
+// callImportant 同步调用,投递失败会立即返回错误而非超时。
+// 目标可以是 PID 或 ProcessID(远端按名寻址);跨节点时自动装信封。
+func (a *actorApp) callImportant(ctx context.Context, target any, message any) (any, error) {
+	if a.node == nil {
+		return nil, gerror.New("actor node not initialized")
 	}
-	return a.send(ctx, pid, env)
+	out, err := a.prepareOutbound(message, string(targetNode(target)))
+	if err != nil {
+		return nil, err
+	}
+	result, err := a.node.CallImportant(target, out)
+	if err != nil {
+		return nil, err
+	}
+	result, err = UnwrapWire(result)
+	if err != nil {
+		return nil, err
+	}
+	if aerr, ok := result.(*pb.ActorError); ok {
+		return nil, gerror.New(aerr.Reason)
+	}
+	return result, nil
+}
+
+// prepareOutbound 决定是否需要装信封:只有发往其他节点的消息才需要,
+// 本机投递保持零拷贝。
+func (a *actorApp) prepareOutbound(message any, node string) (any, error) {
+	if a.node == nil || node == "" || node == string(a.node.Name()) {
+		return message, nil
+	}
+	return packForWire(message)
+}
+
+// targetNode 取出寻址目标所属的节点名。
+func targetNode(target any) gen.Atom {
+	switch t := target.(type) {
+	case gen.PID:
+		return t.Node
+	case *gen.PID:
+		return t.Node
+	case gen.ProcessID:
+		return t.Node
+	case *gen.ProcessID:
+		return t.Node
+	default:
+		return ""
+	}
 }
 
 func (a *actorApp) GetNodeName() string {
-	return string(a.nodeName)
+	return a.nodeName
 }
 
 func (a *actorApp) StopActor(pid PID) error {
-	if a.system == nil {
-		return errors.Newf("node not initialized")
+	if a.node == nil {
+		return gerror.New("actor node not initialized")
 	}
-	a.system.Root.Stop(pid)
-	return nil
-}
-
-func (a *actorApp) Host() string {
-	return a.host
+	target := pid.target()
+	if target == nil {
+		return gerror.New("stop actor: empty pid")
+	}
+	return a.node.SendExit(target.(gen.PID), gen.TerminateReasonNormal)
 }
 
 func (a *actorApp) NodeInstanceName() string {
-	return a.nodeInstanceName
-}
-func (a *actorApp) GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
-	if a.activatorMgr == nil || a.activatorMgr.locator == nil {
-		return ActorOwner{}, errors.New("actor locator is not initialized")
-	}
-	return a.activatorMgr.locator.locate(ctx, kind, id)
+	return string(a.node.Name())
 }
 
+// Address 返回本节点的 actor 协议监听地址(host:port)。
+//
+// 服务注册需要该地址:其它节点据此建立连接。不能用运行时节点名——它的格式
+// 是 name@host,不含端口(见 ADR 0011)。
 func (a *actorApp) Address() string {
-	return a.system.Address()
+	if a.node == nil {
+		return ""
+	}
+	acceptors, err := a.node.Network().Acceptors()
+	if err != nil || len(acceptors) == 0 {
+		return ""
+	}
+	return acceptors[0].Info().Interface
+}
+
+// address 包级入口,供 ActorService 使用。
+func address() string {
+	if app == nil {
+		return ""
+	}
+	return app.Address()
+}
+
+func (a *actorApp) GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
+	if a.activator == nil || a.activator.locator == nil {
+		return ActorOwner{}, gerror.New("actor locator is not initialized")
+	}
+	return a.activator.locator.locate(ctx, kind, id)
 }
 
 func (a *actorApp) ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
-	return a.activatorMgr.getActor(ctx, kind, id, spawn)
+	return a.activator.getActor(ctx, kind, id, spawn)
 }
 
 func (a *actorApp) GetActorCount(kind string) int {
-	return a.activatorMgr.GetActorCount(kind)
+	return a.activator.GetActorCount(kind)
 }
 
 func (a *actorApp) GetLocalActor(kind string, id string) PID {
-	return a.activatorMgr.GetLocalActor(kind, id)
+	return a.activator.GetLocalActor(kind, id)
 }
 
 func (a *actorApp) GetLocalActorAll(kind string) []PID {
-	return a.activatorMgr.GetLocalActorAll(kind)
-}
-
-type messageEnvelopeCarrier struct {
-	envelope *actor.MessageEnvelope
-}
-
-func (c messageEnvelopeCarrier) Get(key string) string {
-	if c.envelope == nil || c.envelope.Header == nil {
-		return ""
-	}
-	return c.envelope.Header.Get(key)
-}
-
-func (c messageEnvelopeCarrier) Set(key, val string) {
-	if c.envelope != nil {
-		c.envelope.SetHeader(key, val)
-	}
-}
-
-func (c messageEnvelopeCarrier) Keys() []string {
-	if c.envelope == nil || c.envelope.Header == nil {
-		return nil
-	}
-	return c.envelope.Header.Keys()
-}
-
-// injectTrace injects OpenTelemetry trace context from ctx into a MessageEnvelope.
-// Returns nil when ctx has no valid span (no trace to propagate).
-func injectTrace(ctx context.Context, msg any) *actor.MessageEnvelope {
-	env := &actor.MessageEnvelope{}
-	switch msg := msg.(type) {
-	case *actor.MessageEnvelope:
-		env = msg
-	default:
-		env.Message = msg
-	}
-	span := trace.SpanFromContext(ctx)
-	if !span.SpanContext().IsValid() {
-		return nil
-	}
-	carrier := messageEnvelopeCarrier{envelope: env}
-	otel.GetTextMapPropagator().Inject(ctx, carrier)
-	return env
-}
-
-func newSupervisor() actor.SupervisorStrategy {
-	return actor.NewOneForOneStrategy(10, 3*time.Second, decider)
-}
-
-func decider(reason any) actor.Directive {
-	gxylog.Error(context.Background(), "actor error", gxylog.Any("reason", reason))
-	return actor.StopDirective
-}
-
-func PidEqual(a, b PID) bool {
-	if a == nil || b == nil {
-		return false
-	}
-	return a.Id == b.Id && a.Address == b.Address
+	return a.activator.GetLocalActorAll(kind)
 }
