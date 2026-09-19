@@ -85,10 +85,7 @@ type Actor struct {
 	Ctx context.Context
 
 	kind string
-	// biz 是外层业务对象,在 Init 时由运行时持有的行为实例解析而来(见 Init)。
-	// 必须持有它:Go 的内嵌是静态分派,*Actor 内调用 a.Receive 只会调到基类
-	// 自己的实现,不会调到外层的覆写。经此引用才能到达业务入口。
-	biz   any
+	// timer 是懒创建的定时器门面。
 	timer *ActorTimer
 
 	// currentFrom 是当前正在处理的消息的发送者。
@@ -119,11 +116,6 @@ func (a *Actor) ActorKind() string {
 //
 // 承载持久实体的 actor 由 EntityActor 覆写本方法,先取得归属再调回这里。
 func (a *Actor) Init(_ ...any) error {
-	// 业务对象就是运行时持有的那个行为实例——即工厂返回的最外层结构体,
-	// 因此不必在构造时把自身作为参数传进来。
-	// Behavior() 提升自内嵌的运行时进程,不是本类型的方法。
-	a.biz = a.Behavior()
-
 	// 让本 actor 发起的消息按配置比例开启链路追踪(ADR 0013)。
 	// 必须设在进程上:运行时发消息时看的是进程级采样器,节点级只对"节点自身
 	// 发起"的消息生效——只设节点级会得到一个永远没有 span 的空追踪。
@@ -178,8 +170,15 @@ type callReceiver interface {
 }
 
 // receive 把消息交给业务入口。未实现业务入口的 actor 不处理它。
+//
+// 入口在**运行时持有的行为实例**上查找,也就是工厂返回的最外层结构体。
+// 不能写成 a.Receive(...):Go 的内嵌是静态分派,*Actor 内那样写只会调到基类
+// 自己的实现,而基类没有业务入口。
+//
+// 用接口断言而非类型断言:业务对象是内嵌基类的外层结构体,不是基类本身;
+// 内嵌提升的方法进入它的方法集,接口断言查得到,类型断言查不到。
 func (a *Actor) receive(from gen.PID, message any) (any, error) {
-	if r, ok := a.biz.(messageReceiver); ok {
+	if r, ok := a.Behavior().(messageReceiver); ok {
 		return r.Receive(from, message)
 	}
 	return nil, nil
@@ -187,7 +186,7 @@ func (a *Actor) receive(from gen.PID, message any) (any, error) {
 
 // receiveCall 把请求交给业务入口。未实现业务入口的 actor 不处理它。
 func (a *Actor) receiveCall(from gen.PID, ref gen.Ref, request any) (any, error) {
-	if r, ok := a.biz.(callReceiver); ok {
+	if r, ok := a.Behavior().(callReceiver); ok {
 		return r.ReceiveCall(from, ref, request)
 	}
 	return nil, nil

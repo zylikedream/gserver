@@ -56,7 +56,7 @@ type dispatcher interface {
 // dispatchTo 把消息交给分派目标:业务覆写了 Dispatch 就用业务的,
 // 否则用按消息类型反射分派的默认实现。
 func (e *EntityActor) dispatchTo(message any) (any, error) {
-	if d, ok := e.biz.(dispatcher); ok {
+	if d, ok := e.Behavior().(dispatcher); ok {
 		return d.Dispatch(message)
 	}
 	return e.DispatchDefault(message)
@@ -95,9 +95,9 @@ func (e *EntityActor) Init(args ...any) error {
 	if err := e.Actor.Init(args...); err != nil {
 		return err
 	}
-	// 业务对象由基类在 Init 时解析(运行时持有的行为实例),此处据此注册分派目标。
-	if e.biz != nil {
-		e.msgHandler.AddHandler(e.biz)
+	// 分派目标是运行时持有的行为实例(工厂返回的最外层结构体)。
+	if b := e.Behavior(); b != nil {
+		e.msgHandler.AddHandler(b)
 	}
 	return nil
 }
