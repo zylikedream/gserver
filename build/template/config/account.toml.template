@@ -30,6 +30,7 @@
 	refresh_ttl = "10s"
 [trace]
 	endpoint = "{{ trace.host }}:{{ trace.port }}"
+	sample_rate = {{ trace.sample_rate | default(0.01) }}
 [metrics]
 addr = ":{{ metrics_account.port | default(9096) }}"
 

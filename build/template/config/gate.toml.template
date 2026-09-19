@@ -28,6 +28,7 @@
 	refresh_ttl = "10s"
 [trace]
 	endpoint = "{{ trace.host }}:{{ trace.port }}"
+	sample_rate = {{ trace.sample_rate | default(0.01) }}
 
 [token]
 	algorithm = "{{ token.algorithm | default('hs256') }}"

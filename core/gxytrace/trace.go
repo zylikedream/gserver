@@ -28,6 +28,9 @@ func InitTracerProvider(ctx context.Context, serviceName, endpoint string) (func
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
+		// 让来自运行时的观测沿用其自身的追踪标识与父子关系,否则跨节点链路
+		// 会断成互不相干的若干条 trace(见 ergo.go)。
+		sdktrace.WithIDGenerator(ergoIDGenerator{}),
 	)
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})

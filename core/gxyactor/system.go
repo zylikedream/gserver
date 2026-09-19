@@ -113,6 +113,14 @@ func (a *actorApp) OnModStart(ctx context.Context) error {
 		svc.LoadService(ctx, &ActorNodeService{})
 	}
 
+	// 可观测性接入(ADR 0013)。失败不阻断启动:遥测不可用不应让整个节点起不来。
+	if err := a.installTracing(ctx); err != nil {
+		gxylog.Error(ctx, "install runtime tracing failed", gxylog.Err(err))
+	}
+	if err := a.startRuntimeMetrics(ctx); err != nil {
+		gxylog.Error(ctx, "start runtime metrics failed", gxylog.Err(err))
+	}
+
 	gxylog.Info(ctx, "actor started", gxylog.Str("nodeName", a.nodeName), gxylog.Str("address", a.Address()))
 	return nil
 }

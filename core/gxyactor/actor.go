@@ -9,6 +9,7 @@ import (
 
 	"gserver/core/gxylog"
 	"gserver/core/gxymetrics"
+	"gserver/core/gxytrace"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
 
@@ -121,6 +122,14 @@ func (a *Actor) Init(args ...any) error {
 	}
 	if _, err := a.acquireOwnership(); err != nil {
 		return err
+	}
+	// 让本 actor 发起的消息按配置比例开启链路追踪(ADR 0013)。
+	// 必须设在进程上:运行时发消息时看的是进程级采样器,节点级只对"节点自身
+	// 发起"的消息生效——只设节点级会得到一个永远没有 span 的空追踪。
+	if rate := gxytrace.SampleRate(); rate > 0 {
+		if err := a.SetTracingSampler(gen.TracingSamplerRatio(rate)); err != nil {
+			gxylog.Warn(a.Ctx, "set process tracing sampler failed", gxylog.Err(err))
+		}
 	}
 	gxymetrics.ActorActiveCount.WithLabelValues(a.kind).Inc()
 	return nil

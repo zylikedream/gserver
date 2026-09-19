@@ -147,6 +147,39 @@ Trace 级别  ：不能在运行期用 SetLevel 打开，只能启动时经 Node
 
 后三条影响追踪适配器的预期：跨 actor 的链路是完整的，但控制面与事件路径不在其中，排障时不要据此判定"消息未送达"。
 
+**实现后追加（2026-09-19 实测）：**
+
+```text
+采样器分两级，只设节点级得不到任何 span（实测踩到）：
+  node.SetTracingSampler      → 仅对"节点自身发起"的 Send/Call 生效（n.tracingSampler）
+  process.SetTracingSampler   → 进程发起消息时读的是 p.tracingSampler，逐进程设置
+  → 适配时在 actor 初始化段对每个 actor 设置进程级采样器，否则业务链路全空
+Init 阶段不产生新 trace（propagatingTrace 见状态为 Init 即返回空）
+  → 初始化期间的自投消息不产生 span；纯本地激活（SpawnRegister）本身也不产生消息，
+    因此"建一个本地 actor"这类路径不产生任何 span，这不代表适配器失效
+Span 标识是 [2]uint64（128 位）+ uint64（64 位），与 OTel 的 16/8 字节等宽
+  → 直接搬运比特即可；父子的标识同源，字节序只需自洽
+  → 实测某条链路：sent ReqGuildApply(parent=信封 processed) → sent ActorError(parent=请求 span)
+Exporter 由专用 worker 串行调用；队列满丢 span 并计数
+一节点多能力时各节点的观测混在同一条 trace 里（实测 20 条 trace 中 10 条跨 ≥2 节点）
+```
+
+### 指标
+
+```text
+ergo.services/actor/metrics v0.3.2（要求 ergo v1.999.330，与当前版本一致）
+必须先 node.Network().RegisterTypes(metrics.NetworkTypes()) + RegisterErrors(...)，
+  否则 ProcessInit 直接失败：类型未登记时指标无法解码，数值会静默保持为零
+Options 三态（实测配置方式）：
+  Shared 为空                → 独立模式：自建 HTTP 端点 + 采集 + 自定义指标
+  Shared 非空 + Port/Mux     → 主实例：采集基础指标 + 端点 + 自定义指标
+  Shared 非空 且无 Port/Mux  → worker：只处理自定义指标，不采集基础指标
+→ 要"并入既有单端点"必须走主实例，因此传入一个不对外服务的 Mux（满足其角色判定，
+  同时不让它自建第二个端口）
+registry 在 Init 返回前为 nil，必须用 Shared.Registry() 提前拿到
+运行时指标自带 node const label；自定义 collector 不能再声明 node
+```
+
 ### 日志（据文档 + 实测）
 
 ```text
@@ -307,7 +340,7 @@ activator 内部消化 relocate 循环上限沿用 `actorLocateMaxAttempts = 3`�
 5. **activator 重写**：分片 + supervisor + `node` 级 `SpawnRegister`；删除 `pending`/`waiters`/`Touch`/`actor_mgr`；所有权获取/释放移出协调层。
 6. **角色初始化拆分**：同步段做**所有权获取 + 纯内存校验**（不变量 #3），耗时加载与外部访问移入异步段；终止路径先落库再释放（不变量 #4，且不得依据死亡通知释放）。
 7. **业务侧替换**：`Sender()` / `Self()` / `PidEqual` / `ActivateActor` 等 30+ 处。
-8. **可观测性**：追踪适配器、metrics 合并、日志、cron 迁移。
+8. **可观测性**：追踪适配器、metrics 合并、日志、cron 迁移。〔2026-09-19 完成：追踪适配器 + metrics 合并；单端点实测含 49 个 ergo 指标族；20 条 trace 中 10 条跨 ≥2 节点。日志与 cron 此前已完成〕
 9. **停机顺序**：确认 actor 域先于共享客户端（数据库、缓存）停止，且用等待终止回调完成的优雅停止（不变量 #10）。
 10. **文档更新**：`docs/architecture/` 下 `actor-system.md`、`tracing.md`、`service-discovery.md`、`actor-init-race.md`、`networking.md`、`overview.md`、`docs/blog-actor-model-game-server.md`、`README.md`、`AGENTS.md` 中 protoactor 相关描述；`tracing.md` 与 `docs/bugfix/issue-protoactor-go-endpointwriter.md` 可归档。
 
@@ -317,5 +350,5 @@ activator 内部消化 relocate 循环上限沿用 `actorLocateMaxAttempts = 3`�
 - 激活：并发同名激活仅产生一个实例；`Init`/`Terminate` 不重复执行。
 - ownership：跨节点接管后旧 epoch 的保存被 `role_actor_fence` 拒绝。
 - 关停：`node.Stop()` 等待全部 `Terminate` 回调完成——停机的存盘保障由此提供（不变量 #10），无需另建屏障。
-- 可观测性：`/metrics` 单端点同时含业务与 ergo 指标；Tempo 中可见跨节点 trace。
+- 可观测性：`/metrics` 单端点同时含业务与 ergo 指标（**已验证**：单端点含 49 个 ergo 指标族 + 业务指标）；Tempo 中可见跨节点 trace（**已验证**：链路同一 trace 内跨 gate/game，响应 span 的父为请求 span）。
 - 时序：`ServiceInfo.NodeHost` 中的端口与 ergo 实际监听端口一致。
