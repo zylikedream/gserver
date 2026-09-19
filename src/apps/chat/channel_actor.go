@@ -11,11 +11,11 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
-	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
+	"gserver/src/lib"
 	"gserver/src/lib/rolelib"
 
-	"github.com/asynkron/protoactor-go/actor"
+	"ergo.services/ergo/gen"
 
 	"gorm.io/gorm"
 )
@@ -59,14 +59,13 @@ func (rb *ringBuffer) Len() int {
 }
 
 type channelMember struct {
-	Pid      *actor.PID
 	RoleID   int64
 	JoinTime time.Time
 }
 
 type ChannelActor struct {
 	gxymodule.ModuleBase
-	*gxyactor.ActorBase
+	*gxyactor.Actor
 	ChannelType  int32
 	ChannelID    int64
 	channel      IChannel
@@ -77,16 +76,19 @@ type ChannelActor struct {
 }
 
 func NewChannelActor() *ChannelActor {
-	ctx := gxylog.NewContext(context.Background(), "channel")
 	a := &ChannelActor{
 		members: make(map[int64]*channelMember),
 		db:      gxypgx.DB(),
 	}
-	a.ActorBase = gxyactor.NewActorBase(ctx, a, "channel")
+	a.Actor = gxyactor.NewActor(lib.CHANNEL_ACTOR_TYPE, a)
 	return a
 }
 
-func (a *ChannelActor) Init(ctx context.Context, args []any) error {
+func (a *ChannelActor) Init(args ...any) error {
+	if err := a.Actor.Init(args...); err != nil {
+		return err
+	}
+	ctx := a.Ctx
 	// 从 actor name（"channelType_channelID"）解析频道类型和 ID
 	if len(args) < 1 {
 		return errors.New("channel actor init: need channelType_channelID]")
@@ -103,28 +105,46 @@ func (a *ChannelActor) Init(ctx context.Context, args []any) error {
 	a.channel = ch
 	a.buffer = newRingBuffer(ch.RingBufferSize())
 	a.loadHistory(ctx)
-	return nil
-}
-
-func (a *ChannelActor) DelayInit(ctx context.Context) error {
 	if a.channel.SaveInterval() > 0 {
-		a.Timer().AddTick(ctx, &gxytimer.Tick{
-			Name:     "channel_save",
-			Interval: a.channel.SaveInterval(),
-		}, a.TickSave)
+		a.Timer().AddTick("channel_save", a.channel.SaveInterval(), a.TickSave)
 	}
 	return nil
 }
 
-func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
+// HandleMessage 是运行时回调(异步消息)。
+func (a *ChannelActor) HandleMessage(from gen.PID, raw any) error {
+	return a.dispatch(from, gen.Ref{}, false, raw)
+}
+
+// HandleCall 是运行时回调(同步请求)。返回 (nil,nil) 表示已自行回复。
+func (a *ChannelActor) HandleCall(from gen.PID, ref gen.Ref, raw any) (any, error) {
+	return nil, a.dispatch(from, ref, true, raw)
+}
+
+// dispatch 按消息类型分流。async 与同步请求共用,差别只在回包方式。
+func (a *ChannelActor) dispatch(from gen.PID, ref gen.Ref, isCall bool, raw any) error {
+	ctx := a.Ctx
+	msg, err := gxyactor.UnwrapWire(raw)
+	if err != nil {
+		gxylog.Error(ctx, "decode wire message failed", gxylog.Err(err))
+		return nil
+	}
+
+	reply := func(message any) {
+		var sendErr error
+		if isCall {
+			sendErr = a.ReplyCall(from, ref, message)
+		} else {
+			sendErr = a.Reply(from, message)
+		}
+		if sendErr != nil {
+			gxylog.Warn(ctx, "reply failed", gxylog.Err(sendErr))
+		}
+	}
+
 	switch m := msg.(type) {
 	case *pb.ChannelRegisterMsg:
-		pid := &actor.PID{
-			Address: m.Pid.Address,
-			Id:      m.Pid.Id,
-		}
 		a.members[m.RoleId] = &channelMember{
-			Pid:      pid,
 			RoleID:   m.RoleId,
 			JoinTime: time.Now(),
 		}
@@ -134,10 +154,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		delete(a.members, m.RoleId)
 		if len(a.members) == 0 {
 			a.save(ctx)
-			a.Timer().AddOnce(ctx, &gxytimer.Once{
-				Name:  stopTimerName,
-				After: 30 * time.Minute,
-			}, func(_ context.Context, _ gxytimer.TimerActiveInfo) {
+			a.Timer().AddOnce(stopTimerName, 30*time.Minute, func(_ context.Context) {
 				if len(a.members) == 0 {
 					a.Stop(nil)
 				}
@@ -146,7 +163,7 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 
 	case *pb.ReqChannelSend:
 		if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
-			_ = gxyactor.Respond(ctx, a.Actx, gxyactor.ActorError(err.Error()))
+			reply(gxyactor.ActorError(err.Error()))
 			return nil
 		}
 		chatMsg := &pb.PChatMsg{
@@ -173,18 +190,18 @@ func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) error {
 		if count <= 0 || count > a.channel.RingBufferSize() {
 			count = a.channel.RingBufferSize()
 		}
-		msgs := a.buffer.Recent(count)
-		_ = gxyactor.Respond(ctx, a.Actx, &pb.RspChatChannelHistory{Messages: msgs})
+		reply(&pb.RspChatChannelHistory{Messages: a.buffer.Recent(count)})
 	}
-	return nil
+	return a.StopReason()
 }
 
-func (a *ChannelActor) Terminate(ctx context.Context, err error) {
-	a.save(ctx)
-	_ = a.StopModule(ctx)
+// Terminate 是运行时回调:先落盘,再交给基类停定时器。
+func (a *ChannelActor) Terminate(err error) {
+	a.save(a.Ctx)
+	a.Actor.Terminate(err)
 }
 
-func (a *ChannelActor) TickSave(ctx context.Context, _ gxytimer.TimerActiveInfo) {
+func (a *ChannelActor) TickSave(ctx context.Context) {
 	a.save(ctx)
 }
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"gserver/core/gxytimer"
+	"gserver/core/gxyactor/gxyactortest"
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/pkg/gameconfig"
@@ -67,29 +67,28 @@ func initGuildTestConfig(t *testing.T) {
 	gc.Tables = &gamecfg.Tables{TbGuildLevel: tbLevel, TbGuildConfig: tbConfig}
 }
 
-func newTestGuild() *GuildActor {
-	return &GuildActor{
-		GuildID: 1,
-		cfg:     gameconfig.Get(),
-		Data: &Guild{
-			ID: 1, Name: "TestGuild", Level: 1,
-			LeaderID: 100, MemberCount: 3, NeedApproval: true,
-			Members: []*GuildMember{
-				{RoleID: 100, Position: int32(gamecfg.GardenEGuildPosition_LEADER), JoinedAt: 1000},
-				{RoleID: 200, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER), JoinedAt: 1001},
-				{RoleID: 300, Position: int32(gamecfg.GardenEGuildPosition_MEMBER), JoinedAt: 1002},
-			},
-			ApplyList: []*GuildApply{},
-			Logs:      []*GuildLog{},
+// newTestGuild 在 mock 节点上创建真实 guild actor,并注入测试数据。
+func newTestGuild(t *testing.T) *GuildActor {
+	t.Helper()
+	gxyactortest.StubOwnership(t)
+	g, _ := gxyactortest.Spawn(t, NewGuildActor, int64(1))
+	g.Data = &Guild{
+		ID: 1, Name: "TestGuild", Level: 1,
+		LeaderID: 100, MemberCount: 3, NeedApproval: true,
+		Members: []*GuildMember{
+			{RoleID: 100, Position: int32(gamecfg.GardenEGuildPosition_LEADER), JoinedAt: 1000},
+			{RoleID: 200, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER), JoinedAt: 1001},
+			{RoleID: 300, Position: int32(gamecfg.GardenEGuildPosition_MEMBER), JoinedAt: 1002},
 		},
+		ApplyList: []*GuildApply{},
+		Logs:      []*GuildLog{},
 	}
+	return g
 }
 
-func TestGuildActorInitAcceptsActorOwnerArgument(t *testing.T) {
-	g := &GuildActor{}
-	if err := g.Init(context.Background(), []any{int64(1), struct{}{}}); err != nil {
-		t.Fatalf("Init with shared activator owner argument: %v", err)
-	}
+func TestGuildActorInitParsesID(t *testing.T) {
+	gxyactortest.StubOwnership(t)
+	g, _ := gxyactortest.Spawn(t, NewGuildActor, int64(1))
 	if g.GuildID != 1 {
 		t.Fatalf("GuildID = %d, want 1", g.GuildID)
 	}
@@ -143,7 +142,7 @@ func TestToSet_Empty(t *testing.T) {
 // ========== getMember ==========
 
 func TestGetMember_Found(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	m := g.getMember(200)
 	if m == nil || m.Position != int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
 		t.Fatal("expected vice leader")
@@ -151,7 +150,7 @@ func TestGetMember_Found(t *testing.T) {
 }
 
 func TestGetMember_NotFound(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if m := g.getMember(999); m != nil {
 		t.Fatal("expected nil")
 	}
@@ -160,28 +159,28 @@ func TestGetMember_NotFound(t *testing.T) {
 // ========== canApprove ==========
 
 func TestCanApprove_Leader(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if !g.canApprove(100) {
 		t.Fatal("leader should approve")
 	}
 }
 
 func TestCanApprove_ViceLeader(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if !g.canApprove(200) {
 		t.Fatal("vice leader should approve")
 	}
 }
 
 func TestCanApprove_Member(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if g.canApprove(300) {
 		t.Fatal("member should not approve")
 	}
 }
 
 func TestCanApprove_NonMember(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if g.canApprove(999) {
 		t.Fatal("non-member should not approve")
 	}
@@ -190,28 +189,28 @@ func TestCanApprove_NonMember(t *testing.T) {
 // ========== canKick ==========
 
 func TestCanKick_LeaderKickMember(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if !g.canKick(100, 300) {
 		t.Fatal("leader should kick member")
 	}
 }
 
 func TestCanKick_LeaderKickViceLeader(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if !g.canKick(100, 200) {
 		t.Fatal("leader should kick vice leader")
 	}
 }
 
 func TestCanKick_ViceLeaderKickMember(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if !g.canKick(200, 300) {
 		t.Fatal("vice leader should kick member")
 	}
 }
 
 func TestCanKick_ViceLeaderCannotKickViceLeader(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	// 250 is not in guild, so add one
 	g.Data.Members = append(g.Data.Members, &GuildMember{RoleID: 250, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER)})
 	if g.canKick(200, 250) {
@@ -220,21 +219,21 @@ func TestCanKick_ViceLeaderCannotKickViceLeader(t *testing.T) {
 }
 
 func TestCanKick_CannotKickLeader(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if g.canKick(200, 100) {
 		t.Fatal("should not kick leader")
 	}
 }
 
 func TestCanKick_CannotKickSelf(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if g.canKick(100, 100) {
 		t.Fatal("should not kick self")
 	}
 }
 
 func TestCanKick_MemberCannotKick(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if g.canKick(300, 200) {
 		t.Fatal("member should not kick")
 	}
@@ -243,7 +242,7 @@ func TestCanKick_MemberCannotKick(t *testing.T) {
 // ========== getPendingApplies ==========
 
 func TestGetPendingApplies(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.ApplyList = []*GuildApply{
 		{ID: 1, RoleID: 400, Status: 0},
 		{ID: 2, RoleID: 401, Status: 1},
@@ -262,14 +261,14 @@ func TestGetPendingApplies(t *testing.T) {
 // ========== nextApplyID ==========
 
 func TestNextApplyID_Empty(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	if id := g.nextApplyID(); id != 1 {
 		t.Fatalf("expected 1, got %d", id)
 	}
 }
 
 func TestNextApplyID_Existing(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.ApplyList = []*GuildApply{{ID: 5}, {ID: 12}, {ID: 3}}
 	if id := g.nextApplyID(); id != 13 {
 		t.Fatalf("expected 13, got %d", id)
@@ -279,7 +278,7 @@ func TestNextApplyID_Existing(t *testing.T) {
 // ========== onDayRefresh ==========
 
 func TestOnDayRefresh_ClearsExpired(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	now := time.Now()
 	g.Data.ApplyList = []*GuildApply{
 		{ID: 1, Status: 0, ExpireAt: now.Add(-1 * time.Hour)},
@@ -287,7 +286,7 @@ func TestOnDayRefresh_ClearsExpired(t *testing.T) {
 		{ID: 3, Status: 1, ExpireAt: now.Add(-1 * time.Hour)},
 		{ID: 4, Status: 0, ExpireAt: now.Add(24 * time.Hour)},
 	}
-	g.onDayRefresh(context.Background(), gxytimer.TimerActiveInfo{})
+	g.onDayRefresh(context.Background())
 	if len(g.Data.ApplyList) != 3 {
 		t.Fatalf("expected 3, got %d", len(g.Data.ApplyList))
 	}
@@ -299,12 +298,12 @@ func TestOnDayRefresh_ClearsExpired(t *testing.T) {
 }
 
 func TestOnDayRefresh_AllValid(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.ApplyList = []*GuildApply{
 		{ID: 1, Status: 0, ExpireAt: time.Now().Add(1 * time.Hour)},
 		{ID: 2, Status: 1, ExpireAt: time.Now().Add(-1 * time.Hour)},
 	}
-	g.onDayRefresh(context.Background(), gxytimer.TimerActiveInfo{})
+	g.onDayRefresh(context.Background())
 	if len(g.Data.ApplyList) != 2 {
 		t.Fatalf("expected 2, got %d", len(g.Data.ApplyList))
 	}
@@ -313,7 +312,7 @@ func TestOnDayRefresh_AllValid(t *testing.T) {
 // ========== addLog 截断逻辑 ==========
 
 func TestAddLog_TruncatesAt100(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	for i := 0; i < 105; i++ {
 		g.Data.Logs = append(g.Data.Logs, &GuildLog{Content: "old"})
 	}
@@ -334,7 +333,7 @@ func TestAddLog_TruncatesAt100(t *testing.T) {
 // ========== buildLogList ==========
 
 func TestBuildLogList(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.Logs = []*GuildLog{
 		{Content: "created", CreatedAt: time.Unix(1000, 0)},
 		{Content: "joined", CreatedAt: time.Unix(2000, 0)},
@@ -352,7 +351,7 @@ func TestBuildLogList(t *testing.T) {
 
 func TestBuildNotifyGuildBasic(t *testing.T) {
 	initGuildTestConfig(t)
-	g := newTestGuild()
+	g := newTestGuild(t)
 	msg := g.buildNotifyGuildBasic(context.Background())
 	if msg.Guild.Id != 1 {
 		t.Fatalf("expected guild id 1, got %d", msg.Guild.Id)
@@ -368,7 +367,7 @@ func TestBuildNotifyGuildBasic(t *testing.T) {
 // ========== GuildLogs ==========
 
 func TestGuildLogs(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	g.Data.Logs = []*GuildLog{{Content: "test log", CreatedAt: time.Now()}}
 	rsp, err := g.GuildLogs(context.Background(), &pb.ReqGuildLogs{})
 	if err != nil {
@@ -382,7 +381,7 @@ func TestGuildLogs(t *testing.T) {
 // ========== SetPosition (pure logic, no DB/notify) ==========
 
 func TestSetPosition_LeaderSetsViceLeader(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	// SetPosition calls notifyGuildInfo → need to avoid nil ActorBase
 	// Test the permission logic directly
 	op := g.getMember(100)
@@ -402,7 +401,7 @@ func TestSetPosition_LeaderSetsViceLeader(t *testing.T) {
 // ========== TransferLeader logic ==========
 
 func TestTransferLeader_Logic(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	op := g.getMember(100)
 	target := g.getMember(200)
 	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
@@ -426,7 +425,7 @@ func TestTransferLeader_Logic(t *testing.T) {
 // ========== UpdateGuildInfo logic ==========
 
 func TestUpdateGuildInfo_Logic(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	op := g.getMember(100)
 	if op == nil || op.Position > int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
 		t.Fatal("leader should have permission")
@@ -442,7 +441,7 @@ func TestUpdateGuildInfo_Logic(t *testing.T) {
 // ========== LeaveGuild logic ==========
 
 func TestLeaveGuild_MemberCanLeave(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	op := g.getMember(300)
 	if op == nil {
 		t.Fatal("member should exist")
@@ -460,7 +459,7 @@ func TestLeaveGuild_MemberCanLeave(t *testing.T) {
 // ========== DisbandGuild logic ==========
 
 func TestDisbandGuild_OnlyLeaderCanDisband(t *testing.T) {
-	g := newTestGuild()
+	g := newTestGuild(t)
 	op := g.getMember(100)
 	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
 		t.Fatal("only leader can disband")

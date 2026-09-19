@@ -13,6 +13,9 @@
 	friend = {{ port.friend | default(25104) }}
 	# 公会服务HTTP端口
 	guild = {{ port.guild | default(25105) }}
+[network]
+	# 集群内节点互连的共享密钥。所有节点必须一致,否则握手失败(跨节点不可用)。
+	cookie = "{{ network.cookie | default('replace-me') }}"
 [postgres]
 	url = "postgresql://{{ postgres.user }}:{{ postgres.password | urlencode }}@{{ postgres.host }}:{{ postgres.port }}/{{ postgres.database }}?sslmode={{ postgres.sslmode }}"
 [redis]
@@ -35,6 +38,7 @@
 	addr = ":{{ metrics.port }}"
 [trace]
 	endpoint = "{{ trace.host }}:{{ trace.port }}"
+	sample_rate = {{ trace.sample_rate | default(0.01) }}
 
 [gate.public]
 	host = "{{ gate.public_host | default(env.host | default('127.0.0.1')) }}"

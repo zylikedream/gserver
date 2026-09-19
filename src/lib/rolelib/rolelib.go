@@ -35,7 +35,7 @@ var (
 	}
 	getLocalActor    = gxyactor.GetLocalActor
 	getLocalActorAll = gxyactor.GetLocalActorAll
-	localSend        = gxyactor.LocalSend
+	localSend        = gxyactor.SendAsNode
 	mqSubscribe      = func(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error) error {
 		return gxymq.MessageQueue().Subscribe(ctx, topic, handler)
 	}
@@ -99,7 +99,7 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 
 func notifyLocal(ctx context.Context, targetRoleID int64, msg proto.Message) error {
 	pid := getLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
-	if pid == nil {
+	if gxyactor.PIDIsZero(pid) {
 		gxylog.Debug(ctx, "role notify target not local online", gxylog.Num("roleID", targetRoleID))
 		return nil
 	}

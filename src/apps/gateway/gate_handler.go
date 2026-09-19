@@ -42,14 +42,14 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 		gxylog.Error(context.Background(), "failed to get session from endpoint data")
 		return nil
 	}
-	_ = gxyactor.LocalSend(context.Background(), sess, msg)
+	_ = gxyactor.SendAsNode(context.Background(), sess, msg)
 	// 消息将直接由Session Actor处理
 	return nil
 }
 
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 	sessPid, ok := ep.GetData().(gxyactor.PID)
-	if sessPid != nil && ok {
+	if ok && !gxyactor.PIDIsZero(sessPid) {
 		reason := "noraml"
 		if err != nil {
 			reason = err.Error()

@@ -5,7 +5,7 @@ description: GServer 项目开发知识库——架构、环境、协议、构�
 
 # GServer 开发知识库
 
-分布式游戏服务器(protoactor-go Actor 模型 + GoFrame v2)。源码:`/home/zyr/workspace/gserver_github`。
+分布式游戏服务器(ergo Actor 模型 + GoFrame v2)。源码:`/home/zyr/workspace/gserver_github`。
 
 ## 架构
 
@@ -19,7 +19,7 @@ node/main.go --config config/<name>.toml 启动一个 Node,按配置装配 apps
 └─ guild    : 公会
 ```
 
-- `core/` 共享框架:gxyactor(actor 封装)/ gxynet(网络)/ gxyredis / gxypgx / gxymodule / gxytimer / gxylog / gxyhttp
+- `core/` 共享框架:gxyactor(actor 封装)/ gxynet(网络)/ gxyredis / gxypgx / gxymodule / gxylog / gxyhttp
 - `src/apps/` 可部署微服务;`src/lib/` 跨 app 工具(rolelib/guildlib/gatetoken);`src/pkg/` 共享包(deps 依赖容器/gameconfig 配表)
 - `protocol/` protobuf 定义(client/ + server/);`protocol/client/*.proto` 是唯一可写真源,生成 `protocol/pb`(server)与 `client/pb`(client)两份代码
 - `gameconfig/` 策划配表(子模块)

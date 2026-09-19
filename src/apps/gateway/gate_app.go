@@ -10,7 +10,8 @@ import (
 	"gserver/src/apps/gateway/internal/logic"
 	"gserver/src/lib/gatetoken"
 
-	"github.com/asynkron/protoactor-go/actor"
+	"ergo.services/ergo/act"
+
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 )
@@ -66,13 +67,13 @@ func (s *gateApp) OnModStop(ctx context.Context) error {
 }
 
 func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
-	return gxyactor.SpawnFunc(func() actor.Actor {
+	return gxyactor.SpawnFunc(func() act.ActorBehavior {
 		return logic.NewSession(ep)
 	})
 }
 
 func StopSession(pid gxyactor.PID, err error) error {
-	return gxyactor.Send(context.Background(), pid, &pb.ActorStop{
+	return gxyactor.SendAsNode(context.Background(), pid, &pb.ActorStop{
 		Reason: err.Error(),
 	})
 }

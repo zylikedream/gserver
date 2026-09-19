@@ -2,13 +2,8 @@ package gxyactor
 
 import (
 	"context"
-	"time"
 
 	"gserver/protocol/pb"
-
-	"github.com/asynkron/protoactor-go/actor"
-	"github.com/cockroachdb/errors"
-	"google.golang.org/protobuf/proto"
 )
 
 func RegisterActorKind(name string, prod ActorProducer) error {
@@ -19,84 +14,48 @@ func DeregisterActorKind(name string) {
 	app.DeregisterActorKind(name)
 }
 
-// SpawnNamed 创建具名Actor，initArgs 通过 ContextDecorator 传递给 Actor 的 Init
-func SpawnNamed(props *actor.Props, name string, initArgs ...any) (PID, error) {
-	return app.spawnNamed(props, name, initArgs...)
+// SpawnFunc 创建一个不带名字的 actor,生命周期由创建者负责。
+// 用于会话这类无需跨节点寻址的实例。
+func SpawnFunc(prod ActorProducer, initArgs ...any) (PID, error) {
+	return app.spawnUnnamed(prod, initArgs...)
 }
 
-func SpawnNamedFunc(name string, prod func() actor.Actor, initArgs ...any) (PID, error) {
-	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	return app.spawnNamed(props, name, initArgs...)
-}
-
-func Spawn(props *actor.Props, initArgs ...any) (pid PID, err error) {
-	return app.spawn(props, initArgs...)
-}
-
-func SpawnFunc(prod func() actor.Actor, initArgs ...any) (pid PID, err error) {
-	props := actor.PropsFromProducer(prod, actor.WithSupervisor(newSupervisor()))
-	return app.spawn(props, initArgs...)
-}
-
-// Send 发送消息（异步）
-func Send(ctx context.Context, pid PID, message proto.Message) error {
+// SendAsNode 以**节点身份**发送消息(发送者是节点本身,不是某个 actor)。
+//
+// 只给没有进程身份的调用方用:网络回调、生命周期钩子等。actor 内部请用
+// Actor.SendTo / Actor.Call —— 用本函数会让接收方把发送者记成节点,回包
+// 发到节点上并丢失。名字里的 AsNode 就是提醒这一点。
+func SendAsNode(ctx context.Context, pid PID, message any) error {
 	return app.send(ctx, pid, message)
 }
 
-func LocalSend(ctx context.Context, pid PID, message any) error {
-	return app.localSend(ctx, pid, message)
-}
-
-func Respond(ctx context.Context, actx actor.Context, message any) error {
-	return app.respond(ctx, actx, message)
-}
-
-func Call(ctx context.Context, pid PID, message proto.Message, timeout time.Duration) (any, error) {
-	return app.call(ctx, pid, message, timeout)
-}
-
-func CallSync(ctx context.Context, pid PID, message proto.Message, sender PID) {
-	_ = app.callSync(ctx, pid, message, sender)
-}
-
-func GetNodeName() string {
-	return app.GetNodeName()
-}
-
-func StopActor(pid PID) error {
-	return app.StopActor(pid)
-}
-
-func Host() string {
-	return app.Host()
-}
-
-func Address() string {
-	return app.Address()
-}
-
+// ActivateActor 解析或创建 actor,返回可寻址的引用。
+// spawn=false 时只查询,不创建。
 func ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
 	return app.ActivateActor(ctx, kind, id, spawn)
 }
+
+// GetActorOwner 返回 actor 的当前归属节点。
 func GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
-	if app == nil {
-		return ActorOwner{}, errors.New("actor app is not initialized")
-	}
 	return app.GetActorOwner(ctx, kind, id)
 }
 
+// GetActorCount 返回本节点上该 kind 的实例数。
 func GetActorCount(kind string) int {
 	return app.GetActorCount(kind)
 }
 
+// GetLocalActor 返回本节点上该实例的引用;不存在时为零值。
 func GetLocalActor(kind string, id string) PID {
 	return app.GetLocalActor(kind, id)
 }
 
+// GetLocalActorAll 返回本节点上该 kind 的全部实例。
 func GetLocalActorAll(kind string) []PID {
 	return app.GetLocalActorAll(kind)
 }
 
+// ActorError 构造业务错误响应。
 func ActorError(reason string) *pb.ActorError {
 	return &pb.ActorError{
 		Reason: reason,

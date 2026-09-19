@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"gserver/core/gxyactor"
+
+	"ergo.services/ergo/act"
 	"gserver/src/lib"
 )
 
@@ -21,7 +23,7 @@ func (s *chatService) ServiceName() string {
 
 func (s *chatService) OnModStart(ctx context.Context) error {
 	// 注册 ChannelActor kind（consistent hash 按 channel_type:channel_id 路由）
-	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
+	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() act.ActorBehavior {
 		return NewChannelActor()
 	}); err != nil {
 		return err

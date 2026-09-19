@@ -2,6 +2,8 @@ package gxyactor
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,7 +20,13 @@ const (
 	actorLocateLeaseTTL       = 15 * time.Second
 	actorLocateLeaseHeartbeat = 5 * time.Second
 	actorLocateOwnerSeparator = "|"
+	redisLocatePrefix         = "gserver:locate:node"
 )
+
+// getActorLocateKey 返回 actor 所有权记录的 Redis key。
+func getActorLocateKey(kind string, id string) string {
+	return fmt.Sprintf("%s:%s:%s:%s", redisLocatePrefix, "actor", kind, id)
+}
 
 var (
 	errActorLocatorLeaseInvalid  = errors.New("actor locator lease is invalid")
@@ -131,14 +139,28 @@ end
 return owner
 `
 
-func newActorLocator(client redis.UniversalClient, nodeID, leaseToken string) *actorLocator {
+// newActorLocator 创建所有权定位器。
+//
+// nodeID 是路由身份(稳定节点名);leaseToken 每实例随机生成,因此同一节点名
+// 的新旧实例在所有权记录里可被区分——这是接管时能正确递增世代的依据(ADR 0010)。
+func newActorLocator(client redis.UniversalClient, nodeID string) *actorLocator {
 	return &actorLocator{
 		redis:             client,
 		nodeID:            nodeID,
-		leaseToken:        leaseToken,
+		leaseToken:        newLeaseToken(),
 		leaseTTL:          actorLocateLeaseTTL,
 		heartbeatInterval: actorLocateLeaseHeartbeat,
 	}
+}
+
+// newLeaseToken 生成每实例唯一的租约令牌。
+func newLeaseToken() string {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		// 随机源不可用时退回时间戳,仍保证实例间不同。
+		return strconv.FormatInt(time.Now().UnixNano(), 36)
+	}
+	return hex.EncodeToString(buf[:])
 }
 
 func actorLocatorOwnerKey(kind, id string) string {

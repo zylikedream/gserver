@@ -354,10 +354,16 @@ func (x *ActorStop) GetReason() string {
 	return ""
 }
 
+// ActorPid 是可跨节点传递的 actor 引用。
+// 运行时进程标识由"节点 + 序号 + 创建时刻"构成;创建时刻用于拒绝指向
+// 已消失实例的陈旧引用,因此必须一并携带,否则跨节点投递会被运行时的
+// 代际校验拒绝。
 type ActorPid struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address"`
-	Id            string                 `protobuf:"bytes,2,opt,name=Id,proto3" json:"Id"`
+	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address"`    // 节点名
+	Id            string                 `protobuf:"bytes,2,opt,name=Id,proto3" json:"Id"`              // 注册名(可寻址时)
+	Pid           uint64                 `protobuf:"varint,3,opt,name=pid,proto3" json:"pid"`           // 进程序号
+	Creation      int64                  `protobuf:"varint,4,opt,name=creation,proto3" json:"creation"` // 实例创建时刻
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -406,6 +412,20 @@ func (x *ActorPid) GetId() string {
 	return ""
 }
 
+func (x *ActorPid) GetPid() uint64 {
+	if x != nil {
+		return x.Pid
+	}
+	return 0
+}
+
+func (x *ActorPid) GetCreation() int64 {
+	if x != nil {
+		return x.Creation
+	}
+	return 0
+}
+
 var File_gactor_proto protoreflect.FileDescriptor
 
 const file_gactor_proto_rawDesc = "" +
@@ -429,10 +449,12 @@ const file_gactor_proto_rawDesc = "" +
 	"allowSpawn\"\x12\n" +
 	"\x10ActorLocateRetry\"#\n" +
 	"\tActorStop\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason\"4\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\"b\n" +
 	"\bActorPid\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x0e\n" +
-	"\x02Id\x18\x02 \x01(\tR\x02IdB\tZ\a./pb;pbb\x06proto3"
+	"\x02Id\x18\x02 \x01(\tR\x02Id\x12\x10\n" +
+	"\x03pid\x18\x03 \x01(\x04R\x03pid\x12\x1a\n" +
+	"\bcreation\x18\x04 \x01(\x03R\bcreationB\tZ\a./pb;pbb\x06proto3"
 
 var (
 	file_gactor_proto_rawDescOnce sync.Once

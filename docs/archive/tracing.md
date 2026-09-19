@@ -1,5 +1,13 @@
 # OpenTelemetry 链路追踪设计
 
+> **已归档**（2026-09-19）。本文描述的是**手写链路传播**的实现（在门面里自行开
+> span、把追踪上下文塞进消息）。该实现已随门面重写删除，追踪改由运行时驱动：门面实现
+> 运行时的追踪导出器，把观测点转成 OTel span 送入既有导出器，运行时的追踪标识被原样
+> 保留以使跨节点链路闭合。现行设计见
+> [ADR 0013](../architecture/adr-0013-failure-semantics-and-observability.md) 与
+> [actor-system.md](../architecture/actor-system.md)。
+
+
 ## 背景
 
 在基于 protoactor-go 的 Actor 模型中，消息在不同 Actor 之间异步传递。当一次用户请求需要经过 gateway → role → guild 等多个 actor 时，缺乏跨 actor 的调用链追踪，无法定位延迟瓶颈和排错。

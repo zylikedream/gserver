@@ -2,67 +2,74 @@ package gxyactor
 
 import (
 	"context"
-	"gserver/core/gxylog"
-	"log/slog"
+	"fmt"
 
-	"github.com/asynkron/protoactor-go/actor"
+	"gserver/core/gxylog"
+
+	"ergo.services/ergo/gen"
 )
 
-// protoactor 系统日志接入 gxylog(zap)
-func glogAdapterLogging(system *actor.ActorSystem) *slog.Logger {
-	handler := (*actorLogAdapter)(gxylog.NewLogAdapter(context.Background(), "actor_sys", gxylog.LevelError))
-	return slog.New(handler).
-		With("lib", "Proto.Actor").
-		With("system", system.ID)
+// ergoLogger 把运行时的日志接入 gxylog。
+// 用于替换默认 logger(默认 logger 必须显式关闭,否则会重复输出)。
+type ergoLogger struct {
+	ctx context.Context
 }
 
-type actorLogAdapter gxylog.LogAdapter
-
-func slevel2glevel(level slog.Level) int {
-	switch level {
-	case slog.LevelDebug:
-		return gxylog.LevelDebug
-	case slog.LevelInfo:
-		return gxylog.LevelInfo
-	case slog.LevelWarn:
-		return gxylog.LevelWarn
-	case slog.LevelError:
-		return gxylog.LevelError
-	default:
-		return gxylog.LevelInfo
+func newErgoLogger() *ergoLogger {
+	return &ergoLogger{
+		ctx: gxylog.NewContext(context.Background(), "actor_sys"),
 	}
 }
 
-func (g *actorLogAdapter) Enabled(_ context.Context, r slog.Level) bool {
-	return slevel2glevel(r) >= g.Level
-}
-
-func (g *actorLogAdapter) Handle(ctx context.Context, r slog.Record) error {
+func (l *ergoLogger) Log(message gen.MessageLog) {
 	var fields []gxylog.Field
-	r.Attrs(func(a slog.Attr) bool {
-		fields = append(fields, gxylog.Any(a.Key, a.Value.Any()))
-		return true
-	})
 
-	switch r.Level {
-	case slog.LevelDebug:
-		gxylog.Debug(g.Ctx, r.Message, fields...)
-	case slog.LevelInfo:
-		gxylog.Info(g.Ctx, r.Message, fields...)
-	case slog.LevelWarn:
-		gxylog.Warn(g.Ctx, r.Message, fields...)
-	case slog.LevelError:
-		gxylog.Error(g.Ctx, r.Message, fields...)
-	default:
-		gxylog.Info(g.Ctx, r.Message, fields...)
+	fields = append(fields, gxylog.Str("source", sourceName(message.Source)))
+	if message.Level != gen.LogLevelDefault {
+		fields = append(fields, gxylog.Str("level", message.Level.String()))
 	}
-	return nil
+	for _, f := range message.Fields {
+		fields = append(fields, gxylog.Any(f.Name, f.Value))
+	}
+
+	msg := message.Format
+	if len(message.Args) > 0 {
+		msg = fmt.Sprintf(message.Format, message.Args...)
+	}
+
+	switch message.Level {
+	case gen.LogLevelSystem, gen.LogLevelTrace, gen.LogLevelDebug:
+		gxylog.Debug(l.ctx, msg, fields...)
+	case gen.LogLevelWarning:
+		gxylog.Warn(l.ctx, msg, fields...)
+	case gen.LogLevelError:
+		gxylog.Error(l.ctx, msg, fields...)
+	case gen.LogLevelDisabled:
+		return
+	default:
+		// default / info / panic 走 Info。
+		// LogLevelPanic 表示"框架捕获了进程内的 panic 并已终止该进程",
+		// 不是致命错误:映射到 gxylog.Fatal 会 os.Exit(1),让单个 actor 的 panic
+		// 终止整个进程(见 ADR 0013)。
+		gxylog.Info(l.ctx, msg, fields...)
+	}
 }
 
-func (g *actorLogAdapter) WithAttrs(attrs []slog.Attr) slog.Handler {
-	return g
-}
+// Terminate 在 logger 被移除或节点停止时调用。当前无需清理。
+func (l *ergoLogger) Terminate() {}
 
-func (g *actorLogAdapter) WithGroup(name string) slog.Handler {
-	return g
+// sourceName 把日志来源转成可读标识。
+func sourceName(source any) string {
+	switch s := source.(type) {
+	case gen.MessageLogProcess:
+		return fmt.Sprintf("process:%s/%s", s.Name, s.Behavior)
+	case gen.MessageLogNode:
+		return "node"
+	case gen.MessageLogNetwork:
+		return "network"
+	case gen.MessageLogMeta:
+		return fmt.Sprintf("meta:%s", s.Meta)
+	default:
+		return "unknown"
+	}
 }

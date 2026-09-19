@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxyactor/gxyactortest"
 	"gserver/core/gxymetrics"
 	"gserver/core/gxynet/message"
-	"gserver/core/gxytimer"
 	"gserver/protocol/pb"
 	"gserver/src/lib/gatetoken"
 
-	"github.com/asynkron/protoactor-go/actor"
+	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -60,50 +60,42 @@ func (f *fakeEndpoint) Close()         { f.closed = true }
 func (f *fakeEndpoint) GetData() any   { return f.data }
 func (f *fakeEndpoint) SetData(d any)  { f.data = d }
 
-// fakeActx 最小 actor.Context:嵌入 nil 接口兜底,只实现被测路径用到的方法。
-type fakeActx struct {
-	actor.Context
-	self      *actor.PID
-	sender    *actor.PID
-	stopPID   *actor.PID
-	msg       any
-	watched   []*actor.PID
-	unwatched []*actor.PID
+// watchRecorder 记录会话发起的监视/取消监视调用。
+type watchRecorder struct {
+	watched   []gxyactor.PID
+	unwatched []gxyactor.PID
 }
 
-func (f *fakeActx) Self() *actor.PID   { return f.self }
-func (f *fakeActx) Sender() *actor.PID { return f.sender }
-func (f *fakeActx) Stop(pid *actor.PID) {
-	f.stopPID = pid
+// injectWatch 替换监视钩子,返回恢复函数。
+func injectWatch(t *testing.T, rec *watchRecorder) func() {
+	t.Helper()
+	oldWatch, oldUnwatch := watchRole, unwatchRole
+	watchRole = func(s *Session, pid gxyactor.PID) error {
+		rec.watched = append(rec.watched, pid)
+		return nil
+	}
+	unwatchRole = func(s *Session, pid gxyactor.PID) error {
+		rec.unwatched = append(rec.unwatched, pid)
+		return nil
+	}
+	return func() {
+		watchRole, unwatchRole = oldWatch, oldUnwatch
+	}
 }
-func (f *fakeActx) Message() any { return f.msg }
-func (f *fakeActx) MessageHeader() actor.ReadonlyMessageHeader {
-	return nil
-}
-func (f *fakeActx) Watch(pid *actor.PID)   { f.watched = append(f.watched, pid) }
-func (f *fakeActx) Unwatch(pid *actor.PID) { f.unwatched = append(f.unwatched, pid) }
 
-// unknownMsg 触发 ActorBase default 分支的 initSpan(设置 span 避免 SetName nil panic)。
-type unknownMsg struct{}
+// roleRuntimePID 是握手时激活得到的角色进程标识。
+// 监视通知携带运行时标识,测试用同一个值构造 Down 消息。
+var roleRuntimePID = gen.PID{Node: "test@127.0.0.1", ID: 42, Creation: 1}
 
-// newTestSession 构造被测会话:
-//   - Receive(Started): 初始化 timer/self, Init 成功(state=Connected)
-//   - Receive(unknownMsg): 触发 initSpan 建立 a.span(handleHandshake/ServerMessage 需要)
-func newTestSession(t *testing.T) (*Session, *fakeActx, *fakeEndpoint) {
+// newTestSession 构造被测会话并注入监视记录器。
+func newTestSession(t *testing.T) (*Session, *watchRecorder, *fakeEndpoint) {
 	t.Helper()
 	ep := newFakeEndpoint(t)
-	s := NewSession(ep)
-	fake := &fakeActx{
-		self:   &actor.PID{Id: "test_session"},
-		sender: &actor.PID{Id: "sender"},
-		msg:    &actor.Started{},
-	}
-	s.Receive(fake)          // Started → Init(state=Connected, 时间初始化)
-	fake.msg = &unknownMsg{} // default 分支 → initSpan
-	s.Receive(fake)
-	fake.stopPID = nil
-	fake.watched = nil
-	return s, fake, ep
+	rec := &watchRecorder{}
+	t.Cleanup(injectWatch(t, rec))
+	// 在 mock 节点上创建真实 actor,而不是手工拼装半成品。
+	ss, _ := gxyactortest.Spawn(t, func() *Session { return NewSession(ep) })
+	return ss, rec, ep
 }
 
 // withHandshake 完成一次成功握手:替换 token 验证、登录准入与角色激活, 返回可恢复函数。
@@ -115,7 +107,7 @@ func withHandshake(t *testing.T, s *Session, ep *fakeEndpoint) func() {
 	restoreAcquirer := swapLoginAcquirer(&stubLoginAcquirer{permit: noopLoginPermit{}})
 	oldActivate := activateRole
 	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-		return &actor.PID{Id: "role_pid"}, nil
+		return gxyactor.PidFromRuntime(roleRuntimePID), nil
 	}
 	oldMaint := gateMaintenanceEnabled
 	gateMaintenanceEnabled = func() bool { return false }
@@ -162,7 +154,7 @@ func TestSessionDisconnectReason(t *testing.T) {
 	}
 }
 
-// ========== Init / DelayInit ==========
+// ========== Init ==========
 
 func TestSession_Init(t *testing.T) {
 	s, _, _ := newTestSession(t)
@@ -175,14 +167,12 @@ func TestSession_Init(t *testing.T) {
 	}
 }
 
-func TestSession_DelayInit(t *testing.T) {
+// Init 应记录最后活跃时间(空闲检查的依据)。
+func TestSession_Init_RecordsLastActive(t *testing.T) {
 	s, _, _ := newTestSession(t)
-	if err := s.DelayInit(context.Background()); err != nil {
-		t.Fatalf("DelayInit: %v", err)
-	}
 	info := s.GetSessionInfo()
 	if info.ServerLastActive.IsZero() {
-		t.Fatal("ServerLastActive not updated by DelayInit")
+		t.Fatal("ServerLastActive not updated by Init")
 	}
 }
 
@@ -195,7 +185,7 @@ func TestSession_HandleMessage_ClientMsg(t *testing.T) {
 	ep.sentMsgs = nil
 
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
-	if err := s.HandleMessage(context.Background(), msg); err != nil {
+	if err := s.HandleMessage(gen.PID{}, msg); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
 }
@@ -211,7 +201,7 @@ func TestSession_HandleMessage_ServerMsg(t *testing.T) {
 		t.Fatalf("anypb.New: %v", err)
 	}
 	serverMsg := &pb.ServerMsg{Msg: anyMsg}
-	if err := s.HandleMessage(context.Background(), serverMsg); err != nil {
+	if err := s.HandleMessage(gen.PID{}, serverMsg); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
 	if s.state != StateLogin {
@@ -220,37 +210,37 @@ func TestSession_HandleMessage_ServerMsg(t *testing.T) {
 }
 
 func TestSession_HandleMessage_RoleTerminated(t *testing.T) {
-	s, fake, ep := newTestSession(t)
+	s, _, ep := newTestSession(t)
 	restore := withHandshake(t, s, ep)
 	defer restore()
 
-	_ = s.HandleMessage(context.Background(), &actor.Terminated{Who: &actor.PID{Id: "role_pid"}})
-	if fake.stopPID == nil {
+	_ = s.HandleMessage(gen.PID{}, gen.MessageDownPID{PID: roleRuntimePID})
+	if !s.StopRequested() {
 		t.Fatal("expected Stop after role terminated")
 	}
-	if s.sessionInfo.RolePid != nil {
+	if !gxyactor.PIDIsZero(s.sessionInfo.RolePid) {
 		t.Fatal("RolePid should be cleared")
 	}
 }
 
 func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
-	s, fake, ep := newTestSession(t)
+	s, _, ep := newTestSession(t)
 	restore := withHandshake(t, s, ep)
 	defer restore()
 
-	_ = s.HandleMessage(context.Background(), &actor.Terminated{Who: &actor.PID{Id: "other"}})
-	if fake.stopPID != nil {
+	_ = s.HandleMessage(gen.PID{}, gen.MessageDownPID{PID: gen.PID{Node: "test@127.0.0.1", ID: 99, Creation: 1}})
+	if s.StopRequested() {
 		t.Fatal("unrelated Terminated should not stop session")
 	}
-	if s.sessionInfo.RolePid == nil {
+	if gxyactor.PIDIsZero(s.sessionInfo.RolePid) {
 		t.Fatal("RolePid should remain")
 	}
 }
 
 func TestSession_HandleMessage_ActorError(t *testing.T) {
-	s, fake, _ := newTestSession(t)
-	_ = s.HandleMessage(context.Background(), &pb.ActorError{Reason: "boom"})
-	if fake.stopPID == nil {
+	s, _, _ := newTestSession(t)
+	_ = s.HandleMessage(gen.PID{}, &pb.ActorError{Reason: "boom"})
+	if !s.StopRequested() {
 		t.Fatal("expected Stop after ActorError")
 	}
 }
@@ -290,7 +280,7 @@ func TestSession_Handshake_ActivateRoleFailed(t *testing.T) {
 	defer restore()
 	old := activateRole
 	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-		return nil, gerror.New("activate failed")
+		return gxyactor.PID{}, gerror.New("activate failed")
 	}
 	defer func() { activateRole = old }()
 
@@ -300,7 +290,7 @@ func TestSession_Handshake_ActivateRoleFailed(t *testing.T) {
 }
 
 func TestSession_Handshake_Success(t *testing.T) {
-	s, fake, ep := newTestSession(t)
+	s, rec, ep := newTestSession(t)
 	restore := withHandshake(t, s, ep)
 	defer restore()
 
@@ -311,8 +301,8 @@ func TestSession_Handshake_Success(t *testing.T) {
 	if info.AccountID != "acc_1" || info.RoleID != 10001 {
 		t.Fatalf("unexpected session info: %+v", info)
 	}
-	if len(fake.watched) != 1 || fake.watched[0].Id != "role_pid" {
-		t.Fatalf("expected Watch(role_pid), got %+v", fake.watched)
+	if len(rec.watched) != 1 || !gxyactor.PidEqual(rec.watched[0], gxyactor.PidFromRuntime(roleRuntimePID)) {
+		t.Fatalf("expected Watch(role_pid), got %+v", rec.watched)
 	}
 	if len(ep.sentMsgs) != 1 {
 		t.Fatalf("expected 1 handshake rsp, got %d", len(ep.sentMsgs))
@@ -342,7 +332,7 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s, fake, ep := newTestSession(t)
+			s, _, ep := newTestSession(t)
 			before := testutil.ToFloat64(gxymetrics.SessionDisconnects.WithLabelValues(tc.label))
 			restore := swapLoginAcquirer(&stubLoginAcquirer{err: tc.err})
 			defer restore()
@@ -353,7 +343,7 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 			oldActivate := activateRole
 			activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 				t.Fatal("activateRole must not be called on admission rejection")
-				return nil, nil
+				return gxyactor.PID{}, nil
 			}
 			defer func() { activateRole = oldActivate }()
 
@@ -361,22 +351,21 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 				Type: message.MESSGE_TYPE_FIRST_PACKET,
 				Msg:  &pb.ReqHandShake{GateToken: "ok"},
 			}
-			if err := s.OnHandleClientMessage(context.Background(), msg); err != nil {
+			if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err != nil {
 				t.Fatalf("expected nil at actor boundary, got: %v", err)
 			}
-			if fake.stopPID == nil {
+			if !s.StopRequested() {
 				t.Fatal("expected Stop after admission rejection")
 			}
 			if s.state != StateConnected {
 				t.Fatalf("session state = %v, want StateConnected", s.state)
 			}
-			if s.sessionInfo.RolePid != nil {
+			if !gxyactor.PIDIsZero(s.sessionInfo.RolePid) {
 				t.Fatal("RolePid must stay nil after admission rejection")
 			}
-			// 端到端:运行时在 Stop 后投递 *actor.Stopped, Terminate 用 stopErr
-			// 计算断连标签; sentinel 错误对象必须原样到达, 不因包裹/重建而降级。
-			fake.msg = &actor.Stopped{}
-			s.Receive(fake)
+			// 端到端:运行时以 handler 返回的终止原因调用 Terminate, 它据此计算
+			// 断连标签; sentinel 错误对象必须原样到达, 不因包裹/重建而降级。
+			s.Terminate(tc.err)
 			if !ep.closed {
 				t.Fatal("expected endpoint closed after Terminate")
 			}
@@ -393,7 +382,7 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 // TestSession_LoginAdmission_SuccessHoldsThenReleases 成功准入时:
 // permit 在 activateRole 执行期间仍被持有, handleHandshake 返回前恰好释放一次。
 func TestSession_LoginAdmission_SuccessHoldsThenReleases(t *testing.T) {
-	s, fake, ep := newTestSession(t)
+	s, rec, ep := newTestSession(t)
 	permit := &recordingLoginPermit{}
 	restore := swapLoginAcquirer(&stubLoginAcquirer{permit: permit})
 	defer restore()
@@ -405,7 +394,7 @@ func TestSession_LoginAdmission_SuccessHoldsThenReleases(t *testing.T) {
 	var heldDuringActivate bool
 	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 		heldDuringActivate = permit.releases == 0
-		return &actor.PID{Id: "role_pid"}, nil
+		return gxyactor.PidFromRuntime(roleRuntimePID), nil
 	}
 	defer func() { activateRole = oldActivate }()
 
@@ -418,8 +407,8 @@ func TestSession_LoginAdmission_SuccessHoldsThenReleases(t *testing.T) {
 	if permit.releases != 1 {
 		t.Fatalf("permit released %d times, want exactly 1", permit.releases)
 	}
-	if len(fake.watched) != 1 || fake.watched[0].Id != "role_pid" {
-		t.Fatalf("expected Watch(role_pid) after release, got %+v", fake.watched)
+	if len(rec.watched) != 1 || !gxyactor.PidEqual(rec.watched[0], gxyactor.PidFromRuntime(roleRuntimePID)) {
+		t.Fatalf("expected Watch(role_pid) after release, got %+v", rec.watched)
 	}
 	if len(ep.sentMsgs) != 1 {
 		t.Fatalf("expected 1 handshake rsp after release, got %d", len(ep.sentMsgs))
@@ -438,7 +427,7 @@ func TestSession_LoginAdmission_ActivateRoleErrorReleases(t *testing.T) {
 	defer restoreToken()
 	oldActivate := activateRole
 	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-		return nil, gerror.New("activate failed")
+		return gxyactor.PID{}, gerror.New("activate failed")
 	}
 	defer func() { activateRole = oldActivate }()
 
@@ -453,7 +442,7 @@ func TestSession_LoginAdmission_ActivateRoleErrorReleases(t *testing.T) {
 // TestSession_LoginAdmission_UnconfiguredPropagates 未配置限流器属于启动/接线缺陷,
 // 不应被归类为预期拒绝: 错误必须传播到 Actor 边界, 且不停止 Session。
 func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
-	s, fake, _ := newTestSession(t)
+	s, _, _ := newTestSession(t)
 	restore := swapLoginAcquirer(&stubLoginAcquirer{err: ErrLoginLimiterUnconfigured})
 	defer restore()
 	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
@@ -463,7 +452,7 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 	oldActivate := activateRole
 	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 		t.Fatal("activateRole must not be called when limiter is unconfigured")
-		return nil, nil
+		return gxyactor.PID{}, nil
 	}
 	defer func() { activateRole = oldActivate }()
 
@@ -471,7 +460,7 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 		Type: message.MESSGE_TYPE_FIRST_PACKET,
 		Msg:  &pb.ReqHandShake{GateToken: "ok"},
 	}
-	err := s.OnHandleClientMessage(context.Background(), msg)
+	err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{})
 	if err == nil {
 		t.Fatal("expected unconfigured error to propagate to actor boundary")
 	}
@@ -481,7 +470,7 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 	if !strings.Contains(err.Error(), "login limiter not configured") {
 		t.Fatalf("propagated error = %v, want ErrLoginLimiterUnconfigured", err)
 	}
-	if fake.stopPID != nil {
+	if s.StopRequested() {
 		t.Fatal("unconfigured wiring defect must not stop the session")
 	}
 }
@@ -489,12 +478,12 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 // ========== 客户端消息 ==========
 
 func TestSession_ClientMessage_Logout(t *testing.T) {
-	s, fake, _ := newTestSession(t)
+	s, _, _ := newTestSession(t)
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.ReqAccountLogout{}}
-	if err := s.OnHandleClientMessage(context.Background(), msg); err != nil {
+	if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err != nil {
 		t.Fatalf("OnHandleClientMessage: %v", err)
 	}
-	if fake.stopPID == nil {
+	if !s.StopRequested() {
 		t.Fatal("expected Stop after client logout")
 	}
 }
@@ -502,7 +491,7 @@ func TestSession_ClientMessage_Logout(t *testing.T) {
 func TestSession_ClientMessage_NotProto(t *testing.T) {
 	s, _, _ := newTestSession(t)
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: "not a proto"}
-	if err := s.OnHandleClientMessage(context.Background(), msg); err == nil {
+	if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err == nil {
 		t.Fatal("expected error for non-proto msg")
 	}
 }
@@ -510,8 +499,8 @@ func TestSession_ClientMessage_NotProto(t *testing.T) {
 func TestSession_ClientMessage_DataPacket_NoRolePid(t *testing.T) {
 	s, _, _ := newTestSession(t) // 未握手, RolePid nil
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
-	// SendRoleMsg → CallSync(system nil) 返回错误被忽略, 应返回 nil
-	if err := s.OnHandleClientMessage(context.Background(), msg); err != nil {
+	// SendRoleMsg 的投递错误只记日志,不使消息处理失败,应返回 nil
+	if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err != nil {
 		t.Fatalf("OnHandleClientMessage: %v", err)
 	}
 }
@@ -556,12 +545,12 @@ func TestSession_SendClientMsg_Success(t *testing.T) {
 }
 
 func TestSession_SendClientMsg_FailureStopsSession(t *testing.T) {
-	s, fake, ep := newTestSession(t)
+	s, _, ep := newTestSession(t)
 	ep.sendErr = gerror.New("conn broken")
 	if err := s.sendClientMsg(context.Background(), &pb.RspHandShake{}); err != nil {
 		t.Fatalf("sendClientMsg should swallow send error, got %v", err)
 	}
-	if fake.stopPID == nil {
+	if !s.StopRequested() {
 		t.Fatal("expected Stop after send failure")
 	}
 }
@@ -569,29 +558,29 @@ func TestSession_SendClientMsg_FailureStopsSession(t *testing.T) {
 // ========== 空闲检测 ==========
 
 func TestSession_SessionCheck_ClientIdle(t *testing.T) {
-	s, fake, _ := newTestSession(t)
+	s, _, _ := newTestSession(t)
 	s.sessionInfo.ClientLastActive = time.Now().Add(-SESSION_CLIENT_IDLE_TIMEOUT - time.Minute)
-	s.sessionCheck(context.Background(), gxytimer.TimerActiveInfo{})
-	if fake.stopPID == nil {
+	s.sessionCheck(context.Background())
+	if !s.StopRequested() {
 		t.Fatal("expected Stop after client idle")
 	}
 }
 
 func TestSession_SessionCheck_ServerIdle(t *testing.T) {
-	s, fake, _ := newTestSession(t)
+	s, _, _ := newTestSession(t)
 	s.sessionInfo.ServerLastActive = time.Now().Add(-SESSION_SERVER_IDLE_TIMEOUT - time.Minute)
-	s.sessionCheck(context.Background(), gxytimer.TimerActiveInfo{})
-	if fake.stopPID == nil {
+	s.sessionCheck(context.Background())
+	if !s.StopRequested() {
 		t.Fatal("expected Stop after server idle")
 	}
 }
 
 func TestSession_SessionCheck_Active(t *testing.T) {
-	s, fake, _ := newTestSession(t)
+	s, _, _ := newTestSession(t)
 	s.updateClientLastActive()
 	s.updateServerLastActive()
-	s.sessionCheck(context.Background(), gxytimer.TimerActiveInfo{})
-	if fake.stopPID != nil {
+	s.sessionCheck(context.Background())
+	if s.StopRequested() {
 		t.Fatal("active session must not stop")
 	}
 }
@@ -599,16 +588,16 @@ func TestSession_SessionCheck_Active(t *testing.T) {
 // ========== Terminate ==========
 
 func TestSession_Terminate_WithRole(t *testing.T) {
-	s, fake, ep := newTestSession(t)
+	s, rec, ep := newTestSession(t)
 	restore := withHandshake(t, s, ep)
 	defer restore()
 
-	s.Terminate(context.Background(), gerror.New("client account logout"))
+	s.Terminate(gerror.New("client account logout"))
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}
-	if len(fake.unwatched) != 1 || fake.unwatched[0].Id != "role_pid" {
-		t.Fatalf("expected Unwatch(role_pid), got %+v", fake.unwatched)
+	if len(rec.unwatched) != 1 || !gxyactor.PidEqual(rec.unwatched[0], gxyactor.PidFromRuntime(roleRuntimePID)) {
+		t.Fatalf("expected Unwatch(role_pid), got %+v", rec.unwatched)
 	}
 	if s.state != StateDisconnected {
 		t.Fatalf("expected StateDisconnected, got %v", s.state)
@@ -619,13 +608,13 @@ func TestSession_Terminate_WithRole(t *testing.T) {
 }
 
 func TestSession_Terminate_WithoutRole(t *testing.T) {
-	s, fake, ep := newTestSession(t)
-	s.Terminate(context.Background(), nil)
+	s, rec, ep := newTestSession(t)
+	s.Terminate(nil)
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}
-	if len(fake.unwatched) != 0 {
-		t.Fatalf("unwatched should be empty without RolePid, got %+v", fake.unwatched)
+	if len(rec.unwatched) != 0 {
+		t.Fatalf("unwatched should be empty without RolePid, got %+v", rec.unwatched)
 	}
 	if s.state != StateDisconnected {
 		t.Fatalf("expected StateDisconnected, got %v", s.state)

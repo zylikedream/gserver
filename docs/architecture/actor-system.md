@@ -1,99 +1,105 @@
 # Actor 系统
 
-GServer 基于 [protoactor-go](https://github.com/asynkron/protoactor-go) 构建 Actor 系统，封装在 `core/gxyactor/` 中。
+GServer 基于 [ergo](https://ergo.services) 构建 Actor 系统，封装在 `core/gxyactor/` 中。门面是[深模块](adr-0008-actor-runtime-ergo-migration.md)：跨节点编码、地址模型、激活与所有权的复杂度都留在门面内，业务侧只看到少数入口。
+
+设计决策见 ADR：运行时替换 `adr-0008`、跨节点编码 `adr-0009`、节点身份 `adr-0010`、服务发现与寻址 `adr-0011`、激活与所有权 `adr-0012`、失败语义与可观测性 `adr-0013`、业务接入形态 `adr-0014`。约束清单见 [invariants.md](invariants.md)（唯一有约束力的来源）。
 
 ## 架构层次
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                    actorApp (全局单例)                      │
-│         protoactor-go ActorSystem + Remote                 │
+│              ergo Node (含网络与注册适配)                    │
 ├──────────────────────────────────────────────────────────┤
 │                 activatorManager                           │
-│    管理所有 Actor Kind，维护 activatorMeta 映射              │
-├─────────────┬──────────────────┬──────────────────────────┤
-│  Router     │  ConsistentHash  │  Activator Instance       │
-│  (外部入口)  │  Pool (路由)      │  (实际创建/管理 Actor)     │
-└─────────────┴──────────────────┴──────────────────────────┘
+│   激活协调：租约、归属、能力目录选择、陈旧记录清理             │
+├──────────────────────────────────────────────────────────┤
+│  业务 Actor (内嵌 *gxyactor.Actor)                          │
+│  自行在同步初始化段取得所有权、终止路径先落盘后释放             │
+└──────────────────────────────────────────────────────────┘
 ```
+
+与旧实现的根本差别：**没有分片、没有路由池、没有"创建与初始化分离"的会合机制**。运行时的创建是同步的（返回时初始化已完成或已失败），所有权随初始化下移到 actor 自身，协调层不再需要串行化创建。
 
 ## 核心组件
 
 ### actorApp（`system.go`）
 
-全局单例，封装 protoactor-go 的 `ActorSystem` 和 `Remote`。
+全局单例，持有运行时节点，是整个 actor 运行时的入口。
+
+- `OnModInit`：启动运行时节点（网络、注册适配、互连密钥）
+- `OnModStart`：登记节点级地址记录，挂载追踪导出器与运行时指标
+- `OnModStop`：**优雅停止**——等待所有进程的终止回调返回（终止回调内含最终落库与所有权释放，强制停止会静默丢失最后一次存盘，见 invariants #10）
+
+### Actor 基类（`actor.go`）
+
+业务结构体**直接内嵌** `*gxyactor.Actor`（该基类内嵌运行时的行为基类），不保留业务侧接口与适配层（见 ADR 0014）。
 
 ```go
-type actorApp struct {
-    system          *actor.ActorSystem
-    remote          *remote.Remote
-    nodeName        string
-    nodeInstanceName string
-    host            string
-    activatorMgr    *activatorManager
+type GuildActor struct {
+    *gxyactor.Actor
+    // 业务字段
 }
 ```
 
-- **Init**: 创建 ActorSystem、启动 Remote、初始化 activatorManager
-- **地址**: `system.Address()` 返回 `{ip}:{port}`（端口由 protoactor-go 动态分配）
-- 提供 `Send`、`Call`、`LocalSend`、`SpawnNamed`、`ActivateActor` 等全局函数
+基类补的是"运行时没给而项目需要"的东西：带日志与追踪上下文的 `context`、按消息类型的反射分派、定时器、注册式 actor 的所有权。
 
-### IActor 接口（`actor.go`）
+**覆写回调时的约定——显式调用基类同名方法，顺序有语义：**
 
 ```go
-type IActor interface {
-    Init(ctx context.Context, args []any) error
-    DelayInit(ctx context.Context) error
-    Terminate(ctx context.Context, err error)
-    Timer() *ActorTimer
-    Self() PID
-    HandleMessage(ctx context.Context, msg any) error
-    actor.Actor
+func (g *GuildActor) Init(args ...any) error {
+    if err := g.Actor.Init(args...); err != nil { return err } // 先取得所有权 + 注册分派
+    return g.load(g.Ctx)                                      // 再做自己的初始化
+}
+
+func (g *GuildActor) Terminate(reason error) {
+    defer g.Actor.Terminate(reason) // 后停定时器、释放所有权
+    g.save(g.Ctx)                   // 先落盘——顺序不可颠倒(见 invariants #4)
 }
 ```
 
-**生命周期**：
+生命周期：
 
-1. `actor.Started` → `Init(ctx, args)` — 初始化
-2. `ActorInitMsg` (自发) → `DelayInit(ctx)` — 延迟初始化（此时 handler 已注册）
-3. 消息循环 → `HandleMessage(ctx, msg)` — 处理业务消息
-4. `actor.Stopped` → `Terminate(ctx, err)` — 清理资源
+1. `Init` — 同步初始化段：取得所有权 → 注册消息分派 → （业务：纯内存校验），返回错误即进程终止
+2. 异步段 — 耗时的加载与外部访问。初始化期间自投一条消息驱动，在同步段返回后处理
+3. 消息循环 — 按消息类型反射分派到业务方法
+4. `Terminate` — 终止路径：业务先落盘，基类再释放所有权
 
-### ActorBase（`actor.go`）
+**对外操作**（actor 内部必须用这些，不能用包级函数）：
 
-默认基类，提供通用能力：
+| 方法 | 说明 |
+|---|---|
+| `SendTo(pid, msg)` | 异步发送（发送者是本 actor） |
+| `Call(pid, msg, timeout)` | 同步调用；**对端的业务失败已还原为 error**（见下） |
+| `Reply` / `ReplyCall` | 回应异步消息 / 同步请求 |
+| `Watch` / `Unwatch` | 监视目标进程终止 |
+| `Stop` / `StopRequested` / `StopReason` | 停止自身及其原因 |
+| `Timer()` | 定时器 |
+| `Sender()` / `Self()` / `Owner()` | 当前消息的发送者 / 自身地址 / 本次持有权 |
 
-- `Receive` — protoactor-go 消息入口，包 try-catch 异常保护
-- `CallSync` — 异步请求（带 sender）
-- `Call` — 同步请求（RequestFuture）
-- `Send` / `LocalSend` — 远程/本地消息发送
-- `Respond` — 回应调用方
-- `AutoHandleMsg` — 通过反射 Handler 自动分发消息
-- `Stop` — 停止自身
-- `SpawnNamed` / `Spawn` — 创建子 Actor
+### 发送与应答语义
 
-## Activator 系统
+这是最容易用错的地方，两条规则：
 
-### 架构
+1. **actor 内部用 `Actor.SendTo`/`Actor.Call`**；包级 `SendAsNode` 只给没有进程身份的调用方（网络回调、生命周期钩子）用。用错不会报错——接收方把发送者记成节点，回包发到节点上并就此丢失。
+2. **同步请求的应答必须走响应通道**（`ReplyCall` 带调用方的 ref）。用普通发送回包，调用方的 `Call` 收不到结果会超时，而迟到的应答会被当成一条新消息投递。
 
-每个 Actor Kind 有三层结构：
+**业务失败如何传回**（invariants #9）：handler 返回的 error 不直接透出——请求路径由门面转成错误载荷，调用方在 `Actor.Call` 处把它还原为 error，因此调用方统一用 `if err != nil` 处理即可。业务侧若要表达业务拒绝，直接返回 error；若已自行应答（如 `reply(ActorError(...))`）则返回 nil。
 
-```
-                   ┌──────────────────────┐
-                   │  ActivatorRouter      │  — 外部节点入口，接收 pb.ActorActive
-                   │  (固定名称路由 Actor)  │    包装为 hashableActorActive 转发到 Pool
-                   └──────────┬───────────┘
-                              │ 按 Actor ID 一致性哈希
-                   ┌──────────▼───────────┐
-                   │  ConsistentHashPool   │  — 5 个 actorActivator 实例
-                   │  (一致哈希路由池)      │   按 ID 路由到固定的 activator
-                   └──────────┬───────────┘
-                              │
-                   ┌──────────▼───────────┐
-                   │  actorActivator       │  — 真正创建 Actor 实例
-                   │  (负责创建/管理 Actor)  │   Claim/Release、维护 childs
-                   └──────────────────────┘
-```
+### PID（`pid.go`）
+
+门面自有的地址类型，业务不必知道运行时把"本机进程"与"跨节点进程"分成两种标识：
+
+- **本机**：按运行时进程标识寻址
+- **跨节点**：按"节点名 + 注册名"寻址
+
+为什么跨节点不用进程标识：它含"哪一代实例"的信息，跨节点投递会做代际校验，对端重启后旧标识即失效；注册名是稳定的逻辑身份，对端重启后同一逻辑 actor 仍可收到消息。代价是跨节点比较只比到节点与名字，比不出"是不是同一个进程实例"。
+
+### 跨节点编码（`wire.go`）
+
+采用**单一信封**：信封带消息标识与已序列化的业务载荷，标识复用仓库已有的协议注册表（见 ADR 0009）。只有跨节点投递才封装，本机投递保持零拷贝。
+
+## 激活与所有权
 
 ### 激活流程
 
@@ -101,78 +107,96 @@ type IActor interface {
 客户端请求 ActivateActor(kind, id)
   │
   ▼
-① 查询 Redis key: gserver:locate:node:actor:{kind}:{id}
+① 查询 Redis: gserver:locate:node:actor:{kind}:{id}
   │
-  ├── 有有效 owner
-  │     ├── Consul 解析 owner 地址失败 → fail closed
-  │     └── 请求 owner Activator
-  │           ├── 本地 ActorMgr 命中 → 返回 PID
-  │           └── 本地 activation 缺失 → 条件删除 owner，RetryLocate
+  ├── 有归属
+  │     ├── 归属在本节点 → 校验本地实例
+  │     │     ├── 有实例 → 返回
+  │     │     └── 无实例 → 条件释放陈旧记录后重试(invariants #8)
+  │     └── 归属在他节点 → 请求该节点校验其本地实例
+  │           ├── 有实例 → 返回
+  │           ├── 无实例 → 条件释放后重定位
+  │           └── 无可达节点 → 失败(fail closed)
   │
-  └── 无有效 owner
-        └── 通过一致性哈希选择节点 → 发送 ActorActive
-              │
-              ▼
-② 目标节点的 ActivatorRouter 收到 ActorActive
-  │
-  ▼
-③ 转发到 ConsistentHashPool → 落到固定 actorActivator
-  │
-  ▼
-④ Claim 成功后 SpawnNamed，并进入 pending Touch
-  │
-  ├── Touch 成功 → 发布到本地 ActorMgr，向所有 waiters 返回 PID
-  ├── Touch 失败 → 停止 actor、条件释放 owner、返回 ActorError
-  └── Claim 指向其他 owner → RetryLocate
+  └── 无归属 → 由能力目录选出承载节点 → 请求创建
+        │
+        ▼
+② 目标节点以名字注册创建实例
+   （名字在初始化之前原子注册：并发同名创建是良性的，败者既不初始化也不终止）
+        │
+        ▼
+③ 同步初始化段取得所有权
+   ├── 取得 → 实例可用，返回地址
+   └── 未取得 → 初始化返回错误、实例终止、返回失败
 ```
+
+**归属必须经所有者节点校验**，不得直接按名投递——否则陈旧记录永远不会被清理，重试不收敛（invariants #8）。
+
+### 为什么所有权由 actor 自管
+
+- **释放需要"知道是否已完成落库"**，只有 actor 自己知道；集中在协调层会让释放要么过早、要么需要额外的会合协议
+- **不得依据死亡通知释放**：运行时的死亡通知早于终止回调完成，据此释放会在落库之前交出所有权
+- **获取放在同步初始化段**：名字在初始化之前就可被解析，放在异步段会留下"外部按名投递的消息先于所有权获取被处理"的窗口
 
 ### Redis 定位 Key
 
 ```
-gserver:locate:node:actor:{kind}:{id}  →  {nodeInstanceName}|{epoch}|{leaseToken}
-gserver:locate:node:actor:role:10001   →  game-2@1743529200000000000|7|game-2@1743529200000000000
+gserver:locate:node:actor:{kind}:{id}  →  {节点名}|{世代}|{每实例令牌}
+gserver:locate:node:actor:role:10001   →  game@127.0.0.1|7|e9de6e75...
+gserver:locate:node:lease:{节点名}      →  {每实例令牌}
+gserver:locate:node:epoch              →  全局世代计数器
 ```
 
-- owner key 不设置 TTL；只有对应节点 lease token 精确匹配时才有效
-- 节点 lease：`gserver:locate:node:lease:{nodeInstanceName}`，TTL 15 秒，节点 heartbeat 续期
-- 续租 token 不匹配立即 self-fence；Redis 错误超过本地安全 deadline 时终止进程
-- 激活前用 Lua Claim 原子检查并更新 owner；接管时递增 epoch
-- 正常退出或 Touch 失败使用 compare-and-delete
-- Redis 错误不当作定位 miss；Redis 命中必须经过 owner Activator 验活
+- owner key 不设 TTL；只有对应节点的 lease 令牌精确匹配时才被视为有效
+- 节点 lease TTL 15 秒，心跳 5 秒续期；续租令牌不匹配立即 self-fence
+- 以 Lua 脚本原子完成"候选节点校验 + owner 仲裁"，接管时递增世代
+- 令牌**每实例随机**（非节点启动时刻）：同一节点名的新旧实例靠它区分，这是接管时能正确递增世代、并让旧实例续约失败从而自终止的依据（ADR 0010）
 
 ### 注册 Actor Kind
 
 ```go
 // role_service.go
-gxyactor.RegisterActorKind("role", func() gxyactor.IActor {
+gxyactor.RegisterActorKind(s.ServiceName(), func() act.ActorBehavior {
     return logic.NewRoleMain()
 })
 ```
 
-## 跨节点通信
+**能力名即注册名**。所有权键与指标都按能力名区分，因此它与查询方使用的键必须一致；能力名由框架在创建时写入实例，实例不自行推断（否则会出现"所有权记在一个名字下、查询查另一个名字"而永远 miss）。
 
-1. 本地 Actor → 直接 PID 发消息
-2. 远程 Actor → protoactor-go Remote 层序列化 → 网络传输 → 反序列化处理
-3. 所有跨节点消息必须是 `proto.Message`
+## 服务发现与寻址
 
-## 监督策略
+三层职责（ADR 0011），各自回答一个正交问题：
 
-```go
-actor.NewOneForOneStrategy(10, 3*time.Second, decider)
-// decider: 所有错误 → StopDirective
-```
+| 层 | 问题 | 载体 |
+|---|---|---|
+| 节点 → 地址 | 节点名如何解析为可达地址 | 运行时发现接口的自定义实现，读取已有的服务注册数据 |
+| 能力 → 节点列表 | 哪些节点能承载某类 actor | 现有服务注册表与选择器 |
+| 实体 → 归属 | 某实体归哪个节点的哪个世代 | 租约 + 世代 |
 
-失败的子 Actor 会被停止，由父级或 Activator 处理后续。
+- 每个节点登记**一条节点级记录**，与它承载多少种能力无关——一节点多能力时"节点名即能力名"的约定不成立，按能力名查地址必然失败
+- 登记地址取自运行时**实际监听信息**，端口由谁分配都不会出现"登记值与监听值不一致"
+- 解析路径必须显式填协议版本：与静态路由不同，解析接口返回的路由没有"缺省补全"这一步
+
+## 可观测性
+
+- **追踪**：实现运行时的追踪适配器，把观测点转成 OTel span 送入既有导出器。运行时的追踪标识被**原样保留**（经 ID 生成器接缝），否则跨节点链路会断成互不相干的若干条 trace。采样率可配（`trace.sample_rate`，默认 0.01）
+- **指标**：运行时的指标并入既有单一端点，不新增端口
+- **日志**：实现运行时的日志适配器；必须显式关闭运行时默认日志输出，否则与现有出口重复
 
 ## 源码位置
 
 | 文件 | 内容 |
 |------|------|
-| `core/gxyactor/actor.go` | IActor 接口、ActorBase 实现 |
-| `core/gxyactor/actor_mgr.go` | 本地 PID 管理器 |
-| `core/gxyactor/system.go` | actorApp 全局单例、protoactor 集成 |
-| `core/gxyactor/helper.go` | 全局函数（Send/Call/ActivateActor 等） |
-| `core/gxyactor/activator_manager.go` | Activator 管理器、路由池 |
-| `core/gxyactor/actor_locator.go` | Redis lease、Claim/Release、epoch 和 self-fence |
+| `core/gxyactor/actor.go` | `Actor` 基类：生命周期、分派、定时器、对外操作、所有权 |
+| `core/gxyactor/system.go` | `actorApp` 全局单例、运行时节点、创建与发送 |
+| `core/gxyactor/helper.go` | 全局函数（注册、创建、`SendAsNode`） |
+| `core/gxyactor/activator_manager.go` | 激活协调：归属查询、重定位、陈旧记录清理、能力目录 |
+| `core/gxyactor/actor_locator.go` | Redis 租约与归属、仲裁脚本、世代与 self-fence |
+| `core/gxyactor/actor_mgr.go` | 本地 PID 登记表 |
+| `core/gxyactor/pid.go` | 门面自有地址类型与两种寻址模式 |
+| `core/gxyactor/wire.go` | 跨节点信封 |
+| `core/gxyactor/service_registrar.go` | 运行时发现接口适配（节点名 → 地址） |
 | `core/gxyactor/actor_timer.go` | Actor 定时器 |
-| `core/gxyactor/logger.go` | protoactor 日志适配 |
+| `core/gxyactor/logger.go` | 运行时日志适配 |
+| `core/gxyactor/observability.go` | 追踪导出器与指标接入 |
+| `core/gxyactor/gxyactortest/` | 测试支持：在 mock 节点上创建真实 actor |
