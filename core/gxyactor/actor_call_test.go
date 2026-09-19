@@ -22,7 +22,7 @@ type callProbe struct {
 
 func newCallProbe(target PID) *callProbe {
 	p := &callProbe{target: target}
-	p.Actor = NewActor("call_probe", p)
+	p.Actor = NewActor("call_probe")
 	return p
 }
 

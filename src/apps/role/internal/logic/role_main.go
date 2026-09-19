@@ -89,7 +89,7 @@ type roleModules struct {
 type RoleMain struct {
 	gxymodule.ModuleBase
 	roleModules
-	*gxyactor.Actor
+	*gxyactor.EntityActor
 	RoleID int64
 
 	actorOwner  gxyactor.ActorOwner
@@ -115,7 +115,7 @@ func NewRoleMain() *RoleMain {
 		// 组装根:填充全局单例;测试可覆盖注入 mock。
 		deps: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()},
 	}
-	r.Actor = gxyactor.NewActor("role", r)
+	r.EntityActor = gxyactor.NewEntityActor("role")
 	return r
 }
 
@@ -135,7 +135,7 @@ func (r *RoleMain) Init(args ...any) error {
 	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
 
 	// 所有权由基类在同步段取得(见 invariants #3)。
-	if err := r.Actor.Init(args...); err != nil {
+	if err := r.EntityActor.Init(args...); err != nil {
 		return err
 	}
 	r.actorOwner = r.Owner()
@@ -300,21 +300,16 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 	return true
 }
 
-// HandleMessage 是运行时回调。初始化消息在此驱动异步加载,其余走分派。
-func (r *RoleMain) HandleMessage(from gen.PID, raw any) error {
-	msg, err := gxyactor.UnwrapWire(raw)
-	if err != nil {
-		gxylog.Error(r.Ctx, "decode wire message failed", gxylog.Err(err))
-		return nil
-	}
+// Receive 是业务入口(异步)。初始化消息在此驱动异步加载,其余交给反射分派。
+func (r *RoleMain) Receive(from gen.PID, msg any) (any, error) {
 	if _, ok := msg.(*gxyactor.ActorInitMsg); ok {
 		if err := r.asyncInit(); err != nil {
 			gxylog.Error(r.Ctx, "role async init failed", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
-			return err
+			return nil, err
 		}
-		return nil
+		return nil, nil
 	}
-	return r.Actor.HandleMessage(from, msg)
+	return r.EntityActor.Receive(from, msg)
 }
 
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
@@ -755,7 +750,7 @@ func roleLogoutReason(reason string) string {
 // 顺序不可颠倒——先释放所有权会让新持有者推进世代,使本次落盘被拒绝。
 func (r *RoleMain) Terminate(err error) {
 	ctx := r.Ctx
-	defer r.Actor.Terminate(err)
+	defer r.EntityActor.Terminate(err)
 	gxylog.Debug(ctx, "role stopped", gxylog.Err(err))
 	if serr := r.StopModule(ctx); serr != nil {
 		gxylog.Error(ctx, "stop module error", gxylog.Err(serr))
