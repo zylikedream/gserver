@@ -129,24 +129,19 @@ func NewSession(ep endpoint.Endpoint) *Session {
 	return s
 }
 
-// HandleMessage 是运行时回调。
-// 会话的消息不走反射分派(来源固定:客户端、角色、监视通知),因此直接分流。
-func (s *Session) HandleMessage(from gen.PID, raw any) error {
+// Receive 是业务入口(异步)。消息已由门面还原(见 ADR 0016),此处直接分流。
+// 会话的来源固定(客户端、角色、监视通知),不走反射分派。
+func (s *Session) Receive(from gen.PID, msg any) (any, error) {
 	ctx := s.Ctx
-	msg, err := gxyactor.UnwrapWire(raw)
-	if err != nil {
-		gxylog.Error(ctx, "decode wire message failed", gxylog.Err(err))
-		return nil
-	}
 	switch msg := msg.(type) {
 	case *message.Message:
 		gxylog.Debug(ctx, "handle client msg", gxylog.Str("payload", gxyutil.FormatObject(msg)))
 		if err := s.OnHandleClientMessage(ctx, msg, from); err != nil {
-			return gerror.Wrap(err, "handle client message error")
+			return nil, gerror.Wrap(err, "handle client message error")
 		}
 	case *pb.ServerMsg:
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
-			return gerror.Wrap(err, "handle server message error")
+			return nil, gerror.Wrap(err, "handle server message error")
 		}
 	case gen.MessageDownPID:
 		// 被监视的角色进程终止。注意:该通知早于对端终止回调完成,
@@ -158,7 +153,7 @@ func (s *Session) HandleMessage(from gen.PID, raw any) error {
 	case *pb.ActorError:
 		s.Stop(gerror.New(msg.Reason))
 	}
-	return s.StopReason()
+	return nil, s.StopReason()
 }
 
 // Init 是运行时回调:会话建立时初始化状态并启动空闲检查。

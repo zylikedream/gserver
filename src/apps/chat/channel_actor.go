@@ -66,7 +66,7 @@ type channelMember struct {
 
 type ChannelActor struct {
 	gxymodule.ModuleBase
-	*gxyactor.Actor
+	*gxyactor.EntityActor
 	ChannelType  int32
 	ChannelID    int64
 	channel      IChannel
@@ -81,12 +81,12 @@ func NewChannelActor() *ChannelActor {
 		members: make(map[int64]*channelMember),
 		db:      gxypgx.DB(),
 	}
-	a.Actor = gxyactor.NewActor(lib.CHANNEL_ACTOR_TYPE, a)
+	a.EntityActor = gxyactor.NewEntityActor(lib.CHANNEL_ACTOR_TYPE, a)
 	return a
 }
 
 func (a *ChannelActor) Init(args ...any) error {
-	if err := a.Actor.Init(args...); err != nil {
+	if err := a.EntityActor.Init(args...); err != nil {
 		return err
 	}
 	ctx := a.Ctx
@@ -112,37 +112,12 @@ func (a *ChannelActor) Init(args ...any) error {
 	return nil
 }
 
-// HandleMessage 是运行时回调(异步消息)。
-func (a *ChannelActor) HandleMessage(from gen.PID, raw any) error {
-	return a.dispatch(from, gen.Ref{}, false, raw)
-}
-
-// HandleCall 是运行时回调(同步请求)。返回 (nil,nil) 表示已自行回复。
-func (a *ChannelActor) HandleCall(from gen.PID, ref gen.Ref, raw any) (any, error) {
-	return nil, a.dispatch(from, ref, true, raw)
-}
-
-// dispatch 按消息类型分流。async 与同步请求共用,差别只在回包方式。
-func (a *ChannelActor) dispatch(from gen.PID, ref gen.Ref, isCall bool, raw any) error {
+// Receive 是业务入口(异步消息)。
+//
+// 异步路径上业务失败不能返回 error(那会终止本 actor),因此以错误载荷应答,
+// 见 invariants #9。
+func (a *ChannelActor) Receive(_ gen.PID, msg any) (any, error) {
 	ctx := a.Ctx
-	msg, err := gxyactor.UnwrapWire(raw)
-	if err != nil {
-		gxylog.Error(ctx, "decode wire message failed", gxylog.Err(err))
-		return nil
-	}
-
-	reply := func(message any) {
-		var sendErr error
-		if isCall {
-			sendErr = a.ReplyCall(from, ref, message)
-		} else {
-			sendErr = a.Reply(from, message)
-		}
-		if sendErr != nil {
-			gxylog.Warn(ctx, "reply failed", gxylog.Err(sendErr))
-		}
-	}
-
 	switch m := msg.(type) {
 	case *pb.ChannelRegisterMsg:
 		a.members[m.RoleId] = &channelMember{
@@ -164,8 +139,7 @@ func (a *ChannelActor) dispatch(from gen.PID, ref gen.Ref, isCall bool, raw any)
 
 	case *pb.ReqChannelSend:
 		if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
-			reply(gxyactor.ActorError(err.Error()))
-			return nil
+			return gxyactor.ActorError(err.Error()), nil
 		}
 		chatMsg := &pb.PChatMsg{
 			Sender:    &pb.PRolePublic{RoleId: m.SenderId},
@@ -185,21 +159,27 @@ func (a *ChannelActor) dispatch(from gen.PID, ref gen.Ref, isCall bool, raw any)
 		for _, mbr := range a.members {
 			_ = rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
 		}
+	}
+	return nil, a.StopReason()
+}
 
+// ReceiveCall 是业务入口(同步请求)。
+func (a *ChannelActor) ReceiveCall(_ gen.PID, _ gen.Ref, msg any) (any, error) {
+	switch m := msg.(type) {
 	case *pb.ReqChatChannelHistory:
 		count := int(m.Count)
 		if count <= 0 || count > a.channel.RingBufferSize() {
 			count = a.channel.RingBufferSize()
 		}
-		reply(&pb.RspChatChannelHistory{Messages: a.buffer.Recent(count)})
+		return &pb.RspChatChannelHistory{Messages: a.buffer.Recent(count)}, a.StopReason()
 	}
-	return a.StopReason()
+	return nil, a.StopReason()
 }
 
 // Terminate 是运行时回调:先落盘,再交给基类停定时器。
 func (a *ChannelActor) Terminate(err error) {
 	a.save(a.Ctx)
-	a.Actor.Terminate(err)
+	a.EntityActor.Terminate(err)
 }
 
 func (a *ChannelActor) TickSave(ctx context.Context) {

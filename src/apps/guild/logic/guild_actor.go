@@ -31,7 +31,7 @@ const MaxLogCount = 100
 
 type GuildActor struct {
 	gxymodule.ModuleBase
-	*gxyactor.Actor
+	*gxyactor.EntityActor
 	GuildID int64
 	Data    *Guild
 
@@ -41,7 +41,7 @@ type GuildActor struct {
 
 func NewGuildActor() *GuildActor {
 	g := &GuildActor{db: gxypgx.DB(), cfg: gameconfig.Get()}
-	g.Actor = gxyactor.NewActor("guild", g)
+	g.EntityActor = gxyactor.NewEntityActor("guild", g)
 	return g
 }
 
@@ -56,7 +56,7 @@ func (g *GuildActor) Init(args ...any) error {
 	if g.GuildID <= 0 {
 		return errors.New("guild actor init args error")
 	}
-	if err := g.Actor.Init(args...); err != nil {
+	if err := g.EntityActor.Init(args...); err != nil {
 		return err
 	}
 	return g.SendSelfInit()
@@ -89,26 +89,21 @@ func (g *GuildActor) loadFromDB(_ context.Context) error {
 
 // Terminate 是运行时回调:先落盘,再交给基类停定时器并释放所有权。
 func (g *GuildActor) Terminate(err error) {
-	defer g.Actor.Terminate(err)
+	defer g.EntityActor.Terminate(err)
 	g.save(g.Ctx)
 	gxylog.Info(g.Ctx, "guild actor stopped", gxylog.Num("guildID", g.GuildID))
 }
 
-// HandleMessage 是运行时回调。初始化消息在此驱动加载,其余走分派。
-func (g *GuildActor) HandleMessage(from gen.PID, raw any) error {
-	msg, err := gxyactor.UnwrapWire(raw)
-	if err != nil {
-		gxylog.Error(g.Ctx, "decode wire message failed", gxylog.Err(err))
-		return nil
-	}
+// Receive 是业务入口(异步)。初始化消息在此驱动加载,其余交给反射分派。
+func (g *GuildActor) Receive(from gen.PID, msg any) (any, error) {
 	if _, ok := msg.(*gxyactor.ActorInitMsg); ok {
 		if err := g.asyncInit(); err != nil {
 			gxylog.Error(g.Ctx, "guild async init failed", gxylog.Num("guildID", g.GuildID), gxylog.Err(err))
-			return err
+			return nil, err
 		}
-		return nil
+		return nil, nil
 	}
-	return g.Actor.HandleMessage(from, msg)
+	return g.EntityActor.Receive(from, msg)
 }
 
 // ===== Module 生命周期 =====

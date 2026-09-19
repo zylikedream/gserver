@@ -358,19 +358,15 @@ type activatorActor struct {
 
 func newActivatorActor(mgr *activatorManager) *activatorActor {
 	a := &activatorActor{mgr: mgr}
+	// 激活协调者不承载实体:用基础层,类型上就取不到所有权(见 ADR 0015)。
 	a.Actor = NewActor("activator", a)
 	return a
 }
 
-// HandleCall 处理来自其他节点的激活请求。
+// ReceiveCall 处理来自其他节点的激活请求(业务入口,见 ADR 0016)。
 // 用同步调用而非异步消息:激活需要立即拿到结果或明确的"换节点重试"。
-func (a *activatorActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
+func (a *activatorActor) ReceiveCall(from gen.PID, ref gen.Ref, msg any) (any, error) {
 	a.from, a.ref = from, ref
-	// 跨节点请求是信封,先还原再按类型判断。
-	msg, err := UnwrapWire(request)
-	if err != nil {
-		return nil, err
-	}
 	req, ok := msg.(*pb.ActorActive)
 	if !ok {
 		return nil, nil
