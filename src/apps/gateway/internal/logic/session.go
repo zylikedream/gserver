@@ -125,7 +125,7 @@ func NewSession(ep endpoint.Endpoint) *Session {
 		endpoint:    ep,
 		sessionInfo: &SessionInfo{},
 	}
-	s.Actor = gxyactor.NewActor("session", s)
+	s.Actor = gxyactor.NewActor("session")
 	return s
 }
 

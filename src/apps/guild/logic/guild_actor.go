@@ -41,7 +41,7 @@ type GuildActor struct {
 
 func NewGuildActor() *GuildActor {
 	g := &GuildActor{db: gxypgx.DB(), cfg: gameconfig.Get()}
-	g.EntityActor = gxyactor.NewEntityActor("guild", g)
+	g.EntityActor = gxyactor.NewEntityActor("guild")
 	return g
 }
 

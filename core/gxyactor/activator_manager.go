@@ -359,7 +359,7 @@ type activatorActor struct {
 func newActivatorActor(mgr *activatorManager) *activatorActor {
 	a := &activatorActor{mgr: mgr}
 	// 激活协调者不承载实体:用基础层,类型上就取不到所有权(见 ADR 0015)。
-	a.Actor = NewActor("activator", a)
+	a.Actor = NewActor("activator")
 	return a
 }
 

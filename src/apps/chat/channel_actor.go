@@ -81,28 +81,29 @@ func NewChannelActor() *ChannelActor {
 		members: make(map[int64]*channelMember),
 		db:      gxypgx.DB(),
 	}
-	a.EntityActor = gxyactor.NewEntityActor(lib.CHANNEL_ACTOR_TYPE, a)
+	a.EntityActor = gxyactor.NewEntityActor(lib.CHANNEL_ACTOR_TYPE)
 	return a
 }
 
 func (a *ChannelActor) Init(args ...any) error {
-	if err := a.EntityActor.Init(args...); err != nil {
-		return err
-	}
-	ctx := a.Ctx
-	// 从 actor name（"channelType_channelID"）解析频道类型和 ID
+	// 先校验参数:不合法时不必惊动所有权协调层,否则会为一次注定失败的创建
+	// 先占一份归属再回滚。
 	if len(args) < 1 {
 		return errors.New("channel actor init: need channelType_channelID]")
 	}
-	id := args[0].(string)
-	_, err := fmt.Sscanf(id, "%d_%d", &a.ChannelType, &a.ChannelID)
-	if err != nil {
+	id, _ := args[0].(string)
+	if _, err := fmt.Sscanf(id, "%d_%d", &a.ChannelType, &a.ChannelID); err != nil {
 		return errors.Wrapf(err, "channel actor init: invalid id %q", id)
 	}
 	ch, ok := GetChannel(a.ChannelType)
 	if !ok {
 		return errors.New("unknown channel type")
 	}
+	// 参数合法,进入基类初始化(取得归属,见 invariants #3)。
+	if err := a.EntityActor.Init(args...); err != nil {
+		return err
+	}
+	ctx := a.Ctx
 	a.channel = ch
 	a.buffer = newRingBuffer(ch.RingBufferSize())
 	a.loadHistory(ctx)

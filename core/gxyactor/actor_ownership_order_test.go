@@ -22,7 +22,7 @@ type orderingActor struct {
 
 func newOrderingActor(ownerKey string, client redis.UniversalClient) *orderingActor {
 	a := &orderingActor{ownerKey: ownerKey, client: client}
-	a.EntityActor = NewEntityActor("ordering", a)
+	a.EntityActor = NewEntityActor("ordering")
 	return a
 }
 

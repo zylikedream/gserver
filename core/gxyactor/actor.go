@@ -20,17 +20,29 @@ import (
 // 直接返回运行时的行为接口——门面不再做一层包装,业务结构体内嵌 *Actor 即满足。
 type ActorProducer func() act.ActorBehavior
 
+// kindSetter 由内嵌基类的业务对象实现(方法提升),供框架写入权威能力名。
+//
+// 必须用**接口**断言而非类型断言:业务对象是内嵌基类的外层结构体(如
+// *GuildActor),它不是 *Actor;而内嵌提升的方法会进入它的方法集,接口断言
+// 才查得到。类型断言是精确类型匹配,对提升不生效——写成 behavior.(*Actor)
+// 会静默地永不成立。
+type kindSetter interface {
+	setKind(kind string)
+}
+
+func (a *Actor) setKind(kind string) { a.kind = kind }
+
 // asFactory 把业务生产者适配成运行时的进程工厂,并把**注册名**交给实例。
 //
 // 注册式 actor 的能力名必须与注册表的键一致:所有权键按能力名区分,
 // 与查询方使用的键不一致会让同一实体的第二次激活查不到归属而重复创建。
-// 因此能力名由框架在此处一次性写入,实例不再自行推断。
+// 因此能力名由框架在此处一次性写入,以注册表的键为准。
 func asFactory(kind string, prod ActorProducer) gen.ProcessFactory {
 	return func() gen.ProcessBehavior {
 		behavior := prod()
 		if kind != "" {
-			if a, ok := behavior.(*Actor); ok {
-				a.kind = kind
+			if s, ok := behavior.(kindSetter); ok {
+				s.setKind(kind)
 			}
 		}
 		return behavior
@@ -73,9 +85,9 @@ type Actor struct {
 	Ctx context.Context
 
 	kind string
-	// biz 是外层业务对象(通常是内嵌本基类的结构体自身)。
-	// 必须显式持有:Go 的内嵌是静态分派,*Actor 内调用 a.Receive 只会调到
-	// 基类自己的实现,不会调到外层的覆写。经此引用才能到达业务入口。
+	// biz 是外层业务对象,在 Init 时由运行时持有的行为实例解析而来(见 Init)。
+	// 必须持有它:Go 的内嵌是静态分派,*Actor 内调用 a.Receive 只会调到基类
+	// 自己的实现,不会调到外层的覆写。经此引用才能到达业务入口。
 	biz   any
 	timer *ActorTimer
 
@@ -89,12 +101,10 @@ type Actor struct {
 }
 
 // NewActor 创建接入运行时的基类。承载持久实体的 actor 应内嵌 EntityActor。
-// biz 是外层业务对象(通常是内嵌本基类的结构体自身),用于到达业务入口。
-func NewActor(kind string, biz any) *Actor {
+func NewActor(kind string) *Actor {
 	return &Actor{
 		Ctx:  gxylog.NewContext(context.Background(), kind),
 		kind: kind,
-		biz:  biz,
 	}
 }
 
@@ -109,6 +119,11 @@ func (a *Actor) ActorKind() string {
 //
 // 承载持久实体的 actor 由 EntityActor 覆写本方法,先取得归属再调回这里。
 func (a *Actor) Init(_ ...any) error {
+	// 业务对象就是运行时持有的那个行为实例——即工厂返回的最外层结构体,
+	// 因此不必在构造时把自身作为参数传进来。
+	// Behavior() 提升自内嵌的运行时进程,不是本类型的方法。
+	a.biz = a.Behavior()
+
 	// 让本 actor 发起的消息按配置比例开启链路追踪(ADR 0013)。
 	// 必须设在进程上:运行时发消息时看的是进程级采样器,节点级只对"节点自身
 	// 发起"的消息生效——只设节点级会得到一个永远没有 span 的空追踪。

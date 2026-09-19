@@ -31,10 +31,9 @@ type EntityActor struct {
 }
 
 // NewEntityActor 创建承载实体的基类。
-// biz 是用于消息分派的业务对象,通常是内嵌本基类的结构体自身。
-func NewEntityActor(kind string, biz any) *EntityActor {
+func NewEntityActor(kind string) *EntityActor {
 	return &EntityActor{
-		Actor:      NewActor(kind, biz),
+		Actor:      NewActor(kind),
 		msgHandler: gxyutil.NewMsgHandler(),
 	}
 }
@@ -82,17 +81,25 @@ func (e *EntityActor) AddMsgHandler(handler any, prefix ...string) []*gxyutil.Me
 // 业务覆写时应先调用本方法(取得归属),再做自己的初始化。
 func (e *EntityActor) Init(args ...any) error {
 	// 标识由激活协调层作为首个参数传入,类型随能力而定(role 用整数,其余用字符串)。
-	if id, ok := actorIDFromArgs(args); ok {
-		e.ownedID = id
+	//
+	// 取不到标识即返回错误:承载实体的 actor 没有标识,就等于一个不受单写者
+	// 保护的实体——那正是本层要防的事,不能静默放过。
+	id, ok := actorIDFromArgs(args)
+	if !ok {
+		return errors.Errorf("entity actor %q requires an id as the first init arg", e.kind)
 	}
+	e.ownedID = id
 	if _, err := e.acquireOwnership(); err != nil {
 		return err
 	}
-	// 分派目标在基类初始化前注册:分派在此层,业务覆写 Init 时会先调回本方法。
+	if err := e.Actor.Init(args...); err != nil {
+		return err
+	}
+	// 业务对象由基类在 Init 时解析(运行时持有的行为实例),此处据此注册分派目标。
 	if e.biz != nil {
 		e.msgHandler.AddHandler(e.biz)
 	}
-	return e.Actor.Init(args...)
+	return nil
 }
 
 // Terminate 是运行时回调。基类在此释放所有权。

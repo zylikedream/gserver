@@ -115,7 +115,7 @@ func NewRoleMain() *RoleMain {
 		// 组装根:填充全局单例;测试可覆盖注入 mock。
 		deps: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()},
 	}
-	r.EntityActor = gxyactor.NewEntityActor("role", r)
+	r.EntityActor = gxyactor.NewEntityActor("role")
 	return r
 }
 
