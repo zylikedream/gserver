@@ -3,6 +3,7 @@ package gxymodule
 import (
 	"context"
 	"gserver/core/gxyutil"
+	"slices"
 
 	"gserver/core/gxylog"
 )
@@ -106,8 +107,8 @@ func (m *ModuleBase) StartModule(ctx context.Context) error {
 
 func (m *ModuleBase) StopModule(ctx context.Context) error {
 	//释放子孙
-	for i := len(m.childs) - 1; i >= 0; i-- {
-		mod := m.childs[i].BaseModule()
+	for _, v := range slices.Backward(m.childs) {
+		mod := v.BaseModule()
 		if err := mod.StopModule(ctx); err != nil {
 			gxylog.Error(ctx, "stop child mod failed", gxylog.Str("mod", mod.GetModName()), gxylog.Err(err))
 		}

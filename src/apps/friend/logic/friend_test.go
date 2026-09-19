@@ -191,10 +191,10 @@ func TestCooldownList_Scan_Nil(t *testing.T) {
 
 func TestFriendData_JSON_Roundtrip(t *testing.T) {
 	d := FriendData{
-		PlayerID: 42,
-		Friends:  FriendList{{PlayerID: 1, AddedAt: 100}},
-		Incoming: ApplyList{{PlayerID: 2, ApplyAt: 200}},
-		Outgoing: ApplyList{{PlayerID: 3, ApplyAt: 300}},
+		PlayerID:  42,
+		Friends:   FriendList{{PlayerID: 1, AddedAt: 100}},
+		Incoming:  ApplyList{{PlayerID: 2, ApplyAt: 200}},
+		Outgoing:  ApplyList{{PlayerID: 3, ApplyAt: 300}},
 		Cooldowns: CooldownList{{TargetID: 4, Until: 400}},
 	}
 	bytes, err := json.Marshal(d)

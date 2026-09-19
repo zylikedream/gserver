@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -298,10 +299,11 @@ func (w *watcher) fetchWithHash() ([]gsvc.Service, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	hash := fmt.Sprintf("%d", len(services))
+	var hash strings.Builder
+	fmt.Fprintf(&hash, "%d", len(services))
 	for _, s := range services {
-		hash += s.GetKey()
-		hash += s.GetValue()
+		hash.WriteString(s.GetKey())
+		hash.WriteString(s.GetValue())
 	}
-	return services, hash, nil
+	return services, hash.String(), nil
 }

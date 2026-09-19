@@ -6,8 +6,8 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
 
-	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/cockroachdb/errors"
+	"github.com/gogf/gf/v2/encoding/gjson"
 )
 
 const (

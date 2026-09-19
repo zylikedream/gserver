@@ -60,7 +60,7 @@ func (r *ScriptRunner) executeStep(step ScriptStep) error {
 	return r.retryable(step.Do, action)
 }
 
-func (r *ScriptRunner) dispatch(do string, args map[string]interface{}) func() error {
+func (r *ScriptRunner) dispatch(do string, args map[string]any) func() error {
 	switch do {
 	case "login":
 		return func() error { return r.actions.Login(args) }
@@ -99,7 +99,7 @@ func (r *ScriptRunner) dispatch(do string, args map[string]interface{}) func() e
 	}
 }
 
-func (r *ScriptRunner) buildLoop(args map[string]interface{}) func() error {
+func (r *ScriptRunner) buildLoop(args map[string]any) func() error {
 	count := 0
 	if c, ok := args["count"]; ok {
 		switch n := c.(type) {
@@ -112,16 +112,16 @@ func (r *ScriptRunner) buildLoop(args map[string]interface{}) func() error {
 
 	var subScript []ScriptStep
 	if rawScript, ok := args["script"]; ok {
-		if steps, ok := rawScript.([]interface{}); ok {
+		if steps, ok := rawScript.([]any); ok {
 			for _, raw := range steps {
-				if stepMap, ok := raw.(map[string]interface{}); ok {
+				if stepMap, ok := raw.(map[string]any); ok {
 					for k, v := range stepMap {
-						var argsMap map[string]interface{}
+						var argsMap map[string]any
 						if v != nil {
-							argsMap, _ = v.(map[string]interface{})
+							argsMap, _ = v.(map[string]any)
 						}
 						if argsMap == nil {
-							argsMap = map[string]interface{}{}
+							argsMap = map[string]any{}
 						}
 						subScript = append(subScript, ScriptStep{Do: k, Args: argsMap})
 					}

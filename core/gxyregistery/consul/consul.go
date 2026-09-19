@@ -151,10 +151,7 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	// 这样可以在网络波动时提供足够的缓冲
 	checkID := fmt.Sprintf("service:%s", serviceID)
 	// 计算合理的TTL，确保healthCheckInterval小于TTL的2/3
-	adjustedTTL := r.ttl
-	if adjustedTTL <= r.healthCheckInterval*3/2 {
-		adjustedTTL = r.healthCheckInterval * 3 / 2
-	}
+	adjustedTTL := max(r.ttl, r.healthCheckInterval*3/2)
 	reg.Check = &api.AgentServiceCheck{
 		CheckID:                        checkID,
 		TTL:                            adjustedTTL.String(),

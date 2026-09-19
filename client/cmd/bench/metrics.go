@@ -17,7 +17,7 @@ func NewBotLogger(botID int, botType string) *BotLogger {
 	return &BotLogger{botID: botID, botType: botType}
 }
 
-func (l *BotLogger) Printf(format string, args ...interface{}) {
+func (l *BotLogger) Printf(format string, args ...any) {
 	fmt.Printf("[bot=%d type=%s] %s\n", l.botID, l.botType, fmt.Sprintf(format, args...))
 }
 

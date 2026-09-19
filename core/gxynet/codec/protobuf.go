@@ -17,11 +17,11 @@ func newProtobuf() (*ProtoBuf, error) {
 	return &ProtoBuf{}, nil
 }
 
-func (p *ProtoBuf) Decode(msg interface{}, data []byte) error {
+func (p *ProtoBuf) Decode(msg any, data []byte) error {
 	return proto.Unmarshal(data, msg.(proto.Message))
 }
 
-func (p *ProtoBuf) Encode(raw interface{}) ([]byte, error) {
+func (p *ProtoBuf) Encode(raw any) ([]byte, error) {
 	return proto.Marshal(raw.(proto.Message))
 }
 

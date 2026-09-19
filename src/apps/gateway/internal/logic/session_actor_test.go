@@ -99,7 +99,7 @@ func newTestSession(t *testing.T) (*Session, *watchRecorder, *fakeEndpoint) {
 }
 
 // withHandshake 完成一次成功握手:替换 token 验证、登录准入与角色激活, 返回可恢复函数。
-func withHandshake(t *testing.T, s *Session, ep *fakeEndpoint) func() {
+func withHandshake(t *testing.T, s *Session, _ *fakeEndpoint) func() {
 	t.Helper()
 	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
 		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil

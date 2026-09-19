@@ -57,7 +57,7 @@ func NewBotActions(cl *client.Client, state *BotState, log *BotLogger) *BotActio
 
 // === Arg helpers ===
 
-func getStringArg(args map[string]interface{}, key string) string {
+func getStringArg(args map[string]any, key string) string {
 	if v, ok := args[key]; ok {
 		if s, ok := v.(string); ok {
 			return s
@@ -66,7 +66,7 @@ func getStringArg(args map[string]interface{}, key string) string {
 	return ""
 }
 
-func getIntArg(args map[string]interface{}, key string) int32 {
+func getIntArg(args map[string]any, key string) int32 {
 	if v, ok := args[key]; ok {
 		switch n := v.(type) {
 		case int:
@@ -80,9 +80,9 @@ func getIntArg(args map[string]interface{}, key string) int32 {
 	return 0
 }
 
-func getIntSliceArg(args map[string]interface{}, key string) []int32 {
+func getIntSliceArg(args map[string]any, key string) []int32 {
 	if v, ok := args[key]; ok {
-		if list, ok := v.([]interface{}); ok {
+		if list, ok := v.([]any); ok {
 			result := make([]int32, len(list))
 			for i, item := range list {
 				switch n := item.(type) {
@@ -102,7 +102,7 @@ func getIntSliceArg(args map[string]interface{}, key string) []int32 {
 	return nil
 }
 
-func getFloatArg(args map[string]interface{}, key string) float64 {
+func getFloatArg(args map[string]any, key string) float64 {
 	if v, ok := args[key]; ok {
 		switch n := v.(type) {
 		case float64:
@@ -116,7 +116,7 @@ func getFloatArg(args map[string]interface{}, key string) float64 {
 
 // === Action handlers ===
 
-func (a *BotActions) Login(args map[string]interface{}) error {
+func (a *BotActions) Login(args map[string]any) error {
 	if err := a.client.Connect(); err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}
@@ -155,7 +155,7 @@ func (a *BotActions) pullInitialState() {
 	}
 }
 
-func (a *BotActions) Breed(args map[string]interface{}) error {
+func (a *BotActions) Breed(args map[string]any) error {
 	flowerID := getIntArg(args, "flower_id")
 	rsp, err := a.client.RequestWithResponse(&pb.ReqFlowerStartBreed{FlowerId: flowerID})
 	if err != nil {
@@ -167,7 +167,7 @@ func (a *BotActions) Breed(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) WaitForBreed(args map[string]interface{}) error {
+func (a *BotActions) WaitForBreed(args map[string]any) error {
 	extra := getIntArg(args, "extra_max")
 	base := 10 * time.Second
 	jitter := time.Duration(0)
@@ -178,7 +178,7 @@ func (a *BotActions) WaitForBreed(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) FinishBreed(args map[string]interface{}) error {
+func (a *BotActions) FinishBreed(args map[string]any) error {
 	flowerID := getIntArg(args, "flower_id")
 	rsp, err := a.client.RequestWithResponse(&pb.ReqFlowerFinishBreed{FlowerId: flowerID})
 	if err != nil {
@@ -190,7 +190,7 @@ func (a *BotActions) FinishBreed(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) EnsureBreed(args map[string]interface{}) error {
+func (a *BotActions) EnsureBreed(args map[string]any) error {
 	flowerID := getIntArg(args, "flower_id")
 	f := a.state.Flowers[flowerID]
 	if f == nil {
@@ -212,7 +212,7 @@ func (a *BotActions) EnsureBreed(args map[string]interface{}) error {
 	return a.FinishBreed(args)
 }
 
-func (a *BotActions) ClaimTask(args map[string]interface{}) error {
+func (a *BotActions) ClaimTask(args map[string]any) error {
 	taskID := a.state.FindClaimableTask()
 	if taskID == 0 {
 		return nil
@@ -224,7 +224,7 @@ func (a *BotActions) ClaimTask(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) Plant(args map[string]interface{}) error {
+func (a *BotActions) Plant(args map[string]any) error {
 	plotIDs := getIntSliceArg(args, "plot_ids")
 	flowerID := getIntArg(args, "flower_id")
 	if len(plotIDs) == 0 {
@@ -241,7 +241,7 @@ func (a *BotActions) Plant(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) Water(args map[string]interface{}) error {
+func (a *BotActions) Water(args map[string]any) error {
 	plotIDs := getIntSliceArg(args, "plot_ids")
 	if len(plotIDs) == 0 {
 		return nil
@@ -257,7 +257,7 @@ func (a *BotActions) Water(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) WaitForHarvest(args map[string]interface{}) error {
+func (a *BotActions) WaitForHarvest(args map[string]any) error {
 	extra := getIntArg(args, "extra_max")
 	base := 10 * time.Second
 	jitter := time.Duration(0)
@@ -268,7 +268,7 @@ func (a *BotActions) WaitForHarvest(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) Harvest(args map[string]interface{}) error {
+func (a *BotActions) Harvest(args map[string]any) error {
 	plotIDs := getIntSliceArg(args, "plot_ids")
 	if len(plotIDs) == 0 {
 		return nil
@@ -284,7 +284,7 @@ func (a *BotActions) Harvest(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) PlantCycle(args map[string]interface{}) error {
+func (a *BotActions) PlantCycle(args map[string]any) error {
 	plotMax := int(getIntArg(args, "plot_max"))
 	if plotMax <= 0 {
 		plotMax = 1
@@ -292,7 +292,7 @@ func (a *BotActions) PlantCycle(args map[string]interface{}) error {
 
 	harvestable := a.state.FindHarvestablePlots()
 	for i := 0; i < len(harvestable) && i < plotMax; i++ {
-		_ = a.Harvest(map[string]interface{}{"plot_ids": []interface{}{harvestable[i]}})
+		_ = a.Harvest(map[string]any{"plot_ids": []any{harvestable[i]}})
 	}
 
 	empty := a.state.FindEmptyPlots()
@@ -301,8 +301,8 @@ func (a *BotActions) PlantCycle(args map[string]interface{}) error {
 		if planted >= plotMax {
 			break
 		}
-		err := a.Plant(map[string]interface{}{
-			"plot_ids":  []interface{}{pid},
+		err := a.Plant(map[string]any{
+			"plot_ids":  []any{pid},
 			"flower_id": 101,
 		})
 		if err != nil {
@@ -312,18 +312,18 @@ func (a *BotActions) PlantCycle(args map[string]interface{}) error {
 	}
 
 	for i := 0; i < planted && i < len(empty); i++ {
-		_ = a.Water(map[string]interface{}{"plot_ids": []interface{}{empty[i]}})
+		_ = a.Water(map[string]any{"plot_ids": []any{empty[i]}})
 	}
 
 	return nil
 }
 
-func (a *BotActions) CheckOrders(args map[string]interface{}) error {
+func (a *BotActions) CheckOrders(args map[string]any) error {
 	_, err := a.client.RequestWithResponse(&pb.ReqResidentOrderInfo{})
 	return err
 }
 
-func (a *BotActions) SubmitOrders(args map[string]interface{}) error {
+func (a *BotActions) SubmitOrders(args map[string]any) error {
 	rsp, err := a.client.RequestWithResponse(&pb.ReqResidentOrderInfo{})
 	if err != nil {
 		return fmt.Errorf("check_orders: %w", err)
@@ -354,7 +354,7 @@ func (a *BotActions) SubmitOrders(args map[string]interface{}) error {
 	return nil
 }
 
-func (a *BotActions) WaitRange(args map[string]interface{}) error {
+func (a *BotActions) WaitRange(args map[string]any) error {
 	min := getFloatArg(args, "min")
 	max := getFloatArg(args, "max")
 	if max <= min {
@@ -398,7 +398,7 @@ func (a *BotActions) RegisterOnMessage() {
 	})
 }
 
-func (a *BotActions) GM(args map[string]interface{}) error {
+func (a *BotActions) GM(args map[string]any) error {
 	cmd := getStringArg(args, "cmd")
 	if cmd == "" {
 		return nil

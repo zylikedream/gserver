@@ -150,10 +150,3 @@ func versionPart(values []int, index int) int {
 	}
 	return values[index]
 }
-
-func max(a int, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

@@ -25,7 +25,7 @@ func TestConsistentHashDistribution(t *testing.T) {
 	// 模拟 2000 个 roleID（和压测一样的 key 格式）
 	n := 2000
 	counts := map[string]int{}
-	for i := 0; i < n; i++ {
+	for i := range n {
 		roleID := 100002 + i
 		key := fmt.Sprintf("gserver:locate:node:actor:role:%d", roleID)
 		svc := selector.Select(context.Background(), "role", key, svcs)
@@ -65,7 +65,7 @@ func TestConsistentHashVirtualNodeImpact(t *testing.T) {
 
 		n := 2000
 		counts := map[string]int{}
-		for i := 0; i < n; i++ {
+		for i := range n {
 			roleID := 100002 + i
 			key := fmt.Sprintf("gserver:locate:node:actor:role:%d", roleID)
 			svc := selector.Select(context.Background(), "role", key, svcs)
@@ -96,7 +96,7 @@ func TestConsistentHashRebalance(t *testing.T) {
 	n := 2000
 	firstRound := n / 2
 	assignments := map[int]string{}
-	for i := 0; i < firstRound; i++ {
+	for i := range firstRound {
 		roleID := 100002 + i
 		key := fmt.Sprintf("gserver:locate:node:actor:role:%d", roleID)
 		svc := selector.Select(ctx, "role", key, svcs1)
@@ -140,7 +140,7 @@ func TestConsistentHashSelectorSkipsDrainingServices(t *testing.T) {
 		Hash:         "1",
 	}
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		key := fmt.Sprintf("role:%d", i)
 		svc := selector.Select(context.Background(), "role", key, svcs)
 		if svc == nil {

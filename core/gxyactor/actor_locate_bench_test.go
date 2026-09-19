@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -62,7 +62,6 @@ func BenchmarkActorLocateLookup(b *testing.B) {
 		{name: "miss", roleID: "role-missing"},
 	}
 	for _, scenario := range legacyScenarios {
-		scenario := scenario
 		b.Run("ktm_server/"+scenario.name, func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -95,7 +94,6 @@ func BenchmarkActorLocateLookup(b *testing.B) {
 		{name: "miss", roleID: "role-missing"},
 	}
 	for _, scenario := range currentScenarios {
-		scenario := scenario
 		b.Run("gserver/"+scenario.name, func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
@@ -208,11 +206,8 @@ func populateLegacyLocateBenchData(b testing.TB, ctx context.Context, client *re
 		pending += 2
 
 		for offset := 0; offset < config.playersPerServer; offset += 1000 {
-			end := offset + 1000
-			if end > config.playersPerServer {
-				end = config.playersPerServer
-			}
-			members := make([]interface{}, 0, end-offset)
+			end := min(offset+1000, config.playersPerServer)
+			members := make([]any, 0, end-offset)
 			for player := offset; player < end; player++ {
 				members = append(members, locateBenchRoleID(server, player))
 			}
@@ -274,7 +269,7 @@ func logActorLocateBenchMemory(b testing.TB, ctx context.Context, client *redis.
 		b.Fatalf("read Redis memory info error = %v", err)
 	}
 	values := make(map[string]string)
-	for _, line := range strings.Split(memoryInfo, "\n") {
+	for line := range strings.SplitSeq(memoryInfo, "\n") {
 		key, value, ok := strings.Cut(strings.TrimSpace(line), ":")
 		if ok {
 			values[key] = value
@@ -435,7 +430,7 @@ func readActorLocateRedisInfo(t testing.TB, ctx context.Context, client *redis.C
 	}
 	values := make(map[string]float64)
 	commandStats := make(map[string]redisCommandStats)
-	for _, line := range strings.Split(raw, "\n") {
+	for line := range strings.SplitSeq(raw, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -444,8 +439,8 @@ func readActorLocateRedisInfo(t testing.TB, ctx context.Context, client *redis.C
 		if !ok {
 			continue
 		}
-		if strings.HasPrefix(key, "cmdstat_") {
-			commandStats[strings.TrimPrefix(key, "cmdstat_")] = parseRedisCommandStats(value)
+		if after, ok0 := strings.CutPrefix(key, "cmdstat_"); ok0 {
+			commandStats[after] = parseRedisCommandStats(value)
 			continue
 		}
 		parsed, err := strconv.ParseFloat(value, 64)
@@ -464,7 +459,7 @@ func readActorLocateRedisInfo(t testing.TB, ctx context.Context, client *redis.C
 
 func parseRedisCommandStats(value string) redisCommandStats {
 	var result redisCommandStats
-	for _, field := range strings.Split(value, ",") {
+	for field := range strings.SplitSeq(value, ",") {
 		key, fieldValue, ok := strings.Cut(field, "=")
 		if !ok {
 			continue
@@ -487,9 +482,9 @@ func parseRedisCommandStats(value string) redisCommandStats {
 
 func logActorLocateConcurrentResult(t testing.TB, layout string, rate int, elapsed time.Duration, result locateConcurrentResult, before, after redisInfoSnapshot) {
 	t.Helper()
-	sort.Slice(result.totalLatency, func(i, j int) bool { return result.totalLatency[i] < result.totalLatency[j] })
-	sort.Slice(result.commandLatency, func(i, j int) bool { return result.commandLatency[i] < result.commandLatency[j] })
-	sort.Slice(result.queueLatency, func(i, j int) bool { return result.queueLatency[i] < result.queueLatency[j] })
+	slices.Sort(result.totalLatency)
+	slices.Sort(result.commandLatency)
+	slices.Sort(result.queueLatency)
 	cpuSeconds := after.usedCPUUser + after.usedCPUSys - before.usedCPUUser - before.usedCPUSys
 	cpuPercent := cpuSeconds / elapsed.Seconds() * 100
 	t.Logf("layout=%s rate=%d target_qps=%d elapsed=%s requests=%d achieved_qps=%.2f errors=%d total_latency_p50=%s total_latency_p95=%s total_latency_p99=%s command_latency_p99=%s queue_latency_p99=%s redis_cpu_seconds=%.6f redis_cpu_percent=%.2f redis_ops_per_sec_end=%.0f redis_commands_delta=%.0f", layout, rate, rate, elapsed, result.requests, float64(result.requests)/elapsed.Seconds(), result.errors, durationPercentile(result.totalLatency, 0.50), durationPercentile(result.totalLatency, 0.95), durationPercentile(result.totalLatency, 0.99), durationPercentile(result.commandLatency, 0.99), durationPercentile(result.queueLatency, 0.99), cpuSeconds, cpuPercent, after.instantaneousOps, after.totalCommands-before.totalCommands)

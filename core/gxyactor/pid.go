@@ -87,14 +87,17 @@ func PidFromRuntime(p gen.PID) PID {
 	return pidFromLocal(p)
 }
 
-// NewPID 按节点与名字构造引用,供测试使用。
+// NewPID 按节点与名字构造引用,供测试与外部调用方使用。
+// 名字以字符串给出是刻意的:外部调用方手里就是字符串(配置、字面量、proto 字段),
+// 在这里转换一次,内部接缝即可全程用运行时类型。
 func NewPID(node string, name string) PID {
-	return PID{remote: gen.ProcessID{Node: gen.Atom(node), Name: gen.Atom(name)}}
+	return pidFromRemote(node, gen.Atom(name))
 }
 
 // pidFromRemote 由节点与注册名构造跨节点引用。
-func pidFromRemote(node string, name string) PID {
-	return NewPID(node, name)
+// 名字用运行时表示,与 actorName 的返回类型一致——内部调用方不必来回转换。
+func pidFromRemote(node string, name gen.Atom) PID {
+	return PID{remote: gen.ProcessID{Node: gen.Atom(node), Name: name}}
 }
 
 // PidEqual 比较两个引用是否为同一身份。
@@ -138,7 +141,7 @@ func PBToPid(in *pb.ActorPid) PID {
 	if in.GetAddress() == "" || in.GetId() == "" {
 		return PID{}
 	}
-	return pidFromRemote(in.GetAddress(), in.GetId())
+	return pidFromRemote(in.GetAddress(), gen.Atom(in.GetId()))
 }
 
 // pidName 反查进程的注册名。名字表是单向的(名字→进程),因此需要遍历查找;

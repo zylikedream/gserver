@@ -313,7 +313,7 @@ func TestOnDayRefresh_AllValid(t *testing.T) {
 
 func TestAddLog_TruncatesAt100(t *testing.T) {
 	g := newTestGuild(t)
-	for i := 0; i < 105; i++ {
+	for range 105 {
 		g.Data.Logs = append(g.Data.Logs, &GuildLog{Content: "old"})
 	}
 	// 模拟 addLog 中的截断逻辑

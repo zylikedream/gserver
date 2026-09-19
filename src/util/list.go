@@ -1,5 +1,7 @@
 package util
 
+import "slices"
+
 // ListDeleteFunc 删除切片中第一个满足条件的元素
 func ListDeleteFunc[T any](list []T, fun func(item T) bool) []T {
 	for i := range list {
@@ -20,12 +22,7 @@ func ListDelete[T comparable](list []T, element T) []T {
 
 // ListMemberFunc 检查切片中是否存在满足条件的元素
 func ListMemberFunc[T any](list []T, fun func(item T) bool) bool {
-	for _, item := range list {
-		if fun(item) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(list, fun)
 }
 
 // ListMember 检查切片中是否存在指定元素

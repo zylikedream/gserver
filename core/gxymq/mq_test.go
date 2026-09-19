@@ -139,11 +139,9 @@ func TestProcessMessages_Stop(t *testing.T) {
 	mq := NewMessageQueueApp()
 	ctx := context.Background()
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		_ = mq.processMessages(ctx)
-	}()
+	})
 	// Give it time to enter the select loop
 	time.Sleep(10 * time.Millisecond)
 	// Close stopCh to stop processing
@@ -168,11 +166,9 @@ func TestProcessMessages_DispatchByPriority(t *testing.T) {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		_ = mq.processMessages(ctx)
-	}()
+	})
 
 	time.Sleep(10 * time.Millisecond)
 

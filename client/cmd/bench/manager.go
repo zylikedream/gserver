@@ -72,13 +72,11 @@ func (m *BotManager) startBot(i int, wg *sync.WaitGroup) {
 	bot := NewBot(i, uid, m.cfg, botType, m.metrics)
 	m.bots = append(m.bots, bot)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		jitter := time.Duration(rand.Int63n(500)) * time.Millisecond
 		time.Sleep(jitter)
 		bot.Run()
-	}()
+	})
 }
 
 func (m *BotManager) reportLoop(stop chan struct{}) {

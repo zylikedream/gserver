@@ -10,17 +10,17 @@ import (
 )
 
 type Config struct {
-	Addr            string           `yaml:"addr"`
-	AccountPattern  string           `yaml:"account_pattern"`
-	AccountServer   string           `yaml:"account_server,omitempty"`
-	Platform        string           `yaml:"platform,omitempty"`
-	TotalBots       int              `yaml:"total_bots"`
-	StartupRate     int              `yaml:"startup_rate"`
-	ReportInterval  time.Duration    `yaml:"report_interval"`
-	LogFile         string           `yaml:"log_file"`
-	Silent          bool             `yaml:"silent"`
-	BotTypes        []BotTypeConfig  `yaml:"bot_types"`
-	ChatMixin       *ChatMixinConfig `yaml:"chat_mixin,omitempty"`
+	Addr           string           `yaml:"addr"`
+	AccountPattern string           `yaml:"account_pattern"`
+	AccountServer  string           `yaml:"account_server,omitempty"`
+	Platform       string           `yaml:"platform,omitempty"`
+	TotalBots      int              `yaml:"total_bots"`
+	StartupRate    int              `yaml:"startup_rate"`
+	ReportInterval time.Duration    `yaml:"report_interval"`
+	LogFile        string           `yaml:"log_file"`
+	Silent         bool             `yaml:"silent"`
+	BotTypes       []BotTypeConfig  `yaml:"bot_types"`
+	ChatMixin      *ChatMixinConfig `yaml:"chat_mixin,omitempty"`
 }
 
 type BotTypeConfig struct {
@@ -31,20 +31,20 @@ type BotTypeConfig struct {
 
 type ScriptStep struct {
 	Do   string
-	Args map[string]interface{}
+	Args map[string]any
 }
 
 func (s *ScriptStep) UnmarshalYAML(value *yaml.Node) error {
-	var m map[string]interface{}
+	var m map[string]any
 	if err := value.Decode(&m); err != nil {
 		return err
 	}
 	for k, v := range m {
 		s.Do = k
 		if v == nil {
-			s.Args = map[string]interface{}{}
+			s.Args = map[string]any{}
 		} else {
-			args, ok := v.(map[string]interface{})
+			args, ok := v.(map[string]any)
 			if !ok {
 				return fmt.Errorf("script step %q: args must be a map", k)
 			}

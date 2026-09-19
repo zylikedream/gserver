@@ -14,7 +14,7 @@ import (
 // scanJSONBytes 兼容 driver 返回 []byte 或 string 的 JSON 反序列化。
 // 注意: PG 驱动返回 []byte, 但其他驱动/中间层(mock、代理)可能返回 string,
 // 类型断言过死会导致 panic(且 panic 在 database/sql 持锁期会死锁)。
-func scanJSONBytes(val interface{}, dst any) error {
+func scanJSONBytes(val any, dst any) error {
 	if val == nil {
 		return nil
 	}
@@ -39,7 +39,7 @@ type FriendEntry struct {
 type FriendList []FriendEntry
 
 func (l FriendList) Value() (driver.Value, error) { return json.Marshal(l) }
-func (l *FriendList) Scan(val interface{}) error {
+func (l *FriendList) Scan(val any) error {
 	return scanJSONBytes(val, l)
 }
 func (l FriendList) Has(id int64) bool {
@@ -68,7 +68,7 @@ type ApplyEntry struct {
 type ApplyList []ApplyEntry
 
 func (l ApplyList) Value() (driver.Value, error) { return json.Marshal(l) }
-func (l *ApplyList) Scan(val interface{}) error {
+func (l *ApplyList) Scan(val any) error {
 	return scanJSONBytes(val, l)
 }
 func (l ApplyList) Has(id int64) bool {
@@ -97,7 +97,7 @@ type CooldownEntry struct {
 type CooldownList []CooldownEntry
 
 func (l CooldownList) Value() (driver.Value, error) { return json.Marshal(l) }
-func (l *CooldownList) Scan(val interface{}) error {
+func (l *CooldownList) Scan(val any) error {
 	return scanJSONBytes(val, l)
 }
 

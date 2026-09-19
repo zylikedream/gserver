@@ -13,11 +13,11 @@ func newJsonMessage() (*JsonMessage, error) {
 	return &JsonMessage{}, nil
 }
 
-func (j *JsonMessage) Decode(msg interface{}, data []byte) error {
+func (j *JsonMessage) Decode(msg any, data []byte) error {
 	return json.Unmarshal(data, msg)
 }
 
-func (j *JsonMessage) Encode(msg interface{}) ([]byte, error) {
+func (j *JsonMessage) Encode(msg any) ([]byte, error) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return nil, errors.WithStack(err)

@@ -95,8 +95,8 @@ func gmExtractDocs() []CmdDoc {
 
 func gmParseCmdDoc(name string, docStr string) CmdDoc {
 	d := CmdDoc{Name: name}
-	lines := strings.Split(docStr, "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(docStr, "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -372,7 +372,7 @@ func (r *RoleGM) SendMailAll(title string, content string) error {
 // 示例: send_mail_goods 1001 补偿 维护补偿 101:5,102:3
 func (r *RoleGM) SendMailGoods(roleID int64, title string, content string, goodsSpec string) error {
 	var goods []bag.Good
-	for _, part := range strings.Split(goodsSpec, ",") {
+	for part := range strings.SplitSeq(goodsSpec, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
