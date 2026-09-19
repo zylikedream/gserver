@@ -152,13 +152,19 @@ func (a *actorApp) DeregisterActorKind(name string) {
 }
 
 // spawnNamed 以名字注册方式创建 actor。
+//
+// 名字与工厂都由调用方给出,门面不在创建路径上重新推导任何一方:名字是查找侧的
+// 约定(GetLocalActor 按 actorName(kind, id) 查名),工厂在登记 kind 时构造并自带
+// 能力名。两者若在门面内各自推导,就有"注册名与能力名不一致"的余地——实例会注册
+// 在一个查不到的名字下,被误判为"本节点无实例"而反复重建。
+//
 // 名字在初始化之前由运行时原子注册,因此并发同名创建是良性的:
 // 败者既不执行初始化,也不执行终止。
-func (a *actorApp) spawnNamed(kind string, name string, prod ActorProducer, initArgs ...any) (PID, error) {
+func (a *actorApp) spawnNamed(name gen.Atom, factory gen.ProcessFactory, initArgs ...any) (PID, error) {
 	if a.node == nil {
 		return PID{}, gerror.New("actor node not initialized")
 	}
-	pid, err := a.node.SpawnRegister(gen.Atom(name), asFactory(kind, prod), gen.ProcessOptions{}, initArgs...)
+	pid, err := a.node.SpawnRegister(name, factory, gen.ProcessOptions{}, initArgs...)
 	if err != nil {
 		return PID{}, err
 	}

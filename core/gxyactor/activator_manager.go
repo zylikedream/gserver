@@ -29,18 +29,18 @@ var (
 	ErrNotOwner = errors.New("actor ownership not acquired")
 )
 
-// actorName 返回进程的注册名。带 kind 前缀避免不同 kind 的相同 id 冲突。
-func actorName(kind, id string) string {
-	return kind + "/" + id
+// actorName 返回进程的注册名的运行时表示。带 kind 前缀避免不同 kind 的相同 id 冲突。
+func actorName(kind, id string) gen.Atom {
+	return gen.Atom(kind + "/" + id)
 }
 
 type activatorManager struct {
 	gxymodule.ModuleBase
 
 	ctx       context.Context
-	nodeName  string // 稳定节点名(与 kind 同名,用于按名推导地址)
-	nodeID    string // 路由身份:node.name@host
-	kinds     map[string]ActorProducer
+	nodeName  string                        // 稳定节点名(与 kind 同名,用于按名推导地址)
+	nodeID    string                        // 路由身份:node.name@host
+	kinds     map[string]gen.ProcessFactory // kind → 创建该 kind 实例的工厂(工厂自带能力名)
 	locator   *actorLocator
 	routerPID PID
 	stopLease func()
@@ -65,7 +65,7 @@ func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorMan
 		ctx:           gxylog.NewContext(context.Background(), "activatorManager"),
 		nodeName:      nodeName,
 		nodeID:        nodeID,
-		kinds:         make(map[string]ActorProducer),
+		kinds:         make(map[string]gen.ProcessFactory),
 		serviceLookup: gxyservice.ServiceApp(),
 		locator:       newActorLocator(gxyredis.Redis(), nodeID),
 	}
@@ -88,8 +88,8 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 		)
 	})
 
-	routerPID, err := app.spawnNamed("activator", actorName("activator", "router"),
-		func() act.ActorBehavior { return newActivatorActor(g) })
+	routerProd := func() act.ActorBehavior { return newActivatorActor(g) }
+	routerPID, err := app.spawnNamed(actorName("activator", "router"), asFactory("activator", routerProd))
 	if err != nil {
 		g.stopLease()
 		g.stopLease = nil
@@ -109,8 +109,12 @@ func (g *activatorManager) OnModStop(ctx context.Context) error {
 	return nil
 }
 
+// RegisterActorKind 登记一类 actor 的创建方式。
+//
+// 工厂在此处一次性构造并自带能力名:能力名必须与注册表的键一致(所有权键按它
+// 区分),把它绑在登记动作上,创建路径就不必再重新推导一次。
 func (g *activatorManager) RegisterActorKind(kind string, prod ActorProducer) error {
-	g.kinds[kind] = prod
+	g.kinds[kind] = asFactory(kind, prod)
 	return nil
 }
 
@@ -166,7 +170,7 @@ func (g *activatorManager) GetLocalActor(kind string, id string) PID {
 	if app == nil || app.node == nil {
 		return PID{}
 	}
-	pid, err := app.node.ProcessPID(gen.Atom(actorName(kind, id)))
+	pid, err := app.node.ProcessPID(actorName(kind, id))
 	if err != nil {
 		return PID{}
 	}
@@ -187,7 +191,7 @@ func (g *activatorManager) requestActor(ctx context.Context, node string, kind s
 		gxylog.Str("kind", kind), gxylog.Str("id", id),
 		gxylog.Str("node", node), gxylog.Bool("allow_spawn", allowSpawn))
 
-	target := gen.ProcessID{Name: gen.Atom(actorName("activator", "router")), Node: gen.Atom(node)}
+	target := gen.ProcessID{Name: actorName("activator", "router"), Node: gen.Atom(node)}
 	rsp, err := app.callImportant(ctx, target, &pb.ActorActive{
 		Kind:       kind,
 		Id:         id,
@@ -322,11 +326,11 @@ func (g *activatorManager) release(ctx context.Context, kind string, id string, 
 
 // spawnLocal 在本节点创建实例。初始化失败(含所有权未取得)时返回错误。
 func (g *activatorManager) spawnLocal(_ context.Context, kind string, id string) (PID, error) {
-	prod, ok := g.kinds[kind]
+	factory, ok := g.kinds[kind]
 	if !ok {
 		return PID{}, errors.Newf("actor kind %s not registered", kind)
 	}
-	pid, err := app.spawnNamed(kind, actorName(kind, id), prod, id)
+	pid, err := app.spawnNamed(actorName(kind, id), factory, id)
 	if err != nil {
 		if errors.Is(err, ErrNotOwner) {
 			return PID{}, err
@@ -428,7 +432,7 @@ func (a *activatorActor) handleActive(ctx context.Context, req *pb.ActorActive) 
 }
 
 func (a *activatorActor) replyPid(kind string, id string) {
-	a.reply(&pb.ActorPid{Address: a.mgr.nodeID, Id: actorName(kind, id)})
+	a.reply(&pb.ActorPid{Address: a.mgr.nodeID, Id: string(actorName(kind, id))})
 }
 
 // reply 向当前请求方回包。
