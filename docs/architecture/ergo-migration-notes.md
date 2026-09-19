@@ -333,15 +333,16 @@ activator 内部消化 relocate 循环上限沿用 `actorLocateMaxAttempts = 3`�
 
 > 与绑定不变量冲突处以 `invariants.md` 为准。本清单是执行序，不是决策依据。
 
-1. **wire envelope**：`WireEnvelope` + `Pack`/`Unpack`，节点启动时 `Network().RegisterType`。
-2. **`consulRegistrar`**：`gen.Registrar` 适配（`Register` no-op、`Resolve` 读 Consul）。
-3. **身份改造**：`nodeID` = ergo 节点名；`leaseToken` 独立随机；租约获取**保持"仅当不存在时写入"**（不变量 #6，获取失败即启动失败；其可接受性依赖前提 B）。
-4. **`gxyactor` 门面重写**：`ActorBase` → `act.Actor` 适配（含 `ctx` 串联、error 语义转换、metrics 埋点搬移、`gen.Logger`）。
-5. **activator 重写**：分片 + supervisor + `node` 级 `SpawnRegister`；删除 `pending`/`waiters`/`Touch`/`actor_mgr`；所有权获取/释放移出协调层。
-6. **角色初始化拆分**：同步段做**所有权获取 + 纯内存校验**（不变量 #3），耗时加载与外部访问移入异步段；终止路径先落库再释放（不变量 #4，且不得依据死亡通知释放）。
-7. **业务侧替换**：`Sender()` / `Self()` / `PidEqual` / `ActivateActor` 等 30+ 处。
+1. **wire envelope**：`WireEnvelope` + `Pack`/`Unpack`，节点启动时 `Network().RegisterType`。〔完成〕
+2. **`consulRegistrar`**：`gen.Registrar` 适配（`Register` no-op、`Resolve` 读 Consul）。〔完成；登记粒度为节点级记录,见 ADR 0011〕
+3. **身份改造**〔完成〕：`nodeID` = ergo 节点名；`leaseToken` 独立随机；租约获取**保持"仅当不存在时写入"**（不变量 #6，获取失败即启动失败；其可接受性依赖前提 B）。
+4. **`gxyactor` 门面重写**〔完成〕：门面基类内嵌 `act.Actor`；业务直接内嵌门面基类,不保留业务侧接口与适配层（见 ADR 0014）。含 `ctx` 串联、error 语义转换、metrics 埋点搬移、`gen.Logger`。
+5. **activator 重写**〔完成〕：`node` 级 `SpawnRegister`；删除 `pending`/`waiters`/`Touch`/`actor_mgr`；所有权获取/释放移出协调层。
+   **偏离计划**：未保留分片——所有权随初始化下移到 actor 后,同一实体的初始化段已由原子名字注册保证至多一个,分片不再解决任何问题（见 ADR 0012）。
+6. **角色初始化拆分**〔完成〕：同步段做**所有权获取 + 纯内存校验**（不变量 #3），耗时加载与外部访问移入异步段；终止路径先落库再释放（不变量 #4，且不得依据死亡通知释放）。
+7. **业务侧替换**〔完成〕：`Sender()` / `Self()` / `PidEqual` / `ActivateActor` 等 30+ 处。
 8. **可观测性**：追踪适配器、metrics 合并、日志、cron 迁移。〔2026-09-19 完成：追踪适配器 + metrics 合并；单端点实测含 49 个 ergo 指标族；20 条 trace 中 10 条跨 ≥2 节点。日志与 cron 此前已完成〕
-9. **停机顺序**：确认 actor 域先于共享客户端（数据库、缓存）停止，且用等待终止回调完成的优雅停止（不变量 #10）。
+9. **停机顺序**〔完成〕：actor 域先于共享客户端（数据库、缓存）停止,且用等待终止回调完成的优雅停止（不变量 #10）。
 10. **文档更新**：〔2026-09-19 完成〕改：`actor-system.md`（整篇重写）、`overview.md`、`README.md`、`AGENTS.md`、`service-discovery.md`、`app-role.md`、`app-gateway.md`、`docs/public/{dev-ops,logging}.md`、`.agents/skills/gserver-{dev,selfcheck}/SKILL.md`、`blog-actor-model-game-server.md`。归档：`actor-init-race.md`、`tracing.md`、`issue-protoactor-go-endpointwriter.md` → `docs/archive/`（各加归档缘由）。历史记录不动：`docs/superpowers/**`、`docs/pressure/runs/**`（带日期的一次性记录）。
 
 ## 四、验证要求
