@@ -284,7 +284,7 @@ func TestChannelActor_Save_PersistsNewMessages(t *testing.T) {
 	a := newTestChannelActor(t, GuildChannel{})
 	a.db = db
 
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		expectChannelInsert(mock)
 	}
 	for _, c := range []string{"a", "b"} {
@@ -385,7 +385,7 @@ func TestChannelActor_Terminate_PersistsPending(t *testing.T) {
 // TestChannelActor_RingBuffer_Eviction 消息超上限滚动淘汰(容量 200)。
 func TestChannelActor_RingBuffer_Eviction(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	for i := 0; i < 205; i++ {
+	for i := range 205 {
 		if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
 			ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "m",
 		}); err != nil {

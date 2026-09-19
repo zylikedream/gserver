@@ -10,7 +10,7 @@ func GetName[T any]() string {
 	return GetTypeName(reflect.TypeFor[T]())
 }
 
-func GetObjectName(obj interface{}) string {
+func GetObjectName(obj any) string {
 	return GetTypeName(reflect.TypeOf(obj))
 }
 
@@ -18,7 +18,7 @@ func GetTypeName(t reflect.Type) string {
 	return reflects.TypeReal(t).Name()
 }
 
-func NewObject(t reflect.Type) interface{} {
+func NewObject(t reflect.Type) any {
 	return reflect.New(reflects.TypeReal(t)).Interface()
 }
 

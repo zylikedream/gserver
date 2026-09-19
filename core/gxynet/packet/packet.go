@@ -23,7 +23,7 @@ type PacketCodec interface {
 	Type() string
 }
 
-func convertUint(v uint64, len int) interface{} {
+func convertUint(v uint64, len int) any {
 	switch len {
 	case 1:
 		return uint8(v)

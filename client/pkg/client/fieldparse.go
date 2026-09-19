@@ -59,7 +59,7 @@ func ExpandCommaSeparated(args []string) []string {
 	var out []string
 	for _, a := range args {
 		if strings.Contains(a, ",") {
-			for _, p := range strings.Split(a, ",") {
+			for p := range strings.SplitSeq(a, ",") {
 				p = strings.TrimSpace(p)
 				if p != "" {
 					out = append(out, p)

@@ -23,15 +23,15 @@ type pendingRequest struct {
 }
 
 type Client struct {
-	cfg     Config
-	conn    *Conn
-	roleID  int64
+	cfg    Config
+	conn   *Conn
+	roleID int64
 
 	mu       sync.Mutex
 	pendings map[string]*pendingRequest
 
-	onMessage  func(msg proto.Message)
-	onResponse func(msg proto.Message)
+	onMessage    func(msg proto.Message)
+	onResponse   func(msg proto.Message)
 	onDisconnect func(reason error)
 }
 

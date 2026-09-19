@@ -23,7 +23,7 @@ type seqMod struct {
 
 func (m *seqMod) GetModName() string { return m.id }
 
-func (m *seqMod) hook(phase string, ctx context.Context) error {
+func (m *seqMod) hook(phase string, _ context.Context) error {
 	*m.log = append(*m.log, m.id+":"+phase)
 	if m.errOn == phase {
 		return m.err
@@ -31,11 +31,11 @@ func (m *seqMod) hook(phase string, ctx context.Context) error {
 	return nil
 }
 
-func (m *seqMod) OnModInit(ctx context.Context) error        { return m.hook("init", ctx) }
-func (m *seqMod) OnModStart(ctx context.Context) error       { return m.hook("start", ctx) }
-func (m *seqMod) OnModStartAfter(ctx context.Context) error  { return m.hook("startAfter", ctx) }
-func (m *seqMod) OnModStopBefore(ctx context.Context) error  { return m.hook("stopBefore", ctx) }
-func (m *seqMod) OnModStop(ctx context.Context) error        { return m.hook("stop", ctx) }
+func (m *seqMod) OnModInit(ctx context.Context) error       { return m.hook("init", ctx) }
+func (m *seqMod) OnModStart(ctx context.Context) error      { return m.hook("start", ctx) }
+func (m *seqMod) OnModStartAfter(ctx context.Context) error { return m.hook("startAfter", ctx) }
+func (m *seqMod) OnModStopBefore(ctx context.Context) error { return m.hook("stopBefore", ctx) }
+func (m *seqMod) OnModStop(ctx context.Context) error       { return m.hook("stop", ctx) }
 
 func TestModuleBaseDefaultHooksReturnNil(t *testing.T) {
 	m := &plainMod{}

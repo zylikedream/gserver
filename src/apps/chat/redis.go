@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"time"
 
@@ -96,8 +97,8 @@ func GetPrivateHistory(ctx context.Context, d deps.Deps, roleID, friendID int64,
 		return nil, errors.Wrap(err, "chat private history")
 	}
 	result := make([]*pb.PChatMsg, 0, len(msgs))
-	for i := len(msgs) - 1; i >= 0; i-- {
-		m := msgs[i]
+	for _, m := range slices.Backward(msgs) {
+
 		result = append(result, &pb.PChatMsg{
 			Sender: &pb.PRolePublic{
 				RoleId: m.SenderID,
@@ -130,8 +131,8 @@ func GetSystemHistory(ctx context.Context, d deps.Deps, count int) ([]*pb.PChatM
 		return nil, errors.Wrap(err, "chat system history")
 	}
 	result := make([]*pb.PChatMsg, 0, len(msgs))
-	for i := len(msgs) - 1; i >= 0; i-- {
-		m := msgs[i]
+	for _, m := range slices.Backward(msgs) {
+
 		result = append(result, &pb.PChatMsg{
 			Content:   m.Content,
 			Timestamp: m.CreatedAt.Unix(),

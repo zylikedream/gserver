@@ -17,6 +17,6 @@ type Endpoint interface {
 	SendMsg(msg any) error
 	Conn() net.Conn
 	Close()
-	GetData() interface{}
-	SetData(interface{})
+	GetData() any
+	SetData(any)
 }

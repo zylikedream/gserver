@@ -164,10 +164,8 @@ func TestMainTaskOwnItemCurrentState(t *testing.T) {
 	_, mt, _ := setupTestMainTask(t)
 	mt.Role.Bag.Goods[10001] = bag.BagGood{GoodID: 10001, Num: 5}
 	cfg := &gamecfg.GardenMainTask{
-		ProgressMode: gamecfg.GardenETaskProgressMode_CURRENT_STATE,
-		TargetType:   gamecfg.GardenETaskTargetType_OWN_ITEM,
-		TargetParam:  10001,
-		TargetNum:    3,
+		TargetType:  gamecfg.GardenETaskTargetType_OWN_ITEM,
+		TargetParam: 10001,
 	}
 
 	if got := CalcCurrentStateProgress(mt.Role, mt.Progress, cfg.TargetType, cfg.TargetParam); got != 5 {
@@ -183,10 +181,8 @@ func TestMainTaskBreedFinishCurrentStateHarvested(t *testing.T) {
 		StateTime: time.Now(),
 	}
 	cfg := &gamecfg.GardenMainTask{
-		ProgressMode: gamecfg.GardenETaskProgressMode_CURRENT_STATE,
-		TargetType:   gamecfg.GardenETaskTargetType_BREED_FINISH,
-		TargetParam:  101,
-		TargetNum:    1,
+		TargetType:  gamecfg.GardenETaskTargetType_BREED_FINISH,
+		TargetParam: 101,
 	}
 
 	if got := CalcCurrentStateProgress(mt.Role, mt.Progress, cfg.TargetType, cfg.TargetParam); got != 1 {
@@ -202,10 +198,8 @@ func TestMainTaskBreedFinishCurrentStateBreedDone(t *testing.T) {
 		StateTime: time.Now().Add(-time.Minute),
 	}
 	cfg := &gamecfg.GardenMainTask{
-		ProgressMode: gamecfg.GardenETaskProgressMode_CURRENT_STATE,
-		TargetType:   gamecfg.GardenETaskTargetType_BREED_FINISH,
-		TargetParam:  101,
-		TargetNum:    1,
+		TargetType:  gamecfg.GardenETaskTargetType_BREED_FINISH,
+		TargetParam: 101,
 	}
 
 	if got := CalcCurrentStateProgress(mt.Role, mt.Progress, cfg.TargetType, cfg.TargetParam); got != 1 {

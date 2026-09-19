@@ -48,10 +48,7 @@ func (s *RoleTaskState) RefreshCurrentState(cfg RoleTaskConfig, role *RoleMain) 
 	if cfg.ProgressMode != gamecfg.GardenETaskProgressMode_CURRENT_STATE {
 		return false
 	}
-	progress := CalcCurrentStateProgress(role, s.Progress, cfg.TargetType, cfg.TargetParam)
-	if progress > cfg.TargetNum {
-		progress = cfg.TargetNum
-	}
+	progress := min(CalcCurrentStateProgress(role, s.Progress, cfg.TargetType, cfg.TargetParam), cfg.TargetNum)
 	if progress == s.Progress {
 		return false
 	}

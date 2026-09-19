@@ -39,20 +39,20 @@ func (f *fakeConn) RemoteAddr() net.Addr {
 }
 
 // Reader
-func (f *fakeConn) Read(p []byte) (int, error)      { return 0, io.EOF }
+func (f *fakeConn) Read(p []byte) (int, error)         { return 0, io.EOF }
 func (f *fakeConn) WriteTo(w io.Writer) (int64, error) { return 0, nil }
-func (f *fakeConn) Next(n int) ([]byte, error)      { return nil, io.ErrShortBuffer }
-func (f *fakeConn) InboundBuffered() int            { return len(f.data) }
+func (f *fakeConn) Next(n int) ([]byte, error)         { return nil, io.ErrShortBuffer }
+func (f *fakeConn) InboundBuffered() int               { return len(f.data) }
 
 // Writer
-func (f *fakeConn) Write(p []byte) (int, error)        { return len(p), nil }
+func (f *fakeConn) Write(p []byte) (int, error)         { return len(p), nil }
 func (f *fakeConn) ReadFrom(r io.Reader) (int64, error) { return 0, nil }
 func (f *fakeConn) SendTo(buf []byte, addr net.Addr) (int, error) {
 	return len(buf), nil
 }
-func (f *fakeConn) Writev(bs [][]byte) (int, error)       { return 0, nil }
-func (f *fakeConn) Flush() error                          { return nil }
-func (f *fakeConn) OutboundBuffered() int                 { return 0 }
+func (f *fakeConn) Writev(bs [][]byte) (int, error) { return 0, nil }
+func (f *fakeConn) Flush() error                    { return nil }
+func (f *fakeConn) OutboundBuffered() int           { return 0 }
 func (f *fakeConn) AsyncWrite(buf []byte, cb gnet.AsyncCallback) error {
 	return nil
 }
@@ -61,11 +61,11 @@ func (f *fakeConn) AsyncWritev(bs [][]byte, cb gnet.AsyncCallback) error {
 }
 
 // Socket
-func (f *fakeConn) Fd() int                        { return 0 }
-func (f *fakeConn) Dup() (int, error)              { return 0, nil }
-func (f *fakeConn) SetReadBuffer(size int) error   { return nil }
-func (f *fakeConn) SetWriteBuffer(size int) error  { return nil }
-func (f *fakeConn) SetLinger(secs int) error       { return nil }
+func (f *fakeConn) Fd() int                       { return 0 }
+func (f *fakeConn) Dup() (int, error)             { return 0, nil }
+func (f *fakeConn) SetReadBuffer(size int) error  { return nil }
+func (f *fakeConn) SetWriteBuffer(size int) error { return nil }
+func (f *fakeConn) SetLinger(secs int) error      { return nil }
 func (f *fakeConn) SetKeepAlivePeriod(d time.Duration) error {
 	return nil
 }
@@ -82,7 +82,7 @@ func (f *fakeConn) Wake(cb gnet.AsyncCallback) error {
 func (f *fakeConn) CloseWithCallback(cb gnet.AsyncCallback) error {
 	return nil
 }
-func (f *fakeConn) Close() error              { return nil }
+func (f *fakeConn) Close() error { return nil }
 func (f *fakeConn) SetDeadline(t time.Time) error {
 	return nil
 }

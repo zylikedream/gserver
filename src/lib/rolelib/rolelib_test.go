@@ -163,7 +163,7 @@ func TestPublishRoleNotify_RemotePublish(t *testing.T) {
 	if len(env.published) != 1 {
 		t.Fatalf("mqPublish called %d times, want 1", len(env.published))
 	}
-	topic := strings.SplitN(env.published[0], "|", 2)[0]
+	topic, _, _ := strings.Cut(env.published[0], "|")
 	if topic != "gserver:notify:role:node-2" {
 		t.Errorf("publish topic = %q, want node-2 topic", topic)
 	}

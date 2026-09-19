@@ -13,14 +13,6 @@ import (
 
 var ctx = context.Background()
 
-func init() {
-	var err error
-	if err != nil {
-		gxylog.Fatal(ctx, "NewMessageCodec failed", gxylog.Err(err))
-		return
-	}
-}
-
 func main() {
 	EchoServer()
 }

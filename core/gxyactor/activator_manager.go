@@ -214,7 +214,7 @@ func (g *activatorManager) requestActor(ctx context.Context, node string, kind s
 // 这是陈旧记录的自愈路径:所有权记录指向本节点但本节点已无实例时
 // (例如释放时 Redis 失败留下残留),必须在这里清理,否则后续激活会
 // 一直命中同一条记录而不收敛(见 invariants.md #8)。
-func (g *activatorManager) resolveLocal(ctx context.Context, kind string, id string, owner ActorOwner, spawn bool) (PID, bool, error) {
+func (g *activatorManager) resolveLocal(ctx context.Context, kind string, id string, owner ActorOwner) (PID, bool, error) {
 	if pid := g.GetLocalActor(kind, id); !PIDIsZero(pid) {
 		return pid, false, nil
 	}
@@ -252,7 +252,7 @@ func (g *activatorManager) getActor(ctx context.Context, kind string, id string,
 			// 已有所有者:必须经所有者节点校验本地实例,不得直接按名投递。
 			// 否则陈旧记录永远不会被清理(见 invariants.md #8)。
 			if owner.NodeID == g.nodeID {
-				pid, retry, err := g.resolveLocal(ctx, kind, id, owner, spawn)
+				pid, retry, err := g.resolveLocal(ctx, kind, id, owner)
 				if retry {
 					continue
 				}
@@ -321,7 +321,7 @@ func (g *activatorManager) release(ctx context.Context, kind string, id string, 
 }
 
 // spawnLocal 在本节点创建实例。初始化失败(含所有权未取得)时返回错误。
-func (g *activatorManager) spawnLocal(ctx context.Context, kind string, id string) (PID, error) {
+func (g *activatorManager) spawnLocal(_ context.Context, kind string, id string) (PID, error) {
 	prod, ok := g.kinds[kind]
 	if !ok {
 		return PID{}, errors.Newf("actor kind %s not registered", kind)
@@ -391,7 +391,7 @@ func (a *activatorActor) handleActive(ctx context.Context, req *pb.ActorActive) 
 
 	// 记录指向本节点:以本地实例为准。
 	if owner.NodeID == mgr.nodeID {
-		_, retry, err := mgr.resolveLocal(ctx, kind, id, owner, req.GetAllowSpawn())
+		_, retry, err := mgr.resolveLocal(ctx, kind, id, owner)
 		if err != nil {
 			a.reply(ActorError(err.Error()))
 			return

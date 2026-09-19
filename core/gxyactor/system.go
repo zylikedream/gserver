@@ -180,7 +180,7 @@ func (a *actorApp) spawnUnnamed(prod ActorProducer, initArgs ...any) (PID, error
 }
 
 // send 向进程发送消息。跨节点时自动装信封(见 ADR 0009)。
-func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
+func (a *actorApp) send(_ context.Context, pid PID, message any) error {
 	if a.node == nil {
 		return gerror.New("actor node not initialized")
 	}
@@ -197,7 +197,7 @@ func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
 
 // callImportant 同步调用,投递失败会立即返回错误而非超时。
 // 目标可以是 PID 或 ProcessID(远端按名寻址);跨节点时自动装信封。
-func (a *actorApp) callImportant(ctx context.Context, target any, message any) (any, error) {
+func (a *actorApp) callImportant(_ context.Context, target any, message any) (any, error) {
 	if a.node == nil {
 		return nil, gerror.New("actor node not initialized")
 	}

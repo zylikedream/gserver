@@ -9,7 +9,7 @@ type IEncoder interface {
 }
 
 type IDecoder interface {
-	Decode(msg interface{}, data []byte) error
+	Decode(msg any, data []byte) error
 }
 
 type IMessageCodec interface {

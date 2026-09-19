@@ -30,13 +30,13 @@ func NewHttpApp() *httpApp {
 	return &httpApp{}
 }
 
-var httpServerSeq int64
+var httpServerSeq atomic.Int64
 
 func (h *httpApp) NewHttpServer(addr string) *ghttp.Server {
 	// 生成一个唯一的服务器名称
 	// 服务器名称格式为: gserver-序号
 	// 序号从1开始递增
-	seq := atomic.AddInt64(&httpServerSeq, 1)
+	seq := httpServerSeq.Add(1)
 	svr := ghttp.GetServer(fmt.Sprintf("gserver-%d", seq))
 	svr.SetAddr(addr)
 	svr.SetLogger(glog.New())

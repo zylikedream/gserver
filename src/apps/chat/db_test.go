@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"gserver/src/pkg/deps"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gserver/src/pkg/deps"
 )
 
 func newChatDBMock(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	mathrand "math/rand"
+	"slices"
 	"sort"
 	"time"
 
@@ -51,7 +52,7 @@ func (m *RedisManager) Acquire(ctx context.Context, key string, ttl time.Duratio
 	}
 
 	attempts := m.acquireAttempts()
-	for attempt := 0; attempt < attempts; attempt++ {
+	for attempt := range attempts {
 		ok, err := client.SetNX(ctx, key, token, ttl).Result()
 		if err != nil {
 			return "", false, err
@@ -141,8 +142,8 @@ func releaseHeld(ctx context.Context, mgr Manager, held []struct {
 	key   string
 	token string
 }) {
-	for i := len(held) - 1; i >= 0; i-- {
-		mgr.Release(ctx, held[i].key, held[i].token)
+	for _, h := range slices.Backward(held) {
+		mgr.Release(ctx, h.key, h.token)
 	}
 }
 

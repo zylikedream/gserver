@@ -30,7 +30,7 @@ func (m *MessageMeta) TypeName() string {
 	return m.Type.Name()
 }
 
-func (m *MessageMeta) NewInstance() interface{} {
+func (m *MessageMeta) NewInstance() any {
 	if m.Type == nil {
 		return nil
 	}
