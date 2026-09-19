@@ -1,6 +1,6 @@
 # GServer
 
-基于 **Actor 模型**的分布式游戏服务器框架，使用 [protoactor-go](https://github.com/asynkron/protoactor-go) 运行时和 [GoFrame v2](https://goframe.org) 工具库。
+基于 **Actor 模型**的分布式游戏服务器框架，使用 [ergo](https://ergo.services) 运行时和 [GoFrame v2](https://goframe.org) 工具库。
 服务器中以开发种花游戏为例，展示如何使用 Actor 模型实现分布式游戏逻辑。
 配置系统使用luban来管理, 前后端通信使用protobuf
 
@@ -31,7 +31,7 @@
 ├──────────────────────────────────────────────────────────┤
 │  ┌──────────────────────────────────────────────────────┐│
 │  │              Actor System                            ││
-│  │    protoactor-go + Activator + Remote                ││
+│  │        ergo + Activator + 所有权租约                  ││
 │  ├──────────────────────────────────────────────────────┤│
 │  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ││
 │  │  │  Redis   │ │   PGX    │ │    MQ    │ │  HTTP  │ ││
@@ -117,7 +117,8 @@ make check-client-boundary  # client 不得依赖 server 实现
 │   ├── gxyredis/             # Redis 缓存
 │   ├── gxyregistery/         # 服务发现 (Consul/etcd)
 │   ├── gxymodule/            # 模块生命周期管理
-│   ├── gxytimer/             # Cron 定时器
+│   ├── gxyservice/           # 服务注册与选择器
+│   ├── gxylimit/             # 限流
 │   ├── gxylog/               # 日志 (zap)
 │   ├── gxymetrics/           # Prometheus 指标
 │   ├── gxytrace/             # OpenTelemetry 链路追踪
@@ -152,15 +153,17 @@ type IModule interface {
 
 ### Actor 模型
 
-基于 protoactor-go，提供：
+基于 ergo，提供：
 - **Activator** — 按需激活 Actor（如玩家上线时才创建对应的 Role Actor）
-- **Remote** — 跨进程 Actor 通信
-- **PID 寻址** — 通过 `{node}:{kind}/{id}` 格式定位 Actor
+- **跨节点通信** — 按"节点名 + 注册名"寻址；消息跨节点时自动装信封承载 protobuf 载荷
+- **Actor 地址** — 注册名为 `{kind}/{id}`；本机按进程标识寻址，跨节点按注册名寻址
+- **所有权租约** — 同一实体同时只允许一个持有者，存放于 Redis 并配合数据库 fencing
 
 ### 服务发现
 
 - **Consul** — 服务注册与健康检查（TTL 模式）
-- **Redis** — Actor 归属缓存（`role_id → node_instance_name`），支持快速重连
+- **节点级地址记录** — 每个节点登记自身 actor 地址，与承载多少种能力无关，供跨节点解析
+- **Redis** — Actor 归属记录（`kind/id → 节点 + 世代 + 令牌`），支持快速重连与陈旧记录清理
 - **Watcher** — 本地缓存 Consul 服务地址，避免每次调用都查询
 
 ### 持久化
@@ -228,7 +231,7 @@ app.RegisterModule(&MyModule{})
 | 组件 | 选型 |
 |------|------|
 | 语言 | Go 1.25+ |
-| Actor 框架 | protoactor-go |
+| Actor 框架 | ergo |
 | 工具框架 | GoFrame v2 |
 | 网络 | gnet v2 (TCP) |
 | 持久化 | GORM + PostgreSQL |

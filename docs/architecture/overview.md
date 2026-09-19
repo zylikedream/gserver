@@ -1,6 +1,6 @@
 # 系统架构概览
 
-GServer 是一个基于 **Actor 模型**的分布式游戏服务器，使用 [protoactor-go](https://github.com/asynkron/protoactor-go) 作为 Actor 运行时，[GoFrame v2](https://goframe.org) 作为工具框架。
+GServer 是一个基于 **Actor 模型**的分布式游戏服务器，使用 [ergo](https://ergo.services) 作为 Actor 运行时，[GoFrame v2](https://goframe.org) 作为工具框架。
 
 ## 架构分层
 
@@ -15,7 +15,7 @@ GServer 是一个基于 **Actor 模型**的分布式游戏服务器，使用 [pr
 │  └──────────┘ └──────────┘ └──────────┘ └────────┘ │
 │  ┌─────────────────────────────────────────────────┐ │
 │  │              Actor System                        │ │
-│  │  protoactor-go + Activator + Remote              │ │
+│  │  ergo + Activator + 所有权租约                     │ │
 │  └─────────────────────────────────────────────────┘ │
 │  ┌──────────────┐          ┌──────────────────────┐  │
 │  │  Gate App    │          │    Role App           │  │
@@ -73,9 +73,9 @@ type IModule interface {
 
 ### NodeInstanceName
 
-格式: `{nodeName}@{timestamp_nano}`，如 `game-2@1743529200000000000`
+格式: `{podName}@{host}`，如 `game@127.0.0.1`
 
-每次进程启动生成唯一值，用于 Actor 定位和 Consul 服务注册。
+**不含时间戳**（ADR 0010）：它同时用于服务注册、跨节点按名寻址与运行时节点名，三者必须一致，因此必须是稳定的名字——带时间戳会让同一节点每次重启变成另一个身份，重启后的按名寻址全部失效。实例唯一性由租约令牌（每实例随机）与世代承担，不由本名字承担。
 
 ## 注册的 App
 
@@ -116,7 +116,7 @@ type IApp interface {
 
 - `Service` 结构体嵌入 `ModuleBase`
 - `ServiceApp()` 管理 Consul 服务的注册与查询
-- `GetAddressByNodeName(ctx, kind, nodeInstanceName)` 通过 nodeInstanceName 查找节点地址
+- `GetAddressByNodeName(ctx, serviceName, nodeName)` 按节点名查找节点地址；每个节点都会登记一条节点级记录，与它承载多少种能力无关（ADR 0011）
 
 ## Actor 系统
 
@@ -127,12 +127,11 @@ type IApp interface {
 | 系统 | 位置 | 说明 |
 |------|------|------|
 | 模块系统 | `core/gxymodule/` | 生命周期管理、模块树 |
-| Actor 系统 | `core/gxyactor/` | protoactor-go 封装、Activator |
+| Actor 系统 | `core/gxyactor/` | ergo 封装、Activator、所有权租约 |
 | 网络 | `core/gxynet/` | TCP (gnet v2)、LTPV 编解码 |
 | 服务发现 | `core/gxyregistery/` | Consul/etcd、Watcher、选择器 |
 | 持久化 | `core/gxypgx/` | GORM + PostgreSQL |
 | 缓存 | `core/gxyredis/` | Redis 客户端 |
-| 定时器 | `core/gxytimer/` | Cron 定时器 |
 | HTTP | `core/gxyhttp/` | HTTP 服务器 |
 | 消息队列 | `core/gxymq/` | Redis PubSub / Pulsar |
 | 日志 | `core/gxylog/` | zap 日志库 |
@@ -141,9 +140,10 @@ type IApp interface {
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
-| Actor 定位 | Redis owner Claim → Consul(地址) | Redis 保存 nodeInstanceName + epoch；Lua Claim 保证单 owner，Consul 负责地址解析 |
-| Redis TTL | owner key 无 TTL；节点 lease 15s heartbeat | owner 有效性由 node lease 判定，epoch 防止旧 actor 持久化副作用 |
+| Actor 定位 | Redis owner Claim → Consul(地址) | Redis 保存 节点 + 世代 + 每实例令牌；Lua Claim 保证单 owner，Consul 负责地址解析 |
+| Redis TTL | owner key 无 TTL；节点 lease 15s heartbeat | owner 有效性由 node lease 判定，世代 + 令牌防止旧 actor 持久化副作用 |
 | 服务注册 | Consul + TTL 健康检查 | 与 GoFrame 原生 gsvc 接口兼容 |
 | 模块加载顺序 | 依赖先行（redis→pgx→actor→service→业务） | 确保下层基础设施在上层之前就绪 |
-| 消息传递 | protoactor-go 的 PID 寻址 | 支持跨进程透明通信 |
+| 定时调度 | 运行时自带 cron | 定时器生命周期与进程绑定，进程终止即失效；不再自建调度包 |
+| 消息传递 | 运行时按名寻址 + 门面统一地址 | 本机按进程标识、跨节点按注册名；跨节点消息经信封承载 protobuf 载荷 |
 | 持久化 | GORM + AutoMigrate + `role_actor_fence` | Role 保存事务先锁定 exact owner epoch，数据库拒绝旧 actor 的持久化副作用 |

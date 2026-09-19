@@ -67,15 +67,11 @@ func NewChatApp(host string) *chatApp {
 }
 
 func (a *chatApp) OnModInit(ctx context.Context) error {
-    gxyregistery.RegisterServiceKind("chat", a.host)
-
-    // 注册 Actor Kind，让其他节点可以定位到 Chat Actor
-    gxyactor.RegisterActorKind("chat", func() gxyactor.IActor {
-        return newChatActor()
-    })
+    // 注册服务（Actor 类服务嵌入 ActorService，地址取本节点的 actor 协议地址）
+    gxyservice.ServiceApp().LoadService(ctx, NewChatService())
 
     // 注册 HTTP 服务（可选）
-    gxyservice.ServiceApp().LoadService(ctx, newChatHttpService(a.host))
+    gxyservice.ServiceApp().LoadService(ctx, NewChatHttpService(a.host))
     return nil
 }
 ```
@@ -88,7 +84,7 @@ Service 是能在 Consul 中被发现的服务单元。有三种类型：
 
 ### ActorService
 
-用于 Actor 类型的服务（如 role、chat、friend），通过 Actor 系统的 Remote 通信：
+用于 Actor 类型的服务（如 role、chat、friend），通过 actor 运行时通信：
 
 ```go
 // src/apps/role/role_service.go
@@ -105,10 +101,13 @@ func (s *roleService) Weight() int {
 }
 
 func (s *roleService) OnModStart(ctx context.Context) error {
-    // 注册 Actor Kind，activator 才能按需创建
-    gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
+    // 注册 Actor Kind，激活协调层才能按需创建
+    // 注册名同时是所有权键所用的能力名，必须与查询方使用的名字一致
+    if err := gxyactor.RegisterActorKind(s.ServiceName(), func() act.ActorBehavior {
         return logic.NewRoleMain()
-    })
+    }); err != nil {
+        return err
+    }
     return nil
 }
 ```

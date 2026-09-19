@@ -29,7 +29,7 @@ make pb
 
 ## Architecture
 
-Distributed game server on the **Actor model** (protoactor-go) + GoFrame v2.
+Distributed game server on the **Actor model** (ergo) + GoFrame v2.
 
 ### 5-Layer Architecture
 
@@ -55,7 +55,7 @@ Distributed game server on the **Actor model** (protoactor-go) + GoFrame v2.
 | 网络通信 | gxynet(TCP) + gxyhttp(HTTP) |
 | 中间件 | gxyredis / gxypgx / gxyregistery(Consul) / gxylock(分布式锁) |
 | 可观测性 | gxylog / gxytrace(Tempo) / gxymetrics(Prometheus) |
-| 工具 | gxytimer / gxyutil |
+| 工具 | gxylimit / gxyutil |
 
 **协议层 — `protocol/`**
 

@@ -85,9 +85,16 @@ type Watcher struct {
 ### Node 启动时的注册链
 
 1. Node 启动 → 加载配置 → `registerApps()`
-2. Actor App 初始化（启动 Remote，获得动态地址）
+2. Actor App 初始化（启动运行时节点，监听 `port.actor`）
 3. Service App 启动 → 使用 `NodeInstanceName` 注册到 Consul
-4. 地址格式：`{host}:{dynamic_port}`（来自 protoactor-go Remote）
+4. 地址格式：`{host}:{port}`，取自运行时**实际监听信息**，非另行拼装
+
+节点名是稳定的 `{podName}@{host}`（不含时间戳，见 ADR 0010）：它同时用于服务注册、
+跨节点按名寻址与运行时节点名，三者必须一致。
+
+除各自的业务服务外，每个节点还会登记**一条节点级记录**，使其它节点能按其节点名
+解析到 actor 地址。这与该节点承载多少种能力无关——一节点多能力时"节点名即能力名"
+的约定不成立（见 ADR 0011）。
 
 ### 服务注销
 
@@ -95,11 +102,14 @@ type Watcher struct {
 
 ## 地址解析
 
-`GetAddressByNodeName(ctx, kind, nodeInstanceName)`：
+`GetAddressByNodeName(ctx, serviceName, nodeName)`：
 
-1. 通过 Consul Search 查询 kind 服务的所有实例
-2. 匹配 metadata 中的 `nodeInstanceName`
+1. 通过 Consul Search 查询该服务的所有实例
+2. 匹配 metadata 中的节点名
 3. 返回匹配实例的地址（`host:port`）
+
+解析路径必须显式提供协议版本：与静态路由不同，解析接口返回的路由没有
+"缺省补全"这一步，缺了会以 `no route` 冒泡（见 ADR 0011）。
 
 ## 配置
 

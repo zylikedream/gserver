@@ -1,5 +1,10 @@
 # SenderMiddleware on RootContext crashes EndpointWriter with envelope-wrapped *remoteDeliver
 
+> **已归档**（2026-09-19）。这是旧运行时的缺陷记录（`SenderMiddleware` 与
+> `EndpointWriter` 的类型断言冲突）。运行时已不再使用，该缺陷不再可达。
+> 运行时替换的决策见 [ADR 0008](../architecture/adr-0008-actor-runtime-ergo-migration.md)。
+
+
 **Description**
 
 Registering a `SenderMiddleware` on `RootContext` (via `actor.WithSenderMiddleware`) causes `EndpointWriter` to crash with a type assertion panic, because internal `*remoteDeliver` messages become wrapped in `*MessageEnvelope` before reaching the custom mailbox.

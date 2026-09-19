@@ -342,7 +342,7 @@ activator 内部消化 relocate 循环上限沿用 `actorLocateMaxAttempts = 3`�
 7. **业务侧替换**：`Sender()` / `Self()` / `PidEqual` / `ActivateActor` 等 30+ 处。
 8. **可观测性**：追踪适配器、metrics 合并、日志、cron 迁移。〔2026-09-19 完成：追踪适配器 + metrics 合并；单端点实测含 49 个 ergo 指标族；20 条 trace 中 10 条跨 ≥2 节点。日志与 cron 此前已完成〕
 9. **停机顺序**：确认 actor 域先于共享客户端（数据库、缓存）停止，且用等待终止回调完成的优雅停止（不变量 #10）。
-10. **文档更新**：`docs/architecture/` 下 `actor-system.md`、`tracing.md`、`service-discovery.md`、`actor-init-race.md`、`networking.md`、`overview.md`、`docs/blog-actor-model-game-server.md`、`README.md`、`AGENTS.md` 中 protoactor 相关描述；`tracing.md` 与 `docs/bugfix/issue-protoactor-go-endpointwriter.md` 可归档。
+10. **文档更新**：〔2026-09-19 完成〕改：`actor-system.md`（整篇重写）、`overview.md`、`README.md`、`AGENTS.md`、`service-discovery.md`、`app-role.md`、`app-gateway.md`、`docs/public/{dev-ops,logging}.md`、`.agents/skills/gserver-{dev,selfcheck}/SKILL.md`、`blog-actor-model-game-server.md`。归档：`actor-init-race.md`、`tracing.md`、`issue-protoactor-go-endpointwriter.md` → `docs/archive/`（各加归档缘由）。历史记录不动：`docs/superpowers/**`、`docs/pressure/runs/**`（带日期的一次性记录）。
 
 ## 四、验证要求
 

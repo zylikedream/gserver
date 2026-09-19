@@ -23,16 +23,18 @@ Role App 是 GServer 最核心的业务系统，每个在线玩家对应一个 R
 
 ```go
 func (r *roleService) OnModStart(ctx context.Context) error {
-    gxyactor.RegisterActorKind("role", func() gxyactor.IActor {
+    if err := gxyactor.RegisterActorKind(r.ServiceName(), func() act.ActorBehavior {
         return logic.NewRoleMain()
-    })
+    }); err != nil {
+        return err
+    }
     return nil
 }
 ```
 
-- 服务名: `"role"`
+- 服务名: `"role"`（即 `lib.ROLE_ACTOR_TYPE`）
 - 权重: `GetActorCount("role")` — 当前节点上的角色数
-- 注册 `RegisterActorKind("role", ...)` 使 Activator 系统可创建 Role Actor
+- 注册 `RegisterActorKind` 使激活协调层可创建 Role Actor；注册名同时是所有权键所用的能力名
 
 ## RoleMain Actor（`role_main.go`）
 
