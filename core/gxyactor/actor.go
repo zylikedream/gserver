@@ -265,6 +265,12 @@ func (a *Actor) SendTo(pid PID, message any) error {
 }
 
 // Call 同步调用目标 actor;跨节点时自动装信封。
+//
+// 对端把业务失败作为错误载荷返回(invariants #9),这里还原成 error——调用方
+// 才能用统一的 if err != nil 处理。这一步不能省:调用方拿到的是一个"调用成功
+// 但内容是失败"的结果,不还原就只能靠类型断言去猜,猜错即 panic。
+//
+// 与"调用本身失败"区分:超时、对端不存在、对端拒绝调用由运行时直接返回 error。
 func (a *Actor) Call(pid PID, message any, timeout time.Duration) (any, error) {
 	target := pid.target()
 	if target == nil {
@@ -278,7 +284,14 @@ func (a *Actor) Call(pid PID, message any, timeout time.Duration) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return UnwrapWire(result)
+	rsp, err := UnwrapWire(result)
+	if err != nil {
+		return nil, err
+	}
+	if aerr, ok := rsp.(*pb.ActorError); ok {
+		return nil, errors.New(aerr.Reason)
+	}
+	return rsp, nil
 }
 
 // SendSelfInit 自投初始化消息以驱动异步加载。

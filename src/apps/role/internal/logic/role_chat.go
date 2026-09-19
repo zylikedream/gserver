@@ -192,7 +192,7 @@ func (r *RoleChat) ReqChatChannelHistory(ctx context.Context, req *pb.ReqChatCha
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspChatChannelHistory), nil
+	return asResponse[*pb.RspChatChannelHistory](rsp)
 }
 
 func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPrivate) (*pb.RspChatSendPrivate, error) {

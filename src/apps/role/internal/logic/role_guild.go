@@ -174,7 +174,7 @@ func (r *RoleGuild) ReqGuildApply(ctx context.Context, req *pb.ReqGuildApply) (*
 		return nil, err
 	}
 	// GuildID 由 NotifyGuildInfo handler 更新（addMember 成功后推送）
-	return rsp.(*pb.RspGuildApply), nil
+	return asResponse[*pb.RspGuildApply](rsp)
 }
 
 func (r *RoleGuild) requireGuild() error {
@@ -192,7 +192,7 @@ func (r *RoleGuild) ReqGuildInfo(ctx context.Context, req *pb.ReqGuildInfo) (*pb
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildInfo), nil
+	return asResponse[*pb.RspGuildInfo](rsp)
 }
 
 func (r *RoleGuild) ReqGuildLogs(ctx context.Context, req *pb.ReqGuildLogs) (*pb.RspGuildLogs, error) {
@@ -203,7 +203,7 @@ func (r *RoleGuild) ReqGuildLogs(ctx context.Context, req *pb.ReqGuildLogs) (*pb
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildLogs), nil
+	return asResponse[*pb.RspGuildLogs](rsp)
 }
 
 func (r *RoleGuild) ReqGuildApplyList(ctx context.Context, req *pb.ReqGuildApplyList) (*pb.RspGuildApplyList, error) {
@@ -214,7 +214,7 @@ func (r *RoleGuild) ReqGuildApplyList(ctx context.Context, req *pb.ReqGuildApply
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildApplyList), nil
+	return asResponse[*pb.RspGuildApplyList](rsp)
 }
 
 func (r *RoleGuild) ReqGuildApproveApply(ctx context.Context, req *pb.ReqGuildApproveApply) (*pb.RspGuildApproveApply, error) {
@@ -226,7 +226,7 @@ func (r *RoleGuild) ReqGuildApproveApply(ctx context.Context, req *pb.ReqGuildAp
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildApproveApply), nil
+	return asResponse[*pb.RspGuildApproveApply](rsp)
 }
 
 func (r *RoleGuild) ReqGuildKickMember(ctx context.Context, req *pb.ReqGuildKickMember) (*pb.RspGuildKickMember, error) {
@@ -238,7 +238,7 @@ func (r *RoleGuild) ReqGuildKickMember(ctx context.Context, req *pb.ReqGuildKick
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildKickMember), nil
+	return asResponse[*pb.RspGuildKickMember](rsp)
 }
 
 func (r *RoleGuild) ReqGuildSetPosition(ctx context.Context, req *pb.ReqGuildSetPosition) (*pb.RspGuildSetPosition, error) {
@@ -250,7 +250,7 @@ func (r *RoleGuild) ReqGuildSetPosition(ctx context.Context, req *pb.ReqGuildSet
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildSetPosition), nil
+	return asResponse[*pb.RspGuildSetPosition](rsp)
 }
 
 func (r *RoleGuild) ReqGuildTransferLeader(ctx context.Context, req *pb.ReqGuildTransferLeader) (*pb.RspGuildTransferLeader, error) {
@@ -262,7 +262,7 @@ func (r *RoleGuild) ReqGuildTransferLeader(ctx context.Context, req *pb.ReqGuild
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildTransferLeader), nil
+	return asResponse[*pb.RspGuildTransferLeader](rsp)
 }
 
 func (r *RoleGuild) ReqGuildUpdateInfo(ctx context.Context, req *pb.ReqGuildUpdateInfo) (*pb.RspGuildUpdateInfo, error) {
@@ -274,7 +274,7 @@ func (r *RoleGuild) ReqGuildUpdateInfo(ctx context.Context, req *pb.ReqGuildUpda
 	if err != nil {
 		return nil, err
 	}
-	return rsp.(*pb.RspGuildUpdateInfo), nil
+	return asResponse[*pb.RspGuildUpdateInfo](rsp)
 }
 
 func (r *RoleGuild) ReqGuildLeave(ctx context.Context, req *pb.ReqGuildLeave) (*pb.RspGuildLeave, error) {
@@ -287,7 +287,7 @@ func (r *RoleGuild) ReqGuildLeave(ctx context.Context, req *pb.ReqGuildLeave) (*
 		return nil, err
 	}
 	r.SetGuildID(ctx, 0)
-	return rsp.(*pb.RspGuildLeave), nil
+	return asResponse[*pb.RspGuildLeave](rsp)
 }
 
 func (r *RoleGuild) ReqGuildDisband(ctx context.Context, req *pb.ReqGuildDisband) (*pb.RspGuildDisband, error) {
@@ -300,5 +300,5 @@ func (r *RoleGuild) ReqGuildDisband(ctx context.Context, req *pb.ReqGuildDisband
 		return nil, err
 	}
 	r.SetGuildID(ctx, 0)
-	return rsp.(*pb.RspGuildDisband), nil
+	return asResponse[*pb.RspGuildDisband](rsp)
 }
