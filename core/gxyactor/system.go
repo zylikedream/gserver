@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"time"
 
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
@@ -186,34 +185,6 @@ func (a *actorApp) send(ctx context.Context, pid PID, message any) error {
 		return err
 	}
 	return a.node.Send(target, out)
-}
-
-// call 同步调用并等待响应。
-// 业务错误由被调方作为响应消息返回(见 ADR 0013)。
-func (a *actorApp) call(ctx context.Context, pid PID, message any, timeout time.Duration) (any, error) {
-	if a.node == nil {
-		return nil, gerror.New("actor node not initialized")
-	}
-	target := pid.target()
-	if target == nil {
-		return nil, gerror.New("call on empty pid")
-	}
-	out, err := a.prepareOutbound(message, pid.Node())
-	if err != nil {
-		return nil, err
-	}
-	result, err := a.node.CallWithTimeout(target, out, int(timeout.Seconds()))
-	if err != nil {
-		return nil, err
-	}
-	result, err = UnwrapWire(result)
-	if err != nil {
-		return nil, err
-	}
-	if aerr, ok := result.(*pb.ActorError); ok {
-		return nil, gerror.New(aerr.Reason)
-	}
-	return result, nil
 }
 
 // callImportant 同步调用,投递失败会立即返回错误而非超时。
