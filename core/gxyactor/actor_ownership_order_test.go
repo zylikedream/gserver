@@ -11,7 +11,7 @@ import (
 // orderingActor 在终止回调里读取所有权记录是否仍然存在,
 // 用于验证"释放发生在最终落盘之后"这条顺序(不变量 4)。
 type orderingActor struct {
-	*Actor
+	*EntityActor
 
 	ownerKey string
 	client   redis.UniversalClient
@@ -22,7 +22,7 @@ type orderingActor struct {
 
 func newOrderingActor(ownerKey string, client redis.UniversalClient) *orderingActor {
 	a := &orderingActor{ownerKey: ownerKey, client: client}
-	a.Actor = NewActor("ordering", a)
+	a.EntityActor = NewEntityActor("ordering")
 	return a
 }
 
@@ -32,7 +32,7 @@ func (a *orderingActor) Terminate(reason error) {
 	a.terminateCalled = true
 	n, err := a.client.Exists(context.Background(), a.ownerKey).Result()
 	a.ownerStillPresentAtTerminate = err == nil && n > 0
-	a.Actor.Terminate(reason)
+	a.EntityActor.Terminate(reason)
 }
 
 // TestOwnershipReleasedAfterTerminate 释放必须晚于落盘:

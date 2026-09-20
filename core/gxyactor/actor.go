@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/cockroachdb/errors"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxymetrics"
 	"gserver/core/gxytrace"
-	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
 
 	"ergo.services/ergo/act"
@@ -22,17 +20,29 @@ import (
 // 直接返回运行时的行为接口——门面不再做一层包装,业务结构体内嵌 *Actor 即满足。
 type ActorProducer func() act.ActorBehavior
 
+// kindSetter 由内嵌基类的业务对象实现(方法提升),供框架写入权威能力名。
+//
+// 必须用**接口**断言而非类型断言:业务对象是内嵌基类的外层结构体(如
+// *GuildActor),它不是 *Actor;而内嵌提升的方法会进入它的方法集,接口断言
+// 才查得到。类型断言是精确类型匹配,对提升不生效——写成 behavior.(*Actor)
+// 会静默地永不成立。
+type kindSetter interface {
+	setKind(kind string)
+}
+
+func (a *Actor) setKind(kind string) { a.kind = kind }
+
 // asFactory 把业务生产者适配成运行时的进程工厂,并把**注册名**交给实例。
 //
 // 注册式 actor 的能力名必须与注册表的键一致:所有权键按能力名区分,
 // 与查询方使用的键不一致会让同一实体的第二次激活查不到归属而重复创建。
-// 因此能力名由框架在此处一次性写入,实例不再自行推断。
+// 因此能力名由框架在此处一次性写入,以注册表的键为准。
 func asFactory(kind string, prod ActorProducer) gen.ProcessFactory {
 	return func() gen.ProcessBehavior {
 		behavior := prod()
 		if kind != "" {
-			if a, ok := behavior.(*Actor); ok {
-				a.kind = kind
+			if s, ok := behavior.(kindSetter); ok {
+				s.setKind(kind)
 			}
 		}
 		return behavior
@@ -74,10 +84,9 @@ type Actor struct {
 	// Ctx 是带日志与追踪上下文的 context。
 	Ctx context.Context
 
-	kind       string
-	biz        any
-	msgHandler *gxyutil.MsgHandler
-	timer      *ActorTimer
+	kind string
+	// timer 是懒创建的定时器门面。
+	timer *ActorTimer
 
 	// currentFrom 是当前正在处理的消息的发送者。
 	// 反射分派无法传递发送者,因此由基类在分派前记录,业务用 Sender() 读取。
@@ -86,19 +95,13 @@ type Actor struct {
 	// stopErr 记录终止原因;stopRequested 区分"未请求终止"与"正常终止"。
 	stopErr       error
 	stopRequested bool
-
-	// 本次激活持有的所有权,在同步初始化段获取、终止路径释放。
-	owner   ActorOwner
-	ownedID string
 }
 
-// NewActor 创建基类。biz 是用于消息分派的业务对象,通常是内嵌本基类的结构体自身。
-func NewActor(kind string, biz any) *Actor {
+// NewActor 创建接入运行时的基类。承载持久实体的 actor 应内嵌 EntityActor。
+func NewActor(kind string) *Actor {
 	return &Actor{
-		Ctx:        gxylog.NewContext(context.Background(), kind),
-		kind:       kind,
-		biz:        biz,
-		msgHandler: gxyutil.NewMsgHandler(),
+		Ctx:  gxylog.NewContext(context.Background(), kind),
+		kind: kind,
 	}
 }
 
@@ -109,20 +112,10 @@ func (a *Actor) ActorKind() string {
 
 // ===== 运行时回调:默认实现,业务可覆写并调用基类 =====
 
-// Init 是运行时回调。基类在此获取所有权并注册消息分派。
+// Init 是运行时回调。基类在此准备运行所需的环境。
 //
-// 所有权必须在同步初始化段获取(见 invariants #3):此时尚未处理任何业务
-// 消息,也就不可能带着未确认的归属去服务请求。
-func (a *Actor) Init(args ...any) error {
-	if id, ok := actorIDFromArgs(args); ok {
-		a.ownedID = id
-	}
-	if a.biz != nil {
-		a.msgHandler.AddHandler(a.biz)
-	}
-	if _, err := a.acquireOwnership(); err != nil {
-		return err
-	}
+// 承载持久实体的 actor 由 EntityActor 覆写本方法,先取得归属再调回这里。
+func (a *Actor) Init(_ ...any) error {
 	// 让本 actor 发起的消息按配置比例开启链路追踪(ADR 0013)。
 	// 必须设在进程上:运行时发消息时看的是进程级采样器,节点级只对"节点自身
 	// 发起"的消息生效——只设节点级会得到一个永远没有 span 的空追踪。
@@ -135,18 +128,20 @@ func (a *Actor) Init(args ...any) error {
 	return nil
 }
 
-// Terminate 是运行时回调。基类在此停定时器并释放所有权。
-// 业务覆写时应先完成最终落盘,再调用本方法——顺序不可颠倒(见 invariants #4)。
+// Terminate 是运行时回调。基类在此停定时器。
+// 承载持久实体的 actor 由 EntityActor 覆写本方法,释放归属在本方法之后。
 func (a *Actor) Terminate(reason error) {
 	if a.timer != nil {
 		a.timer.Stop(a.Ctx)
 	}
 	gxymetrics.ActorActiveCount.WithLabelValues(a.kind).Dec()
-	a.dropOwnership(a.Ctx)
 }
 
-// HandleMessage 是运行时回调(异步消息):还原跨节点消息后交给业务分派。
-// 定时消息在此分流,不进入业务分派。
+// HandleMessage 是运行时回调(异步消息)。**业务不覆写本方法**——见 ADR 0016。
+//
+// 门面在此承担与业务无关的机制:定时消息分流(触发经邮箱投递,必须在这里回到
+// 注册的回调)、跨节点消息还原。业务处理从 Receive 进入;若两件事共用一个名字,
+// 覆写业务处理就会连机制一起关掉,而失效是静默的。
 func (a *Actor) HandleMessage(from gen.PID, message any) error {
 	switch msg := message.(type) {
 	case ActorTimerMsg:
@@ -156,32 +151,62 @@ func (a *Actor) HandleMessage(from gen.PID, message any) error {
 		a.timer.ActiveCron(a.Ctx, msg.Job)
 		return nil
 	}
-	return a.AcceptMessage(from, message)
+	return a.acceptMessage(from, message)
 }
 
-// HandleCall 是运行时回调(同步请求):还原后分派并回包。
+// HandleCall 是运行时回调(同步请求)。**业务不覆写本方法**——见 ADR 0016。
 func (a *Actor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
-	return a.AcceptCall(from, ref, request)
+	return a.acceptCall(from, ref, request)
 }
 
-// ===== 供业务覆写时调用 =====
+// messageReceiver / callReceiver 是业务入口的形态。业务按需实现其一或两者;
+// 未实现表示该 actor 不处理这类消息。
+type messageReceiver interface {
+	Receive(from gen.PID, message any) (any, error)
+}
 
-// AcceptMessage 还原跨节点消息并交给业务分派。返回非 nil 表示终止本 actor。
-func (a *Actor) AcceptMessage(from gen.PID, message any) error {
+type callReceiver interface {
+	ReceiveCall(from gen.PID, ref gen.Ref, request any) (any, error)
+}
+
+// receive 把消息交给业务入口。未实现业务入口的 actor 不处理它。
+//
+// 入口在**运行时持有的行为实例**上查找,也就是工厂返回的最外层结构体。
+// 不能写成 a.Receive(...):Go 的内嵌是静态分派,*Actor 内那样写只会调到基类
+// 自己的实现,而基类没有业务入口。
+//
+// 用接口断言而非类型断言:业务对象是内嵌基类的外层结构体,不是基类本身;
+// 内嵌提升的方法进入它的方法集,接口断言查得到,类型断言查不到。
+func (a *Actor) receive(from gen.PID, message any) (any, error) {
+	if r, ok := a.Behavior().(messageReceiver); ok {
+		return r.Receive(from, message)
+	}
+	return nil, nil
+}
+
+// receiveCall 把请求交给业务入口。未实现业务入口的 actor 不处理它。
+func (a *Actor) receiveCall(from gen.PID, ref gen.Ref, request any) (any, error) {
+	if r, ok := a.Behavior().(callReceiver); ok {
+		return r.ReceiveCall(from, ref, request)
+	}
+	return nil, nil
+}
+
+// acceptMessage 还原跨节点消息,交给业务入口,并把应答回给发送者。
+func (a *Actor) acceptMessage(from gen.PID, message any) error {
 	a.currentFrom = from
 	decoded, err := UnwrapWire(message)
 	if err != nil {
 		gxylog.Error(a.Ctx, "decode wire message failed", gxylog.Err(err))
 		return nil
 	}
-	rsp, err := a.dispatchTo(decoded)
+	rsp, err := a.receive(from, decoded)
 	gxymetrics.ActorMessages.WithLabelValues(a.kind).Inc()
 	if err != nil {
 		gxylog.Error(a.Ctx, "handle msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
 		return err
 	}
-	// 异步消息的响应是处理函数的返回值(如客户端请求的应答):回给发送者。
-	// 没有返回值表示该消息不需要应答(如通知类)。
+	// 异步消息的应答是处理函数的返回值;没有返回值表示不需要应答。
 	if rsp != nil && from != (gen.PID{}) {
 		if sendErr := a.Reply(from, rsp); sendErr != nil {
 			gxylog.Warn(a.Ctx, "reply to sender failed", gxylog.Err(sendErr))
@@ -190,17 +215,17 @@ func (a *Actor) AcceptMessage(from gen.PID, message any) error {
 	return a.StopReason()
 }
 
-// AcceptCall 还原跨节点消息、分派业务方法,并把结果或业务错误回给调用方。
+// acceptCall 还原跨节点消息,交给业务入口,并把结果或业务错误回给调用方。
 //
 // 业务错误走响应通道而不作终止原因:运行时的契约是"回调返回非 nil error
 // 即终止本进程",而业务失败不应终止进程(见 invariants #9)。
-func (a *Actor) AcceptCall(from gen.PID, ref gen.Ref, request any) (any, error) {
+func (a *Actor) acceptCall(from gen.PID, ref gen.Ref, request any) (any, error) {
 	a.currentFrom = from
 	decoded, err := UnwrapWire(request)
 	if err != nil {
 		return nil, err
 	}
-	rsp, err := a.dispatchTo(decoded)
+	rsp, err := a.receiveCall(from, ref, decoded)
 	gxymetrics.ActorMessages.WithLabelValues(a.kind).Inc()
 	// 同步请求的应答必须走响应通道(带上调用方的 ref):用普通发送回包,
 	// 调用方的 Call 收不到结果会超时,而迟到的应答会被当成一条新消息投递,
@@ -217,26 +242,6 @@ func (a *Actor) AcceptCall(from gen.PID, ref gen.Ref, request any) (any, error) 
 	}
 	// (nil, nil) 表示已自行回复。
 	return nil, a.StopReason()
-}
-
-// dispatcher 由业务实现以接管消息分派(如加限流、埋点)。
-type dispatcher interface {
-	Dispatch(message any) (any, error)
-}
-
-// dispatchTo 把消息交给分派目标:业务覆写了 Dispatch 就用业务的,
-// 否则用按消息类型反射分派的默认实现。
-func (a *Actor) dispatchTo(message any) (any, error) {
-	if d, ok := a.biz.(dispatcher); ok {
-		return d.Dispatch(message)
-	}
-	return a.DispatchDefault(message)
-}
-
-// DispatchDefault 是按消息类型反射分派的默认实现。
-// 业务覆写 Dispatch 时应在其中调用本方法,以免递归。
-func (a *Actor) DispatchDefault(message any) (any, error) {
-	return a.msgHandler.CallWithMsg(a.Ctx, message)
 }
 
 // ===== 业务常用能力 =====
@@ -317,11 +322,6 @@ func (a *Actor) Sender() PID {
 	return PID{local: a.currentFrom}
 }
 
-// AddMsgHandler 为指定对象注册消息分派,返回注册到的方法。
-func (a *Actor) AddMsgHandler(handler any, prefix ...string) []*gxyutil.MethodMeta {
-	return a.msgHandler.AddHandler(handler, prefix...)
-}
-
 // Self 返回本 actor 的地址。
 func (a *Actor) Self() PID {
 	return PID{local: a.PID()}
@@ -400,83 +400,4 @@ func (a *Actor) PrepareOutbound(message any, node string) (any, error) {
 		return message, nil
 	}
 	return app.prepareOutbound(message, node)
-}
-
-// Owner 返回本次激活持有的所有权,供业务记录(如数据库 fencing)。
-func (a *Actor) Owner() ActorOwner {
-	return a.owner
-}
-
-// ===== 所有权 =====
-
-// claimOwnership / releaseOwnership 是可替换函数变量:测试注入以隔离 Redis
-// (编译期安全,非 gomonkey)。
-var (
-	claimOwnership = func(kind, id string) (ActorOwner, error) {
-		if app == nil || app.activator == nil || app.activator.locator == nil {
-			return ActorOwner{}, errors.New("actor ownership is not available")
-		}
-		return app.activator.claim(kind, id)
-	}
-	releaseOwnership = func(ctx context.Context, kind, id string, owner ActorOwner) error {
-		if app == nil || app.activator == nil || app.activator.locator == nil {
-			return errors.New("actor ownership is not available")
-		}
-		_, err := app.activator.release(ctx, kind, id, owner)
-		return err
-	}
-)
-
-func (a *Actor) acquireOwnership() (ActorOwner, error) {
-	if a.ownedID == "" {
-		return ActorOwner{}, nil
-	}
-	owner, err := claimOwnership(a.kind, a.ownedID)
-	if err != nil {
-		return ActorOwner{}, errors.Wrapf(err, "claim ownership for %s/%s", a.kind, a.ownedID)
-	}
-	a.owner = owner
-	return owner, nil
-}
-
-// SetOwnershipHooks 替换所有权获取/释放的实现,供测试隔离 Redis。
-// 返回值用于恢复原实现。
-func SetOwnershipHooks(
-	claim func(kind, id string) (ActorOwner, error),
-	release func(kind, id string, owner ActorOwner) error,
-) func() {
-	prevClaim, prevRelease := claimOwnership, releaseOwnership
-	claimOwnership = claim
-	releaseOwnership = func(_ context.Context, k, i string, o ActorOwner) error {
-		return release(k, i, o)
-	}
-	return func() { claimOwnership, releaseOwnership = prevClaim, prevRelease }
-}
-
-func (a *Actor) dropOwnership(ctx context.Context) {
-	if a.ownedID == "" || a.owner.NodeID == "" {
-		return
-	}
-	if err := releaseOwnership(ctx, a.kind, a.ownedID, a.owner); err != nil {
-		gxylog.Warn(ctx, "release actor ownership failed",
-			gxylog.Str("kind", a.kind), gxylog.Str("id", a.ownedID), gxylog.Err(err))
-	}
-}
-
-// actorIDFromArgs 从初始化参数中取出 actor 标识。
-// 标识由 Activator 作为首个参数传入,类型随能力而定(role 用整数,其余用字符串)。
-func actorIDFromArgs(args []any) (string, bool) {
-	if len(args) == 0 {
-		return "", false
-	}
-	switch id := args[0].(type) {
-	case string:
-		return id, id != ""
-	case int64:
-		return strconv.FormatInt(id, 10), true
-	case int:
-		return strconv.Itoa(id), true
-	default:
-		return "", false
-	}
 }
