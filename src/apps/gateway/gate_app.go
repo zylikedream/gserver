@@ -10,8 +10,6 @@ import (
 	"gserver/src/apps/gateway/internal/logic"
 	"gserver/src/lib/gatetoken"
 
-	"ergo.services/ergo/act"
-
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 )
@@ -67,7 +65,7 @@ func (s *gateApp) OnModStop(ctx context.Context) error {
 }
 
 func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
-	return gxyactor.SpawnFunc(func() act.ActorBehavior {
+	return gxyactor.SpawnFunc("session", func() gxyactor.Business {
 		return logic.NewSession(ep)
 	})
 }

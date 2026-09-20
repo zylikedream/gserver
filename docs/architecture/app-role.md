@@ -23,7 +23,7 @@ Role App 是 GServer 最核心的业务系统，每个在线玩家对应一个 R
 
 ```go
 func (r *roleService) OnModStart(ctx context.Context) error {
-    if err := gxyactor.RegisterActorKind(r.ServiceName(), func() act.ActorBehavior {
+    if err := gxyactor.RegisterActorKind(r.ServiceName(), func() gxyactor.Business {
         return logic.NewRoleMain()
     }); err != nil {
         return err
@@ -43,9 +43,10 @@ func (r *roleService) OnModStart(ctx context.Context) error {
 ### 生命周期
 
 ```
-Init → DelayInit → (消息处理) → TickSave(600s) → Terminate
-      │              │
-      └── initRole   └── HandleClientMsg / HandleMessage
+Init → AsyncInit → (消息处理) → TickSave(600s) → Terminate
+      │         │
+      │         └── initRole
+      └── 绑定标识 / 校验账号   └── HandleClientMsg / HandleMessage
 ```
 
 ### 状态机

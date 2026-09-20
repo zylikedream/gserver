@@ -1,6 +1,7 @@
 package gxyactor
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -22,28 +23,35 @@ type callProbe struct {
 
 func newCallProbe(target PID) *callProbe {
 	p := &callProbe{target: target}
-	p.Actor = NewActor("call_probe", p)
+	p.Actor = NewActor()
 	return p
 }
 
+// Init 是同步初始化段:基类环境已由门面备好,此处只做自己的事。
 func (p *callProbe) Init(args ...any) error {
-	if err := p.Actor.Init(args...); err != nil {
-		return err
-	}
 	p.result, p.callErr = p.Call(p.target, &pb.Ack{}, 5*time.Second)
 	return nil
 }
 
-// stubOwnership 让初始化段的所有权获取走内存实现,使测试不依赖 Redis。
+// stubOwnership 注入内存所有权载体,使测试不依赖 Redis。
 func stubOwnership(t *testing.T) {
 	t.Helper()
-	restore := SetOwnershipHooks(
-		func(string, string) (ActorOwner, error) {
-			return ActorOwner{NodeID: "test@localhost", Epoch: 1}, nil
-		},
-		func(string, string, ActorOwner) error { return nil },
-	)
-	t.Cleanup(restore)
+	t.Cleanup(SetOwnershipStore(memOwnershipStore{owner: ActorOwner{NodeID: "test@localhost", Epoch: 1}}))
+}
+
+// memOwnershipStore 是所有权载体的内存实现。
+type memOwnershipStore struct{ owner ActorOwner }
+
+func (m memOwnershipStore) Claim(context.Context, string, string) (ActorOwner, bool, error) {
+	return m.owner, true, nil
+}
+
+func (m memOwnershipStore) Locate(context.Context, string, string) (ActorOwner, error) {
+	return m.owner, nil
+}
+
+func (m memOwnershipStore) Release(context.Context, string, string, ActorOwner) (bool, error) {
+	return true, nil
 }
 
 // runProbe 创建探针 actor,先装对端应答桩再执行初始化(Prepare/Run 两段式),
@@ -51,8 +59,11 @@ func stubOwnership(t *testing.T) {
 func runProbe(t *testing.T, stub func(*unit.Subject, gen.PID)) *callProbe {
 	t.Helper()
 	raw := gen.PID{Node: "unit@localhost", ID: 99}
-	probe := newCallProbe(pidFromLocal(raw))
-	subj := unit.Prepare(t, func() gen.ProcessBehavior { return probe }, gen.ProcessOptions{})
+	var probe *callProbe
+	subj := unit.Prepare(t, ActorFactory("call_probe", func() Business {
+		probe = newCallProbe(pidFromLocal(raw))
+		return probe
+	}), gen.ProcessOptions{})
 	stub(subj, raw)
 	if err := subj.Run(); err != nil {
 		t.Fatalf("run probe: %v", err)

@@ -21,7 +21,6 @@ import (
 	"gserver/src/lib"
 	"gserver/src/lib/gatetoken"
 
-	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -125,47 +124,32 @@ func NewSession(ep endpoint.Endpoint) *Session {
 		endpoint:    ep,
 		sessionInfo: &SessionInfo{},
 	}
-	s.Actor = gxyactor.NewActor("session", s)
+	s.Actor = gxyactor.NewActor()
 	return s
 }
 
-// HandleMessage 是运行时回调。
-// 会话的消息不走反射分派(来源固定:客户端、角色、监视通知),因此直接分流。
-func (s *Session) HandleMessage(from gen.PID, raw any) error {
+// HandleMessage 是业务入口(异步)。消息已由门面还原,此处直接分流。
+// 会话的来源固定(客户端、角色、监视通知),不走反射分派。
+func (s *Session) HandleMessage(msg any) (any, error) {
 	ctx := s.Ctx
-	msg, err := gxyactor.UnwrapWire(raw)
-	if err != nil {
-		gxylog.Error(ctx, "decode wire message failed", gxylog.Err(err))
-		return nil
-	}
 	switch msg := msg.(type) {
 	case *message.Message:
 		gxylog.Debug(ctx, "handle client msg", gxylog.Str("payload", gxyutil.FormatObject(msg)))
-		if err := s.OnHandleClientMessage(ctx, msg, from); err != nil {
-			return gerror.Wrap(err, "handle client message error")
+		if err := s.OnHandleClientMessage(ctx, msg, s.Sender()); err != nil {
+			return nil, gerror.Wrap(err, "handle client message error")
 		}
 	case *pb.ServerMsg:
 		if err := s.OnHandleServerMessage(ctx, msg); err != nil {
-			return gerror.Wrap(err, "handle server message error")
-		}
-	case gen.MessageDownPID:
-		// 被监视的角色进程终止。注意:该通知早于对端终止回调完成,
-		// 因此这里只做会话清理,不读取对端状态、不据此释放所有权。
-		if gxyactor.PidEqual(gxyactor.PidFromRuntime(msg.PID), s.sessionInfo.RolePid) {
-			s.sessionInfo.RolePid = gxyactor.PID{}
-			s.Stop(errors.New("role terminated"))
+			return nil, gerror.Wrap(err, "handle server message error")
 		}
 	case *pb.ActorError:
 		s.Stop(gerror.New(msg.Reason))
 	}
-	return s.StopReason()
+	return nil, nil
 }
 
-// Init 是运行时回调:会话建立时初始化状态并启动空闲检查。
+// Init 是同步初始化段:会话建立时初始化状态并启动空闲检查。
 func (s *Session) Init(args ...any) error {
-	if err := s.Actor.Init(args...); err != nil {
-		return err
-	}
 	ctx := s.Ctx
 	s.sessionInfo = &SessionInfo{
 		ConnectTime:      time.Now(),
@@ -256,7 +240,17 @@ func resolveHandshakeIdentity(token string) (*handshakeIdentity, error) {
 }
 
 // OnHandleMessage 处理异步消息
-func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Message, from gen.PID) error {
+// HandleDown 是监视通知入口:被监视的角色进程终止。
+// 注意:该通知早于对端终止回调完成,因此这里只做会话清理,
+// 不读取对端状态、不据此释放所有权。
+func (s *Session) HandleDown(pid gxyactor.PID) {
+	if gxyactor.PidEqual(pid, s.sessionInfo.RolePid) {
+		s.sessionInfo.RolePid = gxyactor.PID{}
+		s.Stop(errors.New("role terminated"))
+	}
+}
+
+func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Message, from gxyactor.PID) error {
 	s.updateClientLastActive()
 	switch msg.Type {
 	case message.MESSGE_TYPE_FIRST_PACKET:
@@ -344,7 +338,6 @@ func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
 // Terminate 是运行时回调:清理会话状态、关闭连接,最后由基类停定时器。
 func (s *Session) Terminate(err error) {
 	ctx := s.Ctx
-	defer s.Actor.Terminate(err)
 	gxylog.Debug(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
 	SessionMgr().Remove(s.sessionInfo.RoleID)
 	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))

@@ -21,7 +21,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"ergo.services/ergo/gen"
 	"github.com/gogf/gf/v2/util/gconv"
 	"google.golang.org/protobuf/proto"
 	"gorm.io/gorm/clause"
@@ -31,7 +30,7 @@ const MaxLogCount = 100
 
 type GuildActor struct {
 	gxymodule.ModuleBase
-	*gxyactor.Actor
+	*gxyactor.EntityActor
 	GuildID int64
 	Data    *Guild
 
@@ -41,13 +40,13 @@ type GuildActor struct {
 
 func NewGuildActor() *GuildActor {
 	g := &GuildActor{db: gxypgx.DB(), cfg: gameconfig.Get()}
-	g.Actor = gxyactor.NewActor("guild", g)
+	g.EntityActor = gxyactor.NewEntityActor()
 	return g
 }
 
 // ===== IActor 接口 =====
 
-// Init 是运行时回调:只绑标识与取所有权;加载由自投消息驱动。
+// Init 是同步初始化段:只绑标识。归属的取得由门面在本段之后执行,业务不介入时序。
 func (g *GuildActor) Init(args ...any) error {
 	if len(args) < 1 {
 		return errors.New("guild actor init args error")
@@ -56,14 +55,12 @@ func (g *GuildActor) Init(args ...any) error {
 	if g.GuildID <= 0 {
 		return errors.New("guild actor init args error")
 	}
-	if err := g.Actor.Init(args...); err != nil {
-		return err
-	}
-	return g.SendSelfInit()
+	return nil
 }
 
-// asyncInit 完成耗时加载并启动定时器。
-func (g *GuildActor) asyncInit() error {
+// AsyncInit 是异步初始化段:耗时加载与定时器。
+// 由门面在同步段之后自投消息驱动,业务不自己发消息。
+func (g *GuildActor) AsyncInit() error {
 	ctx := g.Ctx
 	if err := g.loadFromDB(ctx); err != nil {
 		return err
@@ -87,28 +84,11 @@ func (g *GuildActor) loadFromDB(_ context.Context) error {
 	return nil
 }
 
-// Terminate 是运行时回调:先落盘,再交给基类停定时器并释放所有权。
+// Terminate 是终止路径:最终落盘。
+// 归属释放与定时器停止由门面在本方法返回后执行——顺序不可颠倒(不变量 #4)。
 func (g *GuildActor) Terminate(err error) {
-	defer g.Actor.Terminate(err)
 	g.save(g.Ctx)
 	gxylog.Info(g.Ctx, "guild actor stopped", gxylog.Num("guildID", g.GuildID))
-}
-
-// HandleMessage 是运行时回调。初始化消息在此驱动加载,其余走分派。
-func (g *GuildActor) HandleMessage(from gen.PID, raw any) error {
-	msg, err := gxyactor.UnwrapWire(raw)
-	if err != nil {
-		gxylog.Error(g.Ctx, "decode wire message failed", gxylog.Err(err))
-		return nil
-	}
-	if _, ok := msg.(*gxyactor.ActorInitMsg); ok {
-		if err := g.asyncInit(); err != nil {
-			gxylog.Error(g.Ctx, "guild async init failed", gxylog.Num("guildID", g.GuildID), gxylog.Err(err))
-			return err
-		}
-		return nil
-	}
-	return g.Actor.HandleMessage(from, msg)
 }
 
 // ===== Module 生命周期 =====

@@ -5,6 +5,7 @@ package chat
 
 import (
 	"context"
+	"gserver/src/lib"
 	"os"
 	"testing"
 	"time"
@@ -12,8 +13,6 @@ import (
 	"gserver/core/gxyactor"
 	"gserver/core/gxyactor/gxyactortest"
 	"gserver/protocol/pb"
-
-	"ergo.services/ergo/gen"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"gorm.io/driver/postgres"
@@ -32,7 +31,7 @@ func TestMain(m *testing.M) {
 func newTestChannelActor(t *testing.T, ch IChannel) *ChannelActor {
 	t.Helper()
 	gxyactortest.StubOwnership(t)
-	a, _ := gxyactortest.Spawn(t, NewChannelActor, "1_100")
+	a, _ := gxyactortest.Spawn(t, lib.CHANNEL_ACTOR_TYPE, NewChannelActor, "1_100")
 	a.channel = ch
 	a.buffer = newRingBuffer(ch.RingBufferSize())
 	return a
@@ -103,7 +102,7 @@ func TestChannelActor_Init_UnknownChannelType(t *testing.T) {
 
 func TestChannelActor_Register_AddsMember(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	err := a.HandleMessage(gen.PID{}, &pb.ChannelRegisterMsg{
+	_, err := a.HandleMessage(&pb.ChannelRegisterMsg{
 		RoleId: 5,
 		Pid:    &pb.ActorPid{Address: "addr1", Id: "pid5"},
 	})
@@ -125,10 +124,10 @@ func TestChannelActor_Register_AddsMember(t *testing.T) {
 func TestChannelActor_Register_OverwriteExisting(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	msg := &pb.ChannelRegisterMsg{RoleId: 5, Pid: &pb.ActorPid{Id: "pid_old"}}
-	if err := a.HandleMessage(gen.PID{}, msg); err != nil {
+	if _, err := a.HandleMessage(msg); err != nil {
 		t.Fatalf("first register: %v", err)
 	}
-	if err := a.HandleMessage(gen.PID{}, msg); err != nil {
+	if _, err := a.HandleMessage(msg); err != nil {
 		t.Fatalf("second register: %v", err)
 	}
 	if len(a.members) != 1 {
@@ -143,7 +142,7 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	reg := func(id int64) {
 		t.Helper()
-		if err := a.HandleMessage(gen.PID{}, &pb.ChannelRegisterMsg{
+		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
 			RoleId: id, Pid: &pb.ActorPid{Id: "p" + string(rune(id))},
 		}); err != nil {
 			t.Fatalf("register %d: %v", id, err)
@@ -151,7 +150,7 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 	}
 	reg(5)
 	reg(6)
-	if err := a.HandleMessage(gen.PID{}, &pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
+	if _, err := a.HandleMessage(&pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
 		t.Fatalf("unregister: %v", err)
 	}
 	if len(a.members) != 1 {
@@ -164,12 +163,12 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 
 func TestChannelActor_Unregister_LastMemberNoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	if err := a.HandleMessage(gen.PID{}, &pb.ChannelRegisterMsg{
+	if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
 		RoleId: 5, Pid: &pb.ActorPid{Id: "pid5"},
 	}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if err := a.HandleMessage(gen.PID{}, &pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
+	if _, err := a.HandleMessage(&pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
 		t.Fatalf("unregister: %v", err)
 	}
 	if len(a.members) != 0 {
@@ -181,7 +180,7 @@ func TestChannelActor_Unregister_LastMemberNoPanic(t *testing.T) {
 
 func TestChannelActor_Send_EmptyContentRejected(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	_, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "",
 	})
 	if err != nil {
@@ -194,7 +193,7 @@ func TestChannelActor_Send_EmptyContentRejected(t *testing.T) {
 
 func TestChannelActor_Send_AppendsToBuffer(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	_, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "hello",
 	})
 	if err != nil {
@@ -214,14 +213,14 @@ func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 	// RoleID<=0: PublishRoleNotify 走 invalid 分支(不触达未初始化的全局 Redis),
 	// 测试聚焦"通知所有成员"流程不 panic + buffer 追加。
 	for _, id := range []int64{0, -1} {
-		if err := a.HandleMessage(gen.PID{}, &pb.ChannelRegisterMsg{
+		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
 			RoleId: id, Pid: &pb.ActorPid{Id: "p" + string(rune(id))},
 		}); err != nil {
 			t.Fatalf("register %d: %v", id, err)
 		}
 	}
 	// 通知所有成员(PublishRoleNotify 经全局 app 失败无害), 不应 panic
-	if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	if _, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "hi",
 	}); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
@@ -237,7 +236,7 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	send := func(content string) {
 		t.Helper()
-		if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+		if _, err := a.HandleMessage(&pb.ReqChannelSend{
 			ChannelType: 1, ChannelId: 100, SenderId: 5, Content: content,
 		}); err != nil {
 			t.Fatalf("send %q: %v", content, err)
@@ -247,7 +246,7 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	send("m2")
 	send("m3")
 
-	if err := a.HandleMessage(gen.PID{}, &pb.ReqChatChannelHistory{
+	if _, err := a.HandleMessage(&pb.ReqChatChannelHistory{
 		ChannelType: 1, ChannelId: 100, Count: 2,
 	}); err != nil {
 		t.Fatalf("history: %v", err)
@@ -260,14 +259,14 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 
 func TestChannelActor_History_CountClamped(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	if _, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "x",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	// count<=0 与超上限都应 clamp 到 RingBufferSize, 不 panic
 	for _, c := range []int32{0, -1, 100000} {
-		if err := a.HandleMessage(gen.PID{}, &pb.ReqChatChannelHistory{
+		if _, err := a.HandleMessage(&pb.ReqChatChannelHistory{
 			ChannelType: 1, ChannelId: 100, Count: c,
 		}); err != nil {
 			t.Fatalf("history count=%d: %v", c, err)
@@ -288,7 +287,7 @@ func TestChannelActor_Save_PersistsNewMessages(t *testing.T) {
 		expectChannelInsert(mock)
 	}
 	for _, c := range []string{"a", "b"} {
-		if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+		if _, err := a.HandleMessage(&pb.ReqChannelSend{
 			ChannelType: 4, ChannelId: 7, SenderId: 5, Content: c,
 		}); err != nil {
 			t.Fatalf("send: %v", err)
@@ -311,7 +310,7 @@ func TestChannelActor_Save_NoNewMessagesSkipsWrite(t *testing.T) {
 	a.db = db
 
 	expectChannelInsert(mock)
-	if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	if _, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 4, ChannelId: 7, SenderId: 5, Content: "x",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -328,7 +327,7 @@ func TestChannelActor_Save_DisabledChannelSkips(t *testing.T) {
 	db, mock := newGormDB(t)
 	a := newTestChannelActor(t, WorldChannel{})
 	a.db = db
-	if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	if _, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "x",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -371,7 +370,7 @@ func TestChannelActor_Terminate_PersistsPending(t *testing.T) {
 	a := newTestChannelActor(t, GuildChannel{})
 	a.db = db
 	expectChannelInsert(mock)
-	if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	if _, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 4, ChannelId: 7, SenderId: 5, Content: "bye",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -386,7 +385,7 @@ func TestChannelActor_Terminate_PersistsPending(t *testing.T) {
 func TestChannelActor_RingBuffer_Eviction(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	for i := range 205 {
-		if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+		if _, err := a.HandleMessage(&pb.ReqChannelSend{
 			ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "m",
 		}); err != nil {
 			t.Fatalf("send %d: %v", i, err)
@@ -502,7 +501,7 @@ func TestChannelActor_Send_PersistsSenderID(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	if err := a.HandleMessage(gen.PID{}, &pb.ReqChannelSend{
+	if _, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 4, ChannelId: 7, SenderId: 5, Content: "hi",
 	}); err != nil {
 		t.Fatalf("send: %v", err)

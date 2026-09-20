@@ -150,21 +150,53 @@ func TestPIDIsZero(t *testing.T) {
 	}
 }
 
-// ========== getActorLocateKey ==========
+// ========== actorKey ==========
+// 所有权键的格式是对外契约(跨版本要读同一条记录),因此固定断言。
 
-func TestGetActorLocateKey(t *testing.T) {
-	key := getActorLocateKey("role", "123")
+func TestActorKeyLocateKey(t *testing.T) {
+	key := actorKey{kind: "role", id: "123"}.locateKey()
 	expected := "gserver:locate:node:actor:role:123"
 	if key != expected {
 		t.Fatalf("expected %s, got %s", expected, key)
 	}
 }
 
-func TestGetActorLocateKey_EmptyKind(t *testing.T) {
-	key := getActorLocateKey("", "456")
+func TestActorKeyLocateKey_EmptyKind(t *testing.T) {
+	key := actorKey{kind: "", id: "456"}.locateKey()
 	expected := "gserver:locate:node:actor::456"
 	if key != expected {
 		t.Fatalf("expected %s, got %s", expected, key)
+	}
+}
+
+// 注册名带 kind 前缀,避免不同 kind 的相同 id 冲突。
+func TestActorKeyName(t *testing.T) {
+	k := actorKey{kind: "role", id: "7"}
+	if got := k.name(); got != "role/7" {
+		t.Fatalf("name = %q, want role/7", got)
+	}
+}
+
+// 跨节点引用按"节点 + 注册名"构造,应答同样如此。
+func TestActorKeyRemoteAddressing(t *testing.T) {
+	k := actorKey{kind: "role", id: "7"}
+	if got := k.remoteRef("node-b").Name(); got != "role/7" {
+		t.Fatalf("remoteRef name = %q, want role/7", got)
+	}
+	if got := k.remoteRef("node-b").Node(); got != "node-b" {
+		t.Fatalf("remoteRef node = %q, want node-b", got)
+	}
+	reply := k.actorPid("node-b")
+	if reply.GetAddress() != "node-b" || reply.GetId() != "role/7" {
+		t.Fatalf("reply = %+v, want {node-b role/7}", reply)
+	}
+}
+
+// 应答与引用的名字必须一致:它们是同一个身份在两种通道上的表示。
+func TestActorKeyReplyMatchesRemoteRef(t *testing.T) {
+	k := actorKey{kind: "guild", id: "42"}
+	if k.actorPid("n1").GetId() != string(k.name()) || k.remoteRef("n1").Name() != string(k.name()) {
+		t.Fatal("应答与引用必须由同一个身份派生")
 	}
 }
 
@@ -186,10 +218,10 @@ func TestClaimAndLocate(t *testing.T) {
 	})
 
 	mgr := NewActivatorManager("node", "node@1")
-	if err := mgr.locator.acquireNodeLease(context.Background()); err != nil {
+	if err := mgr.lease.acquireNodeLease(context.Background()); err != nil {
 		t.Fatalf("acquireNodeLease() error = %v", err)
 	}
-	owner, acquired, err := mgr.locator.claim(context.Background(), "role", "player-1")
+	owner, acquired, err := mgr.store.Claim(context.Background(), "role", "player-1")
 	if err != nil {
 		t.Fatalf("claim() error = %v", err)
 	}
@@ -197,11 +229,11 @@ func TestClaimAndLocate(t *testing.T) {
 		t.Fatal("claim() did not acquire a new owner")
 	}
 	t.Cleanup(func() {
-		_, _ = mgr.locator.release(context.Background(), "role", "player-1", owner)
-		_ = mgr.locator.releaseNodeLease(context.Background())
+		_, _ = mgr.store.Release(context.Background(), "role", "player-1", owner)
+		_ = mgr.lease.releaseNodeLease(context.Background())
 	})
 
-	got, err := mgr.locator.locate(context.Background(), "role", "player-1")
+	got, err := mgr.store.Locate(context.Background(), "role", "player-1")
 	if err != nil {
 		t.Fatalf("locate() error = %v", err)
 	}

@@ -70,7 +70,7 @@ func benchRedisReady(b *testing.B) {
 func BenchmarkRegisterActorLocate(b *testing.B) {
 	benchRedisReady(b)
 	mgr := NewActivatorManager("bench", "bench@1")
-	if err := mgr.locator.acquireNodeLease(context.Background()); err != nil {
+	if err := mgr.lease.acquireNodeLease(context.Background()); err != nil {
 		b.Fatal(err)
 	}
 	keyPrefix := "bench-player"
@@ -80,7 +80,7 @@ func BenchmarkRegisterActorLocate(b *testing.B) {
 	for b.Loop() {
 		i++
 		id := fmt.Sprintf("%s-%d", keyPrefix, i)
-		if _, _, err := mgr.locator.claim(context.Background(), "role", id); err != nil {
+		if _, _, err := mgr.store.Claim(context.Background(), "role", id); err != nil {
 			b.Fatalf("claim actor owner error = %v", err)
 		}
 	}
@@ -89,7 +89,7 @@ func BenchmarkRegisterActorLocate(b *testing.B) {
 func BenchmarkLocateOwner(b *testing.B) {
 	benchRedisReady(b)
 	mgr := NewActivatorManager("bench", "bench@node")
-	key := getActorLocateKey("role", "bench-player")
+	key := actorKey{kind: "role", id: "bench-player"}.locateKey()
 	leaseKey := actorLocatorLeaseKey("bench@node")
 	if err := gxyredis.Redis().Set(context.Background(), key, "bench@node|1|bench-token", 0).Err(); err != nil {
 		b.Fatalf("setup locate key error = %v", err)
@@ -103,7 +103,7 @@ func BenchmarkLocateOwner(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		owner, err := mgr.locator.locate(context.Background(), "role", "bench-player")
+		owner, err := mgr.store.Locate(context.Background(), "role", "bench-player")
 		if err != nil {
 			b.Fatalf("locate() error = %v", err)
 		}
@@ -130,10 +130,10 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
-	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
-		return pidFromRemote(node, actorName("role", id)), false, nil
+	mgr.requestActorFunc = func(_ context.Context, node string, k actorKey, allowSpawn bool) (PID, bool, error) {
+		return k.remoteRef(node), false, nil
 	}
-	key := getActorLocateKey("role", "bench-player")
+	key := actorKey{kind: "role", id: "bench-player"}.locateKey()
 	leaseKey := actorLocatorLeaseKey(targetNode)
 	if err := gxyredis.Redis().Set(context.Background(), key, encodeActorOwner(ActorOwner{NodeID: targetNode, Epoch: 1}, "bench-token"), 0).Err(); err != nil {
 		b.Fatalf("setup locate key error = %v", err)
@@ -147,7 +147,7 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		pid, err := mgr.getActor(context.Background(), "role", "bench-player", false)
+		pid, err := mgr.getActor(context.Background(), actorKey{kind: "role", id: "bench-player"}, false)
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
 		}
@@ -171,7 +171,7 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 	hs := gxyregistery.HashServices{ServiceInfos: services, Hash: "bench"}
 	selector := gxyregistery.ConsistentHashSelector()
 	gxylog.SetLevel("error")
-	routeKey := getActorLocateKey("role", "bench-player")
+	routeKey := actorKey{kind: "role", id: "bench-player"}.locateKey()
 	expected := selector.Select(context.Background(), "role", routeKey, hs)
 	if expected == nil {
 		b.Fatal("expected selector returned nil")
@@ -179,13 +179,13 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 
 	mgr := NewActivatorManager("bench", "bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
-	mgr.requestActorFunc = func(_ context.Context, node string, _ string, id string, _ bool) (PID, bool, error) {
-		return pidFromRemote(node, actorName("role", id)), false, nil
+	mgr.requestActorFunc = func(_ context.Context, node string, k actorKey, allowSpawn bool) (PID, bool, error) {
+		return k.remoteRef(node), false, nil
 	}
 
 	b.ResetTimer()
 	for b.Loop() {
-		pid, err := mgr.getActor(context.Background(), "role", "bench-player", true)
+		pid, err := mgr.getActor(context.Background(), actorKey{kind: "role", id: "bench-player"}, true)
 		if err != nil {
 			b.Fatalf("getActor() error = %v", err)
 		}

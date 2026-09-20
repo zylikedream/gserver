@@ -13,7 +13,6 @@ import (
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
 
-	"ergo.services/ergo/gen"
 	"gserver/src/apps/role/internal/event"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/lib/rolelib"
@@ -89,7 +88,7 @@ type roleModules struct {
 type RoleMain struct {
 	gxymodule.ModuleBase
 	roleModules
-	*gxyactor.Actor
+	*gxyactor.EntityActor
 	RoleID int64
 
 	actorOwner  gxyactor.ActorOwner
@@ -115,7 +114,7 @@ func NewRoleMain() *RoleMain {
 		// 组装根:填充全局单例;测试可覆盖注入 mock。
 		deps: deps.Deps{DB: gxypgx.DB(), Redis: gxyredis.Redis(), Cfg: gameconfig.Get()},
 	}
-	r.Actor = gxyactor.NewActor("role", r)
+	r.EntityActor = gxyactor.NewEntityActor()
 	return r
 }
 
@@ -134,15 +133,6 @@ func (r *RoleMain) Init(args ...any) error {
 	}
 	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
 
-	// 所有权由基类在同步段取得(见 invariants #3)。
-	if err := r.Actor.Init(args...); err != nil {
-		return err
-	}
-	r.actorOwner = r.Owner()
-	if r.actorOwner.NodeID == "" || r.actorOwner.Epoch == 0 {
-		return gerror.Newf("actor owner is invalid, owner: %v", r.actorOwner)
-	}
-
 	// 账号存在性校验留在同步段:它决定该 role 是否可激活。
 	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
 	if err != nil {
@@ -151,14 +141,18 @@ func (r *RoleMain) Init(args ...any) error {
 	if accountID == "" {
 		return gerror.Newf("role account not exist, roleID: %d", r.RoleID)
 	}
-
-	// 自投初始化消息,驱动异步加载;此时队列为空,故它必然最先被处理。
-	return r.SendSelfInit()
+	return nil
 }
 
-// asyncInit 完成耗时的加载(数据库 fence、模块状态、定时器)。
-func (r *RoleMain) asyncInit() error {
+// AsyncInit 是异步初始化段:耗时加载(数据库 fence、模块状态、定时器)。
+// 由门面在同步段之后自投消息驱动,业务不自己发消息。
+// 归属已由门面在此之前取得(不变量 #3)。
+func (r *RoleMain) AsyncInit() error {
 	ctx := r.Ctx
+	r.actorOwner = r.Owner()
+	if r.actorOwner.NodeID == "" || r.actorOwner.Epoch == 0 {
+		return gerror.Newf("actor owner is invalid, owner: %v", r.actorOwner)
+	}
 	if err := advanceRoleActorFence(ctx, r.DB(), r.RoleID, r.actorOwner); err != nil {
 		return gerror.Wrapf(err, "advance role actor fence, roleID: %d", r.RoleID)
 	}
@@ -298,23 +292,6 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 		return false
 	}
 	return true
-}
-
-// HandleMessage 是运行时回调。初始化消息在此驱动异步加载,其余走分派。
-func (r *RoleMain) HandleMessage(from gen.PID, raw any) error {
-	msg, err := gxyactor.UnwrapWire(raw)
-	if err != nil {
-		gxylog.Error(r.Ctx, "decode wire message failed", gxylog.Err(err))
-		return nil
-	}
-	if _, ok := msg.(*gxyactor.ActorInitMsg); ok {
-		if err := r.asyncInit(); err != nil {
-			gxylog.Error(r.Ctx, "role async init failed", gxylog.Num("roleID", r.RoleID), gxylog.Err(err))
-			return err
-		}
-		return nil
-	}
-	return r.Actor.HandleMessage(from, msg)
 }
 
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
@@ -751,11 +728,11 @@ func roleLogoutReason(reason string) string {
 	}
 }
 
-// Terminate 是运行时回调:先走模块停止(含落盘),再交给基类释放所有权。
-// 顺序不可颠倒——先释放所有权会让新持有者推进世代,使本次落盘被拒绝。
+// Terminate 是终止路径:先走模块停止(含落盘)。
+// 归属释放由门面在本方法返回后执行——顺序不可颠倒,先释放所有权会让新持有者
+// 推进世代,使本次落盘被拒绝(不变量 #4)。
 func (r *RoleMain) Terminate(err error) {
 	ctx := r.Ctx
-	defer r.Actor.Terminate(err)
 	gxylog.Debug(ctx, "role stopped", gxylog.Err(err))
 	if serr := r.StopModule(ctx); serr != nil {
 		gxylog.Error(ctx, "stop module error", gxylog.Err(serr))

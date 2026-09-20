@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"encoding/json"
+	"gserver/src/lib"
 	"os"
 	"path/filepath"
 	"testing"
@@ -71,7 +72,7 @@ func initGuildTestConfig(t *testing.T) {
 func newTestGuild(t *testing.T) *GuildActor {
 	t.Helper()
 	gxyactortest.StubOwnership(t)
-	g, _ := gxyactortest.Spawn(t, NewGuildActor, int64(1))
+	g, _ := gxyactortest.Spawn(t, lib.GUILD_ACTOR_TYPE, NewGuildActor, int64(1))
 	g.Data = &Guild{
 		ID: 1, Name: "TestGuild", Level: 1,
 		LeaderID: 100, MemberCount: 3, NeedApproval: true,
@@ -88,7 +89,7 @@ func newTestGuild(t *testing.T) *GuildActor {
 
 func TestGuildActorInitParsesID(t *testing.T) {
 	gxyactortest.StubOwnership(t)
-	g, _ := gxyactortest.Spawn(t, NewGuildActor, int64(1))
+	g, _ := gxyactortest.Spawn(t, lib.GUILD_ACTOR_TYPE, NewGuildActor, int64(1))
 	if g.GuildID != 1 {
 		t.Fatalf("GuildID = %d, want 1", g.GuildID)
 	}

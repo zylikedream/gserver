@@ -103,7 +103,7 @@ func (s *roleService) Weight() int {
 func (s *roleService) OnModStart(ctx context.Context) error {
     // 注册 Actor Kind，激活协调层才能按需创建
     // 注册名同时是所有权键所用的能力名，必须与查询方使用的名字一致
-    if err := gxyactor.RegisterActorKind(s.ServiceName(), func() act.ActorBehavior {
+    if err := gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.Business {
         return logic.NewRoleMain()
     }); err != nil {
         return err

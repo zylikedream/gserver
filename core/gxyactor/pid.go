@@ -95,7 +95,7 @@ func NewPID(node string, name string) PID {
 }
 
 // pidFromRemote 由节点与注册名构造跨节点引用。
-// 名字用运行时表示,与 actorName 的返回类型一致——内部调用方不必来回转换。
+// 名字用运行时表示,与身份派生出的注册名类型一致——内部调用方不必来回转换。
 func pidFromRemote(node string, name gen.Atom) PID {
 	return PID{remote: gen.ProcessID{Node: gen.Atom(node), Name: name}}
 }

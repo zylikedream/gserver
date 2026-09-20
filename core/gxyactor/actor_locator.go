@@ -23,11 +23,6 @@ const (
 	redisLocatePrefix         = "gserver:locate:node"
 )
 
-// getActorLocateKey 返回 actor 所有权记录的 Redis key。
-func getActorLocateKey(kind string, id string) string {
-	return fmt.Sprintf("%s:%s:%s:%s", redisLocatePrefix, "actor", kind, id)
-}
-
 var (
 	errActorLocatorLeaseInvalid  = errors.New("actor locator lease is invalid")
 	errActorLocatorLeaseDeadline = errors.New("actor locator lease deadline exceeded")
@@ -163,16 +158,28 @@ func newLeaseToken() string {
 	return hex.EncodeToString(buf[:])
 }
 
-func actorLocatorOwnerKey(kind, id string) string {
-	return getActorLocateKey(kind, id)
-}
-
 func actorLocatorLeaseKey(nodeID string) string {
 	return fmt.Sprintf("%s:lease:%s", redisLocatePrefix, nodeID)
 }
 
 func actorLocatorEpochKey() string {
 	return redisLocatePrefix + ":epoch"
+}
+
+// nodeLease 是本节点租约的能力面:取得、释放、心跳。
+//
+// 它是与"每个 actor 的归属记录"不同的关注点,两者粒度与生命周期都不同:
+//
+//   - 本接口:每节点一份,随 actor 模块启动/停止而生灭;
+//   - OwnershipStore:每个 actor 一份,随实例的初始化段/终止路径而生灭。
+//
+// 方法未导出:租约只有本包这一种实现(基于 Redis 的节点级租约),测试不替换它,
+// 因此不需要包外实现。把字段声明成本接口,actor 归属的那些方法就不会和租约
+// 混在同一个字段上。
+type nodeLease interface {
+	acquireNodeLease(ctx context.Context) error
+	releaseNodeLease(ctx context.Context) error
+	startLeaseHeartbeat(ctx context.Context, onLost func(error)) func()
 }
 
 func (l *actorLocator) ensureClient() error {
@@ -212,7 +219,11 @@ func (l *actorLocator) renewNodeLease(ctx context.Context) (bool, error) {
 	return result == 1, nil
 }
 
-func (l *actorLocator) claim(ctx context.Context, kind, id string) (ActorOwner, bool, error) {
+// Claim 取得归属,满足 OwnershipStore。
+// 对外用 kind 与 id 是刻意的:存储 API 的键词汇就是标量,调用方手里也是它们;
+// 身份在进入存储时构造一次,Redis 键由它派生。
+func (l *actorLocator) Claim(ctx context.Context, kind string, id string) (ActorOwner, bool, error) {
+	k := actorKey{kind: kind, id: id}
 	if err := l.ensureClient(); err != nil {
 		return ActorOwner{}, false, err
 	}
@@ -220,7 +231,7 @@ func (l *actorLocator) claim(ctx context.Context, kind, id string) (ActorOwner, 
 		return ActorOwner{}, false, errActorLocatorLeaseInvalid
 	}
 	result, err := l.redis.Eval(ctx, actorLocatorClaimScript, []string{
-		actorLocatorOwnerKey(kind, id),
+		k.locateKey(),
 		actorLocatorLeaseKey(l.nodeID),
 		actorLocatorEpochKey(),
 	}, l.nodeID, l.leaseToken).Result()
@@ -272,11 +283,13 @@ func (l *actorLocator) releaseNodeLease(ctx context.Context) error {
 	return nil
 }
 
-func (l *actorLocator) locate(ctx context.Context, kind, id string) (ActorOwner, error) {
+// Locate 查询归属,满足 OwnershipStore。
+func (l *actorLocator) Locate(ctx context.Context, kind string, id string) (ActorOwner, error) {
+	k := actorKey{kind: kind, id: id}
 	if err := l.ensureClient(); err != nil {
 		return ActorOwner{}, err
 	}
-	value, err := l.redis.Eval(ctx, actorLocatorLocateScript, []string{actorLocatorOwnerKey(kind, id)}).Result()
+	value, err := l.redis.Eval(ctx, actorLocatorLocateScript, []string{k.locateKey()}).Result()
 	if err != nil {
 		return ActorOwner{}, errors.Wrap(err, "locate actor owner")
 	}
@@ -290,11 +303,13 @@ func (l *actorLocator) locate(ctx context.Context, kind, id string) (ActorOwner,
 	return decodeActorOwner(ownerValue)
 }
 
-func (l *actorLocator) release(ctx context.Context, kind, id string, owner ActorOwner) (bool, error) {
+// Release 条件释放,满足 OwnershipStore。
+func (l *actorLocator) Release(ctx context.Context, kind string, id string, owner ActorOwner) (bool, error) {
+	k := actorKey{kind: kind, id: id}
 	if err := l.ensureClient(); err != nil {
 		return false, err
 	}
-	result, err := l.redis.Eval(ctx, actorLocatorReleaseScript, []string{actorLocatorOwnerKey(kind, id)}, encodeActorOwner(owner, l.leaseToken)).Int64()
+	result, err := l.redis.Eval(ctx, actorLocatorReleaseScript, []string{k.locateKey()}, encodeActorOwner(owner, l.leaseToken)).Int64()
 	if err != nil {
 		return false, errors.Wrap(err, "release actor owner")
 	}

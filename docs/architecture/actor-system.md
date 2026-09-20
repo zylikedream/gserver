@@ -2,7 +2,7 @@
 
 GServer 基于 [ergo](https://ergo.services) 构建 Actor 系统，封装在 `core/gxyactor/` 中。门面是[深模块](adr-0008-actor-runtime-ergo-migration.md)：跨节点编码、地址模型、激活与所有权的复杂度都留在门面内，业务侧只看到少数入口。
 
-设计决策见 ADR：运行时替换 `adr-0008`、跨节点编码 `adr-0009`、节点身份 `adr-0010`、服务发现与寻址 `adr-0011`、激活与所有权 `adr-0012`、失败语义与可观测性 `adr-0013`、业务接入形态 `adr-0014`。约束清单见 [invariants.md](invariants.md)（唯一有约束力的来源）。
+设计决策见 ADR：运行时替换 `adr-0008`、跨节点编码 `adr-0009`、节点身份 `adr-0010`、服务发现与寻址 `adr-0011`、激活与所有权 `adr-0012`、失败语义与可观测性 `adr-0013`、基类分层 `adr-0015`、业务与运行时隔离 `adr-0017`（`adr-0014` 已被它取代）。约束清单见 [invariants.md](invariants.md)（唯一有约束力的来源）。
 
 ## 架构层次
 
@@ -33,37 +33,44 @@ GServer 基于 [ergo](https://ergo.services) 构建 Actor 系统，封装在 `co
 
 ### Actor 基类（`actor.go`）
 
-业务结构体**直接内嵌** `*gxyactor.Actor`（该基类内嵌运行时的行为基类），不保留业务侧接口与适配层（见 ADR 0014）。
+业务对象**不内嵌任何运行时类型**：门面在业务与运行时之间放一个只面向运行时的适配对象
+（见 [ADR 0017](adr-0017-business-runtime-isolation.md)）。交给运行时的永远是适配对象，
+业务对象在它里面——因此业务拿不到运行时的原生能力（跨节点封装无法被绕过），也不可能
+覆写掉门面机制。
+
+业务内嵌基类即可，构造时不传自身、也不传能力名（能力名由登记处按注册表的键写入）：
 
 ```go
 type GuildActor struct {
-    *gxyactor.Actor
+    *gxyactor.EntityActor // 承载持久实体；只参与运行时的 actor 内嵌 *gxyactor.Actor
     // 业务字段
 }
 ```
 
-基类补的是"运行时没给而项目需要"的东西：带日志与追踪上下文的 `context`、按消息类型的反射分派、定时器、注册式 actor 的所有权。
+基类补的是"运行时没给而项目需要"的东西：带日志与追踪上下文的 `context`、按消息类型的
+反射分派、定时器。这些都在 `Actor` 上——**分派属于"是个 actor"，与是否承载实体无关**。
+`EntityActor` 只在此之上加**所有权**（单写者语义）。
 
-**覆写回调时的约定——显式调用基类同名方法，顺序有语义：**
+**业务入口（全部可选，实现哪个就有哪个能力）：**
 
 ```go
-func (g *GuildActor) Init(args ...any) error {
-    if err := g.Actor.Init(args...); err != nil { return err } // 先取得所有权 + 注册分派
-    return g.load(g.Ctx)                                      // 再做自己的初始化
-}
-
-func (g *GuildActor) Terminate(reason error) {
-    defer g.Actor.Terminate(reason) // 后停定时器、释放所有权
-    g.save(g.Ctx)                   // 先落盘——顺序不可颠倒(见 invariants #4)
-}
+func (g *GuildActor) Init(args ...any) error              // 同步段：只绑标识、纯内存校验
+func (g *GuildActor) AsyncInit() error                    // 异步段：耗时加载（门面驱动，不必自投消息）
+func (g *GuildActor) HandleMessage(msg any) (any, error)  // 异步消息
+func (g *GuildActor) HandleCall(msg any) (any, error)     // 同步请求
+func (g *GuildActor) HandleDown(pid gxyactor.PID)         // 被监视目标终止
+func (g *GuildActor) Terminate(err error)                 // 终止路径：只做最终落盘
 ```
+
+这些名字由业务独占：运行时回调只出现在适配对象上，两组名字不可能相撞。业务因此
+**不需要**记得"覆写时调回基类"——那类约定已不存在。
 
 生命周期：
 
-1. `Init` — 同步初始化段：取得所有权 → 注册消息分派 → （业务：纯内存校验），返回错误即进程终止
-2. 异步段 — 耗时的加载与外部访问。初始化期间自投一条消息驱动，在同步段返回后处理
-3. 消息循环 — 按消息类型反射分派到业务方法
-4. `Terminate` — 终止路径：业务先落盘，基类再释放所有权
+1. `Init` — 同步段：业务绑标识 → 门面取得所有权 → 注册消息分派，返回错误即进程终止
+2. 异步段 — 耗时的加载与外部访问。门面在同步段返回后自投一条消息驱动，业务不自己发
+3. 消息循环 — 业务入口按需处理：`HandleMessage` / `HandleCall` / `HandleDown`
+4. `Terminate` — 终止路径：业务先落盘，门面再释放所有权（见 invariants #4）
 
 **对外操作**（actor 内部必须用这些，不能用包级函数）：
 
@@ -71,9 +78,8 @@ func (g *GuildActor) Terminate(reason error) {
 |---|---|
 | `SendTo(pid, msg)` | 异步发送（发送者是本 actor） |
 | `Call(pid, msg, timeout)` | 同步调用；**对端的业务失败已还原为 error**（见下） |
-| `Reply` / `ReplyCall` | 回应异步消息 / 同步请求 |
-| `Watch` / `Unwatch` | 监视目标进程终止 |
-| `Stop` / `StopRequested` / `StopReason` | 停止自身及其原因 |
+| `Watch` / `Unwatch` | 监视目标进程终止（通知经 `HandleDown` 到达） |
+| `Stop(err)` / `StopRequested()` | 停止自身 |
 | `Timer()` | 定时器 |
 | `Sender()` / `Self()` / `Owner()` | 当前消息的发送者 / 自身地址 / 本次持有权 |
 
@@ -94,6 +100,9 @@ func (g *GuildActor) Terminate(reason error) {
 - **跨节点**：按"节点名 + 注册名"寻址
 
 为什么跨节点不用进程标识：它含"哪一代实例"的信息，跨节点投递会做代际校验，对端重启后旧标识即失效；注册名是稳定的逻辑身份，对端重启后同一逻辑 actor 仍可收到消息。代价是跨节点比较只比到节点与名字，比不出"是不是同一个进程实例"。
+
+**已登记的代价（尚未处理）**：`PID.Name()` 对**本机**引用需要反查注册名，而名字表是单向的（名字→进程），因此是遍历查找。`PidToPB` 内部会调它，
+调用点 `role_chat.go:94` 传的是本机引用 —— 即每次请求一次遍历，代价随本节点 actor 数增长。修法有两条（让本机引用也带上名字，或让 `PidToPB` 不依赖反查），取舍未定。
 
 ### 跨节点编码（`wire.go`）
 
@@ -155,13 +164,20 @@ gserver:locate:node:epoch              →  全局世代计数器
 ### 注册 Actor Kind
 
 ```go
-// role_service.go
-gxyactor.RegisterActorKind(s.ServiceName(), func() act.ActorBehavior {
+// role_service.go —— 业务交出"怎么造自己",不交出"自己叫什么名字"
+gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.Business {
     return logic.NewRoleMain()
 })
 ```
 
-**能力名即注册名**。所有权键与指标都按能力名区分，因此它与查询方使用的键必须一致；能力名由框架在创建时写入实例，实例不自行推断（否则会出现"所有权记在一个名字下、查询查另一个名字"而永远 miss）。
+**能力名即注册名**。所有权键与指标都按能力名区分，因此它与查询方使用的键必须一致；能力名由登记处按注册表的键写入实例（见 ADR 0017），实例不自行推断——否则会出现"所有权记在一个名字下、查询查另一个名字"而永远 miss。
+
+### 所有权载体（可注入）
+
+归属记录的持久化实现是 `OwnershipStore` 接口（默认基于 Redis）。**这是依赖注入点，不是测试开关**：它换掉的是"归属存在哪里"这个真实组件，而不是内部逻辑。
+
+测试因此传内存实现即可，业务代码里不需要任何测试钩子——业务面文件（`actor.go`、`entity_actor.go`、`runtime_actor.go`）不含 `Stub`/`Set` 之外的测试痕迹。可注入的依赖应做在被依赖的组件上，而不是做在被测对象内部；
+包内测试（如归属释放顺序）可以直接注入真实实现（miniredis），测的与生产是同一条路径。
 
 ## 服务发现与寻址
 
@@ -187,7 +203,7 @@ gxyactor.RegisterActorKind(s.ServiceName(), func() act.ActorBehavior {
 
 | 文件 | 内容 |
 |------|------|
-| `core/gxyactor/actor.go` | `Actor` 基类：生命周期、分派、定时器、对外操作、所有权 |
+| `core/gxyactor/actor.go` | `Actor` 基类：生命周期、按消息类型分派、定时器、对外操作 |
 | `core/gxyactor/system.go` | `actorApp` 全局单例、运行时节点、创建与发送 |
 | `core/gxyactor/helper.go` | 全局函数（注册、创建、`SendAsNode`） |
 | `core/gxyactor/activator_manager.go` | 激活协调：归属查询、重定位、陈旧记录清理、能力目录 |

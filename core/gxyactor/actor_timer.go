@@ -52,10 +52,10 @@ func (s *ActorTimer) AddDaily(name string, hour int, fn func(ctx context.Context
 	s.callbackFuncs[name] = fn
 	jobName := s.jobName(name)
 	spec := fmt.Sprintf("0 %d * * *", hour)
-	err := s.actor.Node().Cron().AddJob(gen.CronJob{
+	err := s.actor.rt.Node().Cron().AddJob(gen.CronJob{
 		Name:   jobName,
 		Spec:   spec,
-		Action: gen.CreateCronActionMessage(s.actor.PID(), gen.MessagePriorityNormal),
+		Action: gen.CreateCronActionMessage(s.actor.rt.PID(), gen.MessagePriorityNormal),
 	})
 	if err != nil {
 		gxylog.Error(s.actor.Ctx, "register daily timer failed",
@@ -89,7 +89,7 @@ func (s *ActorTimer) Stop(ctx context.Context) {
 	s.cancels = nil
 
 	for _, job := range s.cronJobs {
-		if err := s.actor.Node().Cron().RemoveJob(job); err != nil {
+		if err := s.actor.rt.Node().Cron().RemoveJob(job); err != nil {
 			gxylog.Warn(ctx, "remove daily timer failed",
 				gxylog.Str("timer", string(job)), gxylog.Err(err))
 		}
@@ -104,7 +104,7 @@ func (s *ActorTimer) every(name string, interval time.Duration) {
 		gxylog.Error(s.actor.Ctx, "timer interval must be positive", gxylog.Str("timer", name))
 		return
 	}
-	cancel, err := s.actor.SendEvery(s.actor.PID(), ActorTimerMsg{Name: name}, interval)
+	cancel, err := s.actor.rt.SendEvery(s.actor.rt.PID(), ActorTimerMsg{Name: name}, interval)
 	if err != nil {
 		gxylog.Error(s.actor.Ctx, "register tick timer failed", gxylog.Str("timer", name), gxylog.Err(err))
 		return
@@ -118,7 +118,7 @@ func (s *ActorTimer) after(name string, delay time.Duration) {
 		gxylog.Error(s.actor.Ctx, "timer delay must be positive", gxylog.Str("timer", name))
 		return
 	}
-	cancel, err := s.actor.SendAfter(s.actor.PID(), ActorTimerMsg{Name: name}, delay)
+	cancel, err := s.actor.rt.SendAfter(s.actor.rt.PID(), ActorTimerMsg{Name: name}, delay)
 	if err != nil {
 		gxylog.Error(s.actor.Ctx, "register once timer failed", gxylog.Str("timer", name), gxylog.Err(err))
 		return
@@ -136,8 +136,8 @@ func (s *ActorTimer) Active(ctx context.Context, msg ActorTimerMsg) {
 // jobName 生成 cron 任务名。cron 是节点级的,而每个 actor 都要注册自己的
 // 每日任务,因此任务名必须带上 actor 身份以避免冲突。
 func (s *ActorTimer) jobName(name string) gen.Atom {
-	owner := "pid" + s.actor.PID().String()
-	if n := s.actor.Name(); n != "" {
+	owner := "pid" + s.actor.self.String()
+	if n := s.actor.rt.Name(); n != "" {
 		owner = string(n)
 	}
 	return gen.Atom(name + "@" + owner)

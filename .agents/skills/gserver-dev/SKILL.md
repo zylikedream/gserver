@@ -73,7 +73,7 @@ printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:180
 - **禁 gomonkey**(ADR-0001):依赖注入 + 可替换函数变量(如 `verifyGateToken`/`sendClient` 包级 var)
 - go-sqlmock(gorm 断言:注意 Create(map) 走 Exec+事务、Save 主键零值走 INSERT RETURNING Query、LIMIT 也是参数)
 - miniredis(Lua 脚本测试)
-- actor 测试模式:`fakeActx`(最小 actor.Context)+ `Receive(&actor.Started{})` 初始化 timer + TestMain 初始化全局 app
+- actor 测试模式:用 `core/gxyactor/gxyactortest` 在 mock 节点上创建真实 actor(`Spawn`/`SpawnErr`),所有权经 `StubOwnership` 换成内存实现
 - 覆盖率:`go test -cover ./...`;chat/gateway-session/role-core 已补齐(见各包 _test.go)
 
 ## 错误/日志规范

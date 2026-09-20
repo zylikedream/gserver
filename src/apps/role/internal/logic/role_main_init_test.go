@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"errors"
+	"gserver/src/lib"
 	"strings"
 	"testing"
 
@@ -14,7 +15,7 @@ import (
 func spawnRole(t *testing.T, roleID int64) *RoleMain {
 	t.Helper()
 	gxyactortest.StubOwnership(t)
-	r, _ := gxyactortest.Spawn(t, NewRoleMain, roleID)
+	r, _ := gxyactortest.Spawn(t, lib.ROLE_ACTOR_TYPE, NewRoleMain, roleID)
 	return r
 }
 
@@ -30,7 +31,7 @@ func TestRoleMainInitRequiresAccountRecord(t *testing.T) {
 	}
 
 	gxyactortest.StubOwnership(t)
-	_, err := gxyactortest.SpawnErr(t, NewRoleMain, int64(1001))
+	_, err := gxyactortest.SpawnErr(t, lib.ROLE_ACTOR_TYPE, NewRoleMain, int64(1001))
 	if err == nil {
 		t.Fatal("expected init error when account record is missing")
 	}
@@ -69,7 +70,7 @@ func TestRoleMainInitPropagatesAccountLookupError(t *testing.T) {
 	}
 
 	gxyactortest.StubOwnership(t)
-	_, err := gxyactortest.SpawnErr(t, NewRoleMain, int64(1001))
+	_, err := gxyactortest.SpawnErr(t, lib.ROLE_ACTOR_TYPE, NewRoleMain, int64(1001))
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("Init error = %v, want %v", err, wantErr)
 	}
