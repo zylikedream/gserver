@@ -230,7 +230,7 @@ func (l *actorLocator) claim(ctx context.Context, kind, id string) (ActorOwner, 
 	if !l.leaseValid(time.Now()) {
 		return ActorOwner{}, false, errActorLocatorLeaseInvalid
 	}
-	parts, ok := result.([]interface{})
+	parts, ok := result.([]any)
 	if !ok || len(parts) != 2 {
 		return ActorOwner{}, false, errors.Newf("unexpected actor claim result: %T", result)
 	}

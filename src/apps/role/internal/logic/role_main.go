@@ -507,7 +507,7 @@ type savedRoleModule struct {
 	state IPersistState
 }
 
-func (r *RoleMain) saveRoleModuleState(ctx context.Context, db *gorm.DB, rmod IRoleModule) (*savedRoleModule, error) {
+func (r *RoleMain) saveRoleModuleState(_ context.Context, db *gorm.DB, rmod IRoleModule) (*savedRoleModule, error) {
 	modState := rmod.PersistState()
 	if modState == nil {
 		return nil, nil

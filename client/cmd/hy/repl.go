@@ -12,12 +12,12 @@ import (
 )
 
 type REPL struct {
-	client       *client.Client
-	line         *liner.State
-	acctServer   string
-	platform     string
-	platformUID  string
-	clientVer    string
+	client      *client.Client
+	line        *liner.State
+	acctServer  string
+	platform    string
+	platformUID string
+	clientVer   string
 }
 
 func NewREPL(c *client.Client) *REPL {
@@ -34,12 +34,12 @@ func newREPL(c *client.Client, acctServer, platform, platformUID, clientVer stri
 	}
 
 	return &REPL{
-		client:       c,
-		line:         line,
-		acctServer:   acctServer,
-		platform:     platform,
-		platformUID:  platformUID,
-		clientVer:    clientVer,
+		client:      c,
+		line:        line,
+		acctServer:  acctServer,
+		platform:    platform,
+		platformUID: platformUID,
+		clientVer:   clientVer,
 	}
 }
 

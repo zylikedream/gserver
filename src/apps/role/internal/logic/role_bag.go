@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"maps"
 
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
@@ -118,9 +119,7 @@ func (r *RoleBag) GetGood(GoodID int) bag.Good {
 func (r *RoleBag) cloneGoodsMap() GoodsMap {
 	// 复制物品列表
 	clone := make(GoodsMap)
-	for prop, good := range r.Goods {
-		clone[prop] = good
-	}
+	maps.Copy(clone, r.Goods)
 	return clone
 }
 

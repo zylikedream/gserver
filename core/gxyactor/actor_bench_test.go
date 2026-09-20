@@ -118,7 +118,7 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 	services := make([]*gxyregistery.ServiceInfo, 0, 1000)
 	targetNode := ""
 	targetHost := ""
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		nodeName := fmt.Sprintf("role-sim-%04d", i+1)
 		nodeHost := fmt.Sprintf("10.0.0.%d:19000", i+1)
 		services = append(services, gxyregistery.NewServiceInfo("role", nodeName, nodeHost, "sim", 1))
@@ -163,7 +163,7 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 	benchRedisReady(b)
 	services := make([]*gxyregistery.ServiceInfo, 0, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		nodeName := fmt.Sprintf("role-sim-%04d", i+1)
 		nodeHost := fmt.Sprintf("10.0.0.%d:19000", i+1)
 		services = append(services, gxyregistery.NewServiceInfo("role", nodeName, nodeHost, "sim", 1))
@@ -201,7 +201,7 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 func BenchmarkGetAddressByNodeNameWith1000Nodes(b *testing.B) {
 	services := make([]*gxyregistery.ServiceInfo, 0, 1000)
 	targetNode := ""
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		nodeName := fmt.Sprintf("role-sim-%04d", i+1)
 		nodeHost := fmt.Sprintf("10.0.0.%d:19000", i+1)
 		services = append(services, gxyregistery.NewServiceInfo("role", nodeName, nodeHost, "sim", 1))
@@ -222,7 +222,7 @@ func BenchmarkGetAddressByNodeNameWith1000Nodes(b *testing.B) {
 func BenchmarkConsistentHashSelectWith1000Nodes(b *testing.B) {
 	ctx := context.Background()
 	services := make([]*gxyregistery.ServiceInfo, 0, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		nodeName := fmt.Sprintf("role-sim-%04d", i+1)
 		nodeHost := fmt.Sprintf("10.0.0.%d:19000", i+1)
 		services = append(services, gxyregistery.NewServiceInfo("role", nodeName, nodeHost, "sim", 1))
@@ -242,7 +242,7 @@ func BenchmarkConsistentHashSelectWith1000Nodes(b *testing.B) {
 func BenchmarkConsistentHashSelectColdWith1000Nodes(b *testing.B) {
 	ctx := context.Background()
 	services := make([]*gxyregistery.ServiceInfo, 0, 1000)
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		nodeName := fmt.Sprintf("role-sim-%04d", i+1)
 		nodeHost := fmt.Sprintf("10.0.0.%d:19000", i+1)
 		services = append(services, gxyregistery.NewServiceInfo("role", nodeName, nodeHost, "sim", 1))

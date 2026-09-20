@@ -152,11 +152,11 @@ func (gc *GameConfig) sortedMainTasks() []*gamecfg.GardenMainTask {
 	return tasks
 }
 
-func loader(file string) ([]map[string]interface{}, error) {
+func loader(file string) ([]map[string]any, error) {
 	if bytes, err := os.ReadFile("gameconfig/json/" + file + ".json"); err != nil {
 		return nil, err
 	} else {
-		jsonData := make([]map[string]interface{}, 0)
+		jsonData := make([]map[string]any, 0)
 		if err = json.Unmarshal(bytes, &jsonData); err != nil {
 			return nil, err
 		}

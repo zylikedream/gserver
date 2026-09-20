@@ -18,9 +18,9 @@ type fileConfig struct {
 		Account string `toml:"account"`
 	} `toml:"server"`
 	AccountServer struct {
-		URL          string `toml:"url"`
-		Platform     string `toml:"platform"`
-		PlatformUID  string `toml:"platform_uid"`
+		URL           string `toml:"url"`
+		Platform      string `toml:"platform"`
+		PlatformUID   string `toml:"platform_uid"`
 		ClientVersion string `toml:"client_version"`
 	} `toml:"account_server"`
 }

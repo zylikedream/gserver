@@ -16,20 +16,20 @@ type PreloginRequest struct {
 }
 
 type PreloginResponse struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int           `json:"code"`
+	Message string        `json:"message"`
 	Data    *PreloginData `json:"data,omitempty"`
 }
 
 type PreloginData struct {
-	AccountID   string         `json:"account_id"`
-	RoleID      int64          `json:"role_id"`
-	IsNewRole   bool           `json:"is_new_role"`
-	AccountInfo *AccountInfo   `json:"account_info,omitempty"`
-	VersionInfo *VersionInfo   `json:"version_info,omitempty"`
-	Gate        *GateInfo      `json:"gate"`
-	GateToken   string         `json:"gate_token"`
-	ExpiresIn   int            `json:"expires_in"`
+	AccountID   string       `json:"account_id"`
+	RoleID      int64        `json:"role_id"`
+	IsNewRole   bool         `json:"is_new_role"`
+	AccountInfo *AccountInfo `json:"account_info,omitempty"`
+	VersionInfo *VersionInfo `json:"version_info,omitempty"`
+	Gate        *GateInfo    `json:"gate"`
+	GateToken   string       `json:"gate_token"`
+	ExpiresIn   int          `json:"expires_in"`
 }
 
 type AccountInfo struct {

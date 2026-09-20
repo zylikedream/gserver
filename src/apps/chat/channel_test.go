@@ -107,7 +107,7 @@ func TestRingBuffer_Eviction(t *testing.T) {
 
 func TestRingBuffer_Eviction_Many(t *testing.T) {
 	rb := newRingBuffer(3)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rb.Push(&pb.PChatMsg{Content: string(rune('a' + i))})
 	}
 	if rb.Len() != 3 {

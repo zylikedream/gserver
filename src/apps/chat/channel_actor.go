@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -228,8 +229,8 @@ func (a *ChannelActor) loadHistory(ctx context.Context) {
 			gxylog.Err(err))
 		return
 	}
-	for i := len(rows) - 1; i >= 0; i-- { // DESC → 正序 Push
-		r := rows[i]
+	for _, r := range slices.Backward(rows) { // DESC → 正序 Push
+
 		a.buffer.Push(&pb.PChatMsg{
 			Sender:    &pb.PRolePublic{RoleId: r.SenderID},
 			Content:   r.Content,

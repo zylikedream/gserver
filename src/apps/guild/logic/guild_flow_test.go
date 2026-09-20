@@ -116,7 +116,7 @@ func TestAddMember_GuildFull(t *testing.T) {
 	g := newTestGuild(t)
 	// 填满成员到 MemberLimit(配表 Level 1 上限)
 	limit := int(g.cfg.TbGuildLevel.Get(g.Data.Level).MemberLimit)
-	for i := 0; i < limit; i++ {
+	for i := range limit {
 		g.Data.Members = append(g.Data.Members, &GuildMember{RoleID: int64(1000 + i)})
 	}
 

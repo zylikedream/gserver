@@ -78,7 +78,7 @@ func (g *GuildActor) asyncInit() error {
 // loadFromDB 从数据库加载公会数据(与 timer 启动解耦,便于测试)。
 // 只在加载成功后才写入 Data:否则失败路径会留下一个空对象,
 // 终止路径的落盘会把它当作有效状态写回数据库。
-func (g *GuildActor) loadFromDB(ctx context.Context) error {
+func (g *GuildActor) loadFromDB(_ context.Context) error {
 	data := &Guild{}
 	if err := g.db.First(data, g.GuildID).Error; err != nil {
 		return err
@@ -119,7 +119,7 @@ func (g *GuildActor) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (g *GuildActor) save(ctx context.Context) {
+func (g *GuildActor) save(_ context.Context) {
 	if g.Data == nil {
 		return
 	}
@@ -152,7 +152,7 @@ var getRolePublic = role.GetRolePublic
 
 // ===== 日志 =====
 
-func (g *GuildActor) addLog(ctx context.Context, content string) {
+func (g *GuildActor) addLog(_ context.Context, content string) {
 	entry := &GuildLog{Content: content, CreatedAt: time.Now()}
 	g.Data.Logs = append(g.Data.Logs, entry)
 	if len(g.Data.Logs) > MaxLogCount {

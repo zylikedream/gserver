@@ -2,6 +2,7 @@ package logic
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -235,13 +236,7 @@ func TestClaimMilestone_Success(t *testing.T) {
 	}
 
 	// 验证已被标记为已领取
-	found := false
-	for _, c := range orderMod.ClaimedMilestones {
-		if c == 1 {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(orderMod.ClaimedMilestones, 1)
 	if !found {
 		t.Fatal("milestone 1 should be marked as claimed")
 	}
@@ -320,13 +315,7 @@ func TestOrderGeneration_ResidentFromConfig(t *testing.T) {
 		if tpl == nil {
 			continue
 		}
-		found := false
-		for _, rid := range tpl.ResidentIds {
-			if rid == slot.ResidentID {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(tpl.ResidentIds, slot.ResidentID)
 		if !found {
 			t.Fatalf("slot %d: resident %d not in template %d pool", slotID, slot.ResidentID, tpl.Id)
 		}

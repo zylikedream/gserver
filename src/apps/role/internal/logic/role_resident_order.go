@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"math/rand"
+	"slices"
 	"time"
 
 	gamecfg "gserver/gameconfig/gosrc"
@@ -266,10 +267,8 @@ func (r *RoleResidentOrder) ReqResidentOrderClaimMilestone(ctx context.Context, 
 	if r.CompletedCount < cfg.NeedCount {
 		return nil, errors.WithStack(ErrOrderMilestoneNotReached)
 	}
-	for _, claimed := range r.ClaimedMilestones {
-		if claimed == req.Id {
-			return nil, errors.WithStack(ErrOrderMilestoneClaimed)
-		}
+	if slices.Contains(r.ClaimedMilestones, req.Id) {
+		return nil, errors.WithStack(ErrOrderMilestoneClaimed)
 	}
 
 	if err := r.Role.Bag.SaveGoods(ctx, nil, cfg.Reward, "order_milestone", bag.OptNotifyReward()); err != nil {
@@ -321,13 +320,7 @@ func (r *RoleResidentOrder) toPResidentOrderSlot(slot *OrderSlotData, slotCfg *g
 func (r *RoleResidentOrder) buildMilestones() []*pb.PResidentOrderMilestone {
 	milestones := make([]*pb.PResidentOrderMilestone, 0)
 	for _, cfg := range r.Cfg().TbResidentOrderProgressReward.GetDataList() {
-		claimed := false
-		for _, c := range r.ClaimedMilestones {
-			if c == cfg.Id {
-				claimed = true
-				break
-			}
-		}
+		claimed := slices.Contains(r.ClaimedMilestones, cfg.Id)
 		milestones = append(milestones, &pb.PResidentOrderMilestone{
 			Id:        cfg.Id,
 			NeedCount: cfg.NeedCount,

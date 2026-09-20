@@ -29,7 +29,7 @@ func register(cmd *Command) {
 }
 
 func groupOf(name string) string {
-	prefix := strings.SplitN(name, ".", 2)[0]
+	prefix, _, _ := strings.Cut(name, ".")
 	return prefix
 }
 
@@ -409,7 +409,7 @@ func printGMHelp(rsp *pb.RspGMHelp) {
 func printGMResult(rsp *pb.RspGMCommand) {
 	fmt.Println("← RspGMCommand")
 	if rsp.Result != "" {
-		for _, line := range strings.Split(rsp.Result, "\\n") {
+		for line := range strings.SplitSeq(rsp.Result, "\\n") {
 			fmt.Printf("  %s\n", line)
 		}
 	}
@@ -418,7 +418,7 @@ func printGMResult(rsp *pb.RspGMCommand) {
 func parsePlotIDs(args []string) []int32 {
 	var ids []int32
 	for _, a := range args {
-		for _, p := range strings.Split(a, ",") {
+		for p := range strings.SplitSeq(a, ",") {
 			p = strings.TrimSpace(p)
 			if p == "" {
 				continue
