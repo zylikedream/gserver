@@ -187,7 +187,7 @@ func TestActorKeyRemoteAddressing(t *testing.T) {
 		t.Fatalf("remoteRef node = %q, want node-b", got)
 	}
 	reply := k.actorPid("node-b")
-	if reply.GetAddress() != "node-b" || reply.GetId() != "role/7" {
+	if reply.GetAddress() != "node-b" || reply.GetName() != "role/7" {
 		t.Fatalf("reply = %+v, want {node-b role/7}", reply)
 	}
 }
@@ -195,7 +195,7 @@ func TestActorKeyRemoteAddressing(t *testing.T) {
 // 应答与引用的名字必须一致:它们是同一个身份在两种通道上的表示。
 func TestActorKeyReplyMatchesRemoteRef(t *testing.T) {
 	k := actorKey{kind: "guild", id: "42"}
-	if k.actorPid("n1").GetId() != string(k.name()) || k.remoteRef("n1").Name() != string(k.name()) {
+	if k.actorPid("n1").GetName() != string(k.name()) || k.remoteRef("n1").Name() != string(k.name()) {
 		t.Fatal("应答与引用必须由同一个身份派生")
 	}
 }

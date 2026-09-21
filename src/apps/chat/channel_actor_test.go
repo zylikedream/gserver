@@ -104,7 +104,7 @@ func TestChannelActor_Register_AddsMember(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	_, err := a.HandleMessage(&pb.ChannelRegisterMsg{
 		RoleId: 5,
-		Pid:    &pb.ActorPid{Address: "addr1", Id: "pid5"},
+		Pid:    &pb.ActorPid{Address: "addr1", Name: "pid5"},
 	})
 	if err != nil {
 		t.Fatalf("HandleMessage: %v", err)
@@ -123,7 +123,7 @@ func TestChannelActor_Register_AddsMember(t *testing.T) {
 
 func TestChannelActor_Register_OverwriteExisting(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	msg := &pb.ChannelRegisterMsg{RoleId: 5, Pid: &pb.ActorPid{Id: "pid_old"}}
+	msg := &pb.ChannelRegisterMsg{RoleId: 5, Pid: &pb.ActorPid{Name: "pid_old"}}
 	if _, err := a.HandleMessage(msg); err != nil {
 		t.Fatalf("first register: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 	reg := func(id int64) {
 		t.Helper()
 		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
-			RoleId: id, Pid: &pb.ActorPid{Id: "p" + string(rune(id))},
+			RoleId: id, Pid: &pb.ActorPid{Name: "p" + string(rune(id))},
 		}); err != nil {
 			t.Fatalf("register %d: %v", id, err)
 		}
@@ -164,7 +164,7 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 func TestChannelActor_Unregister_LastMemberNoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
-		RoleId: 5, Pid: &pb.ActorPid{Id: "pid5"},
+		RoleId: 5, Pid: &pb.ActorPid{Name: "pid5"},
 	}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 	// 测试聚焦"通知所有成员"流程不 panic + buffer 追加。
 	for _, id := range []int64{0, -1} {
 		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
-			RoleId: id, Pid: &pb.ActorPid{Id: "p" + string(rune(id))},
+			RoleId: id, Pid: &pb.ActorPid{Name: "p" + string(rune(id))},
 		}); err != nil {
 			t.Fatalf("register %d: %v", id, err)
 		}

@@ -65,8 +65,10 @@ func (k actorKey) remoteRef(node string) PID {
 }
 
 // actorPid 构造本节点对该实例的应答(节点 + 注册名),用于回复激活请求。
+//
+// Name 装注册名而不是实例标识:跨节点只能按名寻址,见 PBToPid。
 func (k actorKey) actorPid(nodeID string) *pb.ActorPid {
-	return &pb.ActorPid{Address: nodeID, Id: string(k.name())}
+	return &pb.ActorPid{Address: nodeID, Name: string(k.name())}
 }
 
 // activatorRouterKey 是激活协调者自身的身份:每节点一个,处理跨节点的激活请求。
