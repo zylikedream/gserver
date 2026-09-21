@@ -31,7 +31,7 @@ func TestGetActorRetryRelocatesOfflineActor(t *testing.T) {
 		t.Fatalf("claim owner=%+v acquired=%v err=%v", owner, acquired, err)
 	}
 
-	mgr := NewActivatorManager("node-b", "node-b")
+	mgr := NewActivatorManager("node-b")
 	mgr.store = callerLocator
 	mgr.serviceLookup = &activationTestLookup{
 		candidate: gxyregistery.NewServiceInfo("role", "node-c", "node-c:1002", "test", 1),
@@ -75,7 +75,7 @@ func TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup(t *testing.T) {
 		t.Fatalf("claim owner=%+v acquired=%v err=%v", owner, acquired, err)
 	}
 
-	mgr := NewActivatorManager("node-b", "node-b")
+	mgr := NewActivatorManager("node-b")
 	mgr.store = callerLocator
 	mgr.serviceLookup = &activationTestLookup{}
 	requests := 0
@@ -109,7 +109,7 @@ func TestGetActorDoesNotStealWhenOwnerUnreachable(t *testing.T) {
 		t.Fatalf("claim owner=%+v acquired=%v err=%v", owner, acquired, err)
 	}
 
-	mgr := NewActivatorManager("node-b", "node-b")
+	mgr := NewActivatorManager("node-b")
 	mgr.store = callerLocator
 	mgr.serviceLookup = &activationTestLookup{
 		candidate: gxyregistery.NewServiceInfo("role", "node-c", "node-c:1002", "test", 1),
@@ -150,7 +150,7 @@ func TestGetActorRetryIsBounded(t *testing.T) {
 		t.Fatalf("claim acquired=%v err=%v", acquired, err)
 	}
 
-	mgr := NewActivatorManager("node-b", "node-b")
+	mgr := NewActivatorManager("node-b")
 	mgr.store = callerLocator
 	mgr.serviceLookup = &activationTestLookup{}
 	requests := 0

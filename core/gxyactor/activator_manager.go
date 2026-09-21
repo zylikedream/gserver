@@ -80,10 +80,10 @@ var activatorRouterKey = actorKey{kind: "activator", id: "router"}
 type activatorManager struct {
 	gxymodule.ModuleBase
 
-	ctx      context.Context
-	nodeName string                        // 稳定节点名(与 kind 同名,用于按名推导地址)
-	nodeID   string                        // 路由身份:node.name@host
-	kinds    map[string]gen.ProcessFactory // kind → 创建该 kind 实例的工厂(工厂自带能力名)
+	ctx context.Context
+	// nodeID 是节点身份:运行时节点名,也是服务注册与所有权记录里的节点标识(ADR 0018)。
+	nodeID string
+	kinds  map[string]gen.ProcessFactory // kind → 创建该 kind 实例的工厂(工厂自带能力名)
 	// store 与 lease 是两个不同的关注点,不是一个东西的两半:
 	//   - store:每个 actor 的归属记录,实例级生灭,可注入(见 OwnershipStore);
 	//   - lease:本节点租约,模块级生灭,只有一种实现。
@@ -106,14 +106,11 @@ type actorServiceLookup interface {
 	GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo
 }
 
-// NewActivatorManager 创建激活协调层。
-// nodeInstanceName 保留参数以兼容调用处,内部改用运行时提供的节点名。
-func NewActivatorManager(nodeName string, nodeInstanceName string) *activatorManager {
-	nodeID := nodeInstanceName
+// NewActivatorManager 创建激活协调层。nodeID 即节点身份(见 ADR 0018)。
+func NewActivatorManager(nodeID string) *activatorManager {
 	locator := newActorLocator(gxyredis.Redis(), nodeID)
 	return &activatorManager{
 		ctx:           gxylog.NewContext(context.Background(), "activatorManager"),
-		nodeName:      nodeName,
 		nodeID:        nodeID,
 		kinds:         make(map[string]gen.ProcessFactory),
 		serviceLookup: gxyservice.ServiceApp(),

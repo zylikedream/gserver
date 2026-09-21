@@ -69,7 +69,7 @@ func benchRedisReady(b *testing.B) {
 
 func BenchmarkRegisterActorLocate(b *testing.B) {
 	benchRedisReady(b)
-	mgr := NewActivatorManager("bench", "bench@1")
+	mgr := NewActivatorManager("bench@1")
 	if err := mgr.lease.acquireNodeLease(context.Background()); err != nil {
 		b.Fatal(err)
 	}
@@ -88,7 +88,7 @@ func BenchmarkRegisterActorLocate(b *testing.B) {
 
 func BenchmarkLocateOwner(b *testing.B) {
 	benchRedisReady(b)
-	mgr := NewActivatorManager("bench", "bench@node")
+	mgr := NewActivatorManager("bench@node")
 	key := actorKey{kind: "role", id: "bench-player"}.locateKey()
 	leaseKey := actorLocatorLeaseKey("bench@node")
 	if err := gxyredis.Redis().Set(context.Background(), key, "bench@node|1|bench-token", 0).Err(); err != nil {
@@ -128,7 +128,7 @@ func BenchmarkGetActorHitWith1000Nodes(b *testing.B) {
 		}
 	}
 
-	mgr := NewActivatorManager("bench", "bench@1")
+	mgr := NewActivatorManager("bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
 	mgr.requestActorFunc = func(_ context.Context, node string, k actorKey, allowSpawn bool) (PID, bool, error) {
 		return k.remoteRef(node), false, nil
@@ -177,7 +177,7 @@ func BenchmarkGetActorMissWith1000Nodes(b *testing.B) {
 		b.Fatal("expected selector returned nil")
 	}
 
-	mgr := NewActivatorManager("bench", "bench@1")
+	mgr := NewActivatorManager("bench@1")
 	mgr.serviceLookup = &benchServiceLookup{services: services}
 	mgr.requestActorFunc = func(_ context.Context, node string, k actorKey, allowSpawn bool) (PID, bool, error) {
 		return k.remoteRef(node), false, nil

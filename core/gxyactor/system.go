@@ -17,10 +17,15 @@ import (
 // actorApp 基础Actor模块:持有 ergo 节点,是整个 actor 运行时的入口。
 type actorApp struct {
 	gxyapp.App
-	node      gen.Node
-	nodeName  string
-	host      string
-	activator *activatorManager
+	node gen.Node
+	// nodeName 是能力名(配置里的 node.name),只用于日志:说明这是"哪一类"节点。
+	nodeName string
+	// nodeInstance 是**节点身份**:部署给出的实例名 + 监听主机。
+	// 运行时路由、所有权记录、服务发现共用这一个值(见 ADR 0018),因此只在此一处
+	// 构造——两处各自拼同一个语义的值,一致性就只能碰巧成立。
+	nodeInstance string
+	host         string
+	activator    *activatorManager
 }
 
 var app *actorApp
@@ -39,11 +44,12 @@ func (a *actorApp) Host() string {
 }
 
 // NewActorApp 创建基础Actor模块。
-// nodeInstanceName 已废弃:路由身份用稳定节点名,所有权身份由运行时节点启动时刻承担(ADR 0010)。
+// nodeName 是能力名(只作日志标识);nodeInstanceName 是节点身份,三者共用(ADR 0018)。
 func NewActorApp(nodeName string, nodeInstanceName string, host string) *actorApp {
 	app = &actorApp{
-		nodeName: nodeName,
-		host:     host,
+		nodeName:     nodeName,
+		nodeInstance: nodeInstanceName,
+		host:         host,
 	}
 	return app
 }
@@ -82,10 +88,9 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 		{Name: "gxylog", Logger: newErgoLogger()},
 	}
 
-	nodeName := gen.Atom(a.nodeName + "@" + a.host)
-	node, err := ergo.StartNode(nodeName, options)
+	node, err := ergo.StartNode(gen.Atom(a.nodeInstance), options)
 	if err != nil {
-		return gerror.Wrapf(err, "start ergo node %s", nodeName)
+		return gerror.Wrapf(err, "start ergo node %s", a.nodeInstance)
 	}
 	a.node = node
 
@@ -95,7 +100,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 		return gerror.Wrap(err, "register wire envelope")
 	}
 
-	a.activator = NewActivatorManager(a.nodeName, string(nodeName))
+	a.activator = NewActivatorManager(string(node.Name()))
 	if err := a.activator.OnModInit(ctx); err != nil {
 		node.Stop()
 		return err

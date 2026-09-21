@@ -217,7 +217,7 @@ func TestClaimAndLocate(t *testing.T) {
 		_ = redisApp.OnModStop(context.Background())
 	})
 
-	mgr := NewActivatorManager("node", "node@1")
+	mgr := NewActivatorManager("node@1")
 	if err := mgr.lease.acquireNodeLease(context.Background()); err != nil {
 		t.Fatalf("acquireNodeLease() error = %v", err)
 	}
