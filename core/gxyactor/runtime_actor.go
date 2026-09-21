@@ -33,17 +33,21 @@ type runtimeActor struct {
 
 // ActorFactory 把业务构造器适配成运行时的进程工厂。
 //
-// 能力的权威名在这里按**注册表的键**写入一次:业务构造器不认识它,也就不存在
-// "注册名与能力名不一致"的余地——不一致不会报错,只会让实例注册到查不到的名字
-// 下,于是被反复重建。
+// kind 在此写入实例,且是**唯一**的写入点——业务构造器不认识它:
+//
+//   - 命名 actor(经登记或按名创建):kind 是注册表的键。这正是"注册名与能力名
+//     不一致"不可能的由来——不一致不会报错,只会让实例注册到查不到的名字下,
+//     于是被反复重建;
+//   - 无名 actor(会话):kind 只作类别标签用。见 Actor.kind 的说明。
+//
+// 同时按 kind 建立日志上下文:此后本 actor 的每条日志都带该字段。
+// 无条件重建是刻意的——构造器给的空标签没有信息,不该留着。
 func ActorFactory(kind string, ctor func() Business) gen.ProcessFactory {
 	return func() gen.ProcessBehavior {
 		biz := ctor()
 		base := biz.actorBase()
 		base.kind = kind
-		if base.Ctx == nil || base.kind != "" {
-			base.Ctx = gxylog.NewContext(context.Background(), kind)
-		}
+		base.Ctx = gxylog.NewContext(context.Background(), kind)
 		return newRuntimeActor(base, biz)
 	}
 }

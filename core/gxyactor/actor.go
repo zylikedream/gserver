@@ -85,6 +85,20 @@ type Actor struct {
 	// 因此业务回调统一由 rt 分发;它也是基类访问运行时能力的唯一入口。
 	rt *runtimeActor
 
+	// kind 是该 actor 的**类别**,同时扮演两种角色,义务只在其中一种上产生:
+	//
+	//  1. 类别标签(所有 actor):指标维度 `actor_active_count` / `actor_messages_total`
+	//     与日志字段 `mod`(见 gxylog.NewContext)。看板按它聚合,没有它这类 actor
+	//     会从面板里静默消失。
+	//  2. 能力名(仅承载实体时):它是归属命名空间(`<kind>/<id>` 与 Redis 归属键)、
+	//     本地构造表 `activatorManager.kinds`、服务发现目录三者共用的键。
+	//     此时它有一个硬义务——**必须等于登记表的键**,由 ActorFactory 按注册名
+	//     一次写入,不由实例自行推断。承载实体的 actor 若拿不到标识,初始化即失败。
+	//
+	// 为什么需要第二种角色(Erlang 里进程没有 kind):调用方在本节点说"给我
+	// <kind>/<id>",而本节点可以没有它,需要到别的节点上按需造出来,于是必须有一张
+	// "能力 → 构造函数"的集群目录;同时 kind/id 是跨节点单写者的命名空间。
+	// 不承载实体的 actor 不需要这两件事,因此只承担第一种角色。
 	kind string
 	self PID
 
@@ -133,9 +147,6 @@ func (a *Actor) biz() Business {
 	}
 	return a.rt.biz
 }
-
-// ActorKind 返回该 actor 的能力名。
-func (a *Actor) ActorKind() string { return a.kind }
 
 // ===== 消息分派 =====
 
