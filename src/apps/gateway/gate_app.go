@@ -14,7 +14,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
+// gateApp 是网关应用的组合根:组装网络端点、会话管理与令牌校验。
 type gateApp struct {
 	gxyapp.App
 }

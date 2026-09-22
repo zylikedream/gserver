@@ -14,6 +14,7 @@ import (
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 
+	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -71,6 +72,40 @@ func (k actorKey) actorPid(nodeID string) *pb.ActorPid {
 	return &pb.ActorPid{Address: nodeID, Name: string(k.name())}
 }
 
+// activatorSupervisorKey 是托管激活协调者的监督者的身份。
+var activatorSupervisorKey = actorKey{kind: "activator", id: "supervisor"}
+
+// activatorSupervisor 只做一件事:让激活协调者始终在。
+//
+// 它不含业务逻辑——Init 只交出一份子进程清单,重启与上限由运行时的监督者机制承担。
+// 因此它自身崩溃的面很小:这是"单点只是被上移一级"可被接受的理由(见 ADR 0019)。
+type activatorSupervisor struct {
+	act.Supervisor
+	spec act.SupervisorSpec
+}
+
+func (s *activatorSupervisor) Init(_ ...any) (act.SupervisorSpec, error) {
+	return s.spec, nil
+}
+
+// activatorSupervisorSpec 给出托管激活协调者的子进程清单。
+//
+// 用"总是重启":激活协调者没有需要恢复的状态,也不参与归属协议,因此重建它不会
+// 与任何外部权威冲突——这正是它和承载实体的 actor 的分界(见 ADR 0019)。
+func activatorSupervisorSpec(g *activatorManager) act.SupervisorSpec {
+	routerCtor := func() Business { return newActivatorActor(g) }
+	return act.SupervisorSpec{
+		Type: act.SupervisorTypeOneForOne,
+		Restart: act.SupervisorRestart{
+			Strategy: act.SupervisorStrategyPermanent,
+		},
+		Children: []act.SupervisorChildSpec{{
+			Name:    activatorRouterKey.name(),
+			Factory: ActorFactory(activatorRouterKey.kind, routerCtor),
+		}},
+	}
+}
+
 // activatorRouterKey 是激活协调者自身的身份:每节点一个,处理跨节点的激活请求。
 //
 // 它是一个具名身份而非散落的字符串——注册与寻址两处必须一致,而这两处曾经
@@ -91,7 +126,6 @@ type activatorManager struct {
 	// 一致性视图,拆成两个独立存储会让"谁持有"与"谁有权持有"失去共同判据。
 	store     OwnershipStore
 	lease     nodeLease
-	routerPID PID
 	stopLease func()
 
 	serviceLookup actorServiceLookup
@@ -136,15 +170,15 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 		)
 	})
 
-	routerCtor := func() Business { return newActivatorActor(g) }
-	routerPID, err := app.spawnNamed(activatorRouterKey.name(), ActorFactory(activatorRouterKey.kind, routerCtor))
-	if err != nil {
+	// 激活协调者交给监督者托管:它是本节点跨节点激活的单点,而节点只会拉起进程、
+	// 不会重建崩溃的进程(见 ADR 0019)。
+	supCtor := func() gen.ProcessBehavior { return &activatorSupervisor{spec: activatorSupervisorSpec(g)} }
+	if _, err := app.spawnNamed(activatorSupervisorKey.name(), supCtor); err != nil {
 		g.stopLease()
 		g.stopLease = nil
 		_ = g.lease.releaseNodeLease(ctx)
-		return errors.Wrap(err, "spawn activator")
+		return errors.Wrap(err, "spawn activator supervisor")
 	}
-	g.routerPID = routerPID
 	return nil
 }
 
