@@ -25,7 +25,9 @@ const actorLocateMaxAttempts = 3
 var (
 	errActorLocateRetryExhausted = errors.New("actor locate retry exhausted")
 
-	// ErrNotOwner 表示本节点不是该 actor 的所有者。
+	// ErrNotOwner 表示本次未取得该 actor 的归属:记录在别的节点,或本节点已有记录。
+	// 这是正常的竞争结局,不是故障——调用方据此判断"归属不在我手里",而不是
+	// "基础设施坏了"。
 	// 由 actor 在同步初始化段获取所有权失败时返回,激活协调层据此重试。
 	ErrNotOwner = errors.New("actor ownership not acquired")
 )

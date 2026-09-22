@@ -22,9 +22,13 @@ import (
 // (实现里 Redis 键由它们派生);包外实现也因此能满足它——测试不需要为了注入一个
 // 内存载体而依赖门面内部的身份类型。
 type OwnershipStore interface {
-	// Claim 尝试取得归属。acquired=false 表示本节点已是持有者(前驱留下的记录),
-	// 由调用方按陈旧记录处理。
-	Claim(ctx context.Context, kind string, id string) (ActorOwner, bool, error)
+	// Claim 取得该 actor 的归属。
+	//
+	// 成功返回取得的所有权。失败返回错误,其中 ErrNotOwner 表示"本次未取得"——
+	// 记录在别的节点,或本节点已有记录。这是正常的竞争结局,不是故障;其余错误
+	// 才是技术性失败(节点租约失效、存储不可用)。两者的区别必须保留:
+	// 把"未取得"当成故障会 fail-open(fail-closed 要求见不变量 #6)。
+	Claim(ctx context.Context, kind string, id string) (ActorOwner, error)
 
 	// Locate 查询当前归属;无归属时返回零值。
 	Locate(ctx context.Context, kind string, id string) (ActorOwner, error)
@@ -48,15 +52,7 @@ func claimOwnership(ctx context.Context, k actorKey) (ActorOwner, error) {
 	if err != nil {
 		return ActorOwner{}, err
 	}
-	owner, acquired, err := store.Claim(ctx, k.kind, k.id)
-	if err != nil {
-		return ActorOwner{}, err
-	}
-	if !acquired {
-		// 本节点已是持有者:这是前驱留下的记录,交由上层按陈旧记录处理。
-		return ActorOwner{}, errors.Wrapf(ErrNotOwner, "actor %s", k)
-	}
-	return owner, nil
+	return store.Claim(ctx, k.kind, k.id)
 }
 
 // releaseOwnership 释放归属。由门面在终止路径上、业务最终落库之后调用(不变量 #4)。

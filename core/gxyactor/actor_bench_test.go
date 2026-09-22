@@ -80,7 +80,7 @@ func BenchmarkRegisterActorLocate(b *testing.B) {
 	for b.Loop() {
 		i++
 		id := fmt.Sprintf("%s-%d", keyPrefix, i)
-		if _, _, err := mgr.store.Claim(context.Background(), "role", id); err != nil {
+		if _, err := mgr.store.Claim(context.Background(), "role", id); err != nil {
 			b.Fatalf("claim actor owner error = %v", err)
 		}
 	}

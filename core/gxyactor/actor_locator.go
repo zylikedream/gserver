@@ -48,9 +48,10 @@ type actorLocator struct {
 type claimResult string
 
 const (
-	claimAcquired   claimResult = "acquired"
-	claimAlreadyOwn claimResult = "already_owned"
-	claimOwnedOther claimResult = "owned_by_other"
+	claimAcquired     claimResult = "acquired"
+	claimAlreadyOwn   claimResult = "already_owned"
+	claimOwnedOther   claimResult = "owned_by_other"
+	claimInvalidLease claimResult = "invalid_lease"
 )
 
 // actorLocatorClaimScript 在一次 Redis Lua 调用内完成候选节点校验和 owner 仲裁。
@@ -71,7 +72,6 @@ end
 local current = redis.call("GET", ownerKey)
 if current then
     local currentNode, _, currentToken = string.match(current, "^([^|]+)|([0-9]+)|(.+)$")
-    -- owner 格式非法时按失效记录处理，下面会递增 epoch 后重建。
     if currentNode then
         local currentLease = redis.call("GET", "gserver:locate:node:lease:" .. currentNode)
         -- 只有 owner 节点 lease 仍与 owner 中的 token 匹配，才算活跃 owner。
@@ -222,13 +222,17 @@ func (l *actorLocator) renewNodeLease(ctx context.Context) (bool, error) {
 // Claim 取得归属,满足 OwnershipStore。
 // 对外用 kind 与 id 是刻意的:存储 API 的键词汇就是标量,调用方手里也是它们;
 // 身份在进入存储时构造一次,Redis 键由它派生。
-func (l *actorLocator) Claim(ctx context.Context, kind string, id string) (ActorOwner, bool, error) {
+//
+// 返回的所有权只在成功时有意义。未取得时返回 ErrNotOwner,不再返回"当前持有者":
+// 按现行分工所有权由 actor 自管(ADR 0012),激活层不消费那个值,留着只会让人
+// 以为调用方该去清理记录。
+func (l *actorLocator) Claim(ctx context.Context, kind string, id string) (ActorOwner, error) {
 	k := actorKey{kind: kind, id: id}
 	if err := l.ensureClient(); err != nil {
-		return ActorOwner{}, false, err
+		return ActorOwner{}, err
 	}
 	if !l.leaseValid(time.Now()) {
-		return ActorOwner{}, false, errActorLocatorLeaseInvalid
+		return ActorOwner{}, errActorLocatorLeaseInvalid
 	}
 	result, err := l.redis.Eval(ctx, actorLocatorClaimScript, []string{
 		k.locateKey(),
@@ -236,40 +240,41 @@ func (l *actorLocator) Claim(ctx context.Context, kind string, id string) (Actor
 		actorLocatorEpochKey(),
 	}, l.nodeID, l.leaseToken).Result()
 	if err != nil {
-		return ActorOwner{}, false, errors.Wrap(err, "claim actor owner")
+		return ActorOwner{}, errors.Wrap(err, "claim actor owner")
 	}
 	if !l.leaseValid(time.Now()) {
-		return ActorOwner{}, false, errActorLocatorLeaseInvalid
+		return ActorOwner{}, errActorLocatorLeaseInvalid
 	}
 	parts, ok := result.([]any)
 	if !ok || len(parts) != 2 {
-		return ActorOwner{}, false, errors.Newf("unexpected actor claim result: %T", result)
+		return ActorOwner{}, errors.Newf("unexpected actor claim result: %T", result)
 	}
-	status, ok := redisString(parts[0])
+	sstatus, ok := redisString(parts[0])
 	if !ok {
-		return ActorOwner{}, false, errors.New("actor claim result status is not a string")
+		return ActorOwner{}, errors.New("actor claim result status is not a string")
 	}
-	if status == "invalid_lease" {
-		return ActorOwner{}, false, errActorLocatorLeaseInvalid
+	status := claimResult(sstatus)
+	if status == claimInvalidLease {
+		return ActorOwner{}, errActorLocatorLeaseInvalid
 	}
 
 	ownerValue, ok := redisString(parts[1])
 	if !ok {
-		return ActorOwner{}, false, errors.New("actor claim result owner is not a string")
+		return ActorOwner{}, errors.New("actor claim result owner is not a string")
 	}
-	owner, err := decodeActorOwner(ownerValue)
-	if err != nil {
-		return ActorOwner{}, false, err
-	}
-	switch claimResult(status) {
+	switch status {
 	case claimAcquired:
-		return owner, true, nil
-	case claimAlreadyOwn:
-		return owner, false, nil
-	case claimOwnedOther:
-		return owner, false, nil
+		owner, err := decodeActorOwner(ownerValue)
+		if err != nil {
+			return ActorOwner{}, err
+		}
+		return owner, nil
+	case claimAlreadyOwn, claimOwnedOther:
+		// 记录在别的节点,或本节点已有记录:正常的竞争结局,不是故障。
+		// 具体是哪种写进错误便于诊断;两者对调用方的处置相同——本次没拿到。
+		return ActorOwner{}, errors.Wrapf(ErrNotOwner, "actor %s (claim %s)", k, status)
 	default:
-		return ActorOwner{}, false, errors.Newf("unknown actor claim result: %s", status)
+		return ActorOwner{}, errors.Newf("unknown actor claim result: %s", status)
 	}
 }
 func (l *actorLocator) releaseNodeLease(ctx context.Context) error {

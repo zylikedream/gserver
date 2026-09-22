@@ -26,9 +26,9 @@ func TestGetActorRetryRelocatesOfflineActor(t *testing.T) {
 	if err := ownerLocator.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	owner, acquired, err := ownerLocator.Claim(ctx, "role", "player-1")
-	if err != nil || !acquired {
-		t.Fatalf("claim owner=%+v acquired=%v err=%v", owner, acquired, err)
+	owner, err := ownerLocator.Claim(ctx, "role", "player-1")
+	if err != nil {
+		t.Fatalf("claim owner=%+v err=%v", owner, err)
 	}
 
 	mgr := NewActivatorManager("node-b")
@@ -70,9 +70,9 @@ func TestGetActorWithoutSpawnReturnsNotFoundAfterStaleCleanup(t *testing.T) {
 	if err := ownerLocator.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	owner, acquired, err := ownerLocator.Claim(ctx, "role", "player-1")
-	if err != nil || !acquired {
-		t.Fatalf("claim owner=%+v acquired=%v err=%v", owner, acquired, err)
+	owner, err := ownerLocator.Claim(ctx, "role", "player-1")
+	if err != nil {
+		t.Fatalf("claim owner=%+v err=%v", owner, err)
 	}
 
 	mgr := NewActivatorManager("node-b")
@@ -104,9 +104,9 @@ func TestGetActorDoesNotStealWhenOwnerUnreachable(t *testing.T) {
 	if err := ownerLocator.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	owner, acquired, err := ownerLocator.Claim(ctx, "role", "player-1")
-	if err != nil || !acquired {
-		t.Fatalf("claim owner=%+v acquired=%v err=%v", owner, acquired, err)
+	owner, err := ownerLocator.Claim(ctx, "role", "player-1")
+	if err != nil {
+		t.Fatalf("claim owner=%+v err=%v", owner, err)
 	}
 
 	mgr := NewActivatorManager("node-b")
@@ -146,8 +146,8 @@ func TestGetActorRetryIsBounded(t *testing.T) {
 	if err := ownerLocator.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, acquired, err := ownerLocator.Claim(ctx, "role", "player-1"); err != nil || !acquired {
-		t.Fatalf("claim acquired=%v err=%v", acquired, err)
+	if _, err := ownerLocator.Claim(ctx, "role", "player-1"); err != nil {
+		t.Fatalf("claim err=%v", err)
 	}
 
 	mgr := NewActivatorManager("node-b")
