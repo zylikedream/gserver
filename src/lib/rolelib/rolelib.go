@@ -35,7 +35,7 @@ var (
 	}
 	getLocalActor    = gxyactor.GetLocalActor
 	getLocalActorAll = gxyactor.GetLocalActorAll
-	localSend        = gxyactor.SendAsNode
+	localSend        = gxyactor.Send
 	mqSubscribe      = func(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error) error {
 		return gxymq.MessageQueue().Subscribe(ctx, topic, handler)
 	}

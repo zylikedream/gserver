@@ -59,19 +59,19 @@ func (s *gateApp) OnModStart(ctx context.Context) error {
 func (s *gateApp) OnModStop(ctx context.Context) error {
 	sessions := logic.SessionMgr().All()
 	for _, pid := range sessions {
-		_ = StopSession(pid, gerror.New("gateway service stop"))
+		_ = stopSession(pid, gerror.New("gateway service stop"))
 	}
 	return nil
 }
 
-func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
-	return gxyactor.SpawnFunc("session", func() gxyactor.Business {
+func spawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
+	return gxyactor.Spawn("session", func() gxyactor.Business {
 		return logic.NewSession(ep)
 	})
 }
 
-func StopSession(pid gxyactor.PID, err error) error {
-	return gxyactor.SendAsNode(context.Background(), pid, &pb.ActorStop{
+func stopSession(pid gxyactor.PID, err error) error {
+	return gxyactor.Send(context.Background(), pid, &pb.ActorStop{
 		Reason: err.Error(),
 	})
 }
