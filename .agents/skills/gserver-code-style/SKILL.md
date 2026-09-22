@@ -38,7 +38,7 @@ description: GServer 项目代码风格规范——命名一致性、魔法字�
 ## 4. Go handler 命名
 
 - HTTP handler 类型:业务名 + `Handler`(ChatHandler),文件内按"大厅/私聊/系统"分节
-- actor 消息处理:`HandleMessage`(统一入口)+ 业务方法 `ReqXxx`/`OnXxx`(role 模块内)
+- actor 业务入口:`HandleMessage`/`HandleCall`(业务侧,按需实现)+ 业务方法 `ReqXxx`/`OnXxx`(role 模块内)
 - 命名空间:req/rsp 类型 `XxxReq`/`XxxRsp` 与 proto 同名(HTTP 层)
 
 ## 5. proto 文件组织

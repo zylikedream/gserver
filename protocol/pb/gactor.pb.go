@@ -361,7 +361,7 @@ func (x *ActorStop) GetReason() string {
 type ActorPid struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address"`    // 节点名
-	Id            string                 `protobuf:"bytes,2,opt,name=Id,proto3" json:"Id"`              // 注册名(可寻址时)
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name"`          // 注册名(可寻址时),形如 <kind>/<id>
 	Pid           uint64                 `protobuf:"varint,3,opt,name=pid,proto3" json:"pid"`           // 进程序号
 	Creation      int64                  `protobuf:"varint,4,opt,name=creation,proto3" json:"creation"` // 实例创建时刻
 	unknownFields protoimpl.UnknownFields
@@ -405,9 +405,9 @@ func (x *ActorPid) GetAddress() string {
 	return ""
 }
 
-func (x *ActorPid) GetId() string {
+func (x *ActorPid) GetName() string {
 	if x != nil {
-		return x.Id
+		return x.Name
 	}
 	return ""
 }
@@ -449,10 +449,10 @@ const file_gactor_proto_rawDesc = "" +
 	"allowSpawn\"\x12\n" +
 	"\x10ActorLocateRetry\"#\n" +
 	"\tActorStop\x12\x16\n" +
-	"\x06reason\x18\x01 \x01(\tR\x06reason\"b\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\"f\n" +
 	"\bActorPid\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x0e\n" +
-	"\x02Id\x18\x02 \x01(\tR\x02Id\x12\x10\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
 	"\x03pid\x18\x03 \x01(\x04R\x03pid\x12\x1a\n" +
 	"\bcreation\x18\x04 \x01(\x03R\bcreationB\tZ\a./pb;pbb\x06proto3"
 

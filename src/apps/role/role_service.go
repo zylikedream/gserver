@@ -4,7 +4,6 @@ import (
 	"context"
 	"gserver/core/gxyactor"
 
-	"ergo.services/ergo/act"
 	"gserver/src/apps/role/internal/logic"
 	"gserver/src/lib"
 )
@@ -26,7 +25,7 @@ func (r *roleService) Weight() int {
 }
 
 func (r *roleService) OnModStart(ctx context.Context) error {
-	if err := gxyactor.RegisterActorKind(r.ServiceName(), func() act.ActorBehavior {
+	if err := gxyactor.RegisterActorKind(r.ServiceName(), func() gxyactor.Business {
 		return logic.NewRoleMain()
 	}); err != nil {
 		return err

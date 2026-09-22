@@ -53,7 +53,7 @@ Service Key：`gserver-{nodeName}-{serviceName}`
 
 | 属性 | 值 |
 |------|-----|
-| 注册名 | `nodeInstanceName`（`game-2@uid`） |
+| 注册名 | 节点身份 `nodeInstanceName`（`{podName}@{host}`，见 ADR 0018） |
 | TTL | 10s（配置 `registery.consul.ttl`） |
 | 续约 | 每 10s 刷新一次 |
 | 内容 | `NodeHost` = actor system address（`host:random_port`） |
@@ -114,8 +114,8 @@ actor terminate / Touch 失败
 
 ```
 node 启动
-  → OnModInit 生成 nodeInstanceName = nodeName@unixNano
-  → 创建 node lease，token 使用本次 nodeInstanceName
+  → OnModInit 取节点身份 nodeInstanceName = {podName}@{host}（不含时间戳，见 ADR 0010/0018）
+  → 创建 node lease，token 为每实例随机值（不取节点身份，见 ADR 0010）
   → heartbeat 定期续租；token 不匹配立即 self-fence
   → Redis 错误仅可在上次确认的 lease deadline 前重试
   → deadline 到期仍无法确认续租时终止进程

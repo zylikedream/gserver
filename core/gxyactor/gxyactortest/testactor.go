@@ -5,6 +5,7 @@
 package gxyactortest
 
 import (
+	"context"
 	"testing"
 
 	"gserver/core/gxyactor"
@@ -13,29 +14,43 @@ import (
 	"ergo.services/ergo/testing/unit"
 )
 
-// Spawn 在 mock 节点上创建并初始化一个 actor,返回其业务实例。
-// 返回的 actor 拥有真实的进程标识与节点,可直接调用其业务方法或经 Subject 收发消息。
-func Spawn[T gen.ProcessBehavior](t testing.TB, factory func() T, args ...any) (T, *unit.Subject) {
+// Spawn 在 mock 节点上创建并初始化一个 actor,返回其业务对象。
+//
+// 与生产路径一致:交给运行时的是门面的适配对象,业务对象藏在它里面。
+// 返回的业务对象已绑定进程,可直接调用其业务方法或经 Subject 收发消息。
+func Spawn[T gxyactor.Business](t testing.TB, kind string, ctor func() T, args ...any) (T, *unit.Subject) {
 	t.Helper()
-	subj, err := unit.Spawn(t, func() gen.ProcessBehavior { return factory() }, gen.ProcessOptions{}, args...)
+	var biz T
+	subj, err := unit.Spawn(t, factoryFor(kind, ctor, &biz), gen.ProcessOptions{}, args...)
 	if err != nil {
 		var zero T
 		t.Fatalf("spawn test actor: %v", err)
 		return zero, nil
 	}
-	return subj.Behavior().(T), subj
+	return biz, subj
 }
 
-// SpawnErr 在 mock 节点上创建并初始化 actor,返回初始化错误(若有)。
+// SpawnErr 在 mock 节点上创建 actor,返回初始化错误(若有)。
 // 用于验证初始化失败路径。
-func SpawnErr[T gen.ProcessBehavior](t testing.TB, factory func() T, args ...any) (T, error) {
+func SpawnErr[T gxyactor.Business](t testing.TB, kind string, ctor func() T, args ...any) (T, error) {
 	t.Helper()
-	subj, err := unit.Spawn(t, func() gen.ProcessBehavior { return factory() }, gen.ProcessOptions{}, args...)
+	var biz T
+	subj, err := unit.Spawn(t, factoryFor(kind, ctor, &biz), gen.ProcessOptions{}, args...)
 	if err != nil {
 		var zero T
 		return zero, err
 	}
-	return subj.Behavior().(T), nil
+	_ = subj
+	return biz, nil
+}
+
+// factoryFor 构造进程工厂,并把创建出来的业务对象写回 out——
+// 门面持有业务对象,测试需要拿到它来断言。
+func factoryFor[T gxyactor.Business](kind string, ctor func() T, out *T) gen.ProcessFactory {
+	return gxyactor.ActorFactory(kind, func() gxyactor.Business {
+		*out = ctor()
+		return *out
+	})
 }
 
 // last 保存最近一次安装的所有权桩,供断言使用。
@@ -44,39 +59,49 @@ var last *Ownership
 // LastOwnership 返回最近一次 StubOwnership 安装的桩。
 func LastOwnership() *Ownership { return last }
 
-// StubOwnership 把所有权获取/释放替换成内存实现,使测试不必依赖 Redis。
-// 返回的 own 记录本次分配的所有权,供断言使用。
+// StubOwnership 把所有权载体换成内存实现,使测试不必依赖 Redis。
+// 返回的 own 记录本次分配的归属,供断言使用。
 func StubOwnership(t testing.TB) *Ownership {
 	t.Helper()
-	o := &Ownership{}
+	o := &Ownership{owners: make(map[string]gxyactor.ActorOwner)}
 	last = o
-	// 每个调用点分配一个新的世代,与实际实现一样单调递增。
-	restore := gxyactor.SetOwnershipHooks(o.claim, o.release)
-	t.Cleanup(restore)
+	t.Cleanup(gxyactor.SetOwnershipStore(o))
 	return o
 }
 
-// Ownership 是所有权接缝的内存实现。
+// Ownership 是所有权载体的内存实现。
 type Ownership struct {
 	claimed  []string
 	released []string
 	epoch    uint64
-	// FailClaim 非空时,获取所有权返回该错误。
+	owners   map[string]gxyactor.ActorOwner
+
+	// FailClaim 非空时,取得归属返回该错误。
 	FailClaim error
 }
 
-func (o *Ownership) claim(kind, id string) (gxyactor.ActorOwner, error) {
+func (o *Ownership) Claim(_ context.Context, kind, id string) (gxyactor.ActorOwner, bool, error) {
 	if o.FailClaim != nil {
-		return gxyactor.ActorOwner{}, o.FailClaim
+		return gxyactor.ActorOwner{}, false, o.FailClaim
 	}
 	o.epoch++
+	owner := gxyactor.ActorOwner{NodeID: "test@localhost", Epoch: o.epoch}
 	o.claimed = append(o.claimed, kind+"/"+id)
-	return gxyactor.ActorOwner{NodeID: "test@localhost", Epoch: o.epoch}, nil
+	o.owners[kind+"/"+id] = owner
+	return owner, true, nil
 }
 
-func (o *Ownership) release(kind, id string, _ gxyactor.ActorOwner) error {
+func (o *Ownership) Locate(_ context.Context, kind, id string) (gxyactor.ActorOwner, error) {
+	return o.owners[kind+"/"+id], nil
+}
+
+func (o *Ownership) Release(_ context.Context, kind, id string, owner gxyactor.ActorOwner) (bool, error) {
+	if cur, ok := o.owners[kind+"/"+id]; !ok || cur != owner {
+		return false, nil
+	}
+	delete(o.owners, kind+"/"+id)
 	o.released = append(o.released, kind+"/"+id)
-	return nil
+	return true, nil
 }
 
 // Claimed 返回已获取所有权的标识列表。

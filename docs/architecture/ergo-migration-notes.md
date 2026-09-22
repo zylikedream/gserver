@@ -243,6 +243,10 @@ supervisor StartChild × 200（批量）      每次 =  3µs
 
 ### `core/gxyactor` 的删改
 
+> 下表记录的是**当时**（迁移到 ergo 那次）的处置。其后业务接入形态又被 ADR 0017 改过一次
+> （业务对象不再内嵌运行时类型、业务入口改名、异步段由门面驱动），本表的名字已与现状不符。
+> 现状以 `actor-system.md` 与 ADR 0017 为准。
+
 | 现有符号 | 行数 | 处置 |
 |---|---|---|
 | `Receive` + `doReceive` | 66 | 删（ergo 直接回调 handler） |

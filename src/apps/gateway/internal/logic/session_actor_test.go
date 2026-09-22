@@ -94,7 +94,7 @@ func newTestSession(t *testing.T) (*Session, *watchRecorder, *fakeEndpoint) {
 	rec := &watchRecorder{}
 	t.Cleanup(injectWatch(t, rec))
 	// 在 mock 节点上创建真实 actor,而不是手工拼装半成品。
-	ss, _ := gxyactortest.Spawn(t, func() *Session { return NewSession(ep) })
+	ss, _ := gxyactortest.Spawn(t, "session", func() *Session { return NewSession(ep) })
 	return ss, rec, ep
 }
 
@@ -185,7 +185,7 @@ func TestSession_HandleMessage_ClientMsg(t *testing.T) {
 	ep.sentMsgs = nil
 
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
-	if err := s.HandleMessage(gen.PID{}, msg); err != nil {
+	if _, err := s.HandleMessage(msg); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
 }
@@ -201,7 +201,7 @@ func TestSession_HandleMessage_ServerMsg(t *testing.T) {
 		t.Fatalf("anypb.New: %v", err)
 	}
 	serverMsg := &pb.ServerMsg{Msg: anyMsg}
-	if err := s.HandleMessage(gen.PID{}, serverMsg); err != nil {
+	if _, err := s.HandleMessage(serverMsg); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
 	if s.state != StateLogin {
@@ -209,12 +209,19 @@ func TestSession_HandleMessage_ServerMsg(t *testing.T) {
 	}
 }
 
-func TestSession_HandleMessage_RoleTerminated(t *testing.T) {
-	s, _, ep := newTestSession(t)
+// 被监视的角色终止时,会话必须自行停止并清空角色引用。
+//
+// 监视通知由运行时投递,门面把它翻译成业务侧的 HandleDown——业务因此
+// 不出现运行时消息类型(见 ADR 0017)。此处经真实投递验证这条翻译。
+func TestSession_HandleDown_RoleTerminated(t *testing.T) {
+	ep := newFakeEndpoint(t)
+	t.Cleanup(injectWatch(t, &watchRecorder{}))
+	s, subj := gxyactortest.Spawn(t, "session", func() *Session { return NewSession(ep) })
 	restore := withHandshake(t, s, ep)
 	defer restore()
 
-	_ = s.HandleMessage(gen.PID{}, gen.MessageDownPID{PID: roleRuntimePID})
+	subj.SendMessage(gen.PID{}, gen.MessageDownPID{PID: roleRuntimePID})
+
 	if !s.StopRequested() {
 		t.Fatal("expected Stop after role terminated")
 	}
@@ -228,7 +235,7 @@ func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
 	restore := withHandshake(t, s, ep)
 	defer restore()
 
-	_ = s.HandleMessage(gen.PID{}, gen.MessageDownPID{PID: gen.PID{Node: "test@127.0.0.1", ID: 99, Creation: 1}})
+	_, _ = s.HandleMessage(gen.MessageDownPID{PID: gen.PID{Node: "test@127.0.0.1", ID: 99, Creation: 1}})
 	if s.StopRequested() {
 		t.Fatal("unrelated Terminated should not stop session")
 	}
@@ -239,7 +246,7 @@ func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
 
 func TestSession_HandleMessage_ActorError(t *testing.T) {
 	s, _, _ := newTestSession(t)
-	_ = s.HandleMessage(gen.PID{}, &pb.ActorError{Reason: "boom"})
+	_, _ = s.HandleMessage(&pb.ActorError{Reason: "boom"})
 	if !s.StopRequested() {
 		t.Fatal("expected Stop after ActorError")
 	}
@@ -351,7 +358,7 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 				Type: message.MESSGE_TYPE_FIRST_PACKET,
 				Msg:  &pb.ReqHandShake{GateToken: "ok"},
 			}
-			if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err != nil {
+			if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err != nil {
 				t.Fatalf("expected nil at actor boundary, got: %v", err)
 			}
 			if !s.StopRequested() {
@@ -460,7 +467,7 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 		Type: message.MESSGE_TYPE_FIRST_PACKET,
 		Msg:  &pb.ReqHandShake{GateToken: "ok"},
 	}
-	err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{})
+	err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{})
 	if err == nil {
 		t.Fatal("expected unconfigured error to propagate to actor boundary")
 	}
@@ -480,7 +487,7 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 func TestSession_ClientMessage_Logout(t *testing.T) {
 	s, _, _ := newTestSession(t)
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.ReqAccountLogout{}}
-	if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err != nil {
+	if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err != nil {
 		t.Fatalf("OnHandleClientMessage: %v", err)
 	}
 	if !s.StopRequested() {
@@ -491,7 +498,7 @@ func TestSession_ClientMessage_Logout(t *testing.T) {
 func TestSession_ClientMessage_NotProto(t *testing.T) {
 	s, _, _ := newTestSession(t)
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: "not a proto"}
-	if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err == nil {
+	if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err == nil {
 		t.Fatal("expected error for non-proto msg")
 	}
 }
@@ -500,7 +507,7 @@ func TestSession_ClientMessage_DataPacket_NoRolePid(t *testing.T) {
 	s, _, _ := newTestSession(t) // 未握手, RolePid nil
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
 	// SendRoleMsg 的投递错误只记日志,不使消息处理失败,应返回 nil
-	if err := s.OnHandleClientMessage(context.Background(), msg, gen.PID{}); err != nil {
+	if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err != nil {
 		t.Fatalf("OnHandleClientMessage: %v", err)
 	}
 }

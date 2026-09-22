@@ -37,13 +37,13 @@ ActivateActor(guildID)
          │
     Init(args=[guildID])
          │
-    DelayInit
+    AsyncInit
          ├── DB.First → 加载 Guild 数据
          ├── AddTick(guild_save, 600s)
-         └── AddCron(DayRefresh)
+         └── AddDaily(DayRefresh)
          │
     HandleMessage
-         ├── 业务消息 → AutoHandleMsg 反射派发
+         ├── 业务消息 → DispatchDefault 反射派发
          └── Timer → save / onDayRefresh
          │
     Terminate → StopModule

@@ -6,8 +6,8 @@ import (
 	"gserver/protocol/pb"
 )
 
-func RegisterActorKind(name string, prod ActorProducer) error {
-	return app.RegisterActorKind(name, prod)
+func RegisterActorKind(name string, ctor ActorConstructor) error {
+	return app.RegisterActorKind(name, ctor)
 }
 
 func DeregisterActorKind(name string) {
@@ -16,8 +16,11 @@ func DeregisterActorKind(name string) {
 
 // SpawnFunc 创建一个不带名字的 actor,生命周期由创建者负责。
 // 用于会话这类无需跨节点寻址的实例。
-func SpawnFunc(prod ActorProducer, initArgs ...any) (PID, error) {
-	return app.spawnUnnamed(prod, initArgs...)
+//
+// kind 在这里给出一次即可:无名实例不参与按名寻址,没有注册表的键可作为权威
+// 能力名,因此构造处就是唯一来源(见 ADR 0017)。
+func SpawnFunc(kind string, ctor ActorConstructor, initArgs ...any) (PID, error) {
+	return app.spawnUnnamed(kind, ctor, initArgs...)
 }
 
 // SendAsNode 以**节点身份**发送消息(发送者是节点本身,不是某个 actor)。

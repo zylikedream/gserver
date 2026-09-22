@@ -95,7 +95,7 @@ func NewPID(node string, name string) PID {
 }
 
 // pidFromRemote 由节点与注册名构造跨节点引用。
-// 名字用运行时表示,与 actorName 的返回类型一致——内部调用方不必来回转换。
+// 名字用运行时表示,与身份派生出的注册名类型一致——内部调用方不必来回转换。
 func pidFromRemote(node string, name gen.Atom) PID {
 	return PID{remote: gen.ProcessID{Node: gen.Atom(node), Name: name}}
 }
@@ -116,32 +116,39 @@ func PidEqual(a, b PID) bool {
 }
 
 // PidToPB 把进程引用转成可跨节点传递的表示。
+//
+// Name 装的是**注册名**(形如 <kind>/<id>),不是实例标识;跨节点只能按它寻址,
+// 因为运行时的进程标识含"哪一代实例"的信息,对端重启后即失效。
 func PidToPB(pid PID) *pb.ActorPid {
 	return &pb.ActorPid{
 		Address:  pid.Node(),
-		Id:       pid.Name(),
+		Name:     pid.Name(),
 		Pid:      pid.local.ID,
 		Creation: pid.local.Creation,
 	}
 }
 
 // PBToPid 从 wire 表示还原进程引用。
-// 有创建时刻时按本机标识寻址,否则按节点加注册名寻址。
+//
+// 按**是否带本机进程标识**分两种:带了就按它寻址(同节点、同代);没带就按
+// "节点 + 注册名"寻址(跨节点)。判据取 `Node` 与 `Creation` 都非零——两者是
+// 本机标识的组成部分,零值即表示这是一个按名寻址的引用。不单看 `Creation`:
+// 那会让判别依赖"创建时刻恰好非零"这一实现细节。
 func PBToPid(in *pb.ActorPid) PID {
 	if in == nil {
 		return PID{}
 	}
-	if in.GetCreation() != 0 {
+	if in.GetAddress() != "" && in.GetPid() != 0 && in.GetCreation() != 0 {
 		return PID{local: gen.PID{
 			Node:     gen.Atom(in.GetAddress()),
 			ID:       in.GetPid(),
 			Creation: in.GetCreation(),
 		}}
 	}
-	if in.GetAddress() == "" || in.GetId() == "" {
+	if in.GetAddress() == "" || in.GetName() == "" {
 		return PID{}
 	}
-	return pidFromRemote(in.GetAddress(), gen.Atom(in.GetId()))
+	return pidFromRemote(in.GetAddress(), gen.Atom(in.GetName()))
 }
 
 // pidName 反查进程的注册名。名字表是单向的(名字→进程),因此需要遍历查找;

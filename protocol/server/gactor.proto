@@ -41,7 +41,7 @@ message ActorStop {
 // 代际校验拒绝。
 message ActorPid {
     string address = 1;  // 节点名
-    string Id = 2;       // 注册名(可寻址时)
+    string name = 2;     // 注册名(可寻址时),形如 <kind>/<id>
     uint64 pid = 3;      // 进程序号
     int64 creation = 4;  // 实例创建时刻
 }

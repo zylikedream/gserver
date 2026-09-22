@@ -41,7 +41,7 @@ func TestActorLocatorClaimConcurrentHasSingleWinner(t *testing.T) {
 		wg.Add(1)
 		go func(locator *actorLocator) {
 			defer wg.Done()
-			owner, acquired, err := locator.claim(ctx, "role", "player-1")
+			owner, acquired, err := locator.Claim(ctx, "role", "player-1")
 			results <- claimResult{owner: owner, acquired: acquired, err: err}
 		}(locator)
 	}
@@ -76,12 +76,12 @@ func TestActorLocatorClaimActiveOwnerReturnsExistingOwner(t *testing.T) {
 	if err := second.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	want, acquired, err := first.claim(ctx, "role", "player-1")
+	want, acquired, err := first.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("first claim = owner:%+v acquired:%v err:%v", want, acquired, err)
 	}
 
-	got, acquired, err := second.claim(ctx, "role", "player-1")
+	got, acquired, err := second.Claim(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,20 +101,20 @@ func TestActorLocatorOwnerPersistsWhileNodeLeaseIsActive(t *testing.T) {
 	if err := second.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	want, acquired, err := first.claim(ctx, "role", "player-1")
+	want, acquired, err := first.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("first claim = owner:%+v acquired:%v err:%v", want, acquired, err)
 	}
 
 	server.FastForward(2 * time.Second)
-	got, err := first.locate(ctx, "role", "player-1")
+	got, err := first.Locate(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != want {
 		t.Fatalf("owner after node lease interval = %+v, want %+v", got, want)
 	}
-	_, acquired, err = second.claim(ctx, "role", "player-1")
+	_, acquired, err = second.Claim(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestActorLocatorClaimTakesOverExpiredOwnerWithNextEpoch(t *testing.T) {
 	if err := first.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	oldOwner, acquired, err := first.claim(ctx, "role", "player-1")
+	oldOwner, acquired, err := first.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("first claim = owner:%+v acquired:%v err:%v", oldOwner, acquired, err)
 	}
@@ -138,7 +138,7 @@ func TestActorLocatorClaimTakesOverExpiredOwnerWithNextEpoch(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	newOwner, acquired, err := second.claim(ctx, "role", "player-1")
+	newOwner, acquired, err := second.Claim(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestActorLocatorClaimTakesOverExpiredOwnerWithNextEpoch(t *testing.T) {
 
 func TestActorLocatorClaimRejectsInvalidLease(t *testing.T) {
 	first, _, _ := newActorLocatorTestPair(t)
-	_, _, err := first.claim(context.Background(), "role", "player-1")
+	_, _, err := first.Claim(context.Background(), "role", "player-1")
 	if !errors.Is(err, errActorLocatorLeaseInvalid) {
 		t.Fatalf("claim error = %v, want %v", err, errActorLocatorLeaseInvalid)
 	}
@@ -169,7 +169,7 @@ func TestActorLocatorClaimReportsInvalidLeaseFromScript(t *testing.T) {
 	if err := server.Set(actorLocatorLeaseKey(first.nodeID), "other-token"); err != nil {
 		t.Fatal(err)
 	}
-	_, _, err := first.claim(ctx, "role", "player-1")
+	_, _, err := first.Claim(ctx, "role", "player-1")
 	if !errors.Is(err, errActorLocatorLeaseInvalid) {
 		t.Fatalf("claim error = %v, want typed invalid lease", err)
 	}
@@ -198,7 +198,7 @@ func TestActorLocatorRedisErrorIsNotMiss(t *testing.T) {
 	if err := first.redis.Close(); err != nil {
 		t.Fatal(err)
 	}
-	_, err := first.locate(context.Background(), "role", "missing")
+	_, err := first.Locate(context.Background(), "role", "missing")
 	if err == nil {
 		t.Fatal("locate returned nil error for Redis failure")
 	}
@@ -210,12 +210,12 @@ func TestActorLocatorLocateExpiredOwnerReturnsMiss(t *testing.T) {
 	if err := first.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, acquired, err := first.claim(ctx, "role", "player-1"); err != nil || !acquired {
+	if _, acquired, err := first.Claim(ctx, "role", "player-1"); err != nil || !acquired {
 		t.Fatalf("claim acquired=%v err=%v", acquired, err)
 	}
 	server.Del(actorLocatorLeaseKey(first.nodeID))
 
-	owner, err := first.locate(ctx, "role", "player-1")
+	owner, err := first.Locate(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestActorLocatorRejectsOwnerWhenLeaseTokenDiffers(t *testing.T) {
 	if err := first.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	oldOwner, acquired, err := first.claim(ctx, "role", "player-1")
+	oldOwner, acquired, err := first.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("first claim owner=%+v acquired=%v err=%v", oldOwner, acquired, err)
 	}
@@ -238,7 +238,7 @@ func TestActorLocatorRejectsOwnerWhenLeaseTokenDiffers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	owner, err := first.locate(ctx, "role", "player-1")
+	owner, err := first.Locate(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +249,7 @@ func TestActorLocatorRejectsOwnerWhenLeaseTokenDiffers(t *testing.T) {
 	if err := second.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	newOwner, acquired, err := second.claim(ctx, "role", "player-1")
+	newOwner, acquired, err := second.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("takeover claim owner=%+v acquired=%v err=%v", newOwner, acquired, err)
 	}
@@ -263,11 +263,11 @@ func TestActorLocatorReleaseReportsMatch(t *testing.T) {
 	if err := first.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	owner, acquired, err := first.claim(ctx, "role", "player-1")
+	owner, acquired, err := first.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("claim owner=%+v acquired=%v err=%v", owner, acquired, err)
 	}
-	released, err := first.release(ctx, "role", "player-1", owner)
+	released, err := first.Release(ctx, "role", "player-1", owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestActorLocatorReleaseDoesNotDeleteNewOwner(t *testing.T) {
 	if err := first.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	oldOwner, acquired, err := first.claim(ctx, "role", "player-1")
+	oldOwner, acquired, err := first.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("first claim = owner:%+v acquired:%v err:%v", oldOwner, acquired, err)
 	}
@@ -290,17 +290,17 @@ func TestActorLocatorReleaseDoesNotDeleteNewOwner(t *testing.T) {
 	if err := second.acquireNodeLease(ctx); err != nil {
 		t.Fatal(err)
 	}
-	newOwner, acquired, err := second.claim(ctx, "role", "player-1")
+	newOwner, acquired, err := second.Claim(ctx, "role", "player-1")
 	if err != nil || !acquired {
 		t.Fatalf("second claim = owner:%+v acquired:%v err:%v", newOwner, acquired, err)
 	}
 
-	if released, err := first.release(ctx, "role", "player-1", oldOwner); err != nil {
+	if released, err := first.Release(ctx, "role", "player-1", oldOwner); err != nil {
 		t.Fatal(err)
 	} else if released {
 		t.Fatal("stale release deleted the new owner")
 	}
-	got, err := second.locate(ctx, "role", "player-1")
+	got, err := second.Locate(ctx, "role", "player-1")
 	if err != nil {
 		t.Fatal(err)
 	}

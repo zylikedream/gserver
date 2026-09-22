@@ -17,10 +17,15 @@ import (
 // actorApp 基础Actor模块:持有 ergo 节点,是整个 actor 运行时的入口。
 type actorApp struct {
 	gxyapp.App
-	node      gen.Node
-	nodeName  string
-	host      string
-	activator *activatorManager
+	node gen.Node
+	// nodeName 是能力名(配置里的 node.name),只用于日志:说明这是"哪一类"节点。
+	nodeName string
+	// nodeInstance 是**节点身份**:部署给出的实例名 + 监听主机。
+	// 运行时路由、所有权记录、服务发现共用这一个值(见 ADR 0018),因此只在此一处
+	// 构造——两处各自拼同一个语义的值,一致性就只能碰巧成立。
+	nodeInstance string
+	host         string
+	activator    *activatorManager
 }
 
 var app *actorApp
@@ -39,11 +44,12 @@ func (a *actorApp) Host() string {
 }
 
 // NewActorApp 创建基础Actor模块。
-// nodeInstanceName 已废弃:路由身份用稳定节点名,所有权身份由运行时节点启动时刻承担(ADR 0010)。
+// nodeName 是能力名(只作日志标识);nodeInstanceName 是节点身份,三者共用(ADR 0018)。
 func NewActorApp(nodeName string, nodeInstanceName string, host string) *actorApp {
 	app = &actorApp{
-		nodeName: nodeName,
-		host:     host,
+		nodeName:     nodeName,
+		nodeInstance: nodeInstanceName,
+		host:         host,
 	}
 	return app
 }
@@ -82,10 +88,9 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 		{Name: "gxylog", Logger: newErgoLogger()},
 	}
 
-	nodeName := gen.Atom(a.nodeName + "@" + a.host)
-	node, err := ergo.StartNode(nodeName, options)
+	node, err := ergo.StartNode(gen.Atom(a.nodeInstance), options)
 	if err != nil {
-		return gerror.Wrapf(err, "start ergo node %s", nodeName)
+		return gerror.Wrapf(err, "start ergo node %s", a.nodeInstance)
 	}
 	a.node = node
 
@@ -95,7 +100,7 @@ func (a *actorApp) OnModInit(ctx context.Context) error {
 		return gerror.Wrap(err, "register wire envelope")
 	}
 
-	a.activator = NewActivatorManager(a.nodeName, string(nodeName))
+	a.activator = NewActivatorManager(string(node.Name()))
 	if err := a.activator.OnModInit(ctx); err != nil {
 		node.Stop()
 		return err
@@ -143,8 +148,8 @@ func (a *actorApp) OnModStop(ctx context.Context) error {
 	return nil
 }
 
-func (a *actorApp) RegisterActorKind(name string, prod ActorProducer) error {
-	return a.activator.RegisterActorKind(name, prod)
+func (a *actorApp) RegisterActorKind(name string, ctor ActorConstructor) error {
+	return a.activator.RegisterActorKind(name, ctor)
 }
 
 func (a *actorApp) DeregisterActorKind(name string) {
@@ -153,10 +158,10 @@ func (a *actorApp) DeregisterActorKind(name string) {
 
 // spawnNamed 以名字注册方式创建 actor。
 //
-// 名字与工厂都由调用方给出,门面不在创建路径上重新推导任何一方:名字是查找侧的
-// 约定(GetLocalActor 按 actorName(kind, id) 查名),工厂在登记 kind 时构造并自带
-// 能力名。两者若在门面内各自推导,就有"注册名与能力名不一致"的余地——实例会注册
-// 在一个查不到的名字下,被误判为"本节点无实例"而反复重建。
+// 名字与工厂都由调用方给出,门面不在创建路径上重新推导任何一方:名字由身份派生
+// (actorKey.name,查找侧按同一身份查名),工厂在登记 kind 时构造并自带能力名。
+// 两者若在门面内各自推导,就有"注册名与能力名不一致"的余地——实例会注册在一个
+// 查不到的名字下,被误判为"本节点无实例"而反复重建。
 //
 // 名字在初始化之前由运行时原子注册,因此并发同名创建是良性的:
 // 败者既不执行初始化,也不执行终止。
@@ -173,12 +178,11 @@ func (a *actorApp) spawnNamed(name gen.Atom, factory gen.ProcessFactory, initArg
 
 // spawnUnnamed 创建一个不带名字的 actor。
 // 这类实例不能按名寻址,生命周期由创建者负责(会话、临时 worker)。
-func (a *actorApp) spawnUnnamed(prod ActorProducer, initArgs ...any) (PID, error) {
+func (a *actorApp) spawnUnnamed(kind string, ctor ActorConstructor, initArgs ...any) (PID, error) {
 	if a.node == nil {
 		return PID{}, gerror.New("actor node not initialized")
 	}
-	// 无名实例不参与按名寻址,没有注册表的键可作为权威能力名,沿用构造时的标签。
-	pid, err := a.node.Spawn(asFactory("", prod), gen.ProcessOptions{}, initArgs...)
+	pid, err := a.node.Spawn(ActorFactory(kind, ctor), gen.ProcessOptions{}, initArgs...)
 	if err != nil {
 		return PID{}, err
 	}
@@ -292,15 +296,18 @@ func address() string {
 	return app.Address()
 }
 
+// GetActorOwner 返回该实例的当前归属。
+// kind 与 id 以字符串给出是刻意的:调用方手里就是字符串(配置、协议字段、
+// 服务名),门面在边界上构造一次身份,内部全程用它。
 func (a *actorApp) GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
-	if a.activator == nil || a.activator.locator == nil {
-		return ActorOwner{}, gerror.New("actor locator is not initialized")
+	if a.activator == nil {
+		return ActorOwner{}, gerror.New("activator is not initialized")
 	}
-	return a.activator.locator.locate(ctx, kind, id)
+	return a.activator.store.Locate(ctx, kind, id)
 }
 
 func (a *actorApp) ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
-	return a.activator.getActor(ctx, kind, id, spawn)
+	return a.activator.getActor(ctx, actorKey{kind: kind, id: id}, spawn)
 }
 
 func (a *actorApp) GetActorCount(kind string) int {
