@@ -20,29 +20,15 @@ import (
 
 const roleNotifyTopicPrefix = "gserver:notify:role:"
 
-// 可替换函数变量:测试注入 fake(编译期安全,非 gomonkey;ADR-0001)。
-var (
-	actorNodeInstance = func() string {
-		app := gxyactor.ActorApp()
-		if app == nil {
-			return ""
-		}
-		return app.NodeInstanceName()
+// selfNodeInstance 返回本节点的运行时身份。
+// actor 应用未就绪时返回空串——空串不等于任何节点,调用方按"目标不在本节点"处理。
+func selfNodeInstance() string {
+	app := gxyactor.ActorApp()
+	if app == nil {
+		return ""
 	}
-	roleLocateNode = func(ctx context.Context, roleID int64) (string, error) {
-		owner, err := gxyactor.GetActorOwner(ctx, lib.ROLE_ACTOR_TYPE, strconv.FormatInt(roleID, 10))
-		return owner.NodeID, err
-	}
-	getLocalActor    = gxyactor.GetLocalActor
-	getLocalActorAll = gxyactor.GetLocalActorAll
-	localSend        = gxyactor.Send
-	mqSubscribe      = func(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error) error {
-		return gxymq.MessageQueue().Subscribe(ctx, topic, handler)
-	}
-	mqPublish = func(ctx context.Context, topic, msg string) error {
-		return gxymq.MessageQueue().Publish(ctx, topic, msg)
-	}
-)
+	return app.NodeInstanceName()
+}
 
 type roleNotifyMsg struct {
 	TargetRoleID int64      `json:"target_role_id"`
@@ -64,12 +50,12 @@ func NewRoleNotify() *RoleNotify {
 }
 
 func (r *RoleNotify) OnModInit(ctx context.Context) error {
-	r.nodeInstanceName = actorNodeInstance()
+	r.nodeInstanceName = selfNodeInstance()
 	return nil
 }
 
 func (r *RoleNotify) OnModStart(ctx context.Context) error {
-	return mqSubscribe(ctx, roleNotifyTopic(r.nodeInstanceName), r.handleNotify)
+	return gxymq.MessageQueue().Subscribe(ctx, roleNotifyTopic(r.nodeInstanceName), r.handleNotify)
 }
 
 func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
@@ -98,12 +84,12 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 }
 
 func notifyLocal(ctx context.Context, targetRoleID int64, msg proto.Message) error {
-	pid := getLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
+	pid := gxyactor.GetLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
 	if gxyactor.PIDIsZero(pid) {
 		gxylog.Debug(ctx, "role notify target not local online", gxylog.Num("roleID", targetRoleID))
 		return nil
 	}
-	return localSend(ctx, pid, &OnRoleNotifyMsg{Msg: msg})
+	return gxyactor.Send(ctx, pid, &OnRoleNotifyMsg{Msg: msg})
 }
 
 func roleNotifyTopic(nodeInstanceName string) string {
@@ -116,13 +102,14 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "invalid").Inc()
 		return nil
 	}
-	nodeInstanceName, err := roleLocateNode(ctx, targetRoleID)
+	owner, err := gxyactor.GetActorOwner(ctx, lib.ROLE_ACTOR_TYPE, strconv.FormatInt(targetRoleID, 10))
+	nodeInstanceName := owner.NodeID
 	if nodeInstanceName == "" {
 		gxylog.Debug(ctx, "role notify target offline", gxylog.Num("roleID", targetRoleID), gxylog.Err(err))
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "offline", "offline").Inc()
 		return nil
 	}
-	if nodeInstanceName == actorNodeInstance() {
+	if nodeInstanceName == selfNodeInstance() {
 		if err := notifyLocal(ctx, targetRoleID, msg); err != nil {
 			gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "local").Inc()
 			return err
@@ -144,7 +131,7 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "remote").Inc()
 		return errors.Wrap(err, "role notify json marshal")
 	}
-	if err := mqPublish(ctx, roleNotifyTopic(nodeInstanceName), string(payload)); err != nil {
+	if err := gxymq.MessageQueue().Publish(ctx, roleNotifyTopic(nodeInstanceName), string(payload)); err != nil {
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "remote").Inc()
 		return errors.Wrap(err, "role notify publish")
 	}
@@ -160,13 +147,12 @@ func protoMessageName(msg proto.Message) string {
 }
 
 func GetRolePid(RoleID int64) gxyactor.PID {
-	return getLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(RoleID, 10))
+	return gxyactor.GetLocalActor(lib.ROLE_ACTOR_TYPE, strconv.FormatInt(RoleID, 10))
 }
 
 func NotifyLocalAll(ctx context.Context, msg proto.Message) error {
-	pids := getLocalActorAll(lib.ROLE_ACTOR_TYPE)
-	for _, pid := range pids {
-		_ = localSend(ctx, pid, &OnRoleNotifyMsg{Msg: msg})
+	for _, pid := range gxyactor.GetLocalActorAll(lib.ROLE_ACTOR_TYPE) {
+		_ = gxyactor.Send(ctx, pid, &OnRoleNotifyMsg{Msg: msg})
 	}
 	return nil
 }
