@@ -22,13 +22,6 @@ const roleNotifyTopicPrefix = "gserver:notify:role:"
 
 // selfNodeInstance 返回本节点的运行时身份。
 // actor 应用未就绪时返回空串——空串不等于任何节点,调用方按"目标不在本节点"处理。
-func selfNodeInstance() string {
-	app := gxyactor.ActorApp()
-	if app == nil {
-		return ""
-	}
-	return app.NodeInstanceName()
-}
 
 type roleNotifyMsg struct {
 	TargetRoleID int64      `json:"target_role_id"`
@@ -50,7 +43,7 @@ func NewRoleNotify() *RoleNotify {
 }
 
 func (r *RoleNotify) OnModInit(ctx context.Context) error {
-	r.nodeInstanceName = selfNodeInstance()
+	r.nodeInstanceName = gxyactor.NodeInstance()
 	return nil
 }
 
@@ -109,7 +102,7 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "offline", "offline").Inc()
 		return nil
 	}
-	if nodeInstanceName == selfNodeInstance() {
+	if nodeInstanceName == gxyactor.NodeInstance() {
 		if err := notifyLocal(ctx, targetRoleID, msg); err != nil {
 			gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "local").Inc()
 			return err

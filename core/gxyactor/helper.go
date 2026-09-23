@@ -20,7 +20,7 @@ func DeregisterActorKind(name string) {
 // kind 在这里给出一次即可:无名实例不参与按名寻址,没有注册表的键可作为权威
 // 能力名,因此构造处就是唯一来源(见 ADR 0017)。
 func Spawn(kind string, ctor ActorConstructor, initArgs ...any) (PID, error) {
-	return app.spawnUnnamed(kind, ctor, initArgs...)
+	return app.spawn(kind, ctor, initArgs...)
 }
 
 // Send 以**节点身份**发送消息(发送者是节点本身,不是某个 actor)。
@@ -63,4 +63,8 @@ func ActorError(reason string) *pb.ActorError {
 	return &pb.ActorError{
 		Reason: reason,
 	}
+}
+
+func NodeInstance() string {
+	return app.NodeInstanceName()
 }
