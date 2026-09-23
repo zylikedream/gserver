@@ -194,7 +194,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.sessionInfo.AccountID = identity.AccountID
 	s.sessionInfo.RoleID = identity.RoleID
 
-	s.SetLogValue(gxylog.ContextKeyRoleID, identity.RoleID)
+	s.SetLogValue(gxylog.CONTEXT_KEY_ROLE_ID, identity.RoleID)
 	rolePid, err := activateRoleWithLoginPermit(ctx, identity.RoleID)
 	if err != nil {
 		return err

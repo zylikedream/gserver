@@ -57,7 +57,7 @@ gxylog.Error(ctx, "load role failed", gxylog.Str("error", err.Error()))
 
 ```go
 ctx := gxylog.NewContext(ctx, "role")          // 模块名
-ctx = gxylog.WithValue(ctx, gxylog.ContextKeyRoleID, roleID)  // 业务字段
+ctx = gxylog.WithValue(ctx, gxylog.CONTEXT_KEY_ROLE_ID, roleID)  // 业务字段
 gxylog.Info(ctx, "...")                        // 自动带 mod/roleID/trace_id
 ```
 

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	RolePublicCacheExpire = time.Hour
+	ROLE_PUBLIC_CACHE_EXPIRE = time.Hour
 )
 
 type RolePublicState struct {
@@ -117,7 +117,7 @@ func setRolePublicToCache(ctx context.Context, cli gxyredis.Client, rolePublic *
 		gxylog.Error(ctx, "marshal role public to cache failed", gxylog.Num("roleID", rolePublic.RoleID), gxylog.Err(err))
 		return
 	}
-	if err := cli.Set(ctx, key, strPublic, RolePublicCacheExpire).Err(); err != nil {
+	if err := cli.Set(ctx, key, strPublic, ROLE_PUBLIC_CACHE_EXPIRE).Err(); err != nil {
 		gxylog.Error(ctx, "set role public to cache failed", gxylog.Num("roleID", rolePublic.RoleID), gxylog.Err(err))
 	}
 }

@@ -80,15 +80,15 @@ type Ownership struct {
 	FailClaim error
 }
 
-func (o *Ownership) Claim(_ context.Context, kind, id string) (gxyactor.ActorOwner, bool, error) {
+func (o *Ownership) Claim(_ context.Context, kind, id string) (gxyactor.ActorOwner, error) {
 	if o.FailClaim != nil {
-		return gxyactor.ActorOwner{}, false, o.FailClaim
+		return gxyactor.ZeroActorOwner, o.FailClaim
 	}
 	o.epoch++
 	owner := gxyactor.ActorOwner{NodeID: "test@localhost", Epoch: o.epoch}
 	o.claimed = append(o.claimed, kind+"/"+id)
 	o.owners[kind+"/"+id] = owner
-	return owner, true, nil
+	return owner, nil
 }
 
 func (o *Ownership) Locate(_ context.Context, kind, id string) (gxyactor.ActorOwner, error) {

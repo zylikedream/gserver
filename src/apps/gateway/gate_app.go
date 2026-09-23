@@ -14,7 +14,7 @@ import (
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// sessionSupervisor 会话管理器 - 直接继承gen.Supervisor，本身即是Supervisor
+// gateApp 是网关应用的组合根:组装网络端点、会话管理与令牌校验。
 type gateApp struct {
 	gxyapp.App
 }
@@ -59,19 +59,19 @@ func (s *gateApp) OnModStart(ctx context.Context) error {
 func (s *gateApp) OnModStop(ctx context.Context) error {
 	sessions := logic.SessionMgr().All()
 	for _, pid := range sessions {
-		_ = StopSession(pid, gerror.New("gateway service stop"))
+		_ = stopSession(pid, gerror.New("gateway service stop"))
 	}
 	return nil
 }
 
-func SpawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
-	return gxyactor.SpawnFunc("session", func() gxyactor.Business {
+func spawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
+	return gxyactor.Spawn("session", func() gxyactor.Business {
 		return logic.NewSession(ep)
 	})
 }
 
-func StopSession(pid gxyactor.PID, err error) error {
-	return gxyactor.SendAsNode(context.Background(), pid, &pb.ActorStop{
+func stopSession(pid gxyactor.PID, err error) error {
+	return gxyactor.Send(context.Background(), pid, &pb.ActorStop{
 		Reason: err.Error(),
 	})
 }

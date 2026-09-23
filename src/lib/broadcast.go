@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	BroadCastTypeSystemMsg    = "system_msg"    // 系统消息
-	BroadCastTypeReloadConfig = "reload_config" // 刷新配置消息(todo)
+	BROADCAST_TYPE_SYSTEM_MSG    = "system_msg"    // 系统消息
+	BROADCAST_TYPE_RELOAD_CONFIG = "reload_config" // 刷新配置消息(todo)
 )
 
 // BroadcastMsg 广播消息结构体
@@ -39,7 +39,7 @@ type Broadcast struct {
 // 一些通用的消息处理函数, 避免重复写代码
 func CommonMsgHandler(ctx context.Context, topic string, msg *BroadcastMsg) *BroadcastMsg {
 	switch msg.MsgType {
-	case BroadCastTypeReloadConfig:
+	case BROADCAST_TYPE_RELOAD_CONFIG:
 		// 系统消息，直接返回
 		return nil
 	}

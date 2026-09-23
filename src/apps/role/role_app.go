@@ -29,7 +29,7 @@ func NewRoleApp() *roleApp {
 
 func onBroadcast(ctx context.Context, _topic string, msg *lib.BroadcastMsg) *lib.BroadcastMsg {
 	switch msg.MsgType {
-	case lib.BroadCastTypeSystemMsg:
+	case lib.BROADCAST_TYPE_SYSTEM_MSG:
 		_ = rolelib.NotifyLocalAll(ctx, &pb.NotifyChatSystem{
 			Message: &pb.PChatMsg{
 				Content:   msg.Data,

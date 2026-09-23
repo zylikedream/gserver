@@ -145,59 +145,77 @@ func parseableFields(md protoreflect.MessageDescriptor) []client.FieldInfo {
 
 func buildAutoExec(msgType reflect.Type, fields []client.FieldInfo) func(c *client.Client, args []string) error {
 	return func(c *client.Client, args []string) error {
-		msg := reflect.New(msgType).Interface().(proto.Message)
-		mr := msg.ProtoReflect()
+		return runAutoExec(c, msgType, fields, args)
+	}
+}
 
-		nSingular := 0
-		for _, f := range fields {
-			if !f.Repeated {
-				nSingular++
-			}
+// runAutoExec 按字段列表填充消息并发送:先单值字段,再多值字段。
+func runAutoExec(c *client.Client, msgType reflect.Type, fields []client.FieldInfo, args []string) error {
+	msg := reflect.New(msgType).Interface().(proto.Message)
+	mr := msg.ProtoReflect()
+
+	if len(args) < countSingular(fields) {
+		return fmt.Errorf("usage: %s", formatParamList(fields))
+	}
+	if err := fillSingularFields(mr, fields, args); err != nil {
+		return err
+	}
+	if err := fillRepeatedFields(mr, fields, args, countSingular(fields)); err != nil {
+		return err
+	}
+	return c.Request(msg)
+}
+
+// countSingular 返回非多值字段的数量。
+func countSingular(fields []client.FieldInfo) int {
+	n := 0
+	for _, f := range fields {
+		if !f.Repeated {
+			n++
 		}
+	}
+	return n
+}
 
-		if len(args) < nSingular {
-			return fmt.Errorf("usage: %s", formatParamList(fields))
+// fillSingularFields 用 args 的前 nSingular 个参数填充单值字段。
+func fillSingularFields(mr protoreflect.Message, fields []client.FieldInfo, args []string) error {
+	argIdx := 0
+	for _, fi := range fields {
+		if fi.Repeated {
+			continue
 		}
+		fd := mr.Descriptor().Fields().ByName(protoreflect.Name(fi.Name))
+		val, err := client.ParseFieldValue(args[argIdx], fi)
+		if err != nil {
+			return fmt.Errorf("invalid %s: %v", fi.Name, err)
+		}
+		mr.Set(fd, val)
+		argIdx++
+	}
+	return nil
+}
 
-		argIdx := 0
-		for _, fi := range fields {
-			if fi.Repeated {
-				continue
-			}
-			if argIdx >= len(args) {
-				break
-			}
-			fd := mr.Descriptor().Fields().ByName(protoreflect.Name(fi.Name))
-			val, err := client.ParseFieldValue(args[argIdx], fi)
+// fillRepeatedFields 用 args 剩余参数填充多值字段(支持逗号展开)。
+func fillRepeatedFields(mr protoreflect.Message, fields []client.FieldInfo, args []string, argIdx int) error {
+	for _, fi := range fields {
+		if !fi.Repeated {
+			continue
+		}
+		if argIdx >= len(args) {
+			break
+		}
+		fd := mr.Descriptor().Fields().ByName(protoreflect.Name(fi.Name))
+		list := mr.Mutable(fd).List()
+		for _, s := range client.ExpandCommaSeparated(args[argIdx:]) {
+			val, err := client.ParseFieldValue(strings.TrimSpace(s), fi)
 			if err != nil {
 				return fmt.Errorf("invalid %s: %v", fi.Name, err)
 			}
-			mr.Set(fd, val)
-			argIdx++
+			list.Append(val)
 		}
-
-		for _, fi := range fields {
-			if !fi.Repeated {
-				continue
-			}
-			if argIdx >= len(args) {
-				break
-			}
-			fd := mr.Descriptor().Fields().ByName(protoreflect.Name(fi.Name))
-			list := mr.Mutable(fd).List()
-			expanded := client.ExpandCommaSeparated(args[argIdx:])
-			for _, s := range expanded {
-				val, err := client.ParseFieldValue(strings.TrimSpace(s), fi)
-				if err != nil {
-					return fmt.Errorf("invalid %s: %v", fi.Name, err)
-				}
-				list.Append(val)
-			}
-			argIdx = len(args)
-		}
-
-		return c.Request(msg)
+		argIdx = len(args)
 	}
+	return nil
 }
 
 // kindName 映射 protoreflect.Kind 到易读类型名(usage 提示用)。
