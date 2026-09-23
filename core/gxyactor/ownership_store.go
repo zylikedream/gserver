@@ -50,7 +50,7 @@ func ownershipStore() (OwnershipStore, error) {
 func claimOwnership(ctx context.Context, k actorKey) (ActorOwner, error) {
 	store, err := ownershipStore()
 	if err != nil {
-		return ActorOwner{}, err
+		return ZeroActorOwner, err
 	}
 	return store.Claim(ctx, k.kind, k.id)
 }

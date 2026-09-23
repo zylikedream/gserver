@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxypgx"
 	"gserver/protocol/pb"
+	"gserver/src/lib"
 	"gserver/src/lib/rolelib"
 
 	"gorm.io/gorm"
@@ -64,8 +64,7 @@ type channelMember struct {
 type ChannelActor struct {
 	gxymodule.ModuleBase
 	*gxyactor.EntityActor
-	ChannelType  int32
-	ChannelID    int64
+	key          lib.ChannelKey
 	channel      IChannel
 	members      map[int64]*channelMember
 	buffer       *ringBuffer
@@ -89,10 +88,12 @@ func (a *ChannelActor) Init(args ...any) error {
 		return errors.New("channel actor init: need channelType_channelID]")
 	}
 	id, _ := args[0].(string)
-	if _, err := fmt.Sscanf(id, "%d_%d", &a.ChannelType, &a.ChannelID); err != nil {
+	key, err := lib.ParseChannelKey(id)
+	if err != nil {
 		return errors.Wrapf(err, "channel actor init: invalid id %q", id)
 	}
-	ch, ok := GetChannel(a.ChannelType)
+	a.key = key
+	ch, ok := GetChannel(a.key.Type)
 	if !ok {
 		return errors.New("unknown channel type")
 	}
@@ -132,27 +133,32 @@ func (a *ChannelActor) HandleMessage(msg any) (any, error) {
 		}
 
 	case *pb.ReqChannelSend:
-		if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
-			return gxyactor.ActorError(err.Error()), nil
-		}
-		chatMsg := &pb.PChatMsg{
-			Sender:    &pb.PRolePublic{RoleId: m.SenderId},
-			Content:   m.Content,
-			Timestamp: time.Now().Unix(),
-		}
-		a.buffer.Push(chatMsg)
+		return a.handleChannelSend(ctx, m)
+	}
+	return nil, nil
+}
 
-		notify := &pb.NotifyChatChannel{
-			ChannelType: m.ChannelType,
-			ChannelId:   m.ChannelId,
-			SenderId:    m.SenderId,
-			Content:     m.Content,
-			Timestamp:   chatMsg.Timestamp,
-		}
-		// 通知所有成员
-		for _, mbr := range a.members {
-			_ = rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
-		}
+// handleChannelSend 处理发消息:校验写权限 → 入 buffer → 广播给所有成员。
+func (a *ChannelActor) handleChannelSend(ctx context.Context, m *pb.ReqChannelSend) (any, error) {
+	if err := a.channel.CanWrite(m.SenderId, m.Content); err != nil {
+		return gxyactor.ActorError(err.Error()), nil
+	}
+	chatMsg := &pb.PChatMsg{
+		Sender:    &pb.PRolePublic{RoleId: m.SenderId},
+		Content:   m.Content,
+		Timestamp: time.Now().Unix(),
+	}
+	a.buffer.Push(chatMsg)
+
+	notify := &pb.NotifyChatChannel{
+		ChannelType: m.ChannelType,
+		ChannelId:   m.ChannelId,
+		SenderId:    m.SenderId,
+		Content:     m.Content,
+		Timestamp:   chatMsg.Timestamp,
+	}
+	for _, mbr := range a.members {
+		_ = rolelib.PublishRoleNotify(ctx, mbr.RoleID, notify)
 	}
 	return nil, nil
 }
@@ -194,12 +200,12 @@ func (a *ChannelActor) loadHistory(ctx context.Context) {
 	}
 	var rows []row
 	if err := a.db.Table(a.channel.TableName()).
-		Where("channel_type = ? AND channel_id = ?", a.ChannelType, a.ChannelID).
+		Where("channel_type = ? AND channel_id = ?", a.key.Type, a.key.ID).
 		Order("id DESC").
 		Limit(a.channel.RingBufferSize()).
 		Find(&rows).Error; err != nil {
 		gxylog.Error(ctx, "load channel history failed",
-			gxylog.Str("channel", fmt.Sprintf("%d_%d", a.ChannelType, a.ChannelID)),
+			gxylog.Str("channel", a.key.String()),
 			gxylog.Err(err))
 		return
 	}
@@ -225,14 +231,14 @@ func (a *ChannelActor) save(ctx context.Context) {
 	msgs := a.buffer.Recent(currentLen - a.lastSavedSeq)
 	for _, msg := range msgs {
 		if err := a.db.Table(a.channel.TableName()).Create(map[string]any{
-			"channel_type": a.ChannelType,
-			"channel_id":   a.ChannelID,
+			"channel_type": a.key.Type,
+			"channel_id":   a.key.ID,
 			"sender_id":    msg.Sender.GetRoleId(),
 			"content":      msg.Content,
 			"timestamp":    msg.Timestamp,
 		}).Error; err != nil {
 			gxylog.Error(ctx, "save channel msg failed",
-				gxylog.Str("channel", fmt.Sprintf("%d_%d", a.ChannelType, a.ChannelID)),
+				gxylog.Str("channel", a.key.String()),
 				gxylog.Err(err))
 			return // 保留 dirty, 下次重试
 		}

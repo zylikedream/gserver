@@ -82,7 +82,7 @@ type Ownership struct {
 
 func (o *Ownership) Claim(_ context.Context, kind, id string) (gxyactor.ActorOwner, error) {
 	if o.FailClaim != nil {
-		return gxyactor.ActorOwner{}, o.FailClaim
+		return gxyactor.ZeroActorOwner, o.FailClaim
 	}
 	o.epoch++
 	owner := gxyactor.ActorOwner{NodeID: "test@localhost", Epoch: o.epoch}

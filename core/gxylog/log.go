@@ -27,17 +27,17 @@ import (
 )
 
 const (
-	ContextKeyModType = "mod"
-	ContextKeyRoleID  = "roleID"
+	CONTEXT_KEY_MOD_TYPE = "mod"
+	CONTEXT_KEY_ROLE_ID  = "roleID"
 )
 
 // Level 常量(替代 goframe glog.LEVEL_*),供 LogAdapter 阈值比较使用
 const (
-	LevelDebug = iota
-	LevelInfo
-	LevelWarn
-	LevelError
-	LevelFatal
+	LEVEL_DEBUG = iota
+	LEVEL_INFO
+	LEVEL_WARN
+	LEVEL_ERROR
+	LEVEL_FATAL
 )
 
 var (
@@ -88,7 +88,7 @@ func WithValue(ctx context.Context, key string, value any) context.Context {
 }
 
 func NewContext(ctx context.Context, mod string) context.Context {
-	return WithValue(ctx, ContextKeyModType, mod)
+	return WithValue(ctx, CONTEXT_KEY_MOD_TYPE, mod)
 }
 
 // SetLevel 动态调整全局日志级别("all"/"debug"/"info"/"warn"/"error"/"fatal")
@@ -167,11 +167,11 @@ func toZapFields(ctx context.Context, fields []Field) []zap.Field {
 		}
 		zs = append(zs, zap.String(f.Key, f.Value))
 	}
-	if mod := ctxValue(ctx, ContextKeyModType); mod != "" {
-		zs = append(zs, zap.String(ContextKeyModType, mod))
+	if mod := ctxValue(ctx, CONTEXT_KEY_MOD_TYPE); mod != "" {
+		zs = append(zs, zap.String(CONTEXT_KEY_MOD_TYPE, mod))
 	}
-	if rid := ctxValue(ctx, ContextKeyRoleID); rid != "" {
-		zs = append(zs, zap.String(ContextKeyRoleID, rid))
+	if rid := ctxValue(ctx, CONTEXT_KEY_ROLE_ID); rid != "" {
+		zs = append(zs, zap.String(CONTEXT_KEY_ROLE_ID, rid))
 	}
 	// traceID:仅当 span 被采样时注入(未采样的 span 无对应 trace,打了会导致跳转 404);
 	// 无有效 span 时兜底 goframe CtxId

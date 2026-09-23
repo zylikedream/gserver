@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	// DefaultTTL is the default TTL for service registration
-	DefaultTTL = 22 * time.Second
+	// DEFAULT_TTL is the default TTL for service registration
+	DEFAULT_TTL = 22 * time.Second
 
-	// DefaultHealthCheckInterval is the default interval for health check
-	DefaultHealthCheckInterval = 10 * time.Second
+	// DEFAULT_HEALTH_CHECK_INTERVAL is the default interval for health check
+	DEFAULT_HEALTH_CHECK_INTERVAL = 10 * time.Second
 )
 
 var (
@@ -88,8 +88,8 @@ func New(opts ...Option) (gsvc.Registry, error) {
 	r := &Registry{
 		address:             "127.0.0.1:8500",
 		options:             make(map[string]string),
-		healthCheckInterval: DefaultHealthCheckInterval,
-		ttl:                 DefaultTTL,
+		healthCheckInterval: DEFAULT_HEALTH_CHECK_INTERVAL,
+		ttl:                 DEFAULT_TTL,
 		stopHealthCheck:     make(map[string]context.CancelFunc),
 		logger:              glog.New(),
 	}

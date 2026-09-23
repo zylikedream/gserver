@@ -150,69 +150,67 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 	if !isFriend(ctx, r.DB(), r.RoleID, friendID) {
 		return nil, errors.WithStack(ErrNotFriend)
 	}
-
-	dailyCount := r.getDailyCount(friendID)
-	if dailyCount >= cfg.StealPerFriendDailyLimit {
+	if r.getDailyCount(friendID) >= cfg.StealPerFriendDailyLimit {
 		return nil, errors.WithStack(ErrStealDailyFull)
 	}
 
 	var rsp *pb.RspPlotSteal
 	err := withPlotLocks(ctx, friendID, []int32{plotID}, func() error {
-		plots, ok := getRolePlotSnapshot(ctx, r.Deps(), friendID)
-		if !ok {
-			return errors.WithStack(ErrStealLocked)
-		}
-		plot, ok := plots[plotID]
-		if !ok {
-			return errors.WithStack(ErrStealLocked)
-		}
-		state := getPlotState(plot)
-		if state != int32(pb.PlotState_PLOT_HARVESTABLE) {
-			return errors.WithStack(ErrStealNotHarvestable)
-		}
-
-		stolenCount, err := countPlotStolen(ctx, r.DB(), friendID, plotID)
-		if err != nil {
-			return err
-		}
-		if stolenCount >= int64(cfg.FlowerMaxBeStolenTimes) {
-			return errors.WithStack(ErrStealFlowerFull)
-		}
-
-		if hasStealRecord(ctx, r.DB(), r.RoleID, friendID, plotID) {
-			return errors.WithStack(ErrStealLocked)
-		}
-
-		if err := createStealRecord(ctx, r.DB(), &StealRecord{
-			OwnerID:   friendID,
-			PlotID:    plotID,
-			StealerID: r.RoleID,
-			FlowerID:  plot.FlowerID,
-			StealTime: time.Now(),
-		}); err != nil {
-			return err
-		}
-
-		r.incDailyCount(friendID)
-
-		flowerCfg := r.Cfg().TbFlower.Get(plot.FlowerID)
-		if flowerCfg == nil {
-			return errors.New("flower config not found")
-		}
-		rewardNum := int(cfg.StealRewardNum)
-
-		if err := r.Role.Bag.SaveGoods(ctx, nil,
-			[]*gamecfg.GardenGoodStack{bag.MakeGoodStack(int(flowerCfg.HarvestItemId), rewardNum)}, "steal_flower"); err != nil {
-			return err
-		}
-
-		rsp = &pb.RspPlotSteal{
-			Success: true,
-			Rewards: []*pb.PGoodInfo{
-				{PropId: flowerCfg.HarvestItemId, Num: int64(rewardNum)},
-			},
-		}
-		return nil
+		var err error
+		rsp, err = r.steal(ctx, friendID, plotID)
+		return err
 	})
 	return rsp, err
+}
+
+// steal 在持有对端地块锁的前提下执行一次偷取:校验可偷 → 记录 → 发奖。
+func (r *RoleSteal) steal(ctx context.Context, friendID int64, plotID int32) (*pb.RspPlotSteal, error) {
+	cfg := r.Cfg().TbFriendConfig.Get()
+	plots, ok := getRolePlotSnapshot(ctx, r.Deps(), friendID)
+	if !ok {
+		return nil, errors.WithStack(ErrStealLocked)
+	}
+	plot, ok := plots[plotID]
+	if !ok {
+		return nil, errors.WithStack(ErrStealLocked)
+	}
+	if getPlotState(plot) != int32(pb.PlotState_PLOT_HARVESTABLE) {
+		return nil, errors.WithStack(ErrStealNotHarvestable)
+	}
+
+	stolenCount, err := countPlotStolen(ctx, r.DB(), friendID, plotID)
+	if err != nil {
+		return nil, err
+	}
+	if stolenCount >= int64(cfg.FlowerMaxBeStolenTimes) {
+		return nil, errors.WithStack(ErrStealFlowerFull)
+	}
+	if hasStealRecord(ctx, r.DB(), r.RoleID, friendID, plotID) {
+		return nil, errors.WithStack(ErrStealLocked)
+	}
+
+	if err := createStealRecord(ctx, r.DB(), &StealRecord{
+		OwnerID:   friendID,
+		PlotID:    plotID,
+		StealerID: r.RoleID,
+		FlowerID:  plot.FlowerID,
+		StealTime: time.Now(),
+	}); err != nil {
+		return nil, err
+	}
+	r.incDailyCount(friendID)
+
+	flowerCfg := r.Cfg().TbFlower.Get(plot.FlowerID)
+	if flowerCfg == nil {
+		return nil, errors.New("flower config not found")
+	}
+	rewardNum := int(cfg.StealRewardNum)
+	if err := r.Role.Bag.SaveGoods(ctx, nil,
+		[]*gamecfg.GardenGoodStack{bag.MakeGoodStack(int(flowerCfg.HarvestItemId), rewardNum)}, "steal_flower"); err != nil {
+		return nil, err
+	}
+	return &pb.RspPlotSteal{
+		Success: true,
+		Rewards: []*pb.PGoodInfo{{PropId: flowerCfg.HarvestItemId, Num: int64(rewardNum)}},
+	}, nil
 }

@@ -96,3 +96,4 @@ Distributed game server on the **Actor model** (ergo) + GoFrame v2.
 - **提交并推送后必须检查 CI action 结果**: 推送后查看 GitHub Actions 对应 run, 有报错先修复(workflow 解析失败/lint/test 失败均算), 确认全绿后才可合并或继续下一步
 - **错误处理规范**: 见 `docs/development/error-handling.md`(cockroachdb/errors 唯一错误库, 错误产生点带栈, 禁止 %s/%v 吞错误)
 - **日志规范**: 见 `docs/development/logging.md`(统一 gxylog, 结构化字段, 错误必须 gxylog.Err(err) 打栈, 打印点只在最终处理处)
+- **代码风格**: 见 `docs/development/coding-style.md`(Whole Value / Composed Method / 控制流单点 / 意图命名 / 非法状态不可表示 / 常量全大写下划线)

@@ -97,84 +97,73 @@ func (s *consistentHashSelector) Select(ctx context.Context, service string, key
 		return nil
 	}
 
-	// 为当前服务获取或创建哈希环
-	ringKey := service
-	var ringObj any
-	if val := s.rings.Get(ringKey); val != nil {
-		ringObj = val
-	} else {
-		// 加锁创建新的哈希环
-		s.rings.LockFunc(func(m map[string]any) {
-			// 双重检查，防止在获取锁的过程中其他协程已经创建
-			if val, exists := m[ringKey]; exists {
-				ringObj = val
-				return
-			}
-			// 创建新的有序树作为哈希环
-			ring := gtree.NewAVLTree(func(a, b any) int {
-				// 比较哈希值大小
-				hashA := a.(uint32)
-				hashB := b.(uint32)
-				if hashA < hashB {
-					return -1
-				} else if hashA > hashB {
-					return 1
-				} else {
-					return 0
-				}
-			})
-			m[ringKey] = ring
-			ringObj = ring
-		})
-	}
-	ring := ringObj.(*gtree.AVLTree)
-	hashval := s.hashs.Get(ringKey)
-
-	if hashval == "" || hashval != hservices.Hash {
+	ring := s.ring(service)
+	if hashval := s.hashs.Get(service); hashval == "" || hashval != hservices.Hash {
 		s.rebuildRing(ring, services)
-		s.hashs.Set(ringKey, hservices.Hash)
+		s.hashs.Set(service, hservices.Hash)
 		gxylog.Debug(ctx, "consistentHashSelector rebuild ring",
-			gxylog.Str("ring", ringKey), gxylog.Str("hash", hservices.Hash),
+			gxylog.Str("ring", service), gxylog.Str("hash", hservices.Hash),
 			gxylog.Str("services", gxyutil.FormatObject(services)))
 	}
 
-	// 计算服务的哈希值
-	hash := s.hash(key)
-
-	// 在哈希环上查找大于等于当前哈希值的最小节点
-	var selectedNode *ServiceInfo
-	found := false
-
-	// 遍历AVL树查找第一个大于等于当前哈希值的节点
-	ring.IteratorAsc(func(key, value any) bool {
-		currentHash := key.(uint32)
-		if currentHash >= hash {
-			selectedNode = value.(*ServiceInfo)
-			found = true
-			return false // 找到后停止遍历
-		}
-		return true // 继续遍历
-	})
-
-	// 如果没有找到，使用环上的第一个节点（形成环结构）
-	if !found {
-		// 遍历树获取第一个节点的键值对
-		found = false
-		ring.IteratorAsc(func(key, value any) bool {
-			selectedNode = value.(*ServiceInfo)
-			found = true
-			return false // 找到第一个节点后停止遍历
-		})
-	}
-
-	if found {
-		// 返回对应的实际节点
-		return selectedNode
+	if node := pickRingNode(ring, s.hash(key)); node != nil {
+		return node
 	}
 
 	gxylog.Warn(context.Background(), "consistentHashSelector Select no node found, return random node")
-	// 兜底方案：如果哈希环为空，随机返回一个节点
 	return services[rand.Intn(len(services))]
+}
+
+// ring 返回该服务的哈希环,不存在则创建。
+func (s *consistentHashSelector) ring(ringKey string) *gtree.AVLTree {
+	if val := s.rings.Get(ringKey); val != nil {
+		return val.(*gtree.AVLTree)
+	}
+	var ring *gtree.AVLTree
+	s.rings.LockFunc(func(m map[string]any) {
+		// 双重检查，防止在获取锁的过程中其他协程已经创建
+		if val, exists := m[ringKey]; exists {
+			ring = val.(*gtree.AVLTree)
+			return
+		}
+		ring = gtree.NewAVLTree(compareHashKey)
+		m[ringKey] = ring
+	})
+	return ring
+}
+
+// compareHashKey 按哈希值大小比较 AVL 树节点键。
+func compareHashKey(a, b any) int {
+	hashA := a.(uint32)
+	hashB := b.(uint32)
+	switch {
+	case hashA < hashB:
+		return -1
+	case hashA > hashB:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// pickRingNode 在环上选第一个哈希值 >= hash 的节点;没有则取第一个节点(形成环回)。
+func pickRingNode(ring *gtree.AVLTree, hash uint32) *ServiceInfo {
+	var selected *ServiceInfo
+	ring.IteratorAsc(func(key, value any) bool {
+		if key.(uint32) >= hash {
+			selected = value.(*ServiceInfo)
+			return false
+		}
+		return true
+	})
+	if selected != nil {
+		return selected
+	}
+	ring.IteratorAsc(func(_, value any) bool {
+		selected = value.(*ServiceInfo)
+		return false
+	})
+	return selected
 }
 
 func servingServices(services []*ServiceInfo) []*ServiceInfo {

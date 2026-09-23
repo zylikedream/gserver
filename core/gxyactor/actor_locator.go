@@ -34,6 +34,15 @@ type ActorOwner struct {
 	Epoch  uint64
 }
 
+// ZeroActorOwner 是无归属的零值。Locate/Claim 未取得归属时返回它。
+var ZeroActorOwner ActorOwner
+
+// IsZero 报告该归属是否为空(无归属):节点与世代都为空。
+// Locate/Claim 未取得归属时返回零值,据此区分"有/无 owner"。
+func (o ActorOwner) IsZero() bool {
+	return o.NodeID == "" && o.Epoch == 0
+}
+
 type actorLocator struct {
 	redis             redis.UniversalClient
 	nodeID            string
@@ -229,10 +238,10 @@ func (l *actorLocator) renewNodeLease(ctx context.Context) (bool, error) {
 func (l *actorLocator) Claim(ctx context.Context, kind string, id string) (ActorOwner, error) {
 	k := actorKey{kind: kind, id: id}
 	if err := l.ensureClient(); err != nil {
-		return ActorOwner{}, err
+		return ZeroActorOwner, err
 	}
 	if !l.leaseValid(time.Now()) {
-		return ActorOwner{}, errActorLocatorLeaseInvalid
+		return ZeroActorOwner, errActorLocatorLeaseInvalid
 	}
 	result, err := l.redis.Eval(ctx, actorLocatorClaimScript, []string{
 		k.locateKey(),
@@ -240,41 +249,41 @@ func (l *actorLocator) Claim(ctx context.Context, kind string, id string) (Actor
 		actorLocatorEpochKey(),
 	}, l.nodeID, l.leaseToken).Result()
 	if err != nil {
-		return ActorOwner{}, errors.Wrap(err, "claim actor owner")
+		return ZeroActorOwner, errors.Wrap(err, "claim actor owner")
 	}
 	if !l.leaseValid(time.Now()) {
-		return ActorOwner{}, errActorLocatorLeaseInvalid
+		return ZeroActorOwner, errActorLocatorLeaseInvalid
 	}
 	parts, ok := result.([]any)
 	if !ok || len(parts) != 2 {
-		return ActorOwner{}, errors.Newf("unexpected actor claim result: %T", result)
+		return ZeroActorOwner, errors.Newf("unexpected actor claim result: %T", result)
 	}
 	sstatus, ok := redisString(parts[0])
 	if !ok {
-		return ActorOwner{}, errors.New("actor claim result status is not a string")
+		return ZeroActorOwner, errors.New("actor claim result status is not a string")
 	}
 	status := claimResult(sstatus)
 	if status == claimInvalidLease {
-		return ActorOwner{}, errActorLocatorLeaseInvalid
+		return ZeroActorOwner, errActorLocatorLeaseInvalid
 	}
 
 	ownerValue, ok := redisString(parts[1])
 	if !ok {
-		return ActorOwner{}, errors.New("actor claim result owner is not a string")
+		return ZeroActorOwner, errors.New("actor claim result owner is not a string")
 	}
 	switch status {
 	case claimAcquired:
 		owner, err := decodeActorOwner(ownerValue)
 		if err != nil {
-			return ActorOwner{}, err
+			return ZeroActorOwner, err
 		}
 		return owner, nil
 	case claimAlreadyOwn, claimOwnedOther:
 		// 记录在别的节点,或本节点已有记录:正常的竞争结局,不是故障。
 		// 具体是哪种写进错误便于诊断;两者对调用方的处置相同——本次没拿到。
-		return ActorOwner{}, errors.Wrapf(ErrNotOwner, "actor %s (claim %s)", k, status)
+		return ZeroActorOwner, errors.Wrapf(ErrNotOwner, "actor %s (claim %s)", k, status)
 	default:
-		return ActorOwner{}, errors.Newf("unknown actor claim result: %s", status)
+		return ZeroActorOwner, errors.Newf("unknown actor claim result: %s", status)
 	}
 }
 func (l *actorLocator) releaseNodeLease(ctx context.Context) error {
@@ -292,18 +301,18 @@ func (l *actorLocator) releaseNodeLease(ctx context.Context) error {
 func (l *actorLocator) Locate(ctx context.Context, kind string, id string) (ActorOwner, error) {
 	k := actorKey{kind: kind, id: id}
 	if err := l.ensureClient(); err != nil {
-		return ActorOwner{}, err
+		return ZeroActorOwner, err
 	}
 	value, err := l.redis.Eval(ctx, actorLocatorLocateScript, []string{k.locateKey()}).Result()
 	if err != nil {
-		return ActorOwner{}, errors.Wrap(err, "locate actor owner")
+		return ZeroActorOwner, errors.Wrap(err, "locate actor owner")
 	}
 	ownerValue, ok := redisString(value)
 	if !ok {
-		return ActorOwner{}, errors.Newf("unexpected actor locate result: %T", value)
+		return ZeroActorOwner, errors.Newf("unexpected actor locate result: %T", value)
 	}
 	if ownerValue == "" {
-		return ActorOwner{}, nil
+		return ZeroActorOwner, nil
 	}
 	return decodeActorOwner(ownerValue)
 }
@@ -340,93 +349,140 @@ type leaseRenewResult struct {
 	finished  time.Time
 }
 
+// leaseHeartbeat 是一次节点租约心跳循环:周期性续租,续租失败或 deadline 到期即自栅(fence)。
+//
+// 状态显式放在结构体上(而非闭包捕获),使 select 的每个分支成为一个方法。
+type leaseHeartbeat struct {
+	locator *actorLocator
+	ctx     context.Context
+	onLost  func(error)
+	renew   func(context.Context) (bool, error)
+
+	ticker        *time.Ticker
+	deadlineTimer *time.Timer
+	renewResults  chan leaseRenewResult
+	renewing      bool
+	renewCancel   context.CancelFunc
+	lastErr       error
+}
+
 func (l *actorLocator) startLeaseHeartbeat(ctx context.Context, onLost func(error)) func() {
 	heartbeatCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
+
+	renew := l.renewNodeLease
+	if l.renewLease != nil {
+		renew = l.renewLease
+	}
+	h := &leaseHeartbeat{
+		locator:       l,
+		ctx:           heartbeatCtx,
+		onLost:        onLost,
+		renew:         renew,
+		ticker:        time.NewTicker(l.heartbeatInterval),
+		deadlineTimer: time.NewTimer(time.Until(time.Unix(0, l.leaseDeadline.Load()))),
+		renewResults:  make(chan leaseRenewResult, 1),
+	}
+
 	go func() {
 		defer close(done)
-		ticker := time.NewTicker(l.heartbeatInterval)
-		defer ticker.Stop()
-		deadlineTimer := time.NewTimer(time.Until(time.Unix(0, l.leaseDeadline.Load())))
-		defer deadlineTimer.Stop()
-		renew := l.renewNodeLease
-		if l.renewLease != nil {
-			renew = l.renewLease
-		}
-		renewResults := make(chan leaseRenewResult, 1)
-		renewing := false
-		var renewCancel context.CancelFunc
-		var lastErr error
-		fence := func(err error) {
-			l.fenced.Store(true)
-			if renewCancel != nil {
-				renewCancel()
-			}
-			onLost(err)
-		}
-		for {
-			select {
-			case <-heartbeatCtx.Done():
-				if renewCancel != nil {
-					renewCancel()
-				}
-				return
-			case <-deadlineTimer.C:
-				if lastErr != nil {
-					fence(errors.Wrap(lastErr, errActorLocatorLeaseDeadline.Error()))
-				} else {
-					fence(errActorLocatorLeaseDeadline)
-				}
-				return
-			case <-ticker.C:
-				if renewing {
-					continue
-				}
-				renewing = true
-				started := time.Now()
-				renewCtx, cancelRenew := context.WithCancel(heartbeatCtx)
-				renewCancel = cancelRenew
-				go func() {
-					refreshed, err := renew(renewCtx)
-					result := leaseRenewResult{refreshed: refreshed, err: err, started: started, finished: time.Now()}
-					select {
-					case renewResults <- result:
-					case <-heartbeatCtx.Done():
-					}
-				}()
-			case result := <-renewResults:
-				renewing = false
-				renewCancel()
-				renewCancel = nil
-				if result.finished.UnixNano() >= l.leaseDeadline.Load() {
-					fence(errActorLocatorLeaseDeadline)
-					return
-				}
-				if result.err != nil {
-					lastErr = result.err
-					gxylog.Warn(ctx, "renew actor node lease failed", gxylog.Str("node", l.nodeID), gxylog.Err(result.err))
-					continue
-				}
-				if !result.refreshed {
-					fence(errActorLocatorLeaseInvalid)
-					return
-				}
-				l.confirmLease(result.started)
-				lastErr = nil
-				if !deadlineTimer.Stop() {
-					select {
-					case <-deadlineTimer.C:
-					default:
-					}
-				}
-				deadlineTimer.Reset(time.Until(time.Unix(0, l.leaseDeadline.Load())))
-			}
-		}
+		defer h.ticker.Stop()
+		defer h.deadlineTimer.Stop()
+		h.run()
 	}()
+
 	return func() {
 		cancel()
 		<-done
 	}
+}
+
+func (h *leaseHeartbeat) run() {
+	for {
+		select {
+		case <-h.ctx.Done():
+			h.cancelRenew()
+			return
+		case <-h.deadlineTimer.C:
+			h.fence(h.deadlineError())
+			return
+		case <-h.ticker.C:
+			h.startRenew()
+		case result := <-h.renewResults:
+			if h.finishRenew(result) {
+				return
+			}
+		}
+	}
+}
+
+func (h *leaseHeartbeat) cancelRenew() {
+	if h.renewCancel != nil {
+		h.renewCancel()
+	}
+}
+
+func (h *leaseHeartbeat) deadlineError() error {
+	if h.lastErr != nil {
+		return errors.Wrap(h.lastErr, errActorLocatorLeaseDeadline.Error())
+	}
+	return errActorLocatorLeaseDeadline
+}
+
+func (h *leaseHeartbeat) fence(err error) {
+	h.locator.fenced.Store(true)
+	h.cancelRenew()
+	h.onLost(err)
+}
+
+// startRenew 发起一次异步续租(已有续租在飞则跳过)。
+func (h *leaseHeartbeat) startRenew() {
+	if h.renewing {
+		return
+	}
+	h.renewing = true
+	started := time.Now()
+	renewCtx, cancelRenew := context.WithCancel(h.ctx)
+	h.renewCancel = cancelRenew
+	go func() {
+		refreshed, err := h.renew(renewCtx)
+		result := leaseRenewResult{refreshed: refreshed, err: err, started: started, finished: time.Now()}
+		select {
+		case h.renewResults <- result:
+		case <-h.ctx.Done():
+		}
+	}()
+}
+
+// finishRenew 处理一次续租结果,返回是否要终止心跳。
+func (h *leaseHeartbeat) finishRenew(result leaseRenewResult) bool {
+	h.renewing = false
+	h.renewCancel()
+	h.renewCancel = nil
+	if result.finished.UnixNano() >= h.locator.leaseDeadline.Load() {
+		h.fence(errActorLocatorLeaseDeadline)
+		return true
+	}
+	if result.err != nil {
+		h.lastErr = result.err
+		gxylog.Warn(h.ctx, "renew actor node lease failed",
+			gxylog.Str("node", h.locator.nodeID), gxylog.Err(result.err))
+		return false
+	}
+	if !result.refreshed {
+		h.fence(errActorLocatorLeaseInvalid)
+		return true
+	}
+	h.locator.confirmLease(result.started)
+	h.lastErr = nil
+	if !h.deadlineTimer.Stop() {
+		select {
+		case <-h.deadlineTimer.C:
+		default:
+		}
+	}
+	h.deadlineTimer.Reset(time.Until(time.Unix(0, h.locator.leaseDeadline.Load())))
+	return false
 }
 
 func encodeActorOwner(owner ActorOwner, leaseToken string) string {
@@ -436,14 +492,14 @@ func encodeActorOwner(owner ActorOwner, leaseToken string) string {
 func decodeActorOwner(value string) (ActorOwner, error) {
 	parts := strings.SplitN(value, actorLocateOwnerSeparator, 3)
 	if len(parts) != 3 || parts[0] == "" || parts[2] == "" {
-		return ActorOwner{}, errors.Newf("invalid actor owner value: %q", value)
+		return ZeroActorOwner, errors.Newf("invalid actor owner value: %q", value)
 	}
 	epoch, err := strconv.ParseUint(parts[1], 10, 64)
 	if err != nil {
-		return ActorOwner{}, errors.Wrapf(err, "parse actor owner epoch %q", value)
+		return ZeroActorOwner, errors.Wrapf(err, "parse actor owner epoch %q", value)
 	}
 	if epoch == 0 {
-		return ActorOwner{}, errors.Newf("invalid actor owner epoch: %q", value)
+		return ZeroActorOwner, errors.Newf("invalid actor owner epoch: %q", value)
 	}
 	return ActorOwner{NodeID: parts[0], Epoch: epoch}, nil
 }
