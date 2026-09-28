@@ -44,10 +44,10 @@ const (
 
 // 定时任务名。周期取上面的常量,名字在此集中定义以便取消与日志引用。
 const (
-	PersistTickName           = "save_role"
-	SignleAliveOnceName       = "signle_alive"
-	PublicUpdateTickName      = "update_role_public"
-	SessionAliveCheckTickName = "check_session_alive"
+	PERSIST_TICK_NAME             = "save_role"
+	SINGLE_ALIVE_ONCE_NAME        = "single_alive"
+	PUBLIC_UPDATE_TICK_NAME       = "update_role_public"
+	SESSION_ALIVE_CHECK_TICK_NAME = "check_session_alive"
 )
 
 func logClientProtocolError(ctx context.Context, roleID int64, msgID, msgName string, err error) {
@@ -131,7 +131,7 @@ func (r *RoleMain) Init(args ...any) error {
 	if r.RoleID == 0 {
 		return gerror.Newf("roleID is invalid, roleID: %v", args[0])
 	}
-	r.SetLogValue(gxylog.ContextKeyRoleID, r.RoleID)
+	r.SetLogValue(gxylog.CONTEXT_KEY_ROLE_ID, r.RoleID)
 
 	// 账号存在性校验留在同步段:它决定该 role 是否可激活。
 	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
@@ -294,95 +294,115 @@ func canHandleMsg(state RoleState, msg proto.Message) bool {
 	return true
 }
 
+// clientReqTrace 承载一次客户端请求的观测状态,供 defer 统一上报。
+type clientReqTrace struct {
+	msgID   string
+	msgName string
+	result  string
+	start   time.Time
+}
+
+// observe 上报请求次数与耗时,并记录慢请求。
+func (t *clientReqTrace) observe(ctx context.Context) {
+	gxymetrics.ClientRequests.WithLabelValues(t.msgID, t.msgName, t.result).Inc()
+	cost := time.Since(t.start)
+	gxymetrics.ObserveWithTrace(ctx,
+		gxymetrics.ClientRequestDuration.WithLabelValues(t.msgID, t.msgName, t.result), cost.Seconds())
+	if cost >= SLOW_CLIENT_REQUEST {
+		gxylog.Warn(ctx, "slow client request",
+			gxylog.Str("msg_id", t.msgID),
+			gxylog.Str("msg_name", t.msgName),
+			gxylog.Str("result", t.result),
+			gxylog.Num("cost_ms", cost.Milliseconds()),
+		)
+	}
+}
+
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
 	id := climsg.Id
-	start := time.Now()
-	msgID := id
-	msgName := "unknown"
-	result := "error"
-	defer func() {
-		gxymetrics.ClientRequests.WithLabelValues(msgID, msgName, result).Inc()
-		cost := time.Since(start)
-		gxymetrics.ObserveWithTrace(ctx, gxymetrics.ClientRequestDuration.WithLabelValues(msgID, msgName, result), cost.Seconds())
-		if cost >= SLOW_CLIENT_REQUEST {
-			gxylog.Warn(ctx, "slow client request",
-				gxylog.Str("msg_id", msgID),
-				gxylog.Str("msg_name", msgName),
-				gxylog.Str("result", result),
-				gxylog.Num("cost_ms", cost.Milliseconds()),
-			)
-		}
-	}()
+	t := &clientReqTrace{msgID: id, msgName: "unknown", result: "error", start: time.Now()}
+	defer t.observe(ctx)
 
 	pbmsg, err := anypb.UnmarshalNew(climsg.GetMsg(), proto.UnmarshalOptions{})
 	if err != nil {
 		return nil, gerror.Wrapf(err, "unmarshal req error, roleID: %d", r.RoleID)
 	}
-	msgID, msgName = clientMessageMetricLabels(id, pbmsg)
+	t.msgID, t.msgName = clientMessageMetricLabels(id, pbmsg)
 	span := trace.SpanFromContext(ctx)
 	span.SetName(fmt.Sprintf("%T", pbmsg))
-	span.SetAttributes(
-		attribute.Int64("roleID", r.RoleID),
-	)
+	span.SetAttributes(attribute.Int64("roleID", r.RoleID))
 	r.sessionActiveTime = time.Now()
 	gxylog.Debug(ctx, "role recv client msg",
-		gxylog.Str("msg_id", msgID),
-		gxylog.Str("msg_name", msgName),
+		gxylog.Str("msg_id", t.msgID),
+		gxylog.Str("msg_name", t.msgName),
 		gxylog.Num("role_id", r.RoleID),
 	)
+
+	rsp, result, err := r.dispatchClientMsg(ctx, id, pbmsg, t.msgID, t.msgName)
+	t.result = result
+	return rsp, err
+}
+
+// dispatchClientMsg 校验状态与模块准入后分发消息,并构造应答。
+// 返回应答、观测用的 result 标签,以及门面级错误。
+func (r *RoleMain) dispatchClientMsg(ctx context.Context, id string, pbmsg proto.Message, msgID, msgName string) (proto.Message, string, error) {
 	if !canHandleMsg(r.state, pbmsg) {
-		gxylog.Warn(ctx, "role recv msg in wrong state, ignore", gxylog.Num("state", int(r.state)), gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
-		result = "ignored"
-		return nil, nil
+		gxylog.Warn(ctx, "role recv msg in wrong state, ignore",
+			gxylog.Num("state", int(r.state)), gxylog.Str("payload", gxyutil.FormatObject(pbmsg)))
+		return nil, "ignored", nil
 	}
-	module, guarded := r.moduleByMessage[gxyutil.GetObjectName(pbmsg)]
-	if guarded {
-		admission := r.moduleGuard.Check(module)
-		gxymetrics.RoleModuleLimitTotal.WithLabelValues(module, string(admission)).Inc()
-		switch admission {
-		case admissionLimited:
-			result = "limited"
-			return r.newServerMsg(&pb.Ack{
-				Code:   pb.AckCode_ACK_CODE_RATE_LIMITED,
-				Id:     id,
-				Reason: "rate limited",
-			})
-		case admissionDisabled:
-			result = "disabled"
-			return r.newServerMsg(&pb.Ack{
-				Code:   pb.AckCode_ACK_CODE_MODULE_DISABLED,
-				Id:     id,
-				Reason: "module disabled",
-			})
-		}
+	if ack, result, rejected := r.moduleAdmission(id, pbmsg); rejected {
+		rsp, err := r.newServerMsg(ack)
+		return rsp, result, err
 	}
-	var rsp proto.Message
-	res, err := r.DispatchDefault(pbmsg)
+
+	res, dispatchErr := r.DispatchDefault(pbmsg)
+	if dispatchErr != nil {
+		logClientProtocolError(ctx, r.RoleID, msgID, msgName, dispatchErr)
+		return r.errorAck(id, dispatchErr)
+	}
+	if res == nil {
+		return nil, "ok", nil
+	}
+	pbRes, ok := res.(proto.Message)
+	if !ok {
+		return nil, "error", gerror.Newf("res is not proto.Message, roleID: %d", r.RoleID)
+	}
+	svrMsg, err := r.newServerMsg(pbRes)
 	if err != nil {
-		result = "error"
-		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
-		res = &pb.Ack{
-			Code:   pb.AckCode_ACK_CODE_ERROR,
-			Id:     id,
-			Reason: err.Error(),
-		}
-	} else {
-		result = "ok"
+		return nil, "error", gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 	}
-	if res != nil {
-		pbmsg, ok := res.(proto.Message)
-		if !ok {
-			result = "error"
-			return nil, gerror.Wrapf(err, "res is not proto.Message, roleID: %d", r.RoleID)
-		}
-		svrMsg, err := r.newServerMsg(pbmsg)
-		if err != nil {
-			result = "error"
-			return nil, gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
-		}
-		rsp = svrMsg
+	return svrMsg, "ok", nil
+}
+
+// errorAck 把分发错误转成错误应答;构造失败时返回门面级错误。
+func (r *RoleMain) errorAck(id string, dispatchErr error) (proto.Message, string, error) {
+	rsp, err := r.newServerMsg(&pb.Ack{
+		Code:   pb.AckCode_ACK_CODE_ERROR,
+		Id:     id,
+		Reason: dispatchErr.Error(),
+	})
+	if err != nil {
+		return nil, "error", gerror.Wrapf(err, "send server msg error, roleID: %d", r.RoleID)
 	}
-	return rsp, nil
+	return rsp, "error", nil
+}
+
+// moduleAdmission 判定消息所属模块是否被准入;被拒时返回应回的 Ack 与 result 标签。
+func (r *RoleMain) moduleAdmission(id string, pbmsg proto.Message) (ack *pb.Ack, result string, rejected bool) {
+	module, guarded := r.moduleByMessage[gxyutil.GetObjectName(pbmsg)]
+	if !guarded {
+		return nil, "", false
+	}
+	admission := r.moduleGuard.Check(module)
+	gxymetrics.RoleModuleLimitTotal.WithLabelValues(module, string(admission)).Inc()
+	switch admission {
+	case admissionLimited:
+		return &pb.Ack{Code: pb.AckCode_ACK_CODE_RATE_LIMITED, Id: id, Reason: "rate limited"}, "limited", true
+	case admissionDisabled:
+		return &pb.Ack{Code: pb.AckCode_ACK_CODE_MODULE_DISABLED, Id: id, Reason: "module disabled"}, "disabled", true
+	}
+	return nil, "", false
 }
 
 func clientMessageMetricLabels(id string, msg proto.Message) (string, string) {
@@ -407,8 +427,8 @@ func (r *RoleMain) newServerMsg(msg proto.Message) (*pb.ServerMsg, error) {
 }
 
 func (r *RoleMain) initTimer() {
-	r.Timer().AddTick(PersistTickName, PERSIST_INTERVAL, r.TickSave)
-	r.Timer().AddTick(PublicUpdateTickName, PUBLIC_UPDATE_INTERVAL, func(ctx context.Context) {
+	r.Timer().AddTick(PERSIST_TICK_NAME, PERSIST_INTERVAL, r.TickSave)
+	r.Timer().AddTick(PUBLIC_UPDATE_TICK_NAME, PUBLIC_UPDATE_INTERVAL, func(ctx context.Context) {
 		r.Public.UpdateRolePublic(ctx)
 	})
 }
@@ -618,7 +638,7 @@ func (r *RoleMain) ReqAccountLogin(ctx context.Context, req *pb.ReqAccountLogin)
 	if r.Basic.LoginTm.Sub(r.Basic.LogoutTm).Seconds() < 2*time.Second.Seconds() {
 		gxylog.Info(ctx, "role reconnect", gxylog.Num("roleID", r.RoleID))
 	}
-	r.Timer().Cancel(ctx, SignleAliveOnceName)
+	r.Timer().Cancel(ctx, SINGLE_ALIVE_ONCE_NAME)
 	r.state = RoleStateLogined
 	r.Public.IsOnline = true
 	if err := r.afterRoleLogin(ctx); err != nil {
@@ -653,10 +673,10 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 
 func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
 	r.sessionActiveTime = time.Now()
-	r.Timer().AddTick(SessionAliveCheckTickName, SESSION_ALIVE_INTERVAL, func(ctx context.Context) {
+	r.Timer().AddTick(SESSION_ALIVE_CHECK_TICK_NAME, SESSION_ALIVE_INTERVAL, func(ctx context.Context) {
 		r.checkSessionAlive(ctx)
 	})
-	r.Timer().AddTick(PublicUpdateTickName, PUBLIC_UPDATE_INTERVAL, func(ctx context.Context) {
+	r.Timer().AddTick(PUBLIC_UPDATE_TICK_NAME, PUBLIC_UPDATE_INTERVAL, func(ctx context.Context) {
 		r.Public.UpdateRolePublic(ctx)
 	})
 	for _, mod := range r.Modules() {
@@ -694,7 +714,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 		return nil
 	}
 	gxymetrics.RoleLogouts.WithLabelValues(roleLogoutReason(reason)).Inc()
-	r.Timer().Cancel(ctx, SessionAliveCheckTickName)
+	r.Timer().Cancel(ctx, SESSION_ALIVE_CHECK_TICK_NAME)
 	r.session = gxyactor.PID{}
 	r.Basic.LogoutTm = time.Now()
 	r.Public.IsOnline = false
@@ -702,7 +722,7 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	if err := r.save(ctx); err != nil {
 		return err
 	}
-	r.Timer().AddOnce(SignleAliveOnceName, SINGLE_ALIVE_INTERVAL, func(ctx context.Context) {
+	r.Timer().AddOnce(SINGLE_ALIVE_ONCE_NAME, SINGLE_ALIVE_INTERVAL, func(ctx context.Context) {
 		r.Stop(errors.New("single alive timeout"))
 	})
 	r.state = RoleStateLogout

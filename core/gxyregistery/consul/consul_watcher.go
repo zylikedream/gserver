@@ -51,18 +51,15 @@ func (w *Watcher) watch() {
 	if err != nil {
 		return
 	}
-	// Get initial service list
 	initServices, err := w.Services(entries)
 	if err != nil {
 		return
 	}
 
-	// Set initial services
 	w.mu.Lock()
 	w.services = initServices
 	w.mu.Unlock()
 
-	// Create watch plan
 	plan, err := watch.Parse(map[string]any{
 		"type":    "service",
 		"service": w.key,
@@ -75,53 +72,48 @@ func (w *Watcher) watch() {
 	w.plan = plan
 	w.mu.Unlock()
 
-	// Set handler
-	plan.Handler = func(idx uint64, data any) {
-		// Check if watcher is closed
-		select {
-		case <-w.closeChan:
-			return
-		default:
-		}
+	plan.Handler = w.onServiceChange
+	go w.runPlan(plan)
 
-		entries, ok := data.([]*api.ServiceEntry)
-		if !ok {
-			return
-		}
-		// Get current services
-		// glog.Infof(context.Background(), "watcher %s got service entries:%s", w.key, gxyutil.FormatObject(entries))
-		services, _ := w.Services(entries)
+	<-w.closeChan
+}
 
-		// Update services
-		w.mu.Lock()
-		w.services = services
-		w.mu.Unlock()
-
-		// Notify changes
-		select {
-		case w.eventChan <- struct{}{}:
-		default:
-		}
+// onServiceChange 是 consul watch 回调:更新本地服务列表并通知等待者。
+func (w *Watcher) onServiceChange(_ uint64, data any) {
+	select {
+	case <-w.closeChan:
+		return
+	default:
 	}
 
-	// Start watching
-	go func() {
-		defer func() {
-			w.mu.Lock()
-			if w.plan != nil {
-				w.plan.Stop()
-				w.plan = nil
-			}
-			w.mu.Unlock()
-		}()
+	entries, ok := data.([]*api.ServiceEntry)
+	if !ok {
+		return
+	}
+	services, _ := w.Services(entries)
 
-		if err = plan.Run(w.registry.GetAddress()); err != nil {
-			return
+	w.mu.Lock()
+	w.services = services
+	w.mu.Unlock()
+
+	select {
+	case w.eventChan <- struct{}{}:
+	default:
+	}
+}
+
+// runPlan 在后台运行 watch plan,退出时清理 plan。
+func (w *Watcher) runPlan(plan *watch.Plan) {
+	defer func() {
+		w.mu.Lock()
+		if w.plan != nil {
+			w.plan.Stop()
+			w.plan = nil
 		}
+		w.mu.Unlock()
 	}()
 
-	// Wait for close signal
-	<-w.closeChan
+	_ = plan.Run(w.registry.GetAddress())
 }
 
 // Proceed returns current services and waits for the next service change.

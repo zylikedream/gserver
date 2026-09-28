@@ -34,6 +34,16 @@ func groupOf(name string) string {
 }
 
 func init() {
+	registerBreedCommands()
+	registerFlowerCommands()
+	registerChatCommands()
+	registerGuildCommands()
+	registerOrderCommands()
+	registerAutoCommands()
+}
+
+// registerBreedCommands 登记 breed.* 别名命令。
+func registerBreedCommands() {
 	// --- breed (aliases for flower.start_breed / flower.finish_breed) ---
 	register(&Command{
 		Name:   "breed.start",
@@ -66,6 +76,16 @@ func init() {
 		},
 	})
 
+}
+
+// registerFlowerCommands 登记 flower.* 命令。
+func registerFlowerCommands() {
+	registerFlowerPlotCommands()
+	registerFlowerFriendCommands()
+}
+
+// registerFlowerPlotCommands 登记地块操作命令。
+func registerFlowerPlotCommands() {
 	// --- flower (plot commands with flower. prefix + custom parsing) ---
 	register(&Command{
 		Name:   "flower.plant",
@@ -122,6 +142,10 @@ func init() {
 			return c.Request(&pb.ReqPlotRemove{PlotIds: plotIDs})
 		},
 	})
+}
+
+// registerFlowerFriendCommands 登记好友花园命令。
+func registerFlowerFriendCommands() {
 	register(&Command{
 		Name:   "flower.friend_plot",
 		Help:   "View friend's garden plots",
@@ -157,6 +181,16 @@ func init() {
 		},
 	})
 
+}
+
+// registerChatCommands 登记 chat.* 命令。
+func registerChatCommands() {
+	registerChatChannelCommands()
+	registerChatPrivateCommands()
+}
+
+// registerChatChannelCommands 登记频道聊天命令(send / history)。
+func registerChatChannelCommands() {
 	// --- chat (custom channel type parsing) ---
 	register(&Command{
 		Name:   "chat.send",
@@ -203,6 +237,10 @@ func init() {
 			return c.Request(&pb.ReqChatChannelHistory{ChannelType: ct, ChannelId: chID, Count: count})
 		},
 	})
+}
+
+// registerChatPrivateCommands 登记私聊与系统聊天命令。
+func registerChatPrivateCommands() {
 	register(&Command{
 		Name:   "chat.private",
 		Help:   "Send private message to a friend",
@@ -258,6 +296,16 @@ func init() {
 		},
 	})
 
+}
+
+// registerGuildCommands 登记 guild.* 命令。
+func registerGuildCommands() {
+	registerGuildApproveCommand()
+	registerGuildMemberCommands()
+}
+
+// registerGuildApproveCommand 登记公会审批命令。
+func registerGuildApproveCommand() {
 	// --- guild (commands with custom parsing) ---
 	register(&Command{
 		Name:   "guild.approve",
@@ -279,6 +327,10 @@ func init() {
 			return c.Request(&pb.ReqGuildApproveApply{ApplyIds: ids, Approve: approve})
 		},
 	})
+}
+
+// registerGuildMemberCommands 登记公会成员/信息命令。
+func registerGuildMemberCommands() {
 	register(&Command{
 		Name:   "guild.kick",
 		Help:   "Kick a member from guild",
@@ -323,6 +375,10 @@ func init() {
 		},
 	})
 
+}
+
+// registerOrderCommands 登记 order.* 别名命令。
+func registerOrderCommands() {
 	// --- order (shorter aliases for residentorder commands) ---
 	register(&Command{
 		Name: "order.info",
@@ -362,8 +418,6 @@ func init() {
 		},
 	})
 
-	// Auto-register remaining commands from proto definitions
-	registerAutoCommands()
 }
 
 func printProtoJSON(prefix string, msg proto.Message) {

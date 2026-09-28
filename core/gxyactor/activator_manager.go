@@ -14,6 +14,7 @@ import (
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 
+	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -24,7 +25,9 @@ const actorLocateMaxAttempts = 3
 var (
 	errActorLocateRetryExhausted = errors.New("actor locate retry exhausted")
 
-	// ErrNotOwner 表示本节点不是该 actor 的所有者。
+	// ErrNotOwner 表示本次未取得该 actor 的归属:记录在别的节点,或本节点已有记录。
+	// 这是正常的竞争结局,不是故障——调用方据此判断"归属不在我手里",而不是
+	// "基础设施坏了"。
 	// 由 actor 在同步初始化段获取所有权失败时返回,激活协调层据此重试。
 	ErrNotOwner = errors.New("actor ownership not acquired")
 )
@@ -71,6 +74,40 @@ func (k actorKey) actorPid(nodeID string) *pb.ActorPid {
 	return &pb.ActorPid{Address: nodeID, Name: string(k.name())}
 }
 
+// activatorSupervisorKey 是托管激活协调者的监督者的身份。
+var activatorSupervisorKey = actorKey{kind: "activator", id: "supervisor"}
+
+// activatorSupervisor 只做一件事:让激活协调者始终在。
+//
+// 它不含业务逻辑——Init 只交出一份子进程清单,重启与上限由运行时的监督者机制承担。
+// 因此它自身崩溃的面很小:这是"单点只是被上移一级"可被接受的理由(见 ADR 0019)。
+type activatorSupervisor struct {
+	act.Supervisor
+	spec act.SupervisorSpec
+}
+
+func (s *activatorSupervisor) Init(_ ...any) (act.SupervisorSpec, error) {
+	return s.spec, nil
+}
+
+// activatorSupervisorSpec 给出托管激活协调者的子进程清单。
+//
+// 用"总是重启":激活协调者没有需要恢复的状态,也不参与归属协议,因此重建它不会
+// 与任何外部权威冲突——这正是它和承载实体的 actor 的分界(见 ADR 0019)。
+func activatorSupervisorSpec(g *activatorManager) act.SupervisorSpec {
+	routerCtor := func() Business { return newActivatorActor(g) }
+	return act.SupervisorSpec{
+		Type: act.SupervisorTypeOneForOne,
+		Restart: act.SupervisorRestart{
+			Strategy: act.SupervisorStrategyPermanent,
+		},
+		Children: []act.SupervisorChildSpec{{
+			Name:    activatorRouterKey.name(),
+			Factory: ActorFactory(activatorRouterKey.kind, routerCtor),
+		}},
+	}
+}
+
 // activatorRouterKey 是激活协调者自身的身份:每节点一个,处理跨节点的激活请求。
 //
 // 它是一个具名身份而非散落的字符串——注册与寻址两处必须一致,而这两处曾经
@@ -91,13 +128,9 @@ type activatorManager struct {
 	// 一致性视图,拆成两个独立存储会让"谁持有"与"谁有权持有"失去共同判据。
 	store     OwnershipStore
 	lease     nodeLease
-	routerPID PID
 	stopLease func()
 
 	serviceLookup actorServiceLookup
-
-	// requestActorFunc 可替换函数变量:测试注入以隔离跨节点调用(编译期安全,非 gomonkey)。
-	requestActorFunc func(ctx context.Context, node string, k actorKey, allowSpawn bool) (PID, bool, error)
 }
 
 // actorServiceLookup 提供能力目录查询:哪些节点能承载该能力。
@@ -136,15 +169,15 @@ func (g *activatorManager) OnModStart(ctx context.Context) error {
 		)
 	})
 
-	routerCtor := func() Business { return newActivatorActor(g) }
-	routerPID, err := app.spawnNamed(activatorRouterKey.name(), ActorFactory(activatorRouterKey.kind, routerCtor))
-	if err != nil {
+	// 激活协调者交给监督者托管:它是本节点跨节点激活的单点,而节点只会拉起进程、
+	// 不会重建崩溃的进程(见 ADR 0019)。
+	supCtor := func() gen.ProcessBehavior { return &activatorSupervisor{spec: activatorSupervisorSpec(g)} }
+	if _, err := app.spawnNamed(activatorSupervisorKey.name(), supCtor); err != nil {
 		g.stopLease()
 		g.stopLease = nil
 		_ = g.lease.releaseNodeLease(ctx)
-		return errors.Wrap(err, "spawn activator")
+		return errors.Wrap(err, "spawn activator supervisor")
 	}
-	g.routerPID = routerPID
 	return nil
 }
 
@@ -172,23 +205,28 @@ func (g *activatorManager) DeregisterActorKind(kind string) {
 	if _, ok := g.kinds[kind]; !ok {
 		return
 	}
-	prefix := kind + "/"
-	pids := g.localActors(kind)
-	for _, pid := range pids {
+	g.stopLocalActors(kind)
+	if n := g.drainLocalActors(kind); n > 0 {
+		gxylog.Warn(g.ctx, "actors still alive after drain",
+			gxylog.Str("kind", kind), gxylog.Num("count", int64(n)))
+	}
+	delete(g.kinds, kind)
+}
+
+// stopLocalActors 停止该 kind 的全部本地实例。
+func (g *activatorManager) stopLocalActors(kind string) {
+	for _, pid := range g.localActors(kind) {
 		_ = app.StopActor(pid)
 	}
+}
 
+// drainLocalActors 等待本地实例全部停止,返回仍未停止的数量。
+func (g *activatorManager) drainLocalActors(kind string) int {
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) && len(g.localActors(kind)) > 0 {
 		time.Sleep(100 * time.Millisecond)
 	}
-	if n := len(g.localActors(kind)); n > 0 {
-		gxylog.Warn(g.ctx, "actors still alive after drain",
-			gxylog.Str("kind", kind), gxylog.Num("count", int64(n)))
-	}
-	_ = prefix
-
-	delete(g.kinds, kind)
+	return len(g.localActors(kind))
 }
 
 // localActors 返回本节点上该 kind 的全部实例 PID。
@@ -280,21 +318,58 @@ func (g *activatorManager) resolveLocal(ctx context.Context, k actorKey, owner A
 	// 本节点已是持有者但本地无实例:清理陈旧记录后重试。
 	released, err := g.store.Release(ctx, k.kind, k.id, owner)
 	if err != nil {
-		return PID{}, false, errors.Wrap(err, "release stale actor owner")
+		return ZeroPID, false, errors.Wrap(err, "release stale actor owner")
 	}
 	gxylog.Info(ctx, "released stale actor owner",
 		gxylog.Str("actor", k.String()), gxylog.Bool("released", released))
-	return PID{}, true, nil
+	return ZeroPID, true, nil
 }
 
-func (g *activatorManager) requestActorOrStub(ctx context.Context, node string, k actorKey, allowSpawn bool) (PID, bool, error) {
-	if g.requestActorFunc != nil {
-		return g.requestActorFunc(ctx, node, k, allowSpawn)
+// getActor 处理"记录已指向某个所有者"的情形:把解析交给所有者。
+//
+// 不得直接按名投递:必须经所有者节点校验它自己的本地实例,否则陈旧记录永远
+// 不会被清理(见 invariants.md #8)。owner 指向本节点时走本地自愈路径。
+// 返回 retry=true 表示记录刚被清理,调用方应重新定位。
+func (g *activatorManager) getActor(ctx context.Context, k actorKey, owner ActorOwner) (PID, bool, error) {
+	if owner.NodeID == g.nodeID {
+		pid, retry, err := g.resolveLocal(ctx, k, owner)
+		return pid, retry, err
+	} else {
+		pid, retry, err := g.requestActor(ctx, owner.NodeID, k, false)
+		return pid, retry, err
 	}
-	return g.requestActor(ctx, node, k, allowSpawn)
 }
 
-func (g *activatorManager) getActor(ctx context.Context, k actorKey, spawn bool) (PID, error) {
+// spawnActor 处理"尚无任何所有者"的情形:决定由谁创建,并把创建请求送达。
+//
+// allowSpawn=false 表示调用方只查询、不创建,此时按不存在处理。候选节点由能力
+// 目录的一致性哈希选出;候选就是本节点则直接创建,否则交给对方——实例在对端
+// 节点上,对端才是权威。返回 retry=true 表示对端未能创建(竞争落败或依赖不可用),
+// 调用方应重新定位。
+func (g *activatorManager) spawnActor(ctx context.Context, k actorKey, allowSpawn bool) (PID, bool, error) {
+	if !allowSpawn {
+		return ZeroPID, false, gerror.Newf("actor %s not found", k)
+	}
+
+	serviceInfo := g.serviceLookup.GetServiceInfo(ctx, k.kind, k.locateKey(), gxyregistery.ConsistentHashSelector())
+	if serviceInfo == nil || serviceInfo.NodeHost == "" {
+		return ZeroPID, false, gerror.Newf("find actor node failed, actor: %s", k)
+	}
+	// 候选节点就是本节点:直接创建,所有权由 actor 在同步初始化段获取。
+	if serviceInfo.NodeName == g.nodeID {
+		pid, err := g.spawnLocal(ctx, k)
+		return pid, false, err
+	} else {
+		return g.requestActor(ctx, serviceInfo.NodeName, k, allowSpawn)
+	}
+}
+
+// activateActor 是激活的统一入口:反复定位直到拿到实例,或重试耗尽。
+//
+// 每轮都重新 Locate —— 上一轮可能刚清理掉一条陈旧记录,或归属刚被别的节点接管,
+// 只有重读才知道当前事实。重试与失败处置只在这里发生一次,被调用的函数只回答
+// "要不要重试"。spawn 表示调用方是否允许创建。
+func (g *activatorManager) activateActor(ctx context.Context, k actorKey, spawn bool) (PID, error) {
 	result := "error"
 	defer func() {
 		gxymetrics.ActorLocate.WithLabelValues(k.kind, result).Inc()
@@ -303,81 +378,45 @@ func (g *activatorManager) getActor(ctx context.Context, k actorKey, spawn bool)
 	for range actorLocateMaxAttempts {
 		owner, err := g.store.Locate(ctx, k.kind, k.id)
 		if err != nil {
-			return PID{}, err
+			return ZeroPID, err
 		}
 
-		if owner.NodeID != "" {
-			// 已有所有者:必须经所有者节点校验本地实例,不得直接按名投递。
-			// 否则陈旧记录永远不会被清理(见 invariants.md #8)。
-			if owner.NodeID == g.nodeID {
-				pid, retry, err := g.resolveLocal(ctx, k, owner)
-				if retry {
-					continue
-				}
-				if err != nil {
-					return PID{}, err
-				}
-				result = "hit"
-				return pid, nil
-			}
-			// 所有权在本节点之外:交给所有者节点校验其本地实例,用它的应答。
-			pid, retry, err := g.requestActorOrStub(ctx, owner.NodeID, k, false)
-			if retry {
-				continue
-			}
-			if err != nil {
-				return PID{}, err
-			}
-			result = "hit"
-			return pid, nil
+		var retry bool
+		var pid PID
+		if !owner.IsZero() { // 有owner了
+			result = "get"
+			pid, retry, err = g.getActor(ctx, k, owner)
+		} else {
+			result = "spawn"
+			pid, retry, err = g.spawnActor(ctx, k, spawn)
 		}
-
-		// 无所有者:spawn=false 时视为不存在,不创建。
-		if !spawn {
-			result = "not_found"
-			return PID{}, gerror.Newf("actor %s not found", k)
-		}
-
-		serviceInfo := g.serviceLookup.GetServiceInfo(ctx, k.kind, k.locateKey(), gxyregistery.ConsistentHashSelector())
-		if serviceInfo == nil || serviceInfo.NodeHost == "" {
-			return PID{}, gerror.Newf("find actor node failed, actor: %s", k)
-		}
-		// 候选节点就是本节点:直接创建,所有权由 actor 在同步初始化段获取。
-		if serviceInfo.NodeName == g.nodeID {
-			pid, err := g.spawnLocal(ctx, k)
-			if err != nil {
-				return PID{}, err
-			}
-			result = "miss"
-			return pid, nil
-		}
-		pid, retry, err := g.requestActorOrStub(ctx, serviceInfo.NodeName, k, true)
 		if retry {
 			continue
 		}
 		if err != nil {
-			return PID{}, err
+			result = "error"
+			return ZeroPID, err
 		}
-		result = "miss"
 		return pid, nil
 	}
-	return PID{}, errActorLocateRetryExhausted
+	result = "error"
+	return ZeroPID, errActorLocateRetryExhausted
 }
 
 // spawnLocal 在本节点创建实例。初始化失败(含所有权未取得)时返回错误。
 func (g *activatorManager) spawnLocal(_ context.Context, k actorKey) (PID, error) {
 	factory, ok := g.kinds[k.kind]
 	if !ok {
-		return PID{}, errors.Newf("actor kind %s not registered", k.kind)
+		return ZeroPID, errors.Newf("actor kind %s not registered", k.kind)
 	}
 	// 注册名与初始化参数都从身份派生:能力名由登记表的键写入实例,实例标识
 	// 作为首个初始化参数交给它绑定。
 	pid, err := app.spawnNamed(k.name(), factory, k.id)
 	if err != nil {
 		if errors.Is(err, ErrNotOwner) {
-			return PID{}, err
+			return ZeroPID, err
 		}
-		return PID{}, errors.Wrapf(err, "spawn actor %s", k)
+		return ZeroPID, errors.Wrapf(err, "spawn actor %s", k)
 	}
 	return pid, nil
 }
@@ -432,7 +471,7 @@ func (a *activatorActor) handleActive(ctx context.Context, req *pb.ActorActive) 
 	}
 
 	// 记录指向其他节点:本节点不能创建,让调用方重新定位。
-	if owner.NodeID != "" {
+	if !owner.IsZero() {
 		return &pb.ActorLocateRetry{}, nil
 	}
 

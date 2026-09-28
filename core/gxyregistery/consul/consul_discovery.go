@@ -8,7 +8,8 @@ package consul
 
 import (
 	"context"
-	"fmt"
+	"net"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/consul/api"
@@ -20,7 +21,6 @@ import (
 
 // Search searches and returns services with specified condition.
 func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Service, error) {
-	// Get services from consul
 	services, _, err := r.client.Health().Service(in.Name, "", true, &api.QueryOptions{
 		WaitTime: time.Second * 3,
 	})
@@ -33,59 +33,67 @@ func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Serv
 		if service.Checks.AggregatedStatus() != api.HealthPassing {
 			continue
 		}
-
-		// Parse metadata
-		var metadata map[string]any
-		if metaStr, ok := service.Service.Meta["data"]; ok && metaStr != "" {
-			if err = gjson.Unmarshal([]byte(metaStr), &metadata); err != nil {
-				return nil, gerror.Wrap(err, "failed to unmarshal service metadata")
-			}
+		metadata, err := parseServiceMeta(service)
+		if err != nil {
+			return nil, err
 		}
-
-		// Skip if version doesn't match
-		if in.Version != "" {
-			if len(service.Service.Tags) == 0 || service.Service.Tags[0] != in.Version {
-				continue
-			}
+		if !matchesSearch(in, service, metadata) {
+			continue
 		}
-
-		// Skip if metadata doesn't match
-		if len(in.Metadata) > 0 {
-			if metadata == nil {
-				continue
-			}
-			match := true
-			for k, v := range in.Metadata {
-				if mv, ok := metadata[k]; !ok || mv != v {
-					match = false
-					break
-				}
-			}
-			if !match {
-				continue
-			}
-		}
-
-		// Get version from tags
-		version := ""
-		if len(service.Service.Tags) > 0 {
-			version = service.Service.Tags[0]
-		}
-
-		// Create service instance
-		localService := &gsvc.LocalService{
-			Head:       "",
-			Deployment: "",
-			Namespace:  "",
-			Name:       service.Service.Service,
-			Version:    version,
-			Endpoints: []gsvc.Endpoint{
-				gsvc.NewEndpoint(fmt.Sprintf("%s:%d", service.Service.Address, service.Service.Port)),
-			},
-			Metadata: metadata,
-		}
-		result = append(result, localService)
+		result = append(result, toLocalService(service, metadata))
 	}
 
 	return result, nil
+}
+
+// parseServiceMeta 解析 consul 服务元数据;无元数据时返回 nil。
+func parseServiceMeta(service *api.ServiceEntry) (map[string]any, error) {
+	metaStr, ok := service.Service.Meta["data"]
+	if !ok || metaStr == "" {
+		return nil, nil
+	}
+	var metadata map[string]any
+	if err := gjson.Unmarshal([]byte(metaStr), &metadata); err != nil {
+		return nil, gerror.Wrap(err, "failed to unmarshal service metadata")
+	}
+	return metadata, nil
+}
+
+// matchesSearch 按版本与元数据过滤条件判断服务是否命中。
+func matchesSearch(in gsvc.SearchInput, service *api.ServiceEntry, metadata map[string]any) bool {
+	if in.Version != "" {
+		if len(service.Service.Tags) == 0 || service.Service.Tags[0] != in.Version {
+			return false
+		}
+	}
+	if len(in.Metadata) > 0 {
+		if metadata == nil {
+			return false
+		}
+		for k, v := range in.Metadata {
+			if mv, ok := metadata[k]; !ok || mv != v {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// toLocalService 把 consul 服务条目转成本地服务实例。
+func toLocalService(service *api.ServiceEntry, metadata map[string]any) gsvc.Service {
+	version := ""
+	if len(service.Service.Tags) > 0 {
+		version = service.Service.Tags[0]
+	}
+	return &gsvc.LocalService{
+		Head:       "",
+		Deployment: "",
+		Namespace:  "",
+		Name:       service.Service.Service,
+		Version:    version,
+		Endpoints: []gsvc.Endpoint{
+			gsvc.NewEndpoint(net.JoinHostPort(service.Service.Address, strconv.Itoa(service.Service.Port))),
+		},
+		Metadata: metadata,
+	}
 }

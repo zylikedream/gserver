@@ -7,8 +7,8 @@ import (
 
 // Type constants
 const (
-	GoodTypeItem     = 0
-	GoodTypeCurrency = 1
+	GOOD_TYPE_ITEM     = 0
+	GOOD_TYPE_CURRENCY = 1
 )
 
 type BagGood struct {

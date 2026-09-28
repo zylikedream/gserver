@@ -42,8 +42,8 @@ func stubOwnership(t *testing.T) {
 // memOwnershipStore 是所有权载体的内存实现。
 type memOwnershipStore struct{ owner ActorOwner }
 
-func (m memOwnershipStore) Claim(context.Context, string, string) (ActorOwner, bool, error) {
-	return m.owner, true, nil
+func (m memOwnershipStore) Claim(context.Context, string, string) (ActorOwner, error) {
+	return m.owner, nil
 }
 
 func (m memOwnershipStore) Locate(context.Context, string, string) (ActorOwner, error) {

@@ -23,6 +23,8 @@ type PID struct {
 	remote gen.ProcessID // 跨节点引用,零值表示非同节点引用
 }
 
+var ZeroPID PID = PID{}
+
 // IsZero 报告该地址是否为空。
 func (p PID) IsZero() bool {
 	return p.local.Node == "" && p.remote.Node == ""

@@ -45,69 +45,107 @@ func CalcEventProgressAdd(role *RoleMain, currentProgress int32, targetType game
 	}
 	switch targetType {
 	case gamecfg.GardenETaskTargetType_BREED_START:
-		data, ok := param.Data.(event.BreedStartEventData)
-		if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
-			return 0
-		}
-		return 1
+		return breedStartProgressAdd(param, targetParam)
 	case gamecfg.GardenETaskTargetType_BREED_FINISH:
-		data, ok := param.Data.(event.BreedFinishEventData)
-		if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
-			return 0
-		}
-		return 1
+		return breedFinishProgressAdd(param, targetParam)
 	case gamecfg.GardenETaskTargetType_PLANT_FLOWER:
-		data, ok := param.Data.(event.PlantFlowerEventData)
-		if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
-			return 0
-		}
-		return int32(len(data.PlotIDs))
+		return plantFlowerProgressAdd(param, targetParam)
 	case gamecfg.GardenETaskTargetType_WATER_FLOWER:
-		data, ok := param.Data.(event.WaterFlowerEventData)
-		if !ok {
-			return 0
-		}
-		return int32(len(data.PlotIDs))
+		return waterFlowerProgressAdd(param)
 	case gamecfg.GardenETaskTargetType_HARVEST_FLOWER:
-		data, ok := param.Data.(event.HarvestFlowerEventData)
-		if !ok {
-			return 0
-		}
-		var count int32
-		for _, item := range data.Flowers {
-			if MatchTaskParam(targetParam, item.FlowerID) {
-				count++
-			}
-		}
-		return count
+		return harvestFlowerProgressAdd(param, targetParam)
 	case gamecfg.GardenETaskTargetType_GET_ITEM:
-		data, ok := param.Data.(event.GoodChangeEventData)
-		if !ok {
-			return 0
-		}
-		return getItemProgressAdd(role, role.Cfg(), targetParam, data)
+		return goodChangeProgressAdd(role, param, targetParam)
 	case gamecfg.GardenETaskTargetType_PLAYER_LEVEL:
-		data, ok := param.Data.(event.PlayerLevelEventData)
-		if !ok {
-			return 0
-		}
-		if data.NewLevel > currentProgress {
-			return data.NewLevel - currentProgress
-		}
+		return playerLevelProgressAdd(param, currentProgress)
 	case gamecfg.GardenETaskTargetType_UNLOCK_PLOT:
-		data, ok := param.Data.(event.UnlockPlotEventData)
-		if !ok || !MatchTaskParam(targetParam, data.PlotID) {
-			return 0
-		}
-		return 1
+		return unlockPlotProgressAdd(param, targetParam)
 	case gamecfg.GardenETaskTargetType_FLOWER_LEVEL:
-		data, ok := param.Data.(event.FlowerLevelEventData)
-		if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
-			return 0
+		return flowerLevelProgressAdd(param, currentProgress, targetParam)
+	}
+	return 0
+}
+
+func breedStartProgressAdd(param event.EventParam, targetParam int32) int32 {
+	data, ok := param.Data.(event.BreedStartEventData)
+	if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
+		return 0
+	}
+	return 1
+}
+
+func breedFinishProgressAdd(param event.EventParam, targetParam int32) int32 {
+	data, ok := param.Data.(event.BreedFinishEventData)
+	if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
+		return 0
+	}
+	return 1
+}
+
+func plantFlowerProgressAdd(param event.EventParam, targetParam int32) int32 {
+	data, ok := param.Data.(event.PlantFlowerEventData)
+	if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
+		return 0
+	}
+	return int32(len(data.PlotIDs))
+}
+
+func waterFlowerProgressAdd(param event.EventParam) int32 {
+	data, ok := param.Data.(event.WaterFlowerEventData)
+	if !ok {
+		return 0
+	}
+	return int32(len(data.PlotIDs))
+}
+
+func harvestFlowerProgressAdd(param event.EventParam, targetParam int32) int32 {
+	data, ok := param.Data.(event.HarvestFlowerEventData)
+	if !ok {
+		return 0
+	}
+	var count int32
+	for _, item := range data.Flowers {
+		if MatchTaskParam(targetParam, item.FlowerID) {
+			count++
 		}
-		if data.NewLevel > currentProgress {
-			return data.NewLevel - currentProgress
-		}
+	}
+	return count
+}
+
+func goodChangeProgressAdd(role *RoleMain, param event.EventParam, targetParam int32) int32 {
+	data, ok := param.Data.(event.GoodChangeEventData)
+	if !ok {
+		return 0
+	}
+	return getItemProgressAdd(role, role.Cfg(), targetParam, data)
+}
+
+func playerLevelProgressAdd(param event.EventParam, currentProgress int32) int32 {
+	data, ok := param.Data.(event.PlayerLevelEventData)
+	if !ok {
+		return 0
+	}
+	if data.NewLevel > currentProgress {
+		return data.NewLevel - currentProgress
+	}
+	return 0
+}
+
+func unlockPlotProgressAdd(param event.EventParam, targetParam int32) int32 {
+	data, ok := param.Data.(event.UnlockPlotEventData)
+	if !ok || !MatchTaskParam(targetParam, data.PlotID) {
+		return 0
+	}
+	return 1
+}
+
+func flowerLevelProgressAdd(param event.EventParam, currentProgress int32, targetParam int32) int32 {
+	data, ok := param.Data.(event.FlowerLevelEventData)
+	if !ok || !MatchTaskParam(targetParam, data.FlowerID) {
+		return 0
+	}
+	if data.NewLevel > currentProgress {
+		return data.NewLevel - currentProgress
 	}
 	return 0
 }

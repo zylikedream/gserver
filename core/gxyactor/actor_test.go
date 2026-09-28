@@ -221,12 +221,9 @@ func TestClaimAndLocate(t *testing.T) {
 	if err := mgr.lease.acquireNodeLease(context.Background()); err != nil {
 		t.Fatalf("acquireNodeLease() error = %v", err)
 	}
-	owner, acquired, err := mgr.store.Claim(context.Background(), "role", "player-1")
+	owner, err := mgr.store.Claim(context.Background(), "role", "player-1")
 	if err != nil {
 		t.Fatalf("claim() error = %v", err)
-	}
-	if !acquired {
-		t.Fatal("claim() did not acquire a new owner")
 	}
 	t.Cleanup(func() {
 		_, _ = mgr.store.Release(context.Background(), "role", "player-1", owner)

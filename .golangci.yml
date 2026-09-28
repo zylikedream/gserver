@@ -1,0 +1,28 @@
+version: "2"
+
+linters:
+  enable:
+    # 认知复杂度:衡量"这个函数有多难读",对应代码风格规则 2(Composed Method)
+    - gocognit
+    # 函数长度:行数与语句数上限
+    - funlen
+
+  settings:
+    gocognit:
+      min-complexity: 30
+    funlen:
+      lines: 60
+      statements: 40
+
+  exclusions:
+    rules:
+      # 测试文件的复杂度不作门禁:用例天然偏长(表驱动/多场景)
+      - path: _test\.go
+        linters:
+          - funlen
+          - gocognit
+      # 生成代码不作门禁:配置表(gameconfig/gosrc)+ protobuf(protocol/pb)
+      - path: (^|/)(gameconfig/gosrc|protocol/pb)/
+        linters:
+          - funlen
+          - gocognit

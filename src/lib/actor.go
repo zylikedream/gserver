@@ -42,8 +42,7 @@ const (
 	CHANNEL_ACTOR_TYPE = "chat_channel"
 )
 
-// GetChannelActor 获取频道 actor，id 格式为 "channelType_int64(channelID)"
+// GetChannelActor 获取频道 actor。id 由 ChannelKey 派生,格式 "type_id"。
 func GetChannelActor(ctx context.Context, channelType int32, channelID int64) (gxyactor.PID, error) {
-	id := strconv.Itoa(int(channelType)) + "_" + strconv.FormatInt(channelID, 10)
-	return gxyactor.ActivateActor(ctx, CHANNEL_ACTOR_TYPE, id, true)
+	return gxyactor.ActivateActor(ctx, CHANNEL_ACTOR_TYPE, (ChannelKey{Type: channelType, ID: channelID}).String(), true)
 }

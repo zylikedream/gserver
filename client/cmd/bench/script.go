@@ -100,56 +100,74 @@ func (r *ScriptRunner) dispatch(do string, args map[string]any) func() error {
 }
 
 func (r *ScriptRunner) buildLoop(args map[string]any) func() error {
-	count := 0
-	if c, ok := args["count"]; ok {
-		switch n := c.(type) {
-		case int:
-			count = n
-		case float64:
-			count = int(n)
-		}
-	}
-
-	var subScript []ScriptStep
-	if rawScript, ok := args["script"]; ok {
-		if steps, ok := rawScript.([]any); ok {
-			for _, raw := range steps {
-				if stepMap, ok := raw.(map[string]any); ok {
-					for k, v := range stepMap {
-						var argsMap map[string]any
-						if v != nil {
-							argsMap, _ = v.(map[string]any)
-						}
-						if argsMap == nil {
-							argsMap = map[string]any{}
-						}
-						subScript = append(subScript, ScriptStep{Do: k, Args: argsMap})
-					}
-				}
-			}
-		}
-	}
-
+	count := loopCount(args)
+	subScript := parseSubScript(args)
 	return func() error {
-		if count == 0 {
-			for {
-				select {
-				case <-r.stopCh:
-					return nil
-				default:
-				}
-				if err := r.RunScript(subScript); err != nil {
-					return err
-				}
+		return r.runLoop(count, subScript)
+	}
+}
+
+// loopCount 从 args 读取重复次数;0 表示无限循环。
+func loopCount(args map[string]any) int {
+	c, ok := args["count"]
+	if !ok {
+		return 0
+	}
+	switch n := c.(type) {
+	case int:
+		return n
+	case float64:
+		return int(n)
+	}
+	return 0
+}
+
+// parseSubScript 从 args["script"] 解析子脚本步骤。
+func parseSubScript(args map[string]any) []ScriptStep {
+	rawScript, ok := args["script"]
+	if !ok {
+		return nil
+	}
+	steps, ok := rawScript.([]any)
+	if !ok {
+		return nil
+	}
+	var subScript []ScriptStep
+	for _, raw := range steps {
+		stepMap, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		for k, v := range stepMap {
+			argsMap, _ := v.(map[string]any)
+			if argsMap == nil {
+				argsMap = map[string]any{}
 			}
-		} else {
-			for i := 0; i < count; i++ {
-				if err := r.RunScript(subScript); err != nil {
-					return err
-				}
+			subScript = append(subScript, ScriptStep{Do: k, Args: argsMap})
+		}
+	}
+	return subScript
+}
+
+// runLoop 执行子脚本 count 次;count 为 0 时循环到停止信号。
+func (r *ScriptRunner) runLoop(count int, subScript []ScriptStep) error {
+	if count != 0 {
+		for i := 0; i < count; i++ {
+			if err := r.RunScript(subScript); err != nil {
+				return err
 			}
 		}
 		return nil
+	}
+	for {
+		select {
+		case <-r.stopCh:
+			return nil
+		default:
+		}
+		if err := r.RunScript(subScript); err != nil {
+			return err
+		}
 	}
 }
 

@@ -66,8 +66,8 @@ func expectChannelInsert(mock sqlmock.Sqlmock) {
 
 func TestChannelActor_Init_Valid(t *testing.T) {
 	a := newTestChannelActor(t, GuildChannel{})
-	if a.ChannelType != 1 || a.ChannelID != 100 {
-		t.Fatalf("expected type=1 id=100, got type=%d id=%d", a.ChannelType, a.ChannelID)
+	if a.key.Type != 1 || a.key.ID != 100 {
+		t.Fatalf("expected type=1 id=100, got type=%d id=%d", a.key.Type, a.key.ID)
 	}
 	if a.channel == nil {
 		t.Fatal("channel not resolved")
@@ -409,8 +409,8 @@ func TestChannelActor_LoadHistory_Populates(t *testing.T) {
 	db, mock := newGormDB(t)
 	a := newTestChannelActor(t, GuildChannel{})
 	a.db = db
-	a.ChannelType = 4
-	a.ChannelID = 7
+	a.key.Type = 4
+	a.key.ID = 7
 
 	// DESC: 最新(9, "later")在前; buffer 应为正序: (8, "first") → (9, "later")
 	mock.ExpectQuery(`SELECT .* FROM "`+chatGuildMessageTable+`"`).
@@ -441,8 +441,8 @@ func TestChannelActor_LoadHistory_Empty(t *testing.T) {
 	db, mock := newGormDB(t)
 	a := newTestChannelActor(t, GuildChannel{})
 	a.db = db
-	a.ChannelType = 4
-	a.ChannelID = 7
+	a.key.Type = 4
+	a.key.ID = 7
 
 	mock.ExpectQuery(`SELECT .* FROM "`+chatGuildMessageTable+`"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
@@ -473,8 +473,8 @@ func TestChannelActor_LoadHistory_DBError(t *testing.T) {
 	db, mock := newGormDB(t)
 	a := newTestChannelActor(t, GuildChannel{})
 	a.db = db
-	a.ChannelType = 4
-	a.ChannelID = 7
+	a.key.Type = 4
+	a.key.ID = 7
 
 	mock.ExpectQuery(`SELECT .* FROM "`+chatGuildMessageTable+`"`).
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg()).
@@ -491,8 +491,8 @@ func TestChannelActor_Send_PersistsSenderID(t *testing.T) {
 	db, mock := newGormDB(t)
 	a := newTestChannelActor(t, GuildChannel{})
 	a.db = db
-	a.ChannelType = 4
-	a.ChannelID = 7
+	a.key.Type = 4
+	a.key.ID = 7
 
 	mock.ExpectBegin()
 	// gorm map 列按字母序: channel_id, channel_type, content, sender_id, timestamp

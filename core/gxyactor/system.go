@@ -176,9 +176,9 @@ func (a *actorApp) spawnNamed(name gen.Atom, factory gen.ProcessFactory, initArg
 	return pidFromLocal(pid), nil
 }
 
-// spawnUnnamed 创建一个不带名字的 actor。
+// spawn 创建一个不带名字的 actor。
 // 这类实例不能按名寻址,生命周期由创建者负责(会话、临时 worker)。
-func (a *actorApp) spawnUnnamed(kind string, ctor ActorConstructor, initArgs ...any) (PID, error) {
+func (a *actorApp) spawn(kind string, ctor ActorConstructor, initArgs ...any) (PID, error) {
 	if a.node == nil {
 		return PID{}, gerror.New("actor node not initialized")
 	}
@@ -301,13 +301,13 @@ func address() string {
 // 服务名),门面在边界上构造一次身份,内部全程用它。
 func (a *actorApp) GetActorOwner(ctx context.Context, kind string, id string) (ActorOwner, error) {
 	if a.activator == nil {
-		return ActorOwner{}, gerror.New("activator is not initialized")
+		return ZeroActorOwner, gerror.New("activator is not initialized")
 	}
 	return a.activator.store.Locate(ctx, kind, id)
 }
 
 func (a *actorApp) ActivateActor(ctx context.Context, kind string, id string, spawn bool) (PID, error) {
-	return a.activator.getActor(ctx, actorKey{kind: kind, id: id}, spawn)
+	return a.activator.activateActor(ctx, actorKey{kind: kind, id: id}, spawn)
 }
 
 func (a *actorApp) GetActorCount(kind string) int {

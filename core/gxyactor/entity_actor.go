@@ -60,16 +60,16 @@ func (e *EntityActor) acquireOwnership() (ActorOwner, error) {
 	// 标识由激活协调层作为首个参数传入,类型随能力而定(role 用整数,其余用字符串)。
 	id, ok := actorIDFromArgs(e.initArgs)
 	if !ok {
-		return ActorOwner{}, errors.Errorf("entity actor %q requires an id as the first init arg", e.kind)
+		return ZeroActorOwner, errors.Errorf("entity actor %q requires an id as the first init arg", e.kind)
 	}
 	e.ownedID = id
 	if e.ownedID == "" {
-		return ActorOwner{}, nil
+		return ZeroActorOwner, nil
 	}
 	key := actorKey{kind: e.kind, id: e.ownedID}
 	owner, err := claimOwnership(e.Ctx, key)
 	if err != nil {
-		return ActorOwner{}, errors.Wrapf(err, "claim ownership for %s", key)
+		return ZeroActorOwner, errors.Wrapf(err, "claim ownership for %s", key)
 	}
 	e.owner = owner
 	return owner, nil
@@ -78,7 +78,7 @@ func (e *EntityActor) acquireOwnership() (ActorOwner, error) {
 // dropOwnership 在终止路径释放归属。释放失败只记录:此时已无补救手段,
 // 而残留记录由激活协调层在下次激活时条件清理(不变量 #8)。
 func (e *EntityActor) dropOwnership(ctx context.Context) {
-	if e.ownedID == "" || e.owner.NodeID == "" {
+	if e.ownedID == "" || e.owner.IsZero() {
 		return
 	}
 	key := actorKey{kind: e.kind, id: e.ownedID}

@@ -66,8 +66,8 @@ msg  ts  level  caller  stacktrace  trace_id  ctx_id
 
 | 字段 | 来源 | 说明 |
 |------|------|------|
-| `mod` | ctx(`gxylog.NewContext` / `WithValue(ContextKeyModType)`) | 模块名(role/chat/gate...) |
-| `roleID` | ctx(`SetLogValue(gxylog.ContextKeyRoleID, rid)`) | 角色 ID,Actor 内自动带 |
+| `mod` | ctx(`gxylog.NewContext` / `WithValue(CONTEXT_KEY_MOD_TYPE)`) | 模块名(role/chat/gate...) |
+| `roleID` | ctx(`SetLogValue(gxylog.CONTEXT_KEY_ROLE_ID, rid)`) | 角色 ID,Actor 内自动带 |
 | `trace_id` | ctx 中的 otel span | 与 Tempo 追踪关联;无 span 时兜底 `ctx_id` |
 
 **不要手动传 `trace_id`/`ctx_id`**——自动注入已覆盖,显式传会与自动字段重复。

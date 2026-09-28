@@ -113,7 +113,7 @@ func (h *ChatHandler) StoreSystemMsg(ctx context.Context, req *StoreSystemMsgReq
 	}
 	// 发布全服广播
 	_ = lib.Publish(ctx, "role", &lib.BroadcastMsg{
-		MsgType: lib.BroadCastTypeSystemMsg,
+		MsgType: lib.BROADCAST_TYPE_SYSTEM_MSG,
 		Data:    content,
 	})
 	return map[string]int64{"timestamp": ts}, nil
