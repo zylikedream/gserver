@@ -14,12 +14,12 @@ import (
 )
 
 var (
-	ErrPlotLocked      = errors.New("plot not unlocked")
-	ErrPlotNotEmpty    = errors.New("plot is not empty")
-	ErrPlotNotPlanted  = errors.New("plot is not planted")
-	ErrPlotNotGrowing  = errors.New("plot is not growing")
-	ErrPlotNotReady    = errors.New("plot not ready for harvest")
-	ErrPlotHarvestable = errors.New("plot is harvestable, harvest first")
+	ErrPlotLocked      = clientRejection("plot not unlocked")
+	ErrPlotNotEmpty    = clientRejection("plot is not empty")
+	ErrPlotNotPlanted  = clientRejection("plot is not planted")
+	ErrPlotNotGrowing  = clientRejection("plot is not growing")
+	ErrPlotNotReady    = clientRejection("plot not ready for harvest")
+	ErrPlotHarvestable = clientRejection("plot is harvestable, harvest first")
 )
 
 // ========== 数据模型 ==========

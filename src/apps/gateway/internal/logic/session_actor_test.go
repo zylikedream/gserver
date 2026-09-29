@@ -60,27 +60,20 @@ func (f *fakeEndpoint) Close()         { f.closed = true }
 func (f *fakeEndpoint) GetData() any   { return f.data }
 func (f *fakeEndpoint) SetData(d any)  { f.data = d }
 
-// watchRecorder 记录会话发起的监视/取消监视调用。
+// watchRecorder 记录会话发起的监视调用。
 type watchRecorder struct {
-	watched   []gxyactor.PID
-	unwatched []gxyactor.PID
+	watched []gxyactor.PID
 }
 
 // injectWatch 替换监视钩子,返回恢复函数。
 func injectWatch(t *testing.T, rec *watchRecorder) func() {
 	t.Helper()
-	oldWatch, oldUnwatch := watchRole, unwatchRole
+	oldWatch := watchRole
 	watchRole = func(s *Session, pid gxyactor.PID) error {
 		rec.watched = append(rec.watched, pid)
 		return nil
 	}
-	unwatchRole = func(s *Session, pid gxyactor.PID) error {
-		rec.unwatched = append(rec.unwatched, pid)
-		return nil
-	}
-	return func() {
-		watchRole, unwatchRole = oldWatch, oldUnwatch
-	}
+	return func() { watchRole = oldWatch }
 }
 
 // roleRuntimePID 是握手时激活得到的角色进程标识。
@@ -134,7 +127,8 @@ func TestSessionDisconnectReason(t *testing.T) {
 		err  error
 		want string
 	}{
-		{nil, "unknown"},
+		// 无原因即正常结束(连接干净关闭):归到 conn_closed,不是 unknown。
+		{nil, "conn_closed"},
 		{ErrLoginRateLimited, "login_rate_limited"},
 		{ErrLoginQueueFull, "login_queue_full"},
 		{ErrLoginQueueTimeout, "login_queue_timeout"},
@@ -595,7 +589,7 @@ func TestSession_SessionCheck_Active(t *testing.T) {
 // ========== Terminate ==========
 
 func TestSession_Terminate_WithRole(t *testing.T) {
-	s, rec, ep := newTestSession(t)
+	s, _, ep := newTestSession(t)
 	restore := withHandshake(t, s, ep)
 	defer restore()
 
@@ -603,8 +597,24 @@ func TestSession_Terminate_WithRole(t *testing.T) {
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}
-	if len(rec.unwatched) != 1 || !gxyactor.PidEqual(rec.unwatched[0], gxyactor.PidFromRuntime(roleRuntimePID)) {
-		t.Fatalf("expected Unwatch(role_pid), got %+v", rec.unwatched)
+	if s.state != StateDisconnected {
+		t.Fatalf("expected StateDisconnected, got %v", s.state)
+	}
+	if SessionMgr().Count() != 0 {
+		t.Fatalf("expected session removed from mgr, got %d", SessionMgr().Count())
+	}
+}
+
+// 正常结束(无原因)带角色时也必须走完终止路径:早先此处无条件取 err.Error(),
+// 而"客户端干净断开"正是 err=nil 的量级最大的一条路径。
+func TestSession_Terminate_WithRole_NilReason(t *testing.T) {
+	s, _, ep := newTestSession(t)
+	restore := withHandshake(t, s, ep)
+	defer restore()
+
+	s.Terminate(nil)
+	if !ep.closed {
+		t.Fatal("endpoint not closed")
 	}
 	if s.state != StateDisconnected {
 		t.Fatalf("expected StateDisconnected, got %v", s.state)
@@ -615,13 +625,10 @@ func TestSession_Terminate_WithRole(t *testing.T) {
 }
 
 func TestSession_Terminate_WithoutRole(t *testing.T) {
-	s, rec, ep := newTestSession(t)
+	s, _, ep := newTestSession(t)
 	s.Terminate(nil)
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
-	}
-	if len(rec.unwatched) != 0 {
-		t.Fatalf("unwatched should be empty without RolePid, got %+v", rec.unwatched)
 	}
 	if s.state != StateDisconnected {
 		t.Fatalf("expected StateDisconnected, got %v", s.state)

@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	ErrNotFriend           = errors.New("对方不是你的好友")
-	ErrStealNotHarvestable = errors.New("该鲜花尚未成熟")
-	ErrStealFlowerFull     = errors.New("该鲜花已被摘取完毕")
-	ErrStealDailyFull      = errors.New("今日对该好友的摘取次数已用完")
-	ErrStealLocked         = errors.New("该鲜花已无法摘取")
+	ErrNotFriend           = clientRejection("对方不是你的好友")
+	ErrStealNotHarvestable = clientRejection("该鲜花尚未成熟")
+	ErrStealFlowerFull     = clientRejection("该鲜花已被摘取完毕")
+	ErrStealDailyFull      = clientRejection("今日对该好友的摘取次数已用完")
+	ErrStealLocked         = clientRejection("该鲜花已无法摘取")
 )
 
 // ========== 每日偷取计数模型 ==========

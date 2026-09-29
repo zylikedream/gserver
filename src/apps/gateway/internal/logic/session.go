@@ -44,16 +44,12 @@ var activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error)
 	return lib.ActivateRole(ctx, roleID)
 }
 
-// watchRole/unwatchRole 可替换函数变量:测试注入以观察监视行为(编译期安全,非 gomonkey)。
+// watchRole 可替换函数变量:测试注入以观察监视行为(编译期安全,非 gomonkey)。
 // 会话必须监视角色进程——角色终止时要据此断开连接。
-var (
-	watchRole = func(s *Session, pid gxyactor.PID) error {
-		return s.Watch(pid)
-	}
-	unwatchRole = func(s *Session, pid gxyactor.PID) error {
-		return s.Unwatch(pid)
-	}
-)
+// 反向的取消失监视不存在:会话终止时运行时已清掉监视项,再取消只会被拒。
+var watchRole = func(s *Session, pid gxyactor.PID) error {
+	return s.Watch(pid)
+}
 
 // 错误契约: 准入错误(限流 sentinel / 未配置 / ctx 取消)原样上抛, 不包裹——
 // 预期拒绝需要保持原始形态供 OnHandleClientMessage 分类; ActivateRole 的业务
@@ -336,6 +332,7 @@ func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
 
 // Terminate 终止会话
 // Terminate 是运行时回调:清理会话状态、关闭连接,最后由基类停定时器。
+// err 为 nil 表示正常结束(连接干净关闭),此时没有原因可打。
 func (s *Session) Terminate(err error) {
 	ctx := s.Ctx
 	gxylog.Debug(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
@@ -348,20 +345,34 @@ func (s *Session) Terminate(err error) {
 		s.endpoint.Close()
 	}
 	if !gxyactor.PIDIsZero(s.sessionInfo.RolePid) {
-		if err := unwatchRole(s, s.sessionInfo.RolePid); err != nil {
-			gxylog.Warn(ctx, "unwatch role failed", gxylog.Err(err))
-		}
+		// 不在这里取消对角色的监视:本回调是终止路径的后半段,运行时此时已把
+		// 本进程置为 Terminated,取消监视会被运行时拒绝(not allowed),而监视项
+		// 早已随进程终止被运行时清掉。见 docs/development 的运行时契约说明。
 		msg := &pb.ReqAccountLogout{
-			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
+			Reason: fmt.Sprintf("session terminated: %s", terminationReasonText(err)),
 		}
 		_ = s.SendRoleMsg(ctx, msg, codec.MessageMetaByMsg(msg).ID)
 	}
 	s.state = StateDisconnected
 }
 
+// connClosedReason 是"连接关闭"这一正常结束的可读原因文本。
+const connClosedReason = "conn closed"
+
+// terminationReasonText 给出终止原因的可读文本。无原因即正常结束,
+// 用连接关闭描述——下游(角色侧登出通知)据此展示。
+func terminationReasonText(err error) string {
+	if err == nil {
+		return connClosedReason
+	}
+	return err.Error()
+}
+
 func sessionDisconnectReason(err error) string {
 	if err == nil {
-		return "unknown"
+		// 无原因即正常结束:这条路径的含义就是连接关闭。归到 unknown 会让
+		// "玩家正常下线"在看板上消失,而它是量级最大的一类。
+		return "conn_closed"
 	}
 	// 与 isLoginAdmissionRejection 相同的不变式：sentinel 需以未包裹形态到达这里。
 	// 当前生产路径（OnHandleClientMessage 将原始 sentinel 传给 s.Stop）满足该不变式。
@@ -387,7 +398,7 @@ func sessionDisconnectReason(err error) string {
 		return "multi_login"
 	case strings.Contains(reason, "gateway service stop"):
 		return "service_stop"
-	case strings.Contains(reason, "conn closed"):
+	case strings.Contains(reason, connClosedReason):
 		return "conn_closed"
 	default:
 		return "error"

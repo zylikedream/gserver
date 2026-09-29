@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	ErrGoodNotEnough      = errors.New("good not enough")
+	ErrGoodNotEnough = clientRejection("good not enough")
+	// 配置缺失是服务端问题,不是客户端的预期拒绝。
 	ErrGoodConfigNotFound = errors.New("good config not found")
-	ErrGoodExceedMaxStack = errors.New("exceed max stack")
+	ErrGoodExceedMaxStack = clientRejection("exceed max stack")
 )
 
 type GoodsMap map[int]bag.BagGood

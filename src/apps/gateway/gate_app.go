@@ -70,8 +70,14 @@ func spawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
 	})
 }
 
+// stopSession 请求会话终止。err=nil 表示正常结束(连接干净关闭):
+// 原因经协议传字符串,空串即"没有原因",运行时据此走正常终止而不是记异常。
 func stopSession(pid gxyactor.PID, err error) error {
+	reason := ""
+	if err != nil {
+		reason = err.Error()
+	}
 	return gxyactor.Send(context.Background(), pid, &pb.ActorStop{
-		Reason: err.Error(),
+		Reason: reason,
 	})
 }

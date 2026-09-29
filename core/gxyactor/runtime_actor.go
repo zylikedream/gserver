@@ -118,7 +118,16 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 	case *pb.ActorStop:
 		// 按消息请求停止:调用方(角色、网关)用它结束会话。
 		// 会话在本分支不承载实体,停止只是终止自身。
-		r.base.Stop(errors.New(msg.Reason))
+		//
+		// 原因经协议传的是字符串,空串即"没有原因"——正常结束(如连接干净关闭)。
+		// 必须让它落到 Stop(nil):终止原因非 nil 时运行时一律记
+		// "process terminated abnormally" 的 error,于是每次玩家正常下线都会刷一条
+		// 错误(见 Actor.stopReason)。
+		if msg.Reason == "" {
+			r.base.Stop(nil)
+		} else {
+			r.base.Stop(errors.New(msg.Reason))
+		}
 		return r.base.stopReason()
 	case gen.MessageDownPID:
 		// 监视通知翻译成门面身份后交给业务:业务侧不出现运行时消息类型。

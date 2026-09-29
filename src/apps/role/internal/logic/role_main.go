@@ -50,13 +50,26 @@ const (
 	SESSION_ALIVE_CHECK_TICK_NAME = "check_session_alive"
 )
 
+// logClientProtocolError 记录一次客户端协议处理失败。
+//
+// 分级按"这是不是预期内的拒绝"分两类:
+//   - 预期拒绝(见 clientRejection):玩家发了当前不满足条件的请求,是协议的正常
+//     结局。只记一条摘要,且不带栈——这类消息量级随玩家误操作走,带栈会把日志
+//     淹掉,error 级别也会让告警失去意义。
+//   - 其它失败:可能是服务端自身的问题(配置、依赖、数据),必须 error + 完整栈。
 func logClientProtocolError(ctx context.Context, roleID int64, msgID, msgName string, err error) {
-	gxylog.Error(ctx, "handle client protocol failed",
+	fields := []gxylog.Field{
 		gxylog.Str("msg_id", msgID),
 		gxylog.Str("msg_name", msgName),
 		gxylog.Num("role_id", roleID),
-		gxylog.Err(err),
-	)
+	}
+	if isClientRejection(err) {
+		gxylog.Info(ctx, "client request rejected",
+			append(fields, gxylog.Str("reason", err.Error()))...)
+		return
+	}
+	gxylog.Error(ctx, "handle client protocol failed",
+		append(fields, gxylog.Err(err))...)
 }
 
 type RoleState int32
