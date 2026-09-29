@@ -78,13 +78,12 @@ func (p *slotLoginPermit) Release() {
 	})
 }
 
+// unconfiguredLoginAcquirer 是未注入限流器时的缺省实现:一律拒绝。
 type unconfiguredLoginAcquirer struct{}
 
 func (unconfiguredLoginAcquirer) acquire(context.Context) (loginPermit, error) {
 	return nil, ErrLoginLimiterUnconfigured
 }
-
-var currentLoginAcquirer loginAcquirer = unconfiguredLoginAcquirer{}
 
 func NewLoginLimiter(config LoginLimitConfig) (*LoginLimiter, error) {
 	if err := validateLoginLimitConfig(config); err != nil {
@@ -123,22 +122,6 @@ func newLoginLimiter(
 
 func newProductionLoginTimer(timeout time.Duration) loginTimer {
 	return timerAdapter{timer: time.NewTimer(timeout)}
-}
-
-func SetLoginLimiter(limiter *LoginLimiter) {
-	if limiter == nil {
-		currentLoginAcquirer = unconfiguredLoginAcquirer{}
-		return
-	}
-	currentLoginAcquirer = limiter
-}
-
-func swapLoginAcquirer(acquirer loginAcquirer) func() {
-	previous := currentLoginAcquirer
-	currentLoginAcquirer = acquirer
-	return func() {
-		currentLoginAcquirer = previous
-	}
 }
 
 func (l *LoginLimiter) acquire(ctx context.Context) (loginPermit, error) {

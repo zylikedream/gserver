@@ -7,16 +7,18 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
+	"gserver/src/apps/gateway/internal/logic"
 
 	"github.com/cockroachdb/errors"
 )
 
 type GateHandler struct {
 	endpoint.BaseEventHandler
+	deps logic.SessionDeps
 }
 
-func NewGateHandler() *GateHandler {
-	return &GateHandler{}
+func NewGateHandler(deps logic.SessionDeps) *GateHandler {
+	return &GateHandler{deps: deps}
 }
 
 func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
@@ -25,7 +27,7 @@ func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
 	gxylog.Debug(ctx, "New connection", gxylog.Str("connID", connID))
 
 	// 通过SessionManager创建Session Actor
-	sessPid, err := spawnSession(ep)
+	sessPid, err := spawnSession(ep, gh.deps)
 	if err != nil {
 		gxylog.Error(ctx, "Failed to create session for %s", gxylog.Str("connID", connID), gxylog.Err(err))
 		_ = ep.Conn().Close()

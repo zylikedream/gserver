@@ -16,7 +16,7 @@ import (
 func TestSessionRoutesTimerMessage(t *testing.T) {
 	ep := newFakeEndpoint(t)
 	gxyactortest.StubOwnership(t)
-	s, subj := gxyactortest.Spawn(t, "session", func() *Session { return NewSession(ep) })
+	s, subj := gxyactortest.Spawn(t, "session", func() *Session { return NewSession(ep, newTestDeps()) })
 
 	fired := 0
 	s.Timer().AddTick("probe", time.Hour, func(context.Context) { fired++ })

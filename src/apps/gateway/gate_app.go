@@ -8,15 +8,17 @@ import (
 	"gserver/core/gxynet/endpoint"
 	"gserver/protocol/pb"
 	"gserver/src/apps/gateway/internal/logic"
+	"gserver/src/lib"
 	"gserver/src/lib/gatetoken"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
 )
 
-// gateApp 是网关应用的组合根:组装网络端点、会话管理与令牌校验。
+// gateApp 是网关应用的组合根:组装网络端点、会话依赖与令牌校验。
 type gateApp struct {
 	gxyapp.App
+	sessions *gxyactor.ActorMgr
 }
 
 func NewGateApp() *gateApp {
@@ -32,7 +34,6 @@ func (s *gateApp) OnModInit(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	logic.SetLoginLimiter(loginLimiter)
 
 	tokenCfg, err := gatetoken.LoadConfigFromGF(ctx)
 	if err != nil {
@@ -42,31 +43,35 @@ func (s *gateApp) OnModInit(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	logic.SetGateTokenVerifier(signer.Verify)
-	network := gxynet.NewNetwork(g.Cfg(), NewGateHandler())
+	s.sessions = gxyactor.NewActorMgr("session_mgr")
+	deps := logic.SessionDeps{
+		VerifyToken:  signer.Verify,
+		Login:        loginLimiter,
+		ActivateRole: lib.ActivateRole,
+		Sessions:     s.sessions,
+	}
+	network := gxynet.NewNetwork(g.Cfg(), NewGateHandler(deps))
 	if err := s.AddModule(ctx, network); err != nil {
 		return err
 	}
-	logic.NewSessionMgr()
 	return nil
 }
 
 func (s *gateApp) OnModStart(ctx context.Context) error {
-	// 启动会话管理器
 	return nil
 }
 
 func (s *gateApp) OnModStop(ctx context.Context) error {
-	sessions := logic.SessionMgr().All()
+	sessions := s.sessions.All()
 	for _, pid := range sessions {
 		_ = stopSession(pid, gerror.New("gateway service stop"))
 	}
 	return nil
 }
 
-func spawnSession(ep endpoint.Endpoint) (gxyactor.PID, error) {
+func spawnSession(ep endpoint.Endpoint, d logic.SessionDeps) (gxyactor.PID, error) {
 	return gxyactor.Spawn("session", func() gxyactor.Business {
-		return logic.NewSession(ep)
+		return logic.NewSession(ep, d)
 	})
 }
 
