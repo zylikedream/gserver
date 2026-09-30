@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"gserver/core/gxylog"
-
-	"gorm.io/gorm"
 )
 
 type StealRecord struct {
@@ -20,32 +18,34 @@ type StealRecord struct {
 
 func (StealRecord) TableName() string { return "steal_record" }
 
-// 可替换函数变量:测试可注入 mock 实现(编译期安全,非 gomonkey 打桩)。
-var (
-	createStealRecord = func(ctx context.Context, db *gorm.DB, record *StealRecord) error {
-		return db.WithContext(ctx).Create(record).Error
+// 偷取记录的读写:连接从接收者取(RoleModule.DB),测试经 deps 注入 sqlmock。
+
+func (r *RoleModule) createStealRecord(ctx context.Context, record *StealRecord) error {
+	return r.DB().WithContext(ctx).Create(record).Error
+}
+
+func (r *RoleModule) countPlotStolen(ctx context.Context, ownerID int64, plotID int32) (int64, error) {
+	var count int64
+	err := r.DB().WithContext(ctx).Model(&StealRecord{}).
+		Where("owner_id = ? AND plot_id = ?", ownerID, plotID).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *RoleModule) hasStealRecord(ctx context.Context, stealerID, ownerID int64, plotID int32) bool {
+	var count int64
+	err := r.DB().WithContext(ctx).Model(&StealRecord{}).
+		Where("stealer_id = ? AND owner_id = ? AND plot_id = ?", stealerID, ownerID, plotID).
+		Count(&count).Error
+	if err != nil {
+		gxylog.Error(ctx, "hasStealRecord error", gxylog.Err(err))
+		return true
 	}
-	countPlotStolen = func(ctx context.Context, db *gorm.DB, ownerID int64, plotID int32) (int64, error) {
-		var count int64
-		err := db.WithContext(ctx).Model(&StealRecord{}).
-			Where("owner_id = ? AND plot_id = ?", ownerID, plotID).
-			Count(&count).Error
-		return count, err
-	}
-	hasStealRecord = func(ctx context.Context, db *gorm.DB, stealerID, ownerID int64, plotID int32) bool {
-		var count int64
-		err := db.WithContext(ctx).Model(&StealRecord{}).
-			Where("stealer_id = ? AND owner_id = ? AND plot_id = ?", stealerID, ownerID, plotID).
-			Count(&count).Error
-		if err != nil {
-			gxylog.Error(ctx, "hasStealRecord error", gxylog.Err(err))
-			return true
-		}
-		return count > 0
-	}
-	deletePlotStealRecords = func(ctx context.Context, db *gorm.DB, ownerID int64, plotID int32) error {
-		return db.WithContext(ctx).
-			Where("owner_id = ? AND plot_id = ?", ownerID, plotID).
-			Delete(&StealRecord{}).Error
-	}
-)
+	return count > 0
+}
+
+func (r *RoleModule) deletePlotStealRecords(ctx context.Context, ownerID int64, plotID int32) error {
+	return r.DB().WithContext(ctx).
+		Where("owner_id = ? AND plot_id = ?", ownerID, plotID).
+		Delete(&StealRecord{}).Error
+}

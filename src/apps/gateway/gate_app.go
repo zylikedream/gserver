@@ -10,6 +10,7 @@ import (
 	"gserver/src/apps/gateway/internal/logic"
 	"gserver/src/lib"
 	"gserver/src/lib/gatetoken"
+	"time"
 
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/frame/g"
@@ -45,7 +46,10 @@ func (s *gateApp) OnModInit(ctx context.Context) error {
 	}
 	s.sessions = gxyactor.NewActorMgr("session_mgr")
 	deps := logic.SessionDeps{
-		VerifyToken:  signer.Verify,
+		// 时钟在组装根给:签验器不持有时间来源。
+		VerifyToken: func(token string) (*gatetoken.Claims, error) {
+			return signer.Verify(token, time.Now())
+		},
 		Login:        loginLimiter,
 		ActivateRole: lib.ActivateRole,
 		Sessions:     s.sessions,

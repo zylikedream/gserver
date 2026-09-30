@@ -7,18 +7,13 @@ import (
 
 	accountlogic "gserver/src/apps/account/logic"
 
-	"gserver/core/gxypgx"
-
 	"gorm.io/gorm"
 )
 
-var (
-	lookupAccountIDByRoleID = defaultLookupAccountIDByRoleID
-	loadAccountByRoleID     = defaultLoadAccountByRoleID
-)
+// 账号反查:连接从接收者取(RoleMain.DB),测试经 deps 注入 sqlmock。
 
-func defaultLookupAccountIDByRoleID(ctx context.Context, roleID int64) (string, error) {
-	account, err := loadAccountByRoleID(ctx, roleID)
+func (r *RoleMain) lookupAccountIDByRoleID(ctx context.Context) (string, error) {
+	account, err := r.loadAccountByRoleID(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -28,10 +23,10 @@ func defaultLookupAccountIDByRoleID(ctx context.Context, roleID int64) (string, 
 	return account.AccountID, nil
 }
 
-func defaultLoadAccountByRoleID(ctx context.Context, roleID int64) (*accountlogic.Account, error) {
+func (r *RoleMain) loadAccountByRoleID(ctx context.Context) (*accountlogic.Account, error) {
 	var account accountlogic.Account
-	err := gxypgx.DB().WithContext(ctx).
-		Where("role_id = ?", roleID).
+	err := r.DB().WithContext(ctx).
+		Where("role_id = ?", r.RoleID).
 		First(&account).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil

@@ -11,7 +11,6 @@ import (
 	"gserver/src/pkg/gameconfig"
 
 	"github.com/cockroachdb/errors"
-	proto "google.golang.org/protobuf/proto"
 )
 
 func initOrderTestConfig(t *testing.T) {
@@ -22,10 +21,6 @@ func initOrderTestConfig(t *testing.T) {
 func setupTestOrder(t *testing.T, flowerIDs ...int32) (*RoleMain, *RoleResidentOrder) {
 	t.Helper()
 	initOrderTestConfig(t)
-
-	origSend := sendClient
-	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {}
-	t.Cleanup(func() { sendClient = origSend })
 
 	main := &RoleMain{eventBus: event.NewEventBus()}
 	basicMod := &RoleBasic{

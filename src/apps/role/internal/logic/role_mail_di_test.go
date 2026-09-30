@@ -12,6 +12,8 @@ import (
 	"gserver/src/pkg/deps"
 	"gserver/src/pkg/gameconfig"
 
+	"gserver/core/gxyactor"
+
 	"github.com/DATA-DOG/go-sqlmock"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -96,11 +98,8 @@ func TestRefreshMailCache_SQLMock(t *testing.T) {
 func TestSendMail_SQLMock(t *testing.T) {
 	gormDB, mock := newGormMock(t)
 	main, _ := newMailTestDeps(t, gormDB)
-
-	// 通知走 no-op,聚焦 DB 行为
-	origNotify := notifyMailUpdate
-	notifyMailUpdate = func(ctx context.Context, roleID, mailID int64) {}
-	t.Cleanup(func() { notifyMailUpdate = origNotify })
+	// 通知路径真的走一遍:actor 组装根在场时,目标离线会退化为 no-op(log + 返回 nil)。
+	gxyactor.NewActorApp("role-test", "role-test-node", "127.0.0.1")
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`INSERT INTO "personal_mail" \("role_id","title","content","attachments","send_at","expire_at"\) VALUES \(\$1,\$2,\$3,\$4,\$5,\$6\) RETURNING "id"`).

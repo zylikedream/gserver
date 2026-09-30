@@ -16,7 +16,6 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"github.com/cockroachdb/errors"
-	"gorm.io/gorm"
 )
 
 type RoleFriend struct {
@@ -270,11 +269,11 @@ func getRelation(ctx context.Context, myID, targetID int64) (relation, error) {
 	return relationStranger, nil
 }
 
-// isFriend 可替换函数变量:测试可注入 mock 实现(编译期安全)。
-var isFriend = func(ctx context.Context, db *gorm.DB, myID, targetID int64) bool {
+// isFriend 查好友关系表。连接从接收者取(RoleModule.DB),测试经 deps 注入 sqlmock。
+func (r *RoleModule) isFriend(ctx context.Context, targetID int64) bool {
 	var count int64
-	err := db.WithContext(ctx).Table("friend_relation").
-		Where("player_id = ? AND friend_id = ?", myID, targetID).
+	err := r.DB().WithContext(ctx).Table("friend_relation").
+		Where("player_id = ? AND friend_id = ?", r.RoleID, targetID).
 		Count(&count).Error
 	if err != nil {
 		return false

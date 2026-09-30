@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// newMockDB 构造 sqlmock + gorm,并把 uidDB 指向它;测试结束恢复原实现。
+// newMockDB 构造 sqlmock + gorm,供 NewGen 注入。
 func newMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
@@ -24,20 +24,16 @@ func newMockDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 		t.Fatalf("gorm.Open: %v", err)
 	}
 
-	orig := uidDB
-	uidDB = func() *gorm.DB { return gdb }
-	t.Cleanup(func() { uidDB = orig })
 	return gdb, mock
 }
 
 func TestGenAutoIncID(t *testing.T) {
 	gdb, mock := newMockDB(t)
-	_ = gdb
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT nextval($1::regclass)`)).
 		WithArgs("uid_role_seq").
 		WillReturnRows(sqlmock.NewRows([]string{"nextval"}).AddRow(100109))
 
-	id, err := UidGen().GenAutoIncID("role")
+	id, err := NewGen(gdb).GenAutoIncID("role")
 	if err != nil {
 		t.Fatalf("GenAutoIncID: %v", err)
 	}
@@ -50,12 +46,12 @@ func TestGenAutoIncID(t *testing.T) {
 }
 
 func TestGenAutoIncIDError(t *testing.T) {
-	_, mock := newMockDB(t)
+	gdb, mock := newMockDB(t)
 	mock.ExpectQuery(regexp.QuoteMeta(`SELECT nextval($1::regclass)`)).
 		WithArgs("uid_role_seq").
 		WillReturnError(errors.New("nextval failed"))
 
-	if _, err := UidGen().GenAutoIncID("role"); err == nil {
+	if _, err := NewGen(gdb).GenAutoIncID("role"); err == nil {
 		t.Fatal("GenAutoIncID = nil, want error")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -64,11 +60,7 @@ func TestGenAutoIncIDError(t *testing.T) {
 }
 
 func TestGenAutoIncIDNoDB(t *testing.T) {
-	orig := uidDB
-	uidDB = func() *gorm.DB { return nil }
-	t.Cleanup(func() { uidDB = orig })
-
-	if _, err := UidGen().GenAutoIncID("role"); err == nil {
+	if _, err := NewGen(nil).GenAutoIncID("role"); err == nil {
 		t.Fatal("GenAutoIncID = nil, want db-not-initialized error")
 	}
 }

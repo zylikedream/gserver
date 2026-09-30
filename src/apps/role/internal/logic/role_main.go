@@ -147,7 +147,7 @@ func (r *RoleMain) Init(args ...any) error {
 	r.SetLogValue(gxylog.CONTEXT_KEY_ROLE_ID, r.RoleID)
 
 	// 账号存在性校验留在同步段:它决定该 role 是否可激活。
-	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
+	accountID, err := r.lookupAccountIDByRoleID(ctx)
 	if err != nil {
 		return err
 	}
@@ -484,10 +484,7 @@ func (r *RoleMain) TickSave(ctx context.Context) {
 	}
 }
 
-// saveRoleModule 可替换函数变量:测试可拦截保存(编译期安全)。
-var saveRoleModule = defaultSaveRoleModule
-
-func defaultSaveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
+func saveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
 	modState := rmod.PersistState()
 	if modState == nil || !modState.IsDirty() {
 		return nil
@@ -590,10 +587,9 @@ func roleModuleDirty(rmod IRoleModule) bool {
 	return modState != nil && modState.IsDirty()
 }
 
-// sendClient 可替换函数变量:测试可捕获/拦截客户端消息(编译期安全,非 gomonkey 打桩)。
-var sendClient = defaultSendClient
-
-func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
+// SendClient 把消息发给该 role 的客户端会话。发送本身落在运行时边界上:
+// 测试用 actor 测试基座断言"发了什么",不给生产留接缝。
+func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 	if gxyactor.PIDIsZero(r.session) {
 		return
 	}
@@ -603,10 +599,6 @@ func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
 		return
 	}
 	_ = r.SendTo(r.session, svrMsg)
-}
-
-func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
-	sendClient(r, ctx, msg)
 }
 
 func (r *RoleMain) PublishRoleEvent(ctx context.Context, eventType event.EventType, data any) {

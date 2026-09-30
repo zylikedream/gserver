@@ -12,6 +12,7 @@ import (
 	"gserver/src/lib/rolelib"
 	"gserver/src/pkg/gameconfig"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	proto "google.golang.org/protobuf/proto"
 	"gorm.io/gorm/schema"
 )
@@ -307,36 +308,34 @@ func TestMailContentIDsUseGlobalSequenceWithoutBigserial(t *testing.T) {
 
 func TestRoleMainOnNotifyMessage_RefreshesMailBeforeNotify(t *testing.T) {
 	ctx := context.Background()
-	role := &RoleMain{}
-	role.Mail = &RoleMail{}
-
-	refreshCalled := false
-	origRefresh := refreshMailCache
-	refreshMailCache = func(mail *RoleMail, _ context.Context) error {
-		refreshCalled = true
-		mail.mailCache = []MailView{
-			{ID: 1, IsRead: false},
-			{ID: 2, IsRead: true, Attachments: []bag.Good{{GoodID: 1, Num: 1}}},
-		}
-		return nil
-	}
-	t.Cleanup(func() { refreshMailCache = origRefresh })
-
-	var sent proto.Message
-	origSend := sendClient
-	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
-		sent = msg
-	}
-	t.Cleanup(func() { sendClient = origSend })
-
-	if err := role.OnNotifyMessage(ctx, &rolelib.OnRoleNotifyMsg{Msg: &pb.NotifyMailUpdate{}}); err != nil {
+	role, subj, mock := spawnTestRole(t, 1001)
+	mail := &RoleMail{RoleModule: RoleModule{RoleID: role.RoleID, Role: role}}
+	role.Mail = mail
+	if err := mail.OnModInit(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	if !refreshCalled {
-		t.Fatal("expected mail cache refresh before notify")
+	// 刷新是真跑的:拉个人邮件(无系统邮件时不再多查一轮)。
+	mock.ExpectQuery(`SELECT \* FROM "personal_mail" WHERE role_id = \$1 ORDER BY id DESC LIMIT \$2`).
+		WithArgs(int64(1001), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "title", "content", "attachments", "send_at", "expire_at"}).
+			AddRow(1, 1001, "m1", "body", nil, time.Now().Unix(), 0))
+	mock.ExpectQuery(`SELECT \* FROM "sys_mail" WHERE id > \$1 AND \(expire_at = 0 OR expire_at >= \$2\) ORDER BY id ASC LIMIT \$3`).
+		WithArgs(int64(0), sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "title", "content", "attachments", "create_at", "expire_at"}))
+
+	notify := &pb.NotifyMailUpdate{MailId: 1}
+	if err := role.OnNotifyMessage(ctx, &rolelib.OnRoleNotifyMsg{Msg: notify}); err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := sent.(*pb.NotifyMailUpdate); !ok {
-		t.Fatalf("expected NotifyMailUpdate sent, got %T", sent)
+	if len(mail.mailCache) == 0 {
+		t.Fatal("expected mail cache refreshed")
+	}
+	subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
+		inv, ok := m.(*pb.NotifyMailUpdate)
+		return ok && inv.MailId == 1
+	})).Assert()
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations not met: %v", err)
 	}
 }

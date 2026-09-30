@@ -110,10 +110,7 @@ func SendMailToAll(ctx context.Context, d deps.Deps, opts SendMailOpts) error {
 }
 
 // notifyMailUpdate 通知在线玩家（不强制激活 actor）。
-// 可替换函数变量:测试可替换为 no-op,专注 DB 行为断言。
-var notifyMailUpdate = defaultNotifyMailUpdate
-
-func defaultNotifyMailUpdate(ctx context.Context, roleID int64, mailID int64) {
+func notifyMailUpdate(ctx context.Context, roleID int64, mailID int64) {
 	if err := rolelib.PublishRoleNotify(ctx, roleID, &pb.NotifyMailUpdate{MailId: mailID}); err != nil {
 		gxylog.Warn(ctx, "notify mail update failed", gxylog.Num("roleID", roleID), gxylog.Err(err))
 	}

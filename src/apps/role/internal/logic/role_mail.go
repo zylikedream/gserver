@@ -104,10 +104,8 @@ func (r *RoleMail) AfterLogin(ctx context.Context) {
 	}
 }
 
-// refreshMailCache 可替换函数变量:测试可拦截刷新(编译期安全)。
-var refreshMailCache = defaultRefreshMailCache
-
-func defaultRefreshMailCache(r *RoleMail, ctx context.Context) error {
+// refreshMailCache 读库+写缓存重建邮件视图。
+func (r *RoleMail) refreshMailCache(ctx context.Context) error {
 	roleID := r.RoleID
 	if r.state.States == nil {
 		r.state.States = make(MailStateMap)
@@ -149,7 +147,7 @@ func defaultRefreshMailCache(r *RoleMail, ctx context.Context) error {
 }
 
 func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
-	return refreshMailCache(r, ctx)
+	return r.refreshMailCache(ctx)
 }
 
 func (r *RoleMail) OnCreate(ctx context.Context) {}

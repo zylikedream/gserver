@@ -102,7 +102,7 @@ func todayStr() string {
 func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriendInfo) (*pb.RspPlotFriendInfo, error) {
 	friendID := req.FriendId
 
-	if !isFriend(ctx, r.DB(), r.RoleID, friendID) {
+	if !r.isFriend(ctx, friendID) {
 		return nil, errors.WithStack(ErrNotFriend)
 	}
 
@@ -130,8 +130,8 @@ func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriend
 		}
 
 		if state == int32(pb.PlotState_PLOT_HARVESTABLE) {
-			stolen, _ := countPlotStolen(ctx, r.DB(), friendID, plot.PlotID)
-			if stolen < int64(cfg.FlowerMaxBeStolenTimes) && dailyCount < cfg.StealPerFriendDailyLimit && !hasStealRecord(ctx, r.DB(), r.RoleID, friendID, plot.PlotID) {
+			stolen, _ := r.countPlotStolen(ctx, friendID, plot.PlotID)
+			if stolen < int64(cfg.FlowerMaxBeStolenTimes) && dailyCount < cfg.StealPerFriendDailyLimit && !r.hasStealRecord(ctx, r.RoleID, friendID, plot.PlotID) {
 				info.CanSteal = true
 			}
 		}
@@ -147,7 +147,7 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 	plotID := req.PlotId
 	cfg := r.Cfg().TbFriendConfig.Get()
 
-	if !isFriend(ctx, r.DB(), r.RoleID, friendID) {
+	if !r.isFriend(ctx, friendID) {
 		return nil, errors.WithStack(ErrNotFriend)
 	}
 	if r.getDailyCount(friendID) >= cfg.StealPerFriendDailyLimit {
@@ -155,7 +155,7 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 	}
 
 	var rsp *pb.RspPlotSteal
-	err := withPlotLocks(ctx, friendID, []int32{plotID}, func() error {
+	err := r.withPlotLocks(ctx, friendID, []int32{plotID}, func() error {
 		var err error
 		rsp, err = r.steal(ctx, friendID, plotID)
 		return err
@@ -178,18 +178,18 @@ func (r *RoleSteal) steal(ctx context.Context, friendID int64, plotID int32) (*p
 		return nil, errors.WithStack(ErrStealNotHarvestable)
 	}
 
-	stolenCount, err := countPlotStolen(ctx, r.DB(), friendID, plotID)
+	stolenCount, err := r.countPlotStolen(ctx, friendID, plotID)
 	if err != nil {
 		return nil, err
 	}
 	if stolenCount >= int64(cfg.FlowerMaxBeStolenTimes) {
 		return nil, errors.WithStack(ErrStealFlowerFull)
 	}
-	if hasStealRecord(ctx, r.DB(), r.RoleID, friendID, plotID) {
+	if r.hasStealRecord(ctx, r.RoleID, friendID, plotID) {
 		return nil, errors.WithStack(ErrStealLocked)
 	}
 
-	if err := createStealRecord(ctx, r.DB(), &StealRecord{
+	if err := r.createStealRecord(ctx, &StealRecord{
 		OwnerID:   friendID,
 		PlotID:    plotID,
 		StealerID: r.RoleID,

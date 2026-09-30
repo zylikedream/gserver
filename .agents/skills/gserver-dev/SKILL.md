@@ -70,7 +70,10 @@ printf '<platform_uid>\nquit\n' | ./bin/hy --account-server=http://127.0.0.1:180
 
 ## 单元测试基建
 
-- **禁 gomonkey**(ADR-0001):依赖注入 + 可替换函数变量(如 `verifyGateToken`/`sendClient` 包级 var)
+- **禁 gomonkey,也禁包级可替换变量**(`invariants.md`「测试替身规则」,门禁 `make check-test-seam`):依赖只从三处进入——显式参数、构造注入的字段(`deps.Deps`)、真实边界替身
+  - DB/Redis 走 `deps.Deps` 注入(sqlmock / miniredis),不要"拦掉真调用";桩掉 DB 等于那段 SQL 从没被测过
+  - 跨服务调用用 `core/gxyservice/gxyservicetest`(真 HTTP 替身 + 内存注册表),不要包业务函数
+  - 跨 actor 用 `gxyactortest` 的真运行时与信箱
 - go-sqlmock(gorm 断言:注意 Create(map) 走 Exec+事务、Save 主键零值走 INSERT RETURNING Query、LIMIT 也是参数)
 - miniredis(Lua 脚本测试)
 - actor 测试模式:用 `core/gxyactor/gxyactortest` 在 mock 节点上创建真实 actor(`Spawn`/`SpawnErr`),所有权经 `StubOwnership` 换成内存实现

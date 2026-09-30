@@ -6,36 +6,34 @@ import (
 	"time"
 
 	"gserver/protocol/pb"
+	"gserver/src/pkg/deps"
 
-	"gorm.io/gorm"
+	"gserver/core/gxyredis"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 )
 
-func setupTestSteal(t *testing.T) *RoleSteal {
+// SQL 语句(依赖经 deps 注入,不打招呼就出现的话 sqlmock 会直接报错)。
+const (
+	sqlFriendRelationCount = `SELECT count\(\*\) FROM "friend_relation" WHERE player_id = \$1 AND friend_id = \$2`
+	sqlPlotStolenCount     = `SELECT count\(\*\) FROM "steal_record" WHERE owner_id = \$1 AND plot_id = \$2`
+	sqlStealRecordExists   = `SELECT count\(\*\) FROM "steal_record" WHERE stealer_id = \$1 AND owner_id = \$2 AND plot_id = \$3`
+	sqlCreateStealRecord   = `INSERT INTO "steal_record" \("owner_id","plot_id","stealer_id","flower_id","steal_time"\) VALUES \(\$1,\$2,\$3,\$4,\$5\) RETURNING "id"`
+)
+
+func setupTestSteal(t *testing.T) (*RoleSteal, sqlmock.Sqlmock, *miniredis.Miniredis) {
 	t.Helper()
 	plotCfgInited = false
 	initPlotTestConfig(t)
 
-	oldSnapshotStore := rolePlotSnapshots
-	rolePlotSnapshots = newMemoryRolePlotSnapshotStore()
-	t.Cleanup(func() { rolePlotSnapshots = oldSnapshotStore })
-	oldLocks := plotLocks
-	plotLocks = newMemoryPlotLockManager()
-	t.Cleanup(func() { plotLocks = oldLocks })
+	db, mock := newGormMock(t)
+	mr := miniredis.RunT(t)
+	cli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = cli.Close() })
 
-	origIsFriend := isFriend
-	isFriend = func(_ context.Context, _ *gorm.DB, _, _ int64) bool { return true }
-	t.Cleanup(func() { isFriend = origIsFriend })
-	origCountStolen := countPlotStolen
-	countPlotStolen = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil }
-	t.Cleanup(func() { countPlotStolen = origCountStolen })
-	origHasStolen := hasStealRecord
-	hasStealRecord = func(_ context.Context, _ *gorm.DB, _, _ int64, _ int32) bool { return false }
-	t.Cleanup(func() { hasStealRecord = origHasStolen })
-	origCreateSteal := createStealRecord
-	createStealRecord = func(_ context.Context, _ *gorm.DB, _ *StealRecord) error { return nil }
-	t.Cleanup(func() { createStealRecord = origCreateSteal })
-
-	main := &RoleMain{RoleID: 1001}
+	main := &RoleMain{RoleID: 1001, deps: deps.Deps{DB: db, Redis: cli}}
 	bagMod := &RoleBag{
 		RoleModule:   RoleModule{RoleID: main.RoleID, Role: main},
 		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
@@ -49,11 +47,21 @@ func setupTestSteal(t *testing.T) *RoleSteal {
 	if err := stealMod.OnModInit(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	return stealMod
+	return stealMod, mock, mr
 }
 
-func publishHarvestablePlotSnapshot(roleID int64) {
-	publishRolePlotSnapshot(context.Background(), roleID, PlotMap{
+// expectFriendAndStealReads 声明读路径的四条 SQL:是好友、(该地)未被偷过、(我)没偷过。
+func expectFriendAndStealReads(mock sqlmock.Sqlmock, friendID int64, stolen int64) {
+	mock.ExpectQuery(sqlFriendRelationCount).WithArgs(int64(1001), friendID).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery(sqlPlotStolenCount).WithArgs(friendID, int32(plotTestID)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(stolen))
+	mock.ExpectQuery(sqlStealRecordExists).WithArgs(int64(1001), friendID, int32(plotTestID)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+}
+
+func publishHarvestablePlotSnapshot(cli gxyredis.Client, roleID int64) {
+	publishRolePlotSnapshot(context.Background(), cli, roleID, PlotMap{
 		plotTestID: {
 			PlotID:       plotTestID,
 			FlowerID:     plotTestFlower,
@@ -65,9 +73,10 @@ func publishHarvestablePlotSnapshot(roleID int64) {
 }
 
 func TestReqPlotFriendInfoReadsSnapshot(t *testing.T) {
-	steal := setupTestSteal(t)
+	steal, mock, _ := setupTestSteal(t)
 	friendID := int64(2002)
-	publishHarvestablePlotSnapshot(friendID)
+	publishHarvestablePlotSnapshot(steal.Redis(), friendID)
+	expectFriendAndStealReads(mock, friendID, 0)
 
 	rsp, err := steal.ReqPlotFriendInfo(context.Background(), &pb.ReqPlotFriendInfo{FriendId: friendID})
 	if err != nil {
@@ -82,12 +91,22 @@ func TestReqPlotFriendInfoReadsSnapshot(t *testing.T) {
 	if !rsp.Plots[0].CanSteal {
 		t.Fatal("expected can_steal from snapshot state")
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations not met: %v", err)
+	}
 }
 
 func TestReqPlotStealUsesPlotLock(t *testing.T) {
-	steal := setupTestSteal(t)
+	steal, mock, mr := setupTestSteal(t)
 	friendID := int64(2002)
-	publishHarvestablePlotSnapshot(friendID)
+	publishHarvestablePlotSnapshot(steal.Redis(), friendID)
+
+	expectFriendAndStealReads(mock, friendID, 0)
+	mock.ExpectBegin()
+	mock.ExpectQuery(sqlCreateStealRecord).
+		WithArgs(friendID, int32(plotTestID), int64(1001), plotTestFlower, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectCommit()
 
 	rsp, err := steal.ReqPlotSteal(context.Background(), &pb.ReqPlotSteal{FriendId: friendID, PlotId: plotTestID})
 	if err != nil {
@@ -96,12 +115,10 @@ func TestReqPlotStealUsesPlotLock(t *testing.T) {
 	if !rsp.Success {
 		t.Fatal("expected success")
 	}
-	mem := plotLocks.(*memoryPlotLockManager)
-	wantKey := plotLockKey(friendID, plotTestID)
-	if len(mem.order) != 1 || mem.order[0] != wantKey {
-		t.Fatalf("expected steal to lock %s, got %v", wantKey, mem.order)
+	if mr.Exists(plotLockKey(friendID, plotTestID)) {
+		t.Fatalf("expected lock released, key still present: %s", plotLockKey(friendID, plotTestID))
 	}
-	if len(mem.held) != 0 {
-		t.Fatalf("expected lock released, still held: %v", mem.held)
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations not met: %v", err)
 	}
 }

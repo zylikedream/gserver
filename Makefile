@@ -19,9 +19,15 @@ test:
 
 # --- lint ---
 .PHONY: lint
-lint:
+lint: check-test-seam
 	golangci-lint run ./...
 	cd client && golangci-lint run ./...
+
+# --- 测试写入口门禁:生产代码不得为测试留可写入口 ---
+# 规则:docs/architecture/invariants.md「测试替身规则」;存量冻结在 build/test-seam-baseline.txt。
+.PHONY: check-test-seam
+check-test-seam:
+	go run ./build/tools/checktestseam -root . -baseline build/test-seam-baseline.txt
 
 # --- client 黑盒 seam 门禁 ---
 .PHONY: check-client-boundary

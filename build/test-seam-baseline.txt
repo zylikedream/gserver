@@ -1,0 +1,4 @@
+# 测试写入口基线:门禁已生效,以下为待清理的存量(每清一处删一行);
+# 现存 1 条是已登记的待议项(guild 直读 role 数据),与 role 侧跨应用直读合并另议,见 ADR 0020 现状;
+# 规则见 docs/architecture/invariants.md「测试替身规则」。
+src/apps/guild/logic/guild_actor.go getRolePublic

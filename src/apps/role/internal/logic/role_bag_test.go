@@ -496,14 +496,14 @@ func TestBagSaveGoods_DefaultOpts(t *testing.T) {
 }
 
 func TestBagSaveGoods_NotifyRewardOpts(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-	var sent []proto.Message
-	origSend := sendClient
-	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
-		sent = append(sent, msg)
+	role, subj, _ := spawnTestRole(t, 1001)
+	initTestGameConfig(t)
+	b := &RoleBag{
+		RoleModule:   RoleModule{Role: role, RoleID: role.RoleID},
+		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
 	}
-	t.Cleanup(func() { sendClient = origSend })
+	role.Bag = b
+	ctx := context.Background()
 
 	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptNotifyReward())
 	if err != nil {
@@ -512,21 +512,11 @@ func TestBagSaveGoods_NotifyRewardOpts(t *testing.T) {
 	if b.Goods[1001].Num != 10 {
 		t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
 	}
-	var gotReward bool
-	for _, msg := range sent {
-		reward, ok := msg.(*pb.NotifyBagReward)
-		if !ok {
-			continue
+	subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
+		reward, ok := m.(*pb.NotifyBagReward)
+		if !ok || len(reward.Goods) != 1 {
+			return false
 		}
-		gotReward = true
-		if len(reward.Goods) != 1 {
-			t.Fatalf("expected 1 reward good, got %d", len(reward.Goods))
-		}
-		if reward.Goods[0].PropId != 1001 || reward.Goods[0].Num != 10 {
-			t.Fatalf("unexpected reward payload: %v", reward.Goods[0])
-		}
-	}
-	if !gotReward {
-		t.Fatal("expected NotifyBagReward")
-	}
+		return reward.Goods[0].PropId == 1001 && reward.Goods[0].Num == 10
+	})).Assert()
 }

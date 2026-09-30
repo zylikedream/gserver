@@ -200,7 +200,7 @@ func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPr
 		return nil, err
 	}
 
-	if !isFriend(ctx, r.DB(), r.RoleID, req.TargetId) {
+	if !r.isFriend(ctx, req.TargetId) {
 		return nil, errors.WithStack(ErrChatNotFriend)
 	}
 

@@ -31,11 +31,11 @@ type Registry struct {
 	svcs map[string][]*gxyregistery.ServiceInfo
 }
 
-// Install 把进程服务注册表换成内存实现,并返回它供 Serve 登记假服务。
+// Install 在组装处装上内存服务注册表,并返回它供 Serve 登记假服务。
 func Install(t testing.TB) *Registry {
 	t.Helper()
 	reg := &Registry{}
-	gxyservice.NewServiceApp(testNodeName).SetRegistry(reg)
+	gxyservice.NewServiceApp(testNodeName, reg)
 	return reg
 }
 

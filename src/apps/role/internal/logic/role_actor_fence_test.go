@@ -121,9 +121,9 @@ func TestSaveRoleModuleLocksFenceBeforeWriting(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"role_id"}))
 	mock.ExpectRollback()
 
-	err := defaultSaveRoleModule(r, context.Background(), mod)
+	err := saveRoleModule(r, context.Background(), mod)
 	if !errors.Is(err, errRoleActorOwnershipLost) {
-		t.Fatalf("defaultSaveRoleModule error = %v, want ownership lost", err)
+		t.Fatalf("saveRoleModule error = %v, want ownership lost", err)
 	}
 	if !mod.state.IsDirty() {
 		t.Fatal("rejected module save cleared dirty state")

@@ -12,8 +12,6 @@ import (
 	"github.com/gogf/gf/v2/errors/gerror"
 )
 
-var timeNow = time.Now
-
 type Claims struct {
 	AccountID string    `json:"account_id"`
 	RoleID    int64     `json:"role_id"`
@@ -26,7 +24,9 @@ type Claims struct {
 
 type Signer interface {
 	Sign(claims *Claims) (string, error)
-	Verify(token string) (*Claims, error)
+	// Verify 按给定时刻校验:时钟由调用方给(签发侧同此——claims 的时间也是调用方填的),
+	// 因此签验器本身不持有时间来源,测试也不需要替身。
+	Verify(token string, now time.Time) (*Claims, error)
 }
 
 type Config struct {
@@ -116,8 +116,8 @@ func (s *hmacSigner) Sign(claims *Claims) (string, error) {
 	})
 }
 
-func (s *hmacSigner) Verify(token string) (*Claims, error) {
-	return verifyToken(token, "HS256", s.issuer, func(signingInput string, signature []byte) bool {
+func (s *hmacSigner) Verify(token string, now time.Time) (*Claims, error) {
+	return verifyToken(token, "HS256", s.issuer, now, func(signingInput string, signature []byte) bool {
 		mac := hmac.New(sha256.New, s.secret)
 		_, _ = mac.Write([]byte(signingInput))
 		return hmac.Equal(mac.Sum(nil), signature)
@@ -130,8 +130,8 @@ func (s *ed25519Signer) Sign(claims *Claims) (string, error) {
 	})
 }
 
-func (s *ed25519Signer) Verify(token string) (*Claims, error) {
-	return verifyToken(token, "EdDSA", s.issuer, func(signingInput string, signature []byte) bool {
+func (s *ed25519Signer) Verify(token string, now time.Time) (*Claims, error) {
+	return verifyToken(token, "EdDSA", s.issuer, now, func(signingInput string, signature []byte) bool {
 		return ed25519.Verify(s.publicKey, []byte(signingInput), signature)
 	})
 }
@@ -153,7 +153,7 @@ func signToken(alg string, claims *Claims, signFn func(signingInput string) ([]b
 	return signingInput + "." + encodeSegment(signature), nil
 }
 
-func verifyToken(token string, expectedAlg string, expectedIssuer string, verifyFn func(signingInput string, signature []byte) bool) (*Claims, error) {
+func verifyToken(token string, expectedAlg string, expectedIssuer string, now time.Time, verifyFn func(signingInput string, signature []byte) bool) (*Claims, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return nil, gerror.New("invalid token format")
@@ -187,7 +187,7 @@ func verifyToken(token string, expectedAlg string, expectedIssuer string, verify
 	if expectedIssuer != "" && claims.Issuer != expectedIssuer {
 		return nil, gerror.Newf("unexpected token issuer: %s", claims.Issuer)
 	}
-	if !claims.ExpiresAt.IsZero() && !claims.ExpiresAt.After(timeNow()) {
+	if !claims.ExpiresAt.IsZero() && !claims.ExpiresAt.After(now) {
 		return nil, gerror.New("token expired")
 	}
 	return &claims, nil
