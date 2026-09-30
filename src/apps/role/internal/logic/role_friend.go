@@ -3,7 +3,8 @@ package logic
 import (
 	"context"
 	"fmt"
-	"strings"
+	"net/url"
+	"strconv"
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
@@ -194,12 +195,14 @@ func callFriendBatch(ctx context.Context, path string, a int64, ids []int64) ([]
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	strs := make([]string, len(ids))
-	for i, id := range ids {
-		strs[i] = fmt.Sprintf("%d", id)
+	// 数组参数用 gf 的 bs[]=1&bs[]=2 约定:逗号形式绑不到 []int64,
+	// 重复键(bs=1&bs=2)只保留最后一个,两者都会静默丢参数。
+	query := url.Values{}
+	query.Set("a", strconv.FormatInt(a, 10))
+	for _, id := range ids {
+		query.Add("bs[]", strconv.FormatInt(id, 10))
 	}
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "friend",
-		fmt.Sprintf("%s?a=%d&bs=%s", path, a, strings.Join(strs, ",")))
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "friend", path+"?"+query.Encode())
 	if err != nil {
 		return nil, err
 	}

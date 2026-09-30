@@ -33,6 +33,12 @@ func NewServiceApp(nodeInstanceName string) *serviceApp {
 	return svrApp
 }
 
+// SetRegistry 替换服务注册表。生产路径由 OnModInit 装配真实注册表;
+// 测试注入内存实现,使服务发现可脱离 consul/etcd/redis。
+func (s *serviceApp) SetRegistry(registry gxyregistery.IRegistery) {
+	s.registry = registry
+}
+
 func (s *serviceApp) GetServices() []IService {
 	return s.Services
 }
