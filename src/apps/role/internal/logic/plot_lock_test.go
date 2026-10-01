@@ -40,7 +40,9 @@ func TestWithPlotLocksAcquiresUniqueKeysAndReleases(t *testing.T) {
 
 func TestWithPlotLocksReturnsBusyAndReleasesPartial(t *testing.T) {
 	mod, mr := newPlotLockModule(t)
-	mr.Set(plotLockKey(1001, 2), "held-by-someone-else")
+	if err := mr.Set(plotLockKey(1001, 2), "held-by-someone-else"); err != nil {
+		t.Fatal(err)
+	}
 
 	err := mod.withPlotLocks(context.Background(), 1001, []int32{1, 2}, func() error {
 		t.Fatal("callback should not run")

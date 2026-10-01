@@ -158,27 +158,9 @@ func collect(root string) (map[string]*pkgVars, error) {
 }
 
 func writeFromDecl(fset *token.FileSet, path string, d ast.Decl, p *pkgVars, isTest bool) {
-	pos := func(n ast.Node) string { return at(path, fset.Position(n.Pos()).Line) }
-
 	switch decl := d.(type) {
 	case *ast.GenDecl:
-		if decl.Tok == token.VAR {
-			for _, spec := range decl.Specs {
-				vs, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for _, name := range vs.Names {
-					if name.Name == "_" {
-						continue
-					}
-					line := fset.Position(vs.Pos()).Line
-					if !isTest {
-						p.vars[name.Name] = declPos{file: path, line: line}
-					}
-				}
-			}
-		}
+		declarePkgVars(fset, path, decl, p, isTest)
 	case *ast.FuncDecl:
 		if decl.Body == nil {
 			return
@@ -187,27 +169,53 @@ func writeFromDecl(fset *token.FileSet, path string, d ast.Decl, p *pkgVars, isT
 		ast.Inspect(decl.Body, func(n ast.Node) bool {
 			switch s := n.(type) {
 			case *ast.AssignStmt:
-				if s.Tok != token.ASSIGN && s.Tok != token.ADD_ASSIGN &&
-					s.Tok != token.SUB_ASSIGN && s.Tok != token.MUL_ASSIGN &&
-					s.Tok != token.QUO_ASSIGN && s.Tok != token.REM_ASSIGN {
-					return true
-				}
-				for _, lhs := range s.Lhs {
-					id, ok := lhs.(*ast.Ident)
-					if !ok || locals[id.Name] {
-						continue
-					}
-					record(p, id.Name, pos(s), isTest)
+				if isWriteOp(s.Tok) {
+					recordAssigned(p, s.Lhs, locals, at(path, fset.Position(s.Pos()).Line), isTest)
 				}
 			case *ast.IncDecStmt:
-				id, ok := s.X.(*ast.Ident)
-				if !ok || locals[id.Name] {
-					return true
-				}
-				record(p, id.Name, pos(s), isTest)
+				recordAssigned(p, []ast.Expr{s.X}, locals, at(path, fset.Position(s.Pos()).Line), isTest)
 			}
 			return true
 		})
+	}
+}
+
+// declarePkgVars 登记包级 var 声明(测试文件里的声明不算包级变量)。
+func declarePkgVars(fset *token.FileSet, path string, decl *ast.GenDecl, p *pkgVars, isTest bool) {
+	if isTest || decl.Tok != token.VAR {
+		return
+	}
+	for _, spec := range decl.Specs {
+		vs, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+		for _, name := range vs.Names {
+			if name.Name == "_" {
+				continue
+			}
+			p.vars[name.Name] = declPos{file: path, line: fset.Position(vs.Pos()).Line}
+		}
+	}
+}
+
+func isWriteOp(tok token.Token) bool {
+	switch tok {
+	case token.ASSIGN, token.ADD_ASSIGN, token.SUB_ASSIGN,
+		token.MUL_ASSIGN, token.QUO_ASSIGN, token.REM_ASSIGN:
+		return true
+	}
+	return false
+}
+
+// recordAssigned 记录对非局部标识符的赋值。
+func recordAssigned(p *pkgVars, lhs []ast.Expr, locals map[string]bool, pos string, isTest bool) {
+	for _, e := range lhs {
+		id, ok := e.(*ast.Ident)
+		if !ok || locals[id.Name] {
+			continue
+		}
+		record(p, id.Name, pos, isTest)
 	}
 }
 
@@ -223,64 +231,64 @@ func record(p *pkgVars, name, pos string, isTest bool) {
 // 用于排除"给局部变量赋值"被误判成写包级变量。
 func localNames(fn *ast.FuncDecl) map[string]bool {
 	locals := map[string]bool{}
-	add := func(fields *ast.FieldList) {
-		if fields == nil {
-			return
-		}
-		for _, f := range fields.List {
-			for _, n := range f.Names {
-				locals[n.Name] = true
-			}
-		}
-	}
-	add(fn.Recv)
-	add(fn.Type.Params)
-	add(fn.Type.Results)
+	addFields(locals, fn.Recv)
+	addFields(locals, fn.Type.Params)
+	addFields(locals, fn.Type.Results)
 	ast.Inspect(fn.Body, func(n ast.Node) bool {
 		switch s := n.(type) {
 		case *ast.AssignStmt:
-			if s.Tok != token.DEFINE {
-				return true
-			}
-			for _, lhs := range s.Lhs {
-				if id, ok := lhs.(*ast.Ident); ok {
-					locals[id.Name] = true
-				}
+			if s.Tok == token.DEFINE {
+				addExprs(locals, s.Lhs)
 			}
 		case *ast.GenDecl:
-			if s.Tok != token.VAR && s.Tok != token.CONST {
-				return true
-			}
-			for _, spec := range s.Specs {
-				vs, ok := spec.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-				for _, id := range vs.Names {
-					locals[id.Name] = true
-				}
-			}
+			addValueDecl(locals, s)
 		case *ast.TypeSwitchStmt:
-			if s.Assign != nil {
-				if id, ok := s.Assign.(*ast.AssignStmt); ok {
-					for _, lhs := range id.Lhs {
-						if ident, ok := lhs.(*ast.Ident); ok {
-							locals[ident.Name] = true
-						}
-					}
-				}
-			}
+			addTypeSwitchLocals(locals, s)
 		case *ast.RangeStmt:
-			if id, ok := s.Key.(*ast.Ident); ok {
-				locals[id.Name] = true
-			}
-			if id, ok := s.Value.(*ast.Ident); ok {
-				locals[id.Name] = true
-			}
+			addExprs(locals, []ast.Expr{s.Key, s.Value})
 		}
 		return true
 	})
 	return locals
+}
+
+func addFields(locals map[string]bool, fields *ast.FieldList) {
+	if fields == nil {
+		return
+	}
+	for _, f := range fields.List {
+		for _, n := range f.Names {
+			locals[n.Name] = true
+		}
+	}
+}
+
+func addExprs(locals map[string]bool, exprs []ast.Expr) {
+	for _, e := range exprs {
+		if id, ok := e.(*ast.Ident); ok {
+			locals[id.Name] = true
+		}
+	}
+}
+
+func addValueDecl(locals map[string]bool, decl *ast.GenDecl) {
+	if decl.Tok != token.VAR && decl.Tok != token.CONST {
+		return
+	}
+	for _, spec := range decl.Specs {
+		if vs, ok := spec.(*ast.ValueSpec); ok {
+			for _, id := range vs.Names {
+				locals[id.Name] = true
+			}
+		}
+	}
+}
+
+func addTypeSwitchLocals(locals map[string]bool, stmt *ast.TypeSwitchStmt) {
+	assign, ok := stmt.Assign.(*ast.AssignStmt)
+	if ok {
+		addExprs(locals, assign.Lhs)
+	}
 }
 
 func readBaseline(path string) map[string]bool {
