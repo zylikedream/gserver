@@ -8,6 +8,9 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    permissions:
+      # 失败时开 issue:默认 GITHUB_TOKEN 无 issues:write,会报 Resource not accessible by integration
+      issues: write
     env:
       E2E_OUT_DIR: $RUNNER_TEMP/gserver-e2e
       PGPASSWORD: ci_password
