@@ -26,9 +26,12 @@ func ServiceApp() *serviceApp {
 	return svrApp
 }
 
-func NewServiceApp(nodeInstanceName string) *serviceApp {
+// NewServiceApp 构造服务注册模块。registry 为 nil 时由 OnModInit 按配置装配
+// 真实注册表;测试在组装处传入内存实现(见 invariants.md「测试替身规则」)。
+func NewServiceApp(nodeInstanceName string, registry gxyregistery.IRegistery) *serviceApp {
 	svrApp = &serviceApp{
 		nodeInstanceName: nodeInstanceName,
+		registry:         registry,
 	}
 	return svrApp
 }
@@ -45,11 +48,13 @@ func (s *serviceApp) LoadService(ctx context.Context, service IService) {
 }
 
 func (s *serviceApp) OnModInit(ctx context.Context) error {
-	registry, err := gxyregistery.NewRegistery()
-	if err != nil {
-		return err
+	if s.registry == nil {
+		registry, err := gxyregistery.NewRegistery()
+		if err != nil {
+			return err
+		}
+		s.registry = registry
 	}
-	s.registry = registry
 	s.nodeEnv = gxynodeenv.NewAutoNodeEnv()
 	return nil
 }

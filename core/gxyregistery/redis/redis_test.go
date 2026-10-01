@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"gserver/core/gxyredis"
 
@@ -42,13 +43,11 @@ func (m *mockRedisClient) Do(ctx context.Context, args ...any) *redis.Cmd {
 	return cmd
 }
 
-// patchRedis 替换 getRedis 返回 mock 客户端。
-func patchRedis(mock *mockRedisClient) func() {
-	orig := getRedis
-	getRedis = func() gxyredis.Client {
-		return gxyredis.Client(mock)
-	}
-	return func() { getRedis = orig }
+// newWithRedis 构造注册表并注入 mock 客户端。
+func newWithRedis(mock *mockRedisClient, interval time.Duration) *Registry {
+	r := New(interval)
+	r.client = func() gxyredis.Client { return gxyredis.Client(mock) }
+	return r
 }
 
 // ---- gsvc.Service stub for tests ----
@@ -101,10 +100,7 @@ func TestRegistry_RegisterAndDeregister(t *testing.T) {
 		return makeIntCmd(1)
 	}
 
-	p := patchRedis(mock)
-	defer p()
-
-	r := New(0)
+	r := newWithRedis(mock, 0)
 	svc := &testService{
 		name:     "role",
 		nodeName: "game-0@abc123",
@@ -133,15 +129,12 @@ func TestRegistry_RegisterAndDeregister(t *testing.T) {
 
 func TestRegistry_Search(t *testing.T) {
 	mock := &mockRedisClient{}
-	r := New(0)
+	r := newWithRedis(mock, 0)
 
 	svcJSON := `{"Name":"role","NodeName":"game-0@abc123","Version":"1.0","Weight":0,"NodeHost":"0.0.0.0:10090"}`
 	mock.hgetAllFn = func(_ context.Context, key string) *redis.MapStringStringCmd {
 		return makeMapCmd(map[string]string{"game-0": svcJSON})
 	}
-
-	p := patchRedis(mock)
-	defer p()
 
 	services, err := r.Search(context.Background(), gsvc.SearchInput{Name: "role"})
 	if err != nil {
@@ -172,10 +165,7 @@ func TestRegistry_Search_Empty(t *testing.T) {
 		return makeMapCmd(nil)
 	}
 
-	p := patchRedis(mock)
-	defer p()
-
-	r := New(0)
+	r := newWithRedis(mock, 0)
 	services, err := r.Search(context.Background(), gsvc.SearchInput{Name: "nonexistent"})
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
@@ -226,10 +216,7 @@ func TestWatcherHashChangesWhenServiceValueChanges(t *testing.T) {
 		return makeMapCmd(map[string]string{"role-0": currentValue})
 	}
 
-	p := patchRedis(mock)
-	defer p()
-
-	r := New(0)
+	r := newWithRedis(mock, 0)
 	w := &watcher{registry: r, name: "role"}
 
 	_, hash1, err := w.fetchWithHash()

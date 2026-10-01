@@ -18,7 +18,6 @@ import (
 	"gserver/core/gxynet/message"
 	"gserver/core/gxyutil"
 	"gserver/protocol/pb"
-	"gserver/src/lib"
 	"gserver/src/lib/gatetoken"
 
 	"github.com/gogf/gf/v2/errors/gerror"
@@ -28,43 +27,52 @@ import (
 
 const gateMaintenanceEnv = "GATE_MAINTENANCE"
 
-var gateMaintenanceEnabled = func() bool {
+func gateMaintenanceEnabled() bool {
 	return os.Getenv(gateMaintenanceEnv) == "true" || os.Getenv(gateMaintenanceEnv) == "1"
 }
 
-var verifyGateToken = func(token string) (*gatetoken.Claims, error) {
+// TokenVerifier 校验网关令牌,返回其身份声明。
+type TokenVerifier func(token string) (*gatetoken.Claims, error)
+
+// ActivateRole 激活(必要时创建)角色 actor,返回其地址。
+type ActivateRole func(ctx context.Context, roleID int64) (gxyactor.PID, error)
+
+// SessionDeps 会话依赖的进程级组件:由组装根构造一次,随会话创建传入。
+// VerifyToken 与 Login 允许留空,NewSession 会补上拒绝一切的缺省实现——
+// 未配置的网关必须拒绝登录,而不是崩掉。
+type SessionDeps struct {
+	VerifyToken  TokenVerifier
+	Login        loginAcquirer
+	ActivateRole ActivateRole
+	Sessions     *gxyactor.ActorMgr
+}
+
+// unconfiguredTokenVerifier 是未注入令牌校验器时的缺省实现。
+func unconfiguredTokenVerifier(string) (*gatetoken.Claims, error) {
 	return nil, gerror.New("gate token verifier not configured")
 }
 
-func SetGateTokenVerifier(verifier func(token string) (*gatetoken.Claims, error)) {
-	verifyGateToken = verifier
-}
-
-var activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-	return lib.ActivateRole(ctx, roleID)
-}
-
-// watchRole/unwatchRole 可替换函数变量:测试注入以观察监视行为(编译期安全,非 gomonkey)。
-// 会话必须监视角色进程——角色终止时要据此断开连接。
-var (
-	watchRole = func(s *Session, pid gxyactor.PID) error {
-		return s.Watch(pid)
+// withDefaults 补齐可空依赖的拒绝式缺省值。
+func (d SessionDeps) withDefaults() SessionDeps {
+	if d.VerifyToken == nil {
+		d.VerifyToken = unconfiguredTokenVerifier
 	}
-	unwatchRole = func(s *Session, pid gxyactor.PID) error {
-		return s.Unwatch(pid)
+	if d.Login == nil {
+		d.Login = unconfiguredLoginAcquirer{}
 	}
-)
+	return d
+}
 
 // 错误契约: 准入错误(限流 sentinel / 未配置 / ctx 取消)原样上抛, 不包裹——
 // 预期拒绝需要保持原始形态供 OnHandleClientMessage 分类; ActivateRole 的业务
 // 错误在此打上激活上下文后返回。
-func activateRoleWithLoginPermit(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-	permit, err := currentLoginAcquirer.acquire(ctx)
+func (s *Session) activateRoleWithLoginPermit(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+	permit, err := s.deps.Login.acquire(ctx)
 	if err != nil {
 		return gxyactor.PID{}, err
 	}
 	defer permit.Release()
-	pid, err := activateRole(ctx, roleID)
+	pid, err := s.deps.ActivateRole(ctx, roleID)
 	if err != nil {
 		return gxyactor.PID{}, gerror.Wrapf(err, "activate role actor error, role: %d", roleID)
 	}
@@ -114,13 +122,15 @@ type SessionInfo struct {
 // Session 会话Actor，继承自ActorBase
 type Session struct {
 	*gxyactor.Actor
+	deps        SessionDeps       // 组装根注入的进程级组件
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
 	sessionInfo *SessionInfo      // 会话信息
 }
 
-func NewSession(ep endpoint.Endpoint) *Session {
+func NewSession(ep endpoint.Endpoint, d SessionDeps) *Session {
 	s := &Session{
+		deps:        d.withDefaults(),
 		endpoint:    ep,
 		sessionInfo: &SessionInfo{},
 	}
@@ -187,7 +197,7 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 		return gerror.New("gate maintenance")
 	}
 
-	identity, err := resolveHandshakeIdentity(firstpacket.GetGateToken())
+	identity, err := s.resolveHandshakeIdentity(firstpacket.GetGateToken())
 	if err != nil {
 		return gerror.Wrap(err, "resolve handshake identity failed")
 	}
@@ -195,15 +205,17 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	s.sessionInfo.RoleID = identity.RoleID
 
 	s.SetLogValue(gxylog.CONTEXT_KEY_ROLE_ID, identity.RoleID)
-	rolePid, err := activateRoleWithLoginPermit(ctx, identity.RoleID)
+	rolePid, err := s.activateRoleWithLoginPermit(ctx, identity.RoleID)
 	if err != nil {
 		return err
 	}
 	gxylog.Info(ctx, "get role pid", gxylog.Any("rolePid", rolePid))
 	s.sessionInfo.RolePid = rolePid
 
-	if err := watchRole(s, rolePid); err != nil {
-		gxylog.Warn(ctx, "watch role failed", gxylog.Num("roleID", identity.RoleID), gxylog.Err(err))
+	// 会话必须监视角色进程——角色终止时要据此断开连接。
+	// 反向的取消监视不存在:会话终止时运行时已清掉监视项,再取消只会被拒。
+	if err := s.Monitor(rolePid); err != nil {
+		gxylog.Warn(ctx, "monitor role failed", gxylog.Num("roleID", identity.RoleID), gxylog.Err(err))
 	}
 	rsp := &pb.RspHandShake{
 		AccountUid: identity.AccountID,
@@ -212,8 +224,8 @@ func (s *Session) handleHandshake(ctx context.Context, msg any) error {
 	if err := s.sendClientMsg(ctx, rsp); err != nil {
 		return err
 	}
-	SessionMgr().Add(identity.RoleID, s.Self())
-	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
+	s.deps.Sessions.Add(identity.RoleID, s.Self())
+	gxymetrics.OnlinePlayers.Set(float64(s.deps.Sessions.Count()))
 	s.state = StateHandshake
 	s.SetTracingSpanAttribute("accountUid", identity.AccountID)
 	s.SetTracingSpanAttribute("roleID", strconv.FormatInt(identity.RoleID, 10))
@@ -225,11 +237,11 @@ type handshakeIdentity struct {
 	RoleID    int64
 }
 
-func resolveHandshakeIdentity(token string) (*handshakeIdentity, error) {
+func (s *Session) resolveHandshakeIdentity(token string) (*handshakeIdentity, error) {
 	if token == "" {
 		return nil, gerror.New("gate token required")
 	}
-	claims, err := verifyGateToken(token)
+	claims, err := s.deps.VerifyToken(token)
 	if err != nil {
 		return nil, gerror.Wrap(err, "verify gate token failed")
 	}
@@ -336,11 +348,12 @@ func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
 
 // Terminate 终止会话
 // Terminate 是运行时回调:清理会话状态、关闭连接,最后由基类停定时器。
+// err 为 nil 表示正常结束(连接干净关闭),此时没有原因可打。
 func (s *Session) Terminate(err error) {
 	ctx := s.Ctx
 	gxylog.Debug(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
-	SessionMgr().Remove(s.sessionInfo.RoleID)
-	gxymetrics.OnlinePlayers.Set(float64(SessionMgr().Count()))
+	s.deps.Sessions.Remove(s.sessionInfo.RoleID)
+	gxymetrics.OnlinePlayers.Set(float64(s.deps.Sessions.Count()))
 	gxymetrics.SessionDisconnects.WithLabelValues(sessionDisconnectReason(err)).Inc()
 	// 关闭网络连接
 	if s.endpoint != nil {
@@ -348,20 +361,34 @@ func (s *Session) Terminate(err error) {
 		s.endpoint.Close()
 	}
 	if !gxyactor.PIDIsZero(s.sessionInfo.RolePid) {
-		if err := unwatchRole(s, s.sessionInfo.RolePid); err != nil {
-			gxylog.Warn(ctx, "unwatch role failed", gxylog.Err(err))
-		}
+		// 不在这里取消对角色的监视:本回调是终止路径的后半段,运行时此时已把
+		// 本进程置为 Terminated,取消监视会被运行时拒绝(not allowed),而监视项
+		// 早已随进程终止被运行时清掉。见 docs/development 的运行时契约说明。
 		msg := &pb.ReqAccountLogout{
-			Reason: fmt.Sprintf("session terminated: %s", err.Error()),
+			Reason: fmt.Sprintf("session terminated: %s", terminationReasonText(err)),
 		}
 		_ = s.SendRoleMsg(ctx, msg, codec.MessageMetaByMsg(msg).ID)
 	}
 	s.state = StateDisconnected
 }
 
+// connClosedReason 是"连接关闭"这一正常结束的可读原因文本。
+const connClosedReason = "conn closed"
+
+// terminationReasonText 给出终止原因的可读文本。无原因即正常结束,
+// 用连接关闭描述——下游(角色侧登出通知)据此展示。
+func terminationReasonText(err error) string {
+	if err == nil {
+		return connClosedReason
+	}
+	return err.Error()
+}
+
 func sessionDisconnectReason(err error) string {
 	if err == nil {
-		return "unknown"
+		// 无原因即正常结束:这条路径的含义就是连接关闭。归到 unknown 会让
+		// "玩家正常下线"在看板上消失,而它是量级最大的一类。
+		return "conn_closed"
 	}
 	// 与 isLoginAdmissionRejection 相同的不变式：sentinel 需以未包裹形态到达这里。
 	// 当前生产路径（OnHandleClientMessage 将原始 sentinel 传给 s.Stop）满足该不变式。
@@ -387,7 +414,7 @@ func sessionDisconnectReason(err error) string {
 		return "multi_login"
 	case strings.Contains(reason, "gateway service stop"):
 		return "service_stop"
-	case strings.Contains(reason, "conn closed"):
+	case strings.Contains(reason, connClosedReason):
 		return "conn_closed"
 	default:
 		return "error"

@@ -18,7 +18,8 @@ func GetRoleActor(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 	return pid, nil
 }
 
-func ActivateRole(ctx context.Context, roleID int64, spawnIfNotExist ...bool) (gxyactor.PID, error) {
+// ActivateRole 激活角色 actor,不存在时创建。
+func ActivateRole(ctx context.Context, roleID int64) (gxyactor.PID, error) {
 	pid, err := gxyactor.ActivateActor(ctx, ROLE_ACTOR_TYPE, strconv.Itoa(int(roleID)), true)
 	if err != nil {
 		return gxyactor.PID{}, err

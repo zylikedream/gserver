@@ -18,10 +18,8 @@ func newTestEd25519KeyPair(t *testing.T) (string, string) {
 }
 
 func TestHMACSignerRoundTrip(t *testing.T) {
-	signer := NewHMACSigner("test-secret", "account-service")
 	now := time.Unix(1710000000, 0)
-	timeNow = func() time.Time { return now }
-	defer func() { timeNow = time.Now }()
+	signer := NewHMACSigner("test-secret", "account-service")
 	token, err := signer.Sign(&Claims{
 		AccountID: "acc_1",
 		RoleID:    10001,
@@ -34,7 +32,7 @@ func TestHMACSignerRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign failed: %v", err)
 	}
-	claims, err := signer.Verify(token)
+	claims, err := signer.Verify(token, now)
 	if err != nil {
 		t.Fatalf("verify failed: %v", err)
 	}
@@ -61,7 +59,7 @@ func TestEd25519SignerRejectsTamperedToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign failed: %v", err)
 	}
-	if _, err := signer.Verify(token + "broken"); err == nil {
+	if _, err := signer.Verify(token+"broken", time.Unix(1710000001, 0)); err == nil {
 		t.Fatalf("expected tampered token verification failure")
 	}
 }
@@ -97,9 +95,7 @@ func TestVerifyRejectsExpiredToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign failed: %v", err)
 	}
-	timeNow = func() time.Time { return time.Unix(1710000600, 0) }
-	defer func() { timeNow = time.Now }()
-	if _, err := signer.Verify(token); err == nil {
+	if _, err := signer.Verify(token, time.Unix(1710000600, 0)); err == nil {
 		t.Fatalf("expected expiry failure")
 	}
 }

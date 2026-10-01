@@ -144,7 +144,7 @@ func (n *node) registerApps() {
 	gxyapp.RegisterApp("mq", gxymq.NewMessageQueueApp())
 	gxyapp.RegisterApp("actor", gxyactor.NewActorApp(n.Name, n.NodeInstanceName, n.Host))
 	gxyapp.RegisterApp("http", gxyhttp.NewHttpApp())
-	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName))
+	gxyapp.RegisterApp("service", gxyservice.NewServiceApp(n.NodeInstanceName, nil))
 	gxyapp.RegisterApp("account", account.NewAccountApp(n.Host))
 	gxyapp.RegisterApp("chat", chat.NewChatApp(n.Host))
 	gxyapp.RegisterApp("friend", friend.NewFriendApp(n.Host))

@@ -9,57 +9,13 @@ import (
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
+	"gserver/src/pkg/deps"
 	"gserver/src/pkg/gameconfig"
 
-	"gorm.io/gorm"
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 )
-
-type memoryRolePlotSnapshotStore struct {
-	plots map[int64]PlotMap
-}
-
-func newMemoryRolePlotSnapshotStore() *memoryRolePlotSnapshotStore {
-	return &memoryRolePlotSnapshotStore{plots: make(map[int64]PlotMap)}
-}
-
-func (s *memoryRolePlotSnapshotStore) Get(_ context.Context, roleID int64) (PlotMap, bool) {
-	plots, ok := s.plots[roleID]
-	return clonePlotMap(plots), ok
-}
-
-func (s *memoryRolePlotSnapshotStore) Set(_ context.Context, roleID int64, plots PlotMap) error {
-	s.plots[roleID] = clonePlotMap(plots)
-	return nil
-}
-
-type memoryPlotLockManager struct {
-	held    map[string]string
-	order   []string
-	blocked map[string]bool
-}
-
-func newMemoryPlotLockManager() *memoryPlotLockManager {
-	return &memoryPlotLockManager{held: make(map[string]string), blocked: make(map[string]bool)}
-}
-
-func (m *memoryPlotLockManager) Acquire(_ context.Context, key string, _ time.Duration) (string, bool, error) {
-	m.order = append(m.order, key)
-	if m.blocked[key] {
-		return "", false, nil
-	}
-	if _, ok := m.held[key]; ok {
-		return "", false, nil
-	}
-	token := key + ":token"
-	m.held[key] = token
-	return token, true, nil
-}
-
-func (m *memoryPlotLockManager) Release(_ context.Context, key string, token string) {
-	if m.held[key] == token {
-		delete(m.held, key)
-	}
-}
 
 // ========== test setup ==========
 
@@ -76,25 +32,16 @@ func initPlotTestConfig(t *testing.T) {
 	initAllTestConfig(t)
 }
 
-func setupTestPlot(t *testing.T) *RolePlot {
+func setupTestPlot(t *testing.T) (*RolePlot, sqlmock.Sqlmock) {
 	t.Helper()
 	initPlotTestConfig(t)
 
-	oldSnapshotStore := rolePlotSnapshots
-	rolePlotSnapshots = newMemoryRolePlotSnapshotStore()
-	t.Cleanup(func() { rolePlotSnapshots = oldSnapshotStore })
-	oldLocks := plotLocks
-	plotLocks = newMemoryPlotLockManager()
-	t.Cleanup(func() { plotLocks = oldLocks })
+	db, mock := newGormMock(t)
+	mr := miniredis.RunT(t)
+	cli := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = cli.Close() })
 
-	origCountStolen := countPlotStolen
-	countPlotStolen = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) (int64, error) { return 0, nil }
-	t.Cleanup(func() { countPlotStolen = origCountStolen })
-	origDelSteal := deletePlotStealRecords
-	deletePlotStealRecords = func(_ context.Context, _ *gorm.DB, _ int64, _ int32) error { return nil }
-	t.Cleanup(func() { deletePlotStealRecords = origDelSteal })
-
-	main := &RoleMain{RoleID: 1001}
+	main := &RoleMain{RoleID: 1001, deps: deps.Deps{DB: db, Redis: cli}}
 	basicMod := &RoleBasic{
 		RoleModule:     RoleModule{Role: main},
 		RoleBasicState: RoleBasicState{Level: 20},
@@ -115,12 +62,12 @@ func setupTestPlot(t *testing.T) *RolePlot {
 	main.Bag = bagMod
 	main.Flower = flowerMod
 	main.Plot = plotMod
-	return plotMod
+	return plotMod, mock
 }
 
-func setupTestPlotWithMaterials(t *testing.T) *RolePlot {
+func setupTestPlotWithMaterials(t *testing.T) (*RolePlot, sqlmock.Sqlmock) {
 	t.Helper()
-	p := setupTestPlot(t)
+	p, mock := setupTestPlot(t)
 	// 水滴
 	p.Role.Bag.Goods[WATER_ITEM_ID] = bag.BagGood{GoodID: WATER_ITEM_ID, Num: 100}
 	// 解锁花并设为已收获状态（可种植）
@@ -128,7 +75,7 @@ func setupTestPlotWithMaterials(t *testing.T) *RolePlot {
 	p.Role.Flower.Flowers[plotTestFlower].State = int32(pb.FlowerState_FLOWER_HARVESTED)
 	p.Role.Flower.AddFlower(context.Background(), plotOtherFlower)
 	p.Role.Flower.Flowers[plotOtherFlower].State = int32(pb.FlowerState_FLOWER_HARVESTED)
-	return p
+	return p, mock
 }
 
 func plotFlowerConfig(t *testing.T, flowerID int32) *gamecfg.GardenFlower {
@@ -166,7 +113,7 @@ func plotHarvestTimes(t *testing.T, flowerID int32, level int32) int32 {
 // ========== UnlockPlot ==========
 
 func TestUnlockPlot_Success(t *testing.T) {
-	p := setupTestPlot(t)
+	p, _ := setupTestPlot(t)
 
 	p.UnlockPlot(plotTestID)
 
@@ -183,7 +130,7 @@ func TestUnlockPlot_Success(t *testing.T) {
 }
 
 func TestReqPlotUnlock_PlayerLevelNotEnough(t *testing.T) {
-	p := setupTestPlot(t)
+	p, _ := setupTestPlot(t)
 	cfg := gameconfig.Get().TbGardenPlot.Get(13)
 	for _, cost := range cfg.Cost {
 		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
@@ -197,7 +144,7 @@ func TestReqPlotUnlock_PlayerLevelNotEnough(t *testing.T) {
 }
 
 func TestReqPlotUnlock_WithRequiredPlayerLevel(t *testing.T) {
-	p := setupTestPlot(t)
+	p, _ := setupTestPlot(t)
 	cfg := gameconfig.Get().TbGardenPlot.Get(13)
 	for _, cost := range cfg.Cost {
 		p.Role.Bag.Goods[int(cost.Id)] = bag.BagGood{GoodID: int(cost.Id), Num: uint64(cost.Num)}
@@ -216,7 +163,7 @@ func TestReqPlotUnlock_WithRequiredPlayerLevel(t *testing.T) {
 // ========== PlantFlower ==========
 
 func TestPlantFlower_Success(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
 
 	rsp, err := p.ReqPlotPlant(context.Background(), &pb.ReqPlotPlant{
@@ -235,7 +182,9 @@ func TestPlantFlower_Success(t *testing.T) {
 	if p.Plots[plotTestID].FlowerID != plotTestFlower {
 		t.Fatalf("expected flower %d, got %d", plotTestFlower, p.Plots[plotTestID].FlowerID)
 	}
-	snapshot, ok := rolePlotSnapshots.Get(context.Background(), p.RoleID)
+	// 走真实读路径(偷菜方读我的快照):命中缓存即返回;未命中会落库,
+	// 而本用例是 sqlmock、无该预期,所以这里同时钉住"确实写进了缓存"。
+	snapshot, ok := getRolePlotSnapshot(context.Background(), p.Deps(), p.RoleID)
 	if !ok {
 		t.Fatal("expected role plot snapshot")
 	}
@@ -245,7 +194,7 @@ func TestPlantFlower_Success(t *testing.T) {
 }
 
 func TestPlantFlower_NotUnlocked(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 
 	_, err := p.ReqPlotPlant(context.Background(), &pb.ReqPlotPlant{
 		PlotIds:  []int32{plotTestID},
@@ -257,7 +206,7 @@ func TestPlantFlower_NotUnlocked(t *testing.T) {
 }
 
 func TestPlantFlower_FlowerNotBred(t *testing.T) {
-	p := setupTestPlot(t)
+	p, _ := setupTestPlot(t)
 	p.UnlockPlot(plotTestID)
 
 	_, err := p.ReqPlotPlant(context.Background(), &pb.ReqPlotPlant{
@@ -270,7 +219,7 @@ func TestPlantFlower_FlowerNotBred(t *testing.T) {
 }
 
 func TestPlantFlower_NotEmpty(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_PLANTED)
 
@@ -286,7 +235,7 @@ func TestPlantFlower_NotEmpty(t *testing.T) {
 // ========== WaterFlower ==========
 
 func TestWaterFlower_Success(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].FlowerID = plotTestFlower
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_PLANTED)
@@ -309,7 +258,7 @@ func TestWaterFlower_Success(t *testing.T) {
 }
 
 func TestWaterFlower_NotPlanted(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
 
 	_, err := p.ReqPlotWater(context.Background(), &pb.ReqPlotWater{PlotIds: []int32{plotTestID}})
@@ -321,7 +270,9 @@ func TestWaterFlower_NotPlanted(t *testing.T) {
 // ========== HarvestFlower ==========
 
 func TestHarvestFlower_Success(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, mock := setupTestPlotWithMaterials(t)
+	mock.ExpectQuery(sqlPlotStolenCount).WithArgs(int64(1001), int32(plotTestID)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].FlowerID = plotTestFlower
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
@@ -342,10 +293,21 @@ func TestHarvestFlower_Success(t *testing.T) {
 	if got := p.Role.Bag.Goods[int(cfg.HarvestItemId)].Num; got != uint64(wantHarvestNum) {
 		t.Fatalf("expected harvest item %d num %d, got %d", cfg.HarvestItemId, wantHarvestNum, got)
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations not met: %v", err)
+	}
 }
 
 func TestHarvestFlower_LastHarvest(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, mock := setupTestPlotWithMaterials(t)
+	mock.ExpectQuery(sqlPlotStolenCount).WithArgs(int64(1001), int32(plotTestID)).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+	// 写操作走 gorm 默认事务:BEGIN → DELETE → COMMIT。
+	mock.ExpectBegin()
+	mock.ExpectExec(`DELETE FROM "steal_record" WHERE owner_id = \$1 AND plot_id = \$2`).
+		WithArgs(int64(1001), int32(plotTestID)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].FlowerID = plotTestFlower
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
@@ -363,10 +325,13 @@ func TestHarvestFlower_LastHarvest(t *testing.T) {
 	if p.Plots[plotTestID].FlowerID != 0 {
 		t.Fatalf("expected flower_id 0, got %d", p.Plots[plotTestID].FlowerID)
 	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("sql expectations not met: %v", err)
+	}
 }
 
 func TestHarvestFlower_NotReady(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
 	p.Plots[plotTestID].StateTime = time.Now().Add(1 * time.Hour) // future, not ready
@@ -380,7 +345,7 @@ func TestHarvestFlower_NotReady(t *testing.T) {
 // ========== RemovePlant ==========
 
 func TestRemovePlant_Success(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].FlowerID = plotTestFlower
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_PLANTED)
@@ -395,7 +360,7 @@ func TestRemovePlant_Success(t *testing.T) {
 }
 
 func TestRemovePlant_Harvestable(t *testing.T) {
-	p := setupTestPlotWithMaterials(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].FlowerID = plotTestFlower
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
@@ -410,7 +375,7 @@ func TestRemovePlant_Harvestable(t *testing.T) {
 // ========== PlotInfo ==========
 
 func TestPlotInfo_Harvestable(t *testing.T) {
-	p := setupTestPlot(t)
+	p, _ := setupTestPlot(t)
 	p.UnlockPlot(plotTestID)
 	p.Plots[plotTestID].FlowerID = plotTestFlower
 	p.Plots[plotTestID].State = int32(pb.PlotState_PLOT_GROWING)
@@ -426,7 +391,7 @@ func TestPlotInfo_Harvestable(t *testing.T) {
 }
 
 func TestPlotInfo_Empty(t *testing.T) {
-	p := setupTestPlot(t)
+	p, _ := setupTestPlot(t)
 
 	rsp, err := p.ReqPlotInfo(context.Background(), &pb.ReqPlotInfo{})
 	if err != nil {

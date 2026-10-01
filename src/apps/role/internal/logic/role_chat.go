@@ -23,10 +23,10 @@ import (
 )
 
 var (
-	ErrChatCooldown   = errors.New("发言太频繁，请稍后再试")
-	ErrChatMsgEmpty   = errors.New("消息不能为空")
-	ErrChatMsgTooLong = errors.New("消息超过字数限制")
-	ErrChatNotFriend  = errors.New("对方不是你的好友")
+	ErrChatCooldown   = clientRejection("发言太频繁，请稍后再试")
+	ErrChatMsgEmpty   = clientRejection("消息不能为空")
+	ErrChatMsgTooLong = clientRejection("消息超过字数限制")
+	ErrChatNotFriend  = clientRejection("对方不是你的好友")
 )
 
 type RoleChatState struct {
@@ -200,7 +200,7 @@ func (r *RoleChat) ReqChatSendPrivate(ctx context.Context, req *pb.ReqChatSendPr
 		return nil, err
 	}
 
-	if !isFriend(ctx, r.DB(), r.RoleID, req.TargetId) {
+	if !r.isFriend(ctx, req.TargetId) {
 		return nil, errors.WithStack(ErrChatNotFriend)
 	}
 

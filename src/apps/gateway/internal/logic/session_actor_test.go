@@ -19,18 +19,16 @@ import (
 	"gserver/src/lib/gatetoken"
 
 	"ergo.services/ergo/gen"
+	"ergo.services/ergo/testing/unit"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-// TestMain 初始化全局 actor app(不建 system)+ SessionMgr,
+// TestMain 初始化全局 actor app(不建 system),
 // 使 CallSync/LocalSend 走 "node not initialized" 错误路径而非 nil panic。
 func TestMain(m *testing.M) {
 	gxyactor.NewActorApp("test", "test", "127.0.0.1")
-	NewSessionMgr()
-	// 测试默认使用允许型登录准入器：旧握手测试显式、且不削弱生产 fail-closed 默认值
-	currentLoginAcquirer = &stubLoginAcquirer{permit: noopLoginPermit{}}
 	os.Exit(m.Run())
 }
 
@@ -60,70 +58,41 @@ func (f *fakeEndpoint) Close()         { f.closed = true }
 func (f *fakeEndpoint) GetData() any   { return f.data }
 func (f *fakeEndpoint) SetData(d any)  { f.data = d }
 
-// watchRecorder 记录会话发起的监视/取消监视调用。
-type watchRecorder struct {
-	watched   []gxyactor.PID
-	unwatched []gxyactor.PID
-}
-
-// injectWatch 替换监视钩子,返回恢复函数。
-func injectWatch(t *testing.T, rec *watchRecorder) func() {
-	t.Helper()
-	oldWatch, oldUnwatch := watchRole, unwatchRole
-	watchRole = func(s *Session, pid gxyactor.PID) error {
-		rec.watched = append(rec.watched, pid)
-		return nil
-	}
-	unwatchRole = func(s *Session, pid gxyactor.PID) error {
-		rec.unwatched = append(rec.unwatched, pid)
-		return nil
-	}
-	return func() {
-		watchRole, unwatchRole = oldWatch, oldUnwatch
-	}
-}
-
 // roleRuntimePID 是握手时激活得到的角色进程标识。
 // 监视通知携带运行时标识,测试用同一个值构造 Down 消息。
 var roleRuntimePID = gen.PID{Node: "test@127.0.0.1", ID: 42, Creation: 1}
 
-// newTestSession 构造被测会话并注入监视记录器。
-func newTestSession(t *testing.T) (*Session, *watchRecorder, *fakeEndpoint) {
-	t.Helper()
-	ep := newFakeEndpoint(t)
-	rec := &watchRecorder{}
-	t.Cleanup(injectWatch(t, rec))
-	// 在 mock 节点上创建真实 actor,而不是手工拼装半成品。
-	ss, _ := gxyactortest.Spawn(t, "session", func() *Session { return NewSession(ep) })
-	return ss, rec, ep
+// newTestDeps 是测试用依赖:允许登录、返回固定身份与固定的激活结果。
+// 每个测试拿自己的一份,会话注册表因此互不可见。
+func newTestDeps() SessionDeps {
+	return SessionDeps{
+		VerifyToken: func(string) (*gatetoken.Claims, error) {
+			return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
+		},
+		Login: &stubLoginAcquirer{permit: noopLoginPermit{}},
+		ActivateRole: func(context.Context, int64) (gxyactor.PID, error) {
+			return gxyactor.PidFromRuntime(roleRuntimePID), nil
+		},
+		Sessions: gxyactor.NewActorMgr("session_mgr_test"),
+	}
 }
 
-// withHandshake 完成一次成功握手:替换 token 验证、登录准入与角色激活, 返回可恢复函数。
-func withHandshake(t *testing.T, s *Session, _ *fakeEndpoint) func() {
+// newTestSession 在 mock 节点上创建真实 actor,而不是手工拼装半成品。
+// 返回 Subject 以便断言运行时的出向记录(如 Monitor)。
+func newTestSession(t *testing.T, d SessionDeps) (*Session, *unit.Subject, *fakeEndpoint) {
 	t.Helper()
-	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
-		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
-	})
-	restoreAcquirer := swapLoginAcquirer(&stubLoginAcquirer{permit: noopLoginPermit{}})
-	oldActivate := activateRole
-	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-		return gxyactor.PidFromRuntime(roleRuntimePID), nil
-	}
-	oldMaint := gateMaintenanceEnabled
-	gateMaintenanceEnabled = func() bool { return false }
-	err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"})
-	if err != nil {
-		restoreToken()
-		restoreAcquirer()
-		activateRole = oldActivate
-		gateMaintenanceEnabled = oldMaint
+	ep := newFakeEndpoint(t)
+	s, subj := gxyactortest.Spawn(t, "session", func() *Session { return NewSession(ep, d) })
+	return s, subj, ep
+}
+
+// withHandshake 完成一次成功握手。会话依赖由 newTestDeps 在创建时给定。
+func withHandshake(t *testing.T, s *Session) {
+	t.Helper()
+	// 空串使维护闸门关闭,不依赖测试进程的环境。
+	t.Setenv(gateMaintenanceEnv, "")
+	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"}); err != nil {
 		t.Fatalf("handshake: %v", err)
-	}
-	return func() {
-		restoreToken()
-		restoreAcquirer()
-		activateRole = oldActivate
-		gateMaintenanceEnabled = oldMaint
 	}
 }
 
@@ -134,7 +103,8 @@ func TestSessionDisconnectReason(t *testing.T) {
 		err  error
 		want string
 	}{
-		{nil, "unknown"},
+		// 无原因即正常结束(连接干净关闭):归到 conn_closed,不是 unknown。
+		{nil, "conn_closed"},
 		{ErrLoginRateLimited, "login_rate_limited"},
 		{ErrLoginQueueFull, "login_queue_full"},
 		{ErrLoginQueueTimeout, "login_queue_timeout"},
@@ -157,7 +127,7 @@ func TestSessionDisconnectReason(t *testing.T) {
 // ========== Init ==========
 
 func TestSession_Init(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	if s.state != StateConnected {
 		t.Fatalf("expected StateConnected, got %v", s.state)
 	}
@@ -169,7 +139,7 @@ func TestSession_Init(t *testing.T) {
 
 // Init 应记录最后活跃时间(空闲检查的依据)。
 func TestSession_Init_RecordsLastActive(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	info := s.GetSessionInfo()
 	if info.ServerLastActive.IsZero() {
 		t.Fatal("ServerLastActive not updated by Init")
@@ -179,9 +149,8 @@ func TestSession_Init_RecordsLastActive(t *testing.T) {
 // ========== HandleMessage 路由 ==========
 
 func TestSession_HandleMessage_ClientMsg(t *testing.T) {
-	s, _, ep := newTestSession(t)
-	restore := withHandshake(t, s, ep)
-	defer restore()
+	s, _, ep := newTestSession(t, newTestDeps())
+	withHandshake(t, s)
 	ep.sentMsgs = nil
 
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
@@ -191,9 +160,8 @@ func TestSession_HandleMessage_ClientMsg(t *testing.T) {
 }
 
 func TestSession_HandleMessage_ServerMsg(t *testing.T) {
-	s, _, ep := newTestSession(t)
-	restore := withHandshake(t, s, ep)
-	defer restore()
+	s, _, ep := newTestSession(t, newTestDeps())
+	withHandshake(t, s)
 	ep.sentMsgs = nil
 
 	anyMsg, err := anypb.New(&pb.RspAccountLogin{})
@@ -214,11 +182,8 @@ func TestSession_HandleMessage_ServerMsg(t *testing.T) {
 // 监视通知由运行时投递,门面把它翻译成业务侧的 HandleDown——业务因此
 // 不出现运行时消息类型(见 ADR 0017)。此处经真实投递验证这条翻译。
 func TestSession_HandleDown_RoleTerminated(t *testing.T) {
-	ep := newFakeEndpoint(t)
-	t.Cleanup(injectWatch(t, &watchRecorder{}))
-	s, subj := gxyactortest.Spawn(t, "session", func() *Session { return NewSession(ep) })
-	restore := withHandshake(t, s, ep)
-	defer restore()
+	s, subj, _ := newTestSession(t, newTestDeps())
+	withHandshake(t, s)
 
 	subj.SendMessage(gen.PID{}, gen.MessageDownPID{PID: roleRuntimePID})
 
@@ -231,9 +196,8 @@ func TestSession_HandleDown_RoleTerminated(t *testing.T) {
 }
 
 func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
-	s, _, ep := newTestSession(t)
-	restore := withHandshake(t, s, ep)
-	defer restore()
+	s, _, _ := newTestSession(t, newTestDeps())
+	withHandshake(t, s)
 
 	_, _ = s.HandleMessage(gen.MessageDownPID{PID: gen.PID{Node: "test@127.0.0.1", ID: 99, Creation: 1}})
 	if s.StopRequested() {
@@ -245,7 +209,7 @@ func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
 }
 
 func TestSession_HandleMessage_ActorError(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	_, _ = s.HandleMessage(&pb.ActorError{Reason: "boom"})
 	if !s.StopRequested() {
 		t.Fatal("expected Stop after ActorError")
@@ -255,17 +219,15 @@ func TestSession_HandleMessage_ActorError(t *testing.T) {
 // ========== 握手 ==========
 
 func TestSession_Handshake_NotHandshakeMsg(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	if err := s.handleHandshake(context.Background(), &pb.ReqChannelSend{}); err == nil {
 		t.Fatal("expected error for non-handshake msg")
 	}
 }
 
 func TestSession_Handshake_Maintenance(t *testing.T) {
-	s, _, _ := newTestSession(t)
-	old := gateMaintenanceEnabled
-	gateMaintenanceEnabled = func() bool { return true }
-	defer func() { gateMaintenanceEnabled = old }()
+	s, _, _ := newTestSession(t, newTestDeps())
+	t.Setenv(gateMaintenanceEnv, "1")
 
 	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "x"}); err == nil {
 		t.Fatal("expected maintenance error")
@@ -273,23 +235,19 @@ func TestSession_Handshake_Maintenance(t *testing.T) {
 }
 
 func TestSession_Handshake_EmptyToken(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: ""}); err == nil {
 		t.Fatal("expected error for empty token")
 	}
 }
 
 func TestSession_Handshake_ActivateRoleFailed(t *testing.T) {
-	s, _, _ := newTestSession(t)
-	restore := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
-		return &gatetoken.Claims{AccountID: "a", RoleID: 1}, nil
-	})
-	defer restore()
-	old := activateRole
-	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+	d := newTestDeps()
+	d.ActivateRole = func(context.Context, int64) (gxyactor.PID, error) {
 		return gxyactor.PID{}, gerror.New("activate failed")
 	}
-	defer func() { activateRole = old }()
+	s, _, _ := newTestSession(t, d)
+	t.Setenv(gateMaintenanceEnv, "")
 
 	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"}); err == nil {
 		t.Fatal("expected activate error")
@@ -297,9 +255,9 @@ func TestSession_Handshake_ActivateRoleFailed(t *testing.T) {
 }
 
 func TestSession_Handshake_Success(t *testing.T) {
-	s, rec, ep := newTestSession(t)
-	restore := withHandshake(t, s, ep)
-	defer restore()
+	d := newTestDeps()
+	s, subj, ep := newTestSession(t, d)
+	withHandshake(t, s)
 
 	if s.state != StateHandshake {
 		t.Fatalf("expected StateHandshake, got %v", s.state)
@@ -308,17 +266,15 @@ func TestSession_Handshake_Success(t *testing.T) {
 	if info.AccountID != "acc_1" || info.RoleID != 10001 {
 		t.Fatalf("unexpected session info: %+v", info)
 	}
-	if len(rec.watched) != 1 || !gxyactor.PidEqual(rec.watched[0], gxyactor.PidFromRuntime(roleRuntimePID)) {
-		t.Fatalf("expected Watch(role_pid), got %+v", rec.watched)
-	}
+	subj.ShouldMonitor().From(subj.PID()).Target(roleRuntimePID).Once().Assert()
 	if len(ep.sentMsgs) != 1 {
 		t.Fatalf("expected 1 handshake rsp, got %d", len(ep.sentMsgs))
 	}
 	if _, ok := ep.sentMsgs[0].(*pb.RspHandShake); !ok {
 		t.Fatalf("expected RspHandShake, got %T", ep.sentMsgs[0])
 	}
-	if SessionMgr().Count() != 1 {
-		t.Fatalf("expected 1 session in mgr, got %d", SessionMgr().Count())
+	if d.Sessions.Count() != 1 {
+		t.Fatalf("expected 1 session in mgr, got %d", d.Sessions.Count())
 	}
 }
 
@@ -339,20 +295,15 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			s, _, ep := newTestSession(t)
-			before := testutil.ToFloat64(gxymetrics.SessionDisconnects.WithLabelValues(tc.label))
-			restore := swapLoginAcquirer(&stubLoginAcquirer{err: tc.err})
-			defer restore()
-			restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
-				return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
-			})
-			defer restoreToken()
-			oldActivate := activateRole
-			activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-				t.Fatal("activateRole must not be called on admission rejection")
+			d := newTestDeps()
+			d.Login = &stubLoginAcquirer{err: tc.err}
+			d.ActivateRole = func(context.Context, int64) (gxyactor.PID, error) {
+				t.Fatal("ActivateRole must not be called on admission rejection")
 				return gxyactor.PID{}, nil
 			}
-			defer func() { activateRole = oldActivate }()
+			s, _, ep := newTestSession(t, d)
+			before := testutil.ToFloat64(gxymetrics.SessionDisconnects.WithLabelValues(tc.label))
+			t.Setenv(gateMaintenanceEnv, "")
 
 			msg := &message.Message{
 				Type: message.MESSGE_TYPE_FIRST_PACKET,
@@ -389,34 +340,27 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 // TestSession_LoginAdmission_SuccessHoldsThenReleases 成功准入时:
 // permit 在 activateRole 执行期间仍被持有, handleHandshake 返回前恰好释放一次。
 func TestSession_LoginAdmission_SuccessHoldsThenReleases(t *testing.T) {
-	s, rec, ep := newTestSession(t)
 	permit := &recordingLoginPermit{}
-	restore := swapLoginAcquirer(&stubLoginAcquirer{permit: permit})
-	defer restore()
-	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
-		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
-	})
-	defer restoreToken()
-	oldActivate := activateRole
 	var heldDuringActivate bool
-	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+	d := newTestDeps()
+	d.Login = &stubLoginAcquirer{permit: permit}
+	d.ActivateRole = func(context.Context, int64) (gxyactor.PID, error) {
 		heldDuringActivate = permit.releases == 0
 		return gxyactor.PidFromRuntime(roleRuntimePID), nil
 	}
-	defer func() { activateRole = oldActivate }()
+	s, subj, ep := newTestSession(t, d)
+	t.Setenv(gateMaintenanceEnv, "")
 
 	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"}); err != nil {
 		t.Fatalf("handshake: %v", err)
 	}
 	if !heldDuringActivate {
-		t.Fatal("permit was not held while activateRole ran")
+		t.Fatal("permit was not held while ActivateRole ran")
 	}
 	if permit.releases != 1 {
 		t.Fatalf("permit released %d times, want exactly 1", permit.releases)
 	}
-	if len(rec.watched) != 1 || !gxyactor.PidEqual(rec.watched[0], gxyactor.PidFromRuntime(roleRuntimePID)) {
-		t.Fatalf("expected Watch(role_pid) after release, got %+v", rec.watched)
-	}
+	subj.ShouldMonitor().From(subj.PID()).Target(roleRuntimePID).Once().Assert()
 	if len(ep.sentMsgs) != 1 {
 		t.Fatalf("expected 1 handshake rsp after release, got %d", len(ep.sentMsgs))
 	}
@@ -424,22 +368,17 @@ func TestSession_LoginAdmission_SuccessHoldsThenReleases(t *testing.T) {
 
 // TestSession_LoginAdmission_ActivateRoleErrorReleases activateRole 失败时仍恰好释放一次。
 func TestSession_LoginAdmission_ActivateRoleErrorReleases(t *testing.T) {
-	s, _, _ := newTestSession(t)
 	permit := &recordingLoginPermit{}
-	restore := swapLoginAcquirer(&stubLoginAcquirer{permit: permit})
-	defer restore()
-	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
-		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
-	})
-	defer restoreToken()
-	oldActivate := activateRole
-	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
+	d := newTestDeps()
+	d.Login = &stubLoginAcquirer{permit: permit}
+	d.ActivateRole = func(context.Context, int64) (gxyactor.PID, error) {
 		return gxyactor.PID{}, gerror.New("activate failed")
 	}
-	defer func() { activateRole = oldActivate }()
+	s, _, _ := newTestSession(t, d)
+	t.Setenv(gateMaintenanceEnv, "")
 
 	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: "ok"}); err == nil {
-		t.Fatal("expected activateRole error")
+		t.Fatal("expected ActivateRole error")
 	}
 	if permit.releases != 1 {
 		t.Fatalf("permit released %d times, want exactly 1", permit.releases)
@@ -449,19 +388,16 @@ func TestSession_LoginAdmission_ActivateRoleErrorReleases(t *testing.T) {
 // TestSession_LoginAdmission_UnconfiguredPropagates 未配置限流器属于启动/接线缺陷,
 // 不应被归类为预期拒绝: 错误必须传播到 Actor 边界, 且不停止 Session。
 func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
-	s, _, _ := newTestSession(t)
-	restore := swapLoginAcquirer(&stubLoginAcquirer{err: ErrLoginLimiterUnconfigured})
-	defer restore()
-	restoreToken := swapGateTokenVerifier(func(token string) (*gatetoken.Claims, error) {
-		return &gatetoken.Claims{AccountID: "acc_1", RoleID: 10001}, nil
-	})
-	defer restoreToken()
-	oldActivate := activateRole
-	activateRole = func(ctx context.Context, roleID int64) (gxyactor.PID, error) {
-		t.Fatal("activateRole must not be called when limiter is unconfigured")
-		return gxyactor.PID{}, nil
+	d := SessionDeps{
+		VerifyToken: newTestDeps().VerifyToken,
+		ActivateRole: func(context.Context, int64) (gxyactor.PID, error) {
+			t.Fatal("ActivateRole must not be called when limiter is unconfigured")
+			return gxyactor.PID{}, nil
+		},
+		Sessions: gxyactor.NewActorMgr("session_mgr_test"),
 	}
-	defer func() { activateRole = oldActivate }()
+	s, _, _ := newTestSession(t, d)
+	t.Setenv(gateMaintenanceEnv, "")
 
 	msg := &message.Message{
 		Type: message.MESSGE_TYPE_FIRST_PACKET,
@@ -485,7 +421,7 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 // ========== 客户端消息 ==========
 
 func TestSession_ClientMessage_Logout(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.ReqAccountLogout{}}
 	if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err != nil {
 		t.Fatalf("OnHandleClientMessage: %v", err)
@@ -496,7 +432,7 @@ func TestSession_ClientMessage_Logout(t *testing.T) {
 }
 
 func TestSession_ClientMessage_NotProto(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: "not a proto"}
 	if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err == nil {
 		t.Fatal("expected error for non-proto msg")
@@ -504,7 +440,7 @@ func TestSession_ClientMessage_NotProto(t *testing.T) {
 }
 
 func TestSession_ClientMessage_DataPacket_NoRolePid(t *testing.T) {
-	s, _, _ := newTestSession(t) // 未握手, RolePid nil
+	s, _, _ := newTestSession(t, newTestDeps()) // 未握手, RolePid nil
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
 	// SendRoleMsg 的投递错误只记日志,不使消息处理失败,应返回 nil
 	if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err != nil {
@@ -515,7 +451,7 @@ func TestSession_ClientMessage_DataPacket_NoRolePid(t *testing.T) {
 // ========== 服务端消息 ==========
 
 func TestSession_ServerMessage_BadAny(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	bad := &anypb.Any{TypeUrl: "garbage", Value: []byte{0xff}}
 	if err := s.OnHandleServerMessage(context.Background(), &pb.ServerMsg{Msg: bad}); err == nil {
 		t.Fatal("expected unmarshal error")
@@ -523,9 +459,8 @@ func TestSession_ServerMessage_BadAny(t *testing.T) {
 }
 
 func TestSession_ServerMessage_DisconnectedSkipsSend(t *testing.T) {
-	s, _, ep := newTestSession(t)
-	restore := withHandshake(t, s, ep)
-	defer restore()
+	s, _, ep := newTestSession(t, newTestDeps())
+	withHandshake(t, s)
 	ep.sentMsgs = nil
 	s.state = StateDisconnected
 
@@ -542,7 +477,7 @@ func TestSession_ServerMessage_DisconnectedSkipsSend(t *testing.T) {
 // ========== sendClientMsg ==========
 
 func TestSession_SendClientMsg_Success(t *testing.T) {
-	s, _, ep := newTestSession(t)
+	s, _, ep := newTestSession(t, newTestDeps())
 	if err := s.sendClientMsg(context.Background(), &pb.RspHandShake{}); err != nil {
 		t.Fatalf("sendClientMsg: %v", err)
 	}
@@ -552,7 +487,7 @@ func TestSession_SendClientMsg_Success(t *testing.T) {
 }
 
 func TestSession_SendClientMsg_FailureStopsSession(t *testing.T) {
-	s, _, ep := newTestSession(t)
+	s, _, ep := newTestSession(t, newTestDeps())
 	ep.sendErr = gerror.New("conn broken")
 	if err := s.sendClientMsg(context.Background(), &pb.RspHandShake{}); err != nil {
 		t.Fatalf("sendClientMsg should swallow send error, got %v", err)
@@ -565,7 +500,7 @@ func TestSession_SendClientMsg_FailureStopsSession(t *testing.T) {
 // ========== 空闲检测 ==========
 
 func TestSession_SessionCheck_ClientIdle(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	s.sessionInfo.ClientLastActive = time.Now().Add(-SESSION_CLIENT_IDLE_TIMEOUT - time.Minute)
 	s.sessionCheck(context.Background())
 	if !s.StopRequested() {
@@ -574,7 +509,7 @@ func TestSession_SessionCheck_ClientIdle(t *testing.T) {
 }
 
 func TestSession_SessionCheck_ServerIdle(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	s.sessionInfo.ServerLastActive = time.Now().Add(-SESSION_SERVER_IDLE_TIMEOUT - time.Minute)
 	s.sessionCheck(context.Background())
 	if !s.StopRequested() {
@@ -583,7 +518,7 @@ func TestSession_SessionCheck_ServerIdle(t *testing.T) {
 }
 
 func TestSession_SessionCheck_Active(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	s.updateClientLastActive()
 	s.updateServerLastActive()
 	s.sessionCheck(context.Background())
@@ -595,33 +530,46 @@ func TestSession_SessionCheck_Active(t *testing.T) {
 // ========== Terminate ==========
 
 func TestSession_Terminate_WithRole(t *testing.T) {
-	s, rec, ep := newTestSession(t)
-	restore := withHandshake(t, s, ep)
-	defer restore()
+	d := newTestDeps()
+	s, _, ep := newTestSession(t, d)
+	withHandshake(t, s)
 
 	s.Terminate(gerror.New("client account logout"))
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}
-	if len(rec.unwatched) != 1 || !gxyactor.PidEqual(rec.unwatched[0], gxyactor.PidFromRuntime(roleRuntimePID)) {
-		t.Fatalf("expected Unwatch(role_pid), got %+v", rec.unwatched)
-	}
 	if s.state != StateDisconnected {
 		t.Fatalf("expected StateDisconnected, got %v", s.state)
 	}
-	if SessionMgr().Count() != 0 {
-		t.Fatalf("expected session removed from mgr, got %d", SessionMgr().Count())
+	if d.Sessions.Count() != 0 {
+		t.Fatalf("expected session removed from mgr, got %d", d.Sessions.Count())
 	}
 }
 
-func TestSession_Terminate_WithoutRole(t *testing.T) {
-	s, rec, ep := newTestSession(t)
+// 正常结束(无原因)带角色时也必须走完终止路径:早先此处无条件取 err.Error(),
+// 而"客户端干净断开"正是 err=nil 的量级最大的一条路径。
+func TestSession_Terminate_WithRole_NilReason(t *testing.T) {
+	d := newTestDeps()
+	s, _, ep := newTestSession(t, d)
+	withHandshake(t, s)
+
 	s.Terminate(nil)
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}
-	if len(rec.unwatched) != 0 {
-		t.Fatalf("unwatched should be empty without RolePid, got %+v", rec.unwatched)
+	if s.state != StateDisconnected {
+		t.Fatalf("expected StateDisconnected, got %v", s.state)
+	}
+	if d.Sessions.Count() != 0 {
+		t.Fatalf("expected session removed from mgr, got %d", d.Sessions.Count())
+	}
+}
+
+func TestSession_Terminate_WithoutRole(t *testing.T) {
+	s, _, ep := newTestSession(t, newTestDeps())
+	s.Terminate(nil)
+	if !ep.closed {
+		t.Fatal("endpoint not closed")
 	}
 	if s.state != StateDisconnected {
 		t.Fatalf("expected StateDisconnected, got %v", s.state)
@@ -631,7 +579,7 @@ func TestSession_Terminate_WithoutRole(t *testing.T) {
 // ========== 活跃时间戳 ==========
 
 func TestSession_UpdateLastActive(t *testing.T) {
-	s, _, _ := newTestSession(t)
+	s, _, _ := newTestSession(t, newTestDeps())
 	old := time.Now().Add(-time.Hour)
 	s.sessionInfo.ClientLastActive = old
 	s.sessionInfo.ServerLastActive = old

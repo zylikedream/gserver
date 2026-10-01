@@ -16,9 +16,6 @@ import (
 	"github.com/gogf/gf/v2/net/gsvc"
 )
 
-// getRedis 可替换函数变量:测试可注入 mock 客户端(编译期安全,非 gomonkey)。
-var getRedis = gxyredis.Redis
-
 const (
 	redisServiceKeyPrefix = "gserver:svc"
 	defaultPollInterval   = 10 * time.Second
@@ -31,6 +28,9 @@ const (
 // NodeHost already contains the correct pod IP set via POD_IP at registration time.
 type Registry struct {
 	interval time.Duration
+	// client 惰性取用缓存客户端:进程内单例可能晚于本对象初始化。
+	// 组装根用默认值,测试注入 mock(见 invariants.md「测试替身规则」)。
+	client func() gxyredis.Client
 
 	mu         sync.Mutex
 	heartbeats map[string]map[string]struct{} // key → set of fields to renew
@@ -45,6 +45,7 @@ func New(interval time.Duration) *Registry {
 	}
 	return &Registry{
 		interval:   interval,
+		client:     gxyredis.Redis,
 		heartbeats: make(map[string]map[string]struct{}),
 		stopCh:     make(chan struct{}),
 	}
@@ -58,7 +59,7 @@ func hashKey(svcName string) string {
 func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Service, error) {
 	key := hashKey(service.GetName())
 	field := service.GetKey()
-	if err := getRedis().HSet(ctx, key, field, service.GetValue()).Err(); err != nil {
+	if err := r.client().HSet(ctx, key, field, service.GetValue()).Err(); err != nil {
 		return nil, err
 	}
 	r.setFieldTTL(ctx, key, field)
@@ -71,13 +72,13 @@ func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 	key := hashKey(service.GetName())
 	field := service.GetKey()
 	r.untrackHeartbeat(key, field)
-	return getRedis().HDel(ctx, key, field).Err()
+	return r.client().HDel(ctx, key, field).Err()
 }
 
 // Search returns all services of the given name from Redis Hash.
 func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Service, error) {
 	key := hashKey(in.Name)
-	fields, err := getRedis().HGetAll(ctx, key).Result()
+	fields, err := r.client().HGetAll(ctx, key).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +124,7 @@ func (r *Registry) Type() string {
 // setFieldTTL sets field-level TTL on the hash field (Redis 7.4+ HEXPIRE).
 func (r *Registry) setFieldTTL(ctx context.Context, key, field string) {
 	ttl := int(defaultFieldTTL.Seconds())
-	if err := getRedis().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
+	if err := r.client().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
 		gxylog.Warn(context.Background(), "redis set field ttl failed",
 			gxylog.Str("key", key), gxylog.Str("field", field), gxylog.Err(err))
 	}
@@ -192,7 +193,7 @@ func (r *Registry) renewHeartbeats() {
 		for i, f := range fieldSlice {
 			args[5+i] = f
 		}
-		if err := getRedis().Do(context.Background(), args...).Err(); err != nil {
+		if err := r.client().Do(context.Background(), args...).Err(); err != nil {
 			gxylog.Warn(context.Background(), "redis heartbeat renew failed",
 				gxylog.Str("key", key), gxylog.Err(err))
 		}

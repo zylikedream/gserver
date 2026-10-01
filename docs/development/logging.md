@@ -70,6 +70,26 @@ gxylog.Info(ctx, "...")                        // 自动带 mod/roleID/trace_id
 - 不在链路中途重复打印同一错误(打印后上抛 = 重复日志)
 - 错误规范:`errors.Wrap` 链上抛,顶层 `gxylog.Error` 一次打全
 
+## 客户端预期拒绝的分级
+
+"客户端请求不满足前置条件"不是故障:它由业务校验拒绝、以错误应答回给客户端,
+量级随玩家误操作走。这类错误**必须与真正的失败区分开**,否则告警会被淹没:
+
+```go
+// 声明即登记(见 role/logic 的 clientRejection):该哨兵被判为预期拒绝。
+var ErrChatNotFriend = clientRejection("对方不是你的好友")
+
+// 最终处理点:预期拒绝记 info(不带栈),其余记 error + 栈。
+if isClientRejection(err) {
+    gxylog.Info(ctx, "client request rejected", gxylog.Str("reason", err.Error()))
+    return
+}
+gxylog.Error(ctx, "handle client protocol failed", gxylog.Err(err))
+```
+
+判定只认登记过的哨兵,不猜:服务端自身的故障(配置缺失、依赖不可用、数据不一致)
+必须继续以 error + 栈暴露,不得登记为拒绝。
+
 ## 敏感信息
 
 - **禁止**打印密码、token、密钥、完整账号凭据
@@ -89,4 +109,5 @@ gxylog.Info(ctx, "...")                        // 自动带 mod/roleID/trace_id
 - [ ] 错误日志用 `gxylog.Err(err)` 而非 `Str("error", err.Error())`?
 - [ ] ctx 传递正确(带 mod/roleID/trace_id)?
 - [ ] 打印点在最终处理处,无中途重复?
+- [ ] 客户端预期拒绝是否按拒绝登记(不带栈),而非 error?
 - [ ] 无敏感信息(密码/token)?

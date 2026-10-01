@@ -12,6 +12,8 @@ import (
 	"gserver/src/pkg/gameconfig"
 
 	proto "google.golang.org/protobuf/proto"
+
+	"ergo.services/ergo/testing/unit"
 )
 
 func initMainTaskTestConfig(t *testing.T) {
@@ -19,18 +21,12 @@ func initMainTaskTestConfig(t *testing.T) {
 	initAllTestConfig(t)
 }
 
-func setupTestMainTask(t *testing.T) (*RoleMain, *RoleMainTask, *[]proto.Message) {
+func setupTestMainTask(t *testing.T) (*RoleMain, *unit.Subject, *RoleMainTask) {
 	t.Helper()
 	initMainTaskTestConfig(t)
 
-	var sent []proto.Message
-	origSend := sendClient
-	sendClient = func(_ *RoleMain, _ context.Context, msg proto.Message) {
-		sent = append(sent, msg)
-	}
-	t.Cleanup(func() { sendClient = origSend })
-
-	main := &RoleMain{eventBus: event.NewEventBus()}
+	main, subj, _ := spawnTestRole(t, 1001)
+	main.eventBus = event.NewEventBus()
 	basicMod := &RoleBasic{
 		RoleModule:     RoleModule{Role: main},
 		RoleBasicState: RoleBasicState{Level: 1},
@@ -61,11 +57,11 @@ func setupTestMainTask(t *testing.T) (*RoleMain, *RoleMainTask, *[]proto.Message
 	if err := mainTaskMod.OnModStart(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	return main, mainTaskMod, &sent
+	return main, subj, mainTaskMod
 }
 
 func TestMainTaskInitFirstTask(t *testing.T) {
-	_, mt, _ := setupTestMainTask(t)
+	_, _, mt := setupTestMainTask(t)
 
 	if mt.CurrentTaskID != 1003 {
 		t.Fatalf("expected first task 1003, got %d", mt.CurrentTaskID)
@@ -79,7 +75,7 @@ func TestMainTaskInitFirstTask(t *testing.T) {
 }
 
 func TestMainTaskAfterAcceptGoodEvent(t *testing.T) {
-	main, mt, _ := setupTestMainTask(t)
+	main, _, mt := setupTestMainTask(t)
 	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1007))
 
 	main.PublishRoleEvent(context.Background(), event.EVENT_GOOD_CHANGE, event.GoodChangeEventData{
@@ -95,7 +91,7 @@ func TestMainTaskAfterAcceptGoodEvent(t *testing.T) {
 }
 
 func TestMainTaskClaimAdvancesAndNotifiesNextTask(t *testing.T) {
-	_, mt, sent := setupTestMainTask(t)
+	_, subj, mt := setupTestMainTask(t)
 	mt.Progress = 1
 	mt.Status = int32(pb.MainTaskStatus_MAIN_TASK_CLAIMABLE)
 
@@ -109,20 +105,17 @@ func TestMainTaskClaimAdvancesAndNotifiesNextTask(t *testing.T) {
 	if rsp.Task.Progress != 1 || rsp.Task.Status != pb.MainTaskStatus_MAIN_TASK_FINISHED {
 		t.Fatalf("unexpected task state: %v", rsp.Task)
 	}
-	if len(*sent) == 0 {
-		t.Fatal("expected task update notification")
-	}
-	notify, ok := (*sent)[len(*sent)-1].(*pb.NotifyMainTaskUpdate)
-	if !ok {
-		t.Fatalf("expected NotifyMainTaskUpdate, got %T", (*sent)[len(*sent)-1])
-	}
-	if notify.Task.TaskId != 1004 || notify.Task.Status != pb.MainTaskStatus_MAIN_TASK_IN_PROGRESS {
-		t.Fatalf("expected notify next task 1004 in progress, got %v", notify.Task)
-	}
+	subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
+		notify, ok := m.(*pb.NotifyMainTaskUpdate)
+		if !ok || notify.Task == nil {
+			return false
+		}
+		return notify.Task.TaskId == 1004 && notify.Task.Status == pb.MainTaskStatus_MAIN_TASK_IN_PROGRESS
+	})).Assert()
 }
 
 func TestMainTaskCurrentStateCompletesOnAccept(t *testing.T) {
-	_, mt, _ := setupTestMainTask(t)
+	_, _, mt := setupTestMainTask(t)
 	mt.Role.Basic.Level = 3
 	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1009))
 
@@ -135,7 +128,7 @@ func TestMainTaskCurrentStateCompletesOnAccept(t *testing.T) {
 }
 
 func TestMainTaskCurrentStateRefreshesOnEvent(t *testing.T) {
-	main, mt, sent := setupTestMainTask(t)
+	main, subj, mt := setupTestMainTask(t)
 	mt.Role.Basic.Level = 1
 	mt.acceptTask(gameconfig.Get().TbMainTask.Get(1009))
 
@@ -152,16 +145,14 @@ func TestMainTaskCurrentStateRefreshesOnEvent(t *testing.T) {
 	if mt.Status != int32(pb.MainTaskStatus_MAIN_TASK_CLAIMABLE) {
 		t.Fatalf("expected claimable, got %d", mt.Status)
 	}
-	if len(*sent) == 0 {
-		t.Fatal("expected task update notification")
-	}
-	if _, ok := (*sent)[len(*sent)-1].(*pb.NotifyMainTaskUpdate); !ok {
-		t.Fatalf("expected NotifyMainTaskUpdate, got %T", (*sent)[len(*sent)-1])
-	}
+	subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
+		_, ok := m.(*pb.NotifyMainTaskUpdate)
+		return ok
+	})).Assert()
 }
 
 func TestMainTaskOwnItemCurrentState(t *testing.T) {
-	_, mt, _ := setupTestMainTask(t)
+	_, _, mt := setupTestMainTask(t)
 	mt.Role.Bag.Goods[10001] = bag.BagGood{GoodID: 10001, Num: 5}
 	cfg := &gamecfg.GardenMainTask{
 		TargetType:  gamecfg.GardenETaskTargetType_OWN_ITEM,
@@ -174,7 +165,7 @@ func TestMainTaskOwnItemCurrentState(t *testing.T) {
 }
 
 func TestMainTaskBreedFinishCurrentStateHarvested(t *testing.T) {
-	_, mt, _ := setupTestMainTask(t)
+	_, _, mt := setupTestMainTask(t)
 	mt.Role.Flower.Flowers[101] = &FlowerData{
 		FlowerID:  101,
 		State:     int32(pb.FlowerState_FLOWER_HARVESTED),
@@ -191,7 +182,7 @@ func TestMainTaskBreedFinishCurrentStateHarvested(t *testing.T) {
 }
 
 func TestMainTaskBreedFinishCurrentStateBreedDone(t *testing.T) {
-	_, mt, _ := setupTestMainTask(t)
+	_, _, mt := setupTestMainTask(t)
 	mt.Role.Flower.Flowers[101] = &FlowerData{
 		FlowerID:  101,
 		State:     int32(pb.FlowerState_FLOWER_BREEDING),

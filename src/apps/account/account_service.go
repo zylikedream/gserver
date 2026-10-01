@@ -7,6 +7,7 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
+	"gserver/core/gxypgx"
 	"gserver/core/gxyutil"
 	"gserver/src/apps/account/logic"
 	"gserver/src/lib/gatetoken"
@@ -62,6 +63,7 @@ func (s *accountService) OnModStart(ctx context.Context) error {
 		return err
 	}
 	handler := &logic.AccountHandler{
+		Service: logic.NewService(gxypgx.DB()),
 		Config: logic.PreloginConfig{
 			MinVersion:    cfg.Version.Min,
 			LatestVersion: cfg.Version.Latest,

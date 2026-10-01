@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	ErrFlowerLocked       = errors.New("flower not unlocked")
-	ErrFlowerBreedBusy    = errors.New("another flower is breeding")
-	ErrFlowerWrongState   = errors.New("flower is at wrong state")
-	ErrFlowerNotBreedDone = errors.New("breed not finished yet")
+	ErrFlowerLocked       = clientRejection("flower not unlocked")
+	ErrFlowerBreedBusy    = clientRejection("another flower is breeding")
+	ErrFlowerWrongState   = clientRejection("flower is at wrong state")
+	ErrFlowerNotBreedDone = clientRejection("breed not finished yet")
 )
 
 // ========== 数据模型 ==========
@@ -84,7 +84,8 @@ func (r *RoleFlower) onGoodChangeEvent(ctx context.Context, param event.EventPar
 
 func (r *RoleFlower) AddFlower(ctx context.Context, flowerID int32) {
 	if _, ok := r.Flowers[flowerID]; ok {
-		gxylog.Warn(ctx, "flower already added", gxylog.Num("flowerID", int64(flowerID)))
+		// 幂等重复:同一朵花可能被多次授予(读档重放、GM 补发),这不是异常。
+		gxylog.Debug(ctx, "flower already added", gxylog.Num("flowerID", int64(flowerID)))
 		return
 	}
 	r.Flowers[flowerID] = &FlowerData{

@@ -22,8 +22,6 @@ type PreloginConfig struct {
 	Issuer        string
 }
 
-var preloginTimeNow = time.Now
-
 type PreloginRequest struct {
 	g.Meta        `path:"/prelogin" method:"POST"`
 	Platform      string `json:"platform"`
@@ -54,15 +52,17 @@ type PreloginResponse struct {
 	ExpiresIn   int64           `json:"expires_in"`
 }
 
-func BuildPreloginResponse(ctx context.Context, cfg PreloginConfig, signer gatetoken.Signer, platform string, platformUID string, clientVersion string) (*PreloginResponse, error) {
+// BuildPreloginResponse 校验版本、确保账号存在并签发 gate_token。
+// 时钟由 Service 注入,测试给固定时刻。
+func (s *Service) BuildPreloginResponse(ctx context.Context, cfg PreloginConfig, signer gatetoken.Signer, platform string, platformUID string, clientVersion string) (*PreloginResponse, error) {
 	if err := validateClientVersion(clientVersion, cfg.MinVersion); err != nil {
 		return nil, err
 	}
-	account, isNewRole, err := CreateAccountWithIdentity(ctx, platform, platformUID)
+	account, isNewRole, err := s.CreateAccountWithIdentity(ctx, platform, platformUID)
 	if err != nil {
 		return nil, err
 	}
-	now := preloginTimeNow()
+	now := s.clock()
 	token, err := signer.Sign(&gatetoken.Claims{
 		AccountID: account.AccountID,
 		RoleID:    account.RoleID,

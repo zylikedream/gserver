@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	ErrMainTaskNotClaimable = errors.New("main task not claimable")
-	ErrMainTaskFinished     = errors.New("main task finished")
+	ErrMainTaskNotClaimable = clientRejection("main task not claimable")
+	ErrMainTaskFinished     = clientRejection("main task finished")
 )
 
 type RoleMainTaskState struct {

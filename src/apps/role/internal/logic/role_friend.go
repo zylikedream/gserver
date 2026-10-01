@@ -3,7 +3,8 @@ package logic
 import (
 	"context"
 	"fmt"
-	"strings"
+	"net/url"
+	"strconv"
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxylog"
@@ -15,7 +16,6 @@ import (
 	"github.com/gogf/gf/v2/util/gconv"
 
 	"github.com/cockroachdb/errors"
-	"gorm.io/gorm"
 )
 
 type RoleFriend struct {
@@ -194,12 +194,14 @@ func callFriendBatch(ctx context.Context, path string, a int64, ids []int64) ([]
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	strs := make([]string, len(ids))
-	for i, id := range ids {
-		strs[i] = fmt.Sprintf("%d", id)
+	// 数组参数用 gf 的 bs[]=1&bs[]=2 约定:逗号形式绑不到 []int64,
+	// 重复键(bs=1&bs=2)只保留最后一个,两者都会静默丢参数。
+	query := url.Values{}
+	query.Set("a", strconv.FormatInt(a, 10))
+	for _, id := range ids {
+		query.Add("bs[]", strconv.FormatInt(id, 10))
 	}
-	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "friend",
-		fmt.Sprintf("%s?a=%d&bs=%s", path, a, strings.Join(strs, ",")))
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "friend", path+"?"+query.Encode())
 	if err != nil {
 		return nil, err
 	}
@@ -267,11 +269,11 @@ func getRelation(ctx context.Context, myID, targetID int64) (relation, error) {
 	return relationStranger, nil
 }
 
-// isFriend 可替换函数变量:测试可注入 mock 实现(编译期安全)。
-var isFriend = func(ctx context.Context, db *gorm.DB, myID, targetID int64) bool {
+// isFriend 查好友关系表。连接从接收者取(RoleModule.DB),测试经 deps 注入 sqlmock。
+func (r *RoleModule) isFriend(ctx context.Context, targetID int64) bool {
 	var count int64
-	err := db.WithContext(ctx).Table("friend_relation").
-		Where("player_id = ? AND friend_id = ?", myID, targetID).
+	err := r.DB().WithContext(ctx).Table("friend_relation").
+		Where("player_id = ? AND friend_id = ?", r.RoleID, targetID).
 		Count(&count).Error
 	if err != nil {
 		return false

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"gserver/core/gxylock"
-	"gserver/core/gxyredis"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -17,15 +16,13 @@ const (
 
 var ErrPlotBusy = gxylock.ErrBusy
 
-var plotLocks gxylock.Manager = gxylock.NewRedisManager(func() redis.UniversalClient {
-	return gxyredis.Redis()
-})
-
 func plotLockKey(ownerID int64, plotID int32) string {
 	return fmt.Sprintf("plot_lock:%d:%d", ownerID, plotID)
 }
 
-func withPlotLocks(ctx context.Context, ownerID int64, plotIDs []int32, fn func() error) error {
+// withPlotLocks 在若干地块锁内执行 fn。锁管理器只是参数容器,按调用构造;
+// Redis 从接收者取(deps 注入,测试用 miniredis 跑同一套加锁代码)。
+func (r *RoleModule) withPlotLocks(ctx context.Context, ownerID int64, plotIDs []int32, fn func() error) error {
 	keys := make([]string, 0, len(plotIDs))
 	seen := make(map[int32]struct{}, len(plotIDs))
 	for _, plotID := range plotIDs {
@@ -35,5 +32,6 @@ func withPlotLocks(ctx context.Context, ownerID int64, plotIDs []int32, fn func(
 		seen[plotID] = struct{}{}
 		keys = append(keys, plotLockKey(ownerID, plotID))
 	}
-	return gxylock.With(ctx, plotLocks, keys, plotLockTTL, fn)
+	manager := gxylock.NewRedisManager(func() redis.UniversalClient { return r.Redis() })
+	return gxylock.With(ctx, manager, keys, plotLockTTL, fn)
 }

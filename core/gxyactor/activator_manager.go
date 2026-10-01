@@ -344,8 +344,8 @@ func (g *activatorManager) getActor(ctx context.Context, k actorKey, owner Actor
 //
 // allowSpawn=false 表示调用方只查询、不创建,此时按不存在处理。候选节点由能力
 // 目录的一致性哈希选出;候选就是本节点则直接创建,否则交给对方——实例在对端
-// 节点上,对端才是权威。返回 retry=true 表示对端未能创建(竞争落败或依赖不可用),
-// 调用方应重新定位。
+// 节点上,对端才是权威。返回 retry=true 表示本次没能创建(竞争落败或依赖不可用),
+// 调用方应重新定位——本节点与对端两个分支都遵守这条语义。
 func (g *activatorManager) spawnActor(ctx context.Context, k actorKey, allowSpawn bool) (PID, bool, error) {
 	if !allowSpawn {
 		return ZeroPID, false, gerror.Newf("actor %s not found", k)
@@ -358,10 +358,23 @@ func (g *activatorManager) spawnActor(ctx context.Context, k actorKey, allowSpaw
 	// 候选节点就是本节点:直接创建,所有权由 actor 在同步初始化段获取。
 	if serviceInfo.NodeName == g.nodeID {
 		pid, err := g.spawnLocal(ctx, k)
+		if isRaceLost(err) {
+			return ZeroPID, true, err
+		}
 		return pid, false, err
-	} else {
-		return g.requestActor(ctx, serviceInfo.NodeName, k, allowSpawn)
 	}
+	return g.requestActor(ctx, serviceInfo.NodeName, k, allowSpawn)
+}
+
+// isRaceLost 判断这次创建失败是不是"竞争落败"。
+//
+// 落败有两种形态,都不是故障:注册名已被别的调用方占住,或归属记录已由本节点
+// 抢到。两者都意味着"实例已经存在",重新定位一轮就能拿到它的地址。
+//
+// 其它失败(未登记的 kind、初始化报错、配置缺失)不是竞争:重试只会把它们磨成
+// "重试耗尽",反而盖掉真正的原因,照旧直接上抛。
+func isRaceLost(err error) bool {
+	return errors.Is(err, ErrNotOwner) || errors.Is(err, gen.ErrTaken)
 }
 
 // activateActor 是激活的统一入口:反复定位直到拿到实例,或重试耗尽。

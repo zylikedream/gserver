@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
+
 	"gserver/core/gxyactor"
 	"gserver/core/gxyactor/gxyactortest"
 
@@ -16,14 +18,12 @@ import (
 // 与 chat / session 的同类测试对照,可确认"fired=0"是覆写回调未链式调用基类
 // 所致,而不是测试方法本身有问题。
 func TestRoleMainRoutesTimerMessage(t *testing.T) {
-	orig := lookupAccountIDByRoleID
-	t.Cleanup(func() { lookupAccountIDByRoleID = orig })
-	lookupAccountIDByRoleID = func(context.Context, int64) (string, error) {
-		return "acc_123", nil
-	}
+	db, mock := newGormMock(t)
+	mock.ExpectQuery(selectAccountByRoleID).WithArgs(int64(10001), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"account_id", "role_id"}).AddRow("acc_123", 10001))
 
 	gxyactortest.StubOwnership(t)
-	r, subj := gxyactortest.Spawn(t, lib.ROLE_ACTOR_TYPE, NewRoleMain, int64(10001))
+	r, subj := gxyactortest.Spawn(t, lib.ROLE_ACTOR_TYPE, roleCtorWithDB(db), int64(10001))
 
 	fired := 0
 	r.Timer().AddTick("probe", time.Hour, func(context.Context) { fired++ })

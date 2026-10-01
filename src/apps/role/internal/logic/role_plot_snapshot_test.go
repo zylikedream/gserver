@@ -1,6 +1,6 @@
 package logic
 
-// rolePlotSnapshot Redis 存储测试:miniredis 注入惰性闭包,验证序列化往返与未命中。
+// 地块快照缓存测试:注入 miniredis,验证序列化往返、克隆与过期。
 
 import (
 	"context"
@@ -13,30 +13,27 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func newSnapshotStoreWithMiniRedis(t *testing.T) (redisRolePlotSnapshotStore, *miniredis.Miniredis) {
+func newSnapshotCache(t *testing.T) (gxyredis.Client, *miniredis.Miniredis) {
 	t.Helper()
 	srv := miniredis.RunT(t)
 	cli := redis.NewClient(&redis.Options{Addr: srv.Addr()})
 	t.Cleanup(func() { _ = cli.Close() })
-	store := redisRolePlotSnapshotStore{
-		redis: func() gxyredis.Client { return cli },
-	}
-	return store, srv
+	return gxyredis.Client(cli), srv
 }
 
 func TestRolePlotSnapshotStore_RoundTrip(t *testing.T) {
-	store, _ := newSnapshotStoreWithMiniRedis(t)
+	cli, _ := newSnapshotCache(t)
 	ctx := context.Background()
 
 	plots := PlotMap{
 		1: &PlotData{FlowerID: 101, State: 2},
 		2: &PlotData{FlowerID: 102, State: 1},
 	}
-	if err := store.Set(ctx, 1001, plots); err != nil {
+	if err := setRolePlotSnapshot(ctx, cli, 1001, plots); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 
-	got, ok := store.Get(ctx, 1001)
+	got, ok := getRolePlotSnapshotFromCache(ctx, cli, 1001)
 	if !ok {
 		t.Fatal("expected hit after set")
 	}
@@ -52,18 +49,18 @@ func TestRolePlotSnapshotStore_RoundTrip(t *testing.T) {
 }
 
 func TestRolePlotSnapshotStore_CloneOnSet(t *testing.T) {
-	store, _ := newSnapshotStoreWithMiniRedis(t)
+	cli, _ := newSnapshotCache(t)
 	ctx := context.Background()
 
 	plots := PlotMap{1: &PlotData{FlowerID: 101, State: 1}}
-	if err := store.Set(ctx, 1001, plots); err != nil {
+	if err := setRolePlotSnapshot(ctx, cli, 1001, plots); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 	// 修改原 map,不应影响已存快照
 	plots[1].State = 99
 	delete(plots, 1)
 
-	got, ok := store.Get(ctx, 1001)
+	got, ok := getRolePlotSnapshotFromCache(ctx, cli, 1001)
 	if !ok {
 		t.Fatal("expected hit")
 	}
@@ -73,25 +70,25 @@ func TestRolePlotSnapshotStore_CloneOnSet(t *testing.T) {
 }
 
 func TestRolePlotSnapshotStore_Miss(t *testing.T) {
-	store, _ := newSnapshotStoreWithMiniRedis(t)
+	cli, _ := newSnapshotCache(t)
 	ctx := context.Background()
 
-	if _, ok := store.Get(ctx, 9999); ok {
+	if _, ok := getRolePlotSnapshotFromCache(ctx, cli, 9999); ok {
 		t.Fatal("expected miss for unknown roleID")
 	}
 }
 
 func TestRolePlotSnapshotStore_Expire(t *testing.T) {
-	store, srv := newSnapshotStoreWithMiniRedis(t)
+	cli, srv := newSnapshotCache(t)
 	ctx := context.Background()
 
-	if err := store.Set(ctx, 1001, PlotMap{1: &PlotData{FlowerID: 101}}); err != nil {
+	if err := setRolePlotSnapshot(ctx, cli, 1001, PlotMap{1: &PlotData{FlowerID: 101}}); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 	// 模拟过期
 	srv.FastForward(RolePlotSnapshotCacheExpire + time.Second)
 
-	if _, ok := store.Get(ctx, 1001); ok {
+	if _, ok := getRolePlotSnapshotFromCache(ctx, cli, 1001); ok {
 		t.Fatal("expected miss after expire")
 	}
 }

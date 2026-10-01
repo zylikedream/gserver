@@ -67,6 +67,10 @@ jobs:
       - name: Client boundary check
         run: make check-client-boundary
 
+      # 测试写入口:生产代码不得为测试留可写入口
+      - name: Test seam check
+        run: make check-test-seam
+
       - name: Build
         run: make build
 

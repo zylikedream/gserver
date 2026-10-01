@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"gserver/core/gxyactor"
 	"gserver/core/gxylimit"
 	"gserver/core/gxymetrics"
 
@@ -555,36 +556,20 @@ func TestLoginLimiterConstructorUsesProductionBucketWithoutRefund(t *testing.T) 
 	}
 }
 
-func TestLoginLimiterPackageStateFailsClosed(t *testing.T) {
+// 未注入限流器时会话必须干净拒绝登录,而不是崩掉: 缺省依赖的失败路径。
+func TestSessionUnconfiguredLimiterFailsClosed(t *testing.T) {
 	resetLoginGauges(t)
-	restore := swapLoginAcquirer(unconfiguredLoginAcquirer{})
-	t.Cleanup(restore)
+	d := SessionDeps{Sessions: gxyactor.NewActorMgr("session_mgr_test")}.withDefaults()
 
-	permit, err := currentLoginAcquirer.acquire(context.Background())
+	permit, err := d.Login.acquire(context.Background())
 	if permit != nil {
-		t.Fatal("unconfigured package state returned a permit")
+		t.Fatal("unconfigured dependencies returned a permit")
 	}
 	if !errors.Is(err, ErrLoginLimiterUnconfigured) {
-		t.Fatalf("unconfigured package state error = %v, want ErrLoginLimiterUnconfigured", err)
+		t.Fatalf("unconfigured acquire error = %v, want ErrLoginLimiterUnconfigured", err)
 	}
-
-	config := validLimiterConfig()
-	config.Enabled = false
-	limiter := newLoginLimiter(config, nil, unexpectedLoginTimer, fixedLoginNow)
-	SetLoginLimiter(limiter)
-	permit, err = currentLoginAcquirer.acquire(context.Background())
-	if err != nil {
-		t.Fatalf("configured package state acquire: %v", err)
-	}
-	permit.Release()
-
-	SetLoginLimiter(nil)
-	permit, err = currentLoginAcquirer.acquire(context.Background())
-	if permit != nil {
-		t.Fatal("nil-reset package state returned a permit")
-	}
-	if !errors.Is(err, ErrLoginLimiterUnconfigured) {
-		t.Fatalf("nil-reset package state error = %v, want ErrLoginLimiterUnconfigured", err)
+	if claims, err := d.VerifyToken("token"); err == nil {
+		t.Fatalf("unconfigured token verifier returned %+v, want rejection", claims)
 	}
 	assertLoginGauges(t, 0, 0)
 }

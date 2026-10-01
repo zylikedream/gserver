@@ -6,12 +6,19 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cockroachdb/errors"
-
 	gamecfg "gserver/gameconfig/gosrc"
 	"gserver/protocol/pb"
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/pkg/gameconfig"
+)
+
+// 面向客户端的邮件拒绝哨兵。
+var (
+	ErrMailNotFound       = clientRejection("mail not found")
+	ErrMailExpired        = clientRejection("mail expired")
+	ErrMailNoAttachments  = clientRejection("no attachments")
+	ErrMailAlreadyClaimed = clientRejection("already claimed")
+	ErrMailUnclaimed      = clientRejection("claim attachments before delete")
 )
 
 // PersonalMailItem 个人邮件内容，状态保存在 RoleMailState.States。
@@ -97,10 +104,8 @@ func (r *RoleMail) AfterLogin(ctx context.Context) {
 	}
 }
 
-// refreshMailCache 可替换函数变量:测试可拦截刷新(编译期安全)。
-var refreshMailCache = defaultRefreshMailCache
-
-func defaultRefreshMailCache(r *RoleMail, ctx context.Context) error {
+// refreshMailCache 读库+写缓存重建邮件视图。
+func (r *RoleMail) refreshMailCache(ctx context.Context) error {
 	roleID := r.RoleID
 	if r.state.States == nil {
 		r.state.States = make(MailStateMap)
@@ -142,7 +147,7 @@ func defaultRefreshMailCache(r *RoleMail, ctx context.Context) error {
 }
 
 func (r *RoleMail) RefreshMailCache(ctx context.Context) error {
-	return refreshMailCache(r, ctx)
+	return r.refreshMailCache(ctx)
 }
 
 func (r *RoleMail) OnCreate(ctx context.Context) {}
@@ -357,7 +362,7 @@ func (r *RoleMail) ReqMailList(ctx context.Context, req *pb.ReqMailList) (*pb.Rs
 func (r *RoleMail) ReqMailRead(ctx context.Context, req *pb.ReqMailRead) (*pb.RspMailDetail, error) {
 	mail := r.findMail(req.MailId)
 	if mail == nil {
-		return nil, errors.New("mail not found")
+		return nil, ErrMailNotFound
 	}
 
 	if !mail.IsRead {
@@ -373,16 +378,16 @@ func (r *RoleMail) ReqMailRead(ctx context.Context, req *pb.ReqMailRead) (*pb.Rs
 func (r *RoleMail) ReqMailClaim(ctx context.Context, req *pb.ReqMailClaim) (*pb.RspMailClaim, error) {
 	mail := r.findMail(req.MailId)
 	if mail == nil {
-		return nil, errors.New("mail not found")
+		return nil, ErrMailNotFound
 	}
 	if mail.ExpireAt > 0 && mail.ExpireAt < time.Now().Unix() {
-		return nil, errors.New("mail expired")
+		return nil, ErrMailExpired
 	}
 	if len(mail.Attachments) == 0 {
-		return nil, errors.New("no attachments")
+		return nil, ErrMailNoAttachments
 	}
 	if mail.IsClaimed {
-		return nil, errors.New("already claimed")
+		return nil, ErrMailAlreadyClaimed
 	}
 
 	goods := make([]*gamecfg.GardenGoodStack, 0, len(mail.Attachments))
@@ -451,11 +456,11 @@ func (r *RoleMail) ReqMailClaimAll(ctx context.Context, req *pb.ReqMailClaimAll)
 func (r *RoleMail) ReqMailDelete(ctx context.Context, req *pb.ReqMailDelete) (*pb.RspMailDelete, error) {
 	mail := r.findMail(req.MailId)
 	if mail == nil {
-		return nil, errors.New("mail not found")
+		return nil, ErrMailNotFound
 	}
 	if len(mail.Attachments) > 0 && !mail.IsClaimed {
 		if !r.Cfg().TbMailConfig.Get().AllowDeleteUnclaimed {
-			return nil, errors.New("claim attachments before delete")
+			return nil, ErrMailUnclaimed
 		}
 	}
 

@@ -14,12 +14,12 @@ import (
 )
 
 var (
-	ErrPlotLocked      = errors.New("plot not unlocked")
-	ErrPlotNotEmpty    = errors.New("plot is not empty")
-	ErrPlotNotPlanted  = errors.New("plot is not planted")
-	ErrPlotNotGrowing  = errors.New("plot is not growing")
-	ErrPlotNotReady    = errors.New("plot not ready for harvest")
-	ErrPlotHarvestable = errors.New("plot is harvestable, harvest first")
+	ErrPlotLocked      = clientRejection("plot not unlocked")
+	ErrPlotNotEmpty    = clientRejection("plot is not empty")
+	ErrPlotNotPlanted  = clientRejection("plot is not planted")
+	ErrPlotNotGrowing  = clientRejection("plot is not growing")
+	ErrPlotNotReady    = clientRejection("plot not ready for harvest")
+	ErrPlotHarvestable = clientRejection("plot is harvestable, harvest first")
 )
 
 // ========== 数据模型 ==========
@@ -75,7 +75,7 @@ func (r *RolePlot) OnCreate(ctx context.Context) {
 
 func (r *RolePlot) refreshPlot(ctx context.Context) error {
 	r.MarkDirty()
-	publishRolePlotSnapshot(ctx, r.RoleID, r.Plots)
+	publishRolePlotSnapshot(ctx, r.Redis(), r.RoleID, r.Plots)
 	return nil
 }
 
@@ -89,7 +89,7 @@ func (r *RolePlot) UnlockPlot(plotID int32) {
 }
 
 func (r *RolePlot) AfterLogin(ctx context.Context) {
-	publishRolePlotSnapshot(ctx, r.RoleID, r.Plots)
+	publishRolePlotSnapshot(ctx, r.Redis(), r.RoleID, r.Plots)
 }
 
 // ========== 辅助方法 ==========
@@ -259,7 +259,7 @@ type harvestResult struct {
 
 func (r *RolePlot) ReqPlotHarvest(ctx context.Context, req *pb.ReqPlotHarvest) (*pb.RspPlotHarvest, error) {
 	var rsp *pb.RspPlotHarvest
-	err := withPlotLocks(ctx, r.RoleID, req.PlotIds, func() error {
+	err := r.withPlotLocks(ctx, r.RoleID, req.PlotIds, func() error {
 		now := time.Now()
 		if err := r.validateHarvestable(req.PlotIds, now); err != nil {
 			return err
@@ -320,7 +320,7 @@ func (r *RolePlot) computeHarvest(ctx context.Context, plotIDs []int32) (harvest
 			finalNum += levelCfg.HarvestNumAdd
 		}
 
-		stolenCount, _ := countPlotStolen(ctx, r.DB(), r.RoleID, plotID)
+		stolenCount, _ := r.countPlotStolen(ctx, r.RoleID, plotID)
 		minKeep := r.Cfg().TbFriendConfig.Get().OwnerMinKeepNum
 		if int64(finalNum)-stolenCount > int64(minKeep) {
 			finalNum = finalNum - int32(stolenCount)
@@ -387,7 +387,7 @@ func (r *RolePlot) advancePlots(ctx context.Context, plotIDs []int32, now time.T
 			plot.State = int32(pb.PlotState_PLOT_EMPTY)
 			plot.HarvestCount = 0
 			plot.StateTime = time.Time{}
-			_ = deletePlotStealRecords(ctx, r.DB(), r.RoleID, plotID)
+			_ = r.deletePlotStealRecords(ctx, r.RoleID, plotID)
 			continue
 		}
 		finalInterval := flowerCfg.HarvestInterval

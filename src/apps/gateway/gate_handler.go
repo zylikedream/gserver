@@ -7,16 +7,18 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxynet/endpoint"
 	"gserver/core/gxynet/message"
+	"gserver/src/apps/gateway/internal/logic"
 
 	"github.com/cockroachdb/errors"
 )
 
 type GateHandler struct {
 	endpoint.BaseEventHandler
+	deps logic.SessionDeps
 }
 
-func NewGateHandler() *GateHandler {
-	return &GateHandler{}
+func NewGateHandler(deps logic.SessionDeps) *GateHandler {
+	return &GateHandler{deps: deps}
 }
 
 func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
@@ -25,7 +27,7 @@ func (gh *GateHandler) OnOpen(ep endpoint.Endpoint) error {
 	gxylog.Debug(ctx, "New connection", gxylog.Str("connID", connID))
 
 	// 通过SessionManager创建Session Actor
-	sessPid, err := spawnSession(ep)
+	sessPid, err := spawnSession(ep, gh.deps)
 	if err != nil {
 		gxylog.Error(ctx, "Failed to create session for %s", gxylog.Str("connID", connID), gxylog.Err(err))
 		_ = ep.Conn().Close()
@@ -49,11 +51,15 @@ func (gh *GateHandler) OnMessage(ep endpoint.Endpoint, msg *message.Message) err
 
 func (gh *GateHandler) OnClose(ep endpoint.Endpoint, err error) {
 	sessPid, ok := ep.GetData().(gxyactor.PID)
-	if ok && !gxyactor.PIDIsZero(sessPid) {
-		reason := "noraml"
-		if err != nil {
-			reason = err.Error()
-		}
-		_ = stopSession(sessPid, errors.Newf("conn closed: %s", reason))
+	if !ok || gxyactor.PIDIsZero(sessPid) {
+		return
 	}
+	// err=nil 即客户端干净断开,这是最常见的一条下线路径。此处不编造原因:
+	// 终止原因会一路上到运行时,非空的原因会让运行时把每次正常下线记成
+	// "process terminated abnormally" 的 error(见 stopSession)。
+	if err == nil {
+		_ = stopSession(sessPid, nil)
+		return
+	}
+	_ = stopSession(sessPid, errors.Wrap(err, "conn closed"))
 }

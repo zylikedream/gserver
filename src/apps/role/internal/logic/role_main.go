@@ -50,13 +50,26 @@ const (
 	SESSION_ALIVE_CHECK_TICK_NAME = "check_session_alive"
 )
 
+// logClientProtocolError 记录一次客户端协议处理失败。
+//
+// 分级按"这是不是预期内的拒绝"分两类:
+//   - 预期拒绝(见 clientRejection):玩家发了当前不满足条件的请求,是协议的正常
+//     结局。只记一条摘要,且不带栈——这类消息量级随玩家误操作走,带栈会把日志
+//     淹掉,error 级别也会让告警失去意义。
+//   - 其它失败:可能是服务端自身的问题(配置、依赖、数据),必须 error + 完整栈。
 func logClientProtocolError(ctx context.Context, roleID int64, msgID, msgName string, err error) {
-	gxylog.Error(ctx, "handle client protocol failed",
+	fields := []gxylog.Field{
 		gxylog.Str("msg_id", msgID),
 		gxylog.Str("msg_name", msgName),
 		gxylog.Num("role_id", roleID),
-		gxylog.Err(err),
-	)
+	}
+	if isClientRejection(err) {
+		gxylog.Info(ctx, "client request rejected",
+			append(fields, gxylog.Str("reason", err.Error()))...)
+		return
+	}
+	gxylog.Error(ctx, "handle client protocol failed",
+		append(fields, gxylog.Err(err))...)
 }
 
 type RoleState int32
@@ -134,7 +147,7 @@ func (r *RoleMain) Init(args ...any) error {
 	r.SetLogValue(gxylog.CONTEXT_KEY_ROLE_ID, r.RoleID)
 
 	// 账号存在性校验留在同步段:它决定该 role 是否可激活。
-	accountID, err := lookupAccountIDByRoleID(ctx, r.RoleID)
+	accountID, err := r.lookupAccountIDByRoleID(ctx)
 	if err != nil {
 		return err
 	}
@@ -471,10 +484,7 @@ func (r *RoleMain) TickSave(ctx context.Context) {
 	}
 }
 
-// saveRoleModule 可替换函数变量:测试可拦截保存(编译期安全)。
-var saveRoleModule = defaultSaveRoleModule
-
-func defaultSaveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
+func saveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
 	modState := rmod.PersistState()
 	if modState == nil || !modState.IsDirty() {
 		return nil
@@ -577,10 +587,9 @@ func roleModuleDirty(rmod IRoleModule) bool {
 	return modState != nil && modState.IsDirty()
 }
 
-// sendClient 可替换函数变量:测试可捕获/拦截客户端消息(编译期安全,非 gomonkey 打桩)。
-var sendClient = defaultSendClient
-
-func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
+// SendClient 把消息发给该 role 的客户端会话。发送本身落在运行时边界上:
+// 测试用 actor 测试基座断言"发了什么",不给生产留接缝。
+func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
 	if gxyactor.PIDIsZero(r.session) {
 		return
 	}
@@ -590,10 +599,6 @@ func defaultSendClient(r *RoleMain, ctx context.Context, msg proto.Message) {
 		return
 	}
 	_ = r.SendTo(r.session, svrMsg)
-}
-
-func (r *RoleMain) SendClient(ctx context.Context, msg proto.Message) {
-	sendClient(r, ctx, msg)
 }
 
 func (r *RoleMain) PublishRoleEvent(ctx context.Context, eventType event.EventType, data any) {

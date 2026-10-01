@@ -26,7 +26,7 @@ func (s stubSigner) Sign(claims *gatetoken.Claims) (string, error) {
 	return fmt.Sprintf("token-for-%s", claims.AccountID), nil
 }
 
-func (s stubSigner) Verify(token string) (*gatetoken.Claims, error) {
+func (s stubSigner) Verify(token string, _ time.Time) (*gatetoken.Claims, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -44,27 +44,14 @@ func (s *capturingSigner) Sign(claims *gatetoken.Claims) (string, error) {
 	return s.token, nil
 }
 
-func (s *capturingSigner) Verify(string) (*gatetoken.Claims, error) {
+func (s *capturingSigner) Verify(string, time.Time) (*gatetoken.Claims, error) {
 	return nil, errors.New("not implemented")
 }
 
-func swapIDGenerators(t *testing.T, accountID string, roleID int64) {
-	t.Helper()
-	oldAccountID := generateAccountID
-	oldRoleID := generateRoleID
-	generateAccountID = func() (string, error) { return accountID, nil }
-	generateRoleID = func() (int64, error) { return roleID, nil }
-	t.Cleanup(func() {
-		generateAccountID = oldAccountID
-		generateRoleID = oldRoleID
-	})
-}
-
 func TestCreateAccountWithIdentityCreatesFirstLogin(t *testing.T) {
-	swapAccountStore(t, newInMemoryAccountStore())
-	swapIDGenerators(t, "acc_1001", 10001)
+	svc := newTestService(newInMemoryAccountStore())
 
-	account, isNew, err := CreateAccountWithIdentity(context.Background(), "guest", "u_1001")
+	account, isNew, err := svc.CreateAccountWithIdentity(context.Background(), "guest", "u_1001")
 	if err != nil {
 		t.Fatalf("create account with identity failed: %v", err)
 	}
@@ -78,15 +65,14 @@ func TestCreateAccountWithIdentityCreatesFirstLogin(t *testing.T) {
 
 func TestCreateAccountWithIdentityReturnsExistingRecord(t *testing.T) {
 	store := newInMemoryAccountStore()
-	swapAccountStore(t, store)
-	swapIDGenerators(t, "acc_1002", 10002)
+	svc := newTestService(store)
 
-	first, _, err := CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
+	first, _, err := svc.CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
 	if err != nil {
 		t.Fatalf("initial create failed: %v", err)
 	}
 
-	second, isNew, err := CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
+	second, isNew, err := svc.CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
 	if err != nil {
 		t.Fatalf("second load failed: %v", err)
 	}
@@ -99,8 +85,7 @@ func TestCreateAccountWithIdentityReturnsExistingRecord(t *testing.T) {
 }
 
 func TestBuildPreloginResponseRejectsOldVersion(t *testing.T) {
-	swapAccountStore(t, newInMemoryAccountStore())
-	swapIDGenerators(t, "acc_2001", 20001)
+	svc := newTestService(newInMemoryAccountStore())
 
 	cfg := PreloginConfig{
 		MinVersion:    "1.2.0",
@@ -111,18 +96,16 @@ func TestBuildPreloginResponseRejectsOldVersion(t *testing.T) {
 		TokenTTL:      5 * time.Minute,
 		Issuer:        "account-service",
 	}
-	_, err := BuildPreloginResponse(context.Background(), cfg, stubSigner{}, "guest", "u_2001", "1.0.0")
+	_, err := svc.BuildPreloginResponse(context.Background(), cfg, stubSigner{}, "guest", "u_2001", "1.0.0")
 	if err == nil {
 		t.Fatalf("expected version validation error")
 	}
 }
 
 func TestBuildPreloginResponseReturnsGateAndToken(t *testing.T) {
-	swapAccountStore(t, newInMemoryAccountStore())
-	swapIDGenerators(t, "acc_2002", 20002)
+	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
-	preloginTimeNow = func() time.Time { return now }
-	defer func() { preloginTimeNow = time.Now }()
+	svc.clock = func() time.Time { return now }
 
 	cfg := PreloginConfig{
 		MinVersion:    "1.0.0",
@@ -133,24 +116,22 @@ func TestBuildPreloginResponseReturnsGateAndToken(t *testing.T) {
 		TokenTTL:      5 * time.Minute,
 		Issuer:        "account-service",
 	}
-	rsp, err := BuildPreloginResponse(context.Background(), cfg, stubSigner{token: "signed-token"}, "guest", "u_2002", "1.0.0")
+	rsp, err := svc.BuildPreloginResponse(context.Background(), cfg, stubSigner{token: "signed-token"}, "guest", "u_2002", "1.0.0")
 	if err != nil {
 		t.Fatalf("build response failed: %v", err)
 	}
 	if rsp.Gate.Host != "gate.example.com" || rsp.Gate.Port != 20001 || rsp.GateToken != "signed-token" {
 		t.Fatalf("unexpected response: %+v", rsp)
 	}
-	if !rsp.IsNewRole || rsp.AccountID != "acc_2002" || rsp.RoleID != 20002 {
+	if !rsp.IsNewRole || rsp.AccountID != "acc-test-1" || rsp.RoleID != 10001 {
 		t.Fatalf("unexpected identity payload: %+v", rsp)
 	}
 }
 
 func TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond(t *testing.T) {
-	swapAccountStore(t, newInMemoryAccountStore())
-	swapIDGenerators(t, "acc_2003", 20003)
+	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
-	preloginTimeNow = func() time.Time { return now }
-	defer func() { preloginTimeNow = time.Now }()
+	svc.clock = func() time.Time { return now }
 
 	cfg := PreloginConfig{
 		MinVersion:    "1.0.0",
@@ -161,7 +142,7 @@ func TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond(t *testing.T) {
 		TokenTTL:      500 * time.Millisecond,
 		Issuer:        "account-service",
 	}
-	rsp, err := BuildPreloginResponse(context.Background(), cfg, stubSigner{token: "signed-token"}, "guest", "u_2003", "1.0.0")
+	rsp, err := svc.BuildPreloginResponse(context.Background(), cfg, stubSigner{token: "signed-token"}, "guest", "u_2003", "1.0.0")
 	if err != nil {
 		t.Fatalf("build response failed: %v", err)
 	}
@@ -171,13 +152,12 @@ func TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond(t *testing.T) {
 }
 
 func TestAccountHandlerPreloginReturnsPayload(t *testing.T) {
-	swapAccountStore(t, newInMemoryAccountStore())
-	swapIDGenerators(t, "acc_3001", 30001)
+	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
-	preloginTimeNow = func() time.Time { return now }
-	defer func() { preloginTimeNow = time.Now }()
+	svc.clock = func() time.Time { return now }
 
 	handler := &AccountHandler{
+		Service: svc,
 		Config: PreloginConfig{
 			MinVersion:    "1.0.0",
 			LatestVersion: "1.0.0",
@@ -202,18 +182,15 @@ func TestAccountHandlerPreloginReturnsPayload(t *testing.T) {
 	if !ok {
 		t.Fatalf("unexpected handler response type: %T", resp)
 	}
-	if payload.AccountID != "acc_3001" || payload.GateToken != "signed-token" {
+	if payload.AccountID != "acc-test-1" || payload.GateToken != "signed-token" {
 		t.Fatalf("unexpected payload: %+v", payload)
 	}
 }
 
 func TestBuildPreloginResponseSignsCompleteClaims(t *testing.T) {
-	swapAccountStore(t, newInMemoryAccountStore())
-	swapIDGenerators(t, "acc-claims", 40001)
+	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
-	oldTimeNow := preloginTimeNow
-	preloginTimeNow = func() time.Time { return now }
-	t.Cleanup(func() { preloginTimeNow = oldTimeNow })
+	svc.clock = func() time.Time { return now }
 	signer := &capturingSigner{token: "claims-token"}
 	cfg := PreloginConfig{
 		MinVersion:    "1.2.0",
@@ -225,15 +202,15 @@ func TestBuildPreloginResponseSignsCompleteClaims(t *testing.T) {
 		Issuer:        "account-service",
 	}
 
-	rsp, err := BuildPreloginResponse(context.Background(), cfg, signer, "guest", "uid-claims", "1.3.0")
+	rsp, err := svc.BuildPreloginResponse(context.Background(), cfg, signer, "guest", "uid-claims", "1.3.0")
 	if err != nil {
 		t.Fatalf("build response: %v", err)
 	}
 	if signer.claims == nil {
 		t.Fatal("signer did not receive claims")
 	}
-	if signer.claims.AccountID != "acc-claims" ||
-		signer.claims.RoleID != 40001 ||
+	if signer.claims.AccountID != "acc-test-1" ||
+		signer.claims.RoleID != 10001 ||
 		signer.claims.Platform != "guest" ||
 		signer.claims.Env != "staging" ||
 		signer.claims.Issuer != "account-service" ||
@@ -254,11 +231,10 @@ func TestBuildPreloginResponseSignsCompleteClaims(t *testing.T) {
 }
 
 func TestBuildPreloginResponsePropagatesSignerError(t *testing.T) {
-	swapAccountStore(t, newInMemoryAccountStore())
-	swapIDGenerators(t, "acc-sign-error", 40002)
+	svc := newTestService(newInMemoryAccountStore())
 	signErr := errors.New("signer unavailable")
 
-	rsp, err := BuildPreloginResponse(context.Background(), PreloginConfig{
+	rsp, err := svc.BuildPreloginResponse(context.Background(), PreloginConfig{
 		TokenTTL: time.Minute,
 	}, stubSigner{err: signErr}, "guest", "uid-sign-error", "")
 	if !errors.Is(err, signErr) || rsp != nil {

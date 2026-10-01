@@ -38,7 +38,7 @@ func expectFindAccount(mock sqlmock.Sqlmock, platform string, platformUID string
 func TestGormAccountStoreFindAccountByIdentity(t *testing.T) {
 	t.Run("existing account", func(t *testing.T) {
 		db, mock := newAccountMockDB(t)
-		store := gormAccountStore{db: func() *gorm.DB { return db }}
+		store := gormAccountStore{db: db}
 		expectFindAccount(mock, "guest", "uid-1", accountRow("acc-1", 100001))
 
 		account, err := store.FindAccountByIdentity(context.Background(), "guest", "uid-1")
@@ -55,7 +55,7 @@ func TestGormAccountStoreFindAccountByIdentity(t *testing.T) {
 
 	t.Run("missing account", func(t *testing.T) {
 		db, mock := newAccountMockDB(t)
-		store := gormAccountStore{db: func() *gorm.DB { return db }}
+		store := gormAccountStore{db: db}
 		expectFindAccount(mock, "guest", "missing", sqlmock.NewRows([]string{"account_id", "role_id", "created_at", "updated_at"}))
 
 		account, err := store.FindAccountByIdentity(context.Background(), "guest", "missing")
@@ -72,7 +72,7 @@ func TestGormAccountStoreFindAccountByIdentity(t *testing.T) {
 
 	t.Run("database error", func(t *testing.T) {
 		db, mock := newAccountMockDB(t)
-		store := gormAccountStore{db: func() *gorm.DB { return db }}
+		store := gormAccountStore{db: db}
 		dbErr := errors.New("database unavailable")
 		mock.ExpectQuery(`SELECT account\.\* FROM "account" JOIN account_identity`).
 			WithArgs("guest", "uid-2", 1).
@@ -88,25 +88,45 @@ func TestGormAccountStoreFindAccountByIdentity(t *testing.T) {
 	})
 }
 
-func TestGormAccountStoreCreateAccountWithIdentity(t *testing.T) {
+func TestGormAccountStoreCreateAccount(t *testing.T) {
+	const selectNextval = `SELECT nextval\(\$1::regclass\)`
+
 	t.Run("commits both records", func(t *testing.T) {
 		db, mock := newAccountMockDB(t)
-		store := gormAccountStore{db: func() *gorm.DB { return db }}
+		store := gormAccountStore{db: db}
 		mock.ExpectBegin()
+		mock.ExpectQuery(selectNextval).WithArgs("uid_role_seq").
+			WillReturnRows(sqlmock.NewRows([]string{"nextval"}).AddRow(100001))
 		mock.ExpectExec(`INSERT INTO "account"`).
-			WithArgs("acc-1", int64(100001), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), int64(100001), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec(`INSERT INTO "account_identity"`).
-			WithArgs("guest", "uid-1", "acc-1", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs("guest", "uid-1", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
-		err := store.CreateAccountWithIdentity(context.Background(),
-			&Account{AccountID: "acc-1", RoleID: 100001},
-			&AccountIdentity{Platform: "guest", PlatformUID: "uid-1", AccountID: "acc-1"},
-		)
+		account, err := store.CreateAccount(context.Background(), "guest", "uid-1")
 		if err != nil {
-			t.Fatalf("create account with identity: %v", err)
+			t.Fatalf("create account: %v", err)
+		}
+		if account.RoleID != 100001 || account.AccountID == "" {
+			t.Fatalf("unexpected account: %+v", account)
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("rolls back when nextval fails", func(t *testing.T) {
+		db, mock := newAccountMockDB(t)
+		store := gormAccountStore{db: db}
+		nextvalErr := errors.New("sequence unavailable")
+		mock.ExpectBegin()
+		mock.ExpectQuery(selectNextval).WithArgs("uid_role_seq").WillReturnError(nextvalErr)
+		mock.ExpectRollback()
+
+		if _, err := store.CreateAccount(context.Background(), "guest", "uid-2"); !errors.Is(err, nextvalErr) {
+			t.Fatalf("expected nextval error, got %v", err)
 		}
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Fatal(err)
@@ -115,22 +135,20 @@ func TestGormAccountStoreCreateAccountWithIdentity(t *testing.T) {
 
 	t.Run("rolls back when identity insert fails", func(t *testing.T) {
 		db, mock := newAccountMockDB(t)
-		store := gormAccountStore{db: func() *gorm.DB { return db }}
+		store := gormAccountStore{db: db}
 		identityErr := errors.New("identity insert failed")
 		mock.ExpectBegin()
+		mock.ExpectQuery(selectNextval).WithArgs("uid_role_seq").
+			WillReturnRows(sqlmock.NewRows([]string{"nextval"}).AddRow(100002))
 		mock.ExpectExec(`INSERT INTO "account"`).
-			WithArgs("acc-2", int64(100002), sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs(sqlmock.AnyArg(), int64(100002), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectExec(`INSERT INTO "account_identity"`).
-			WithArgs("guest", "uid-2", "acc-2", sqlmock.AnyArg(), sqlmock.AnyArg()).
+			WithArgs("guest", "uid-3", sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnError(identityErr)
 		mock.ExpectRollback()
 
-		err := store.CreateAccountWithIdentity(context.Background(),
-			&Account{AccountID: "acc-2", RoleID: 100002},
-			&AccountIdentity{Platform: "guest", PlatformUID: "uid-2", AccountID: "acc-2"},
-		)
-		if !errors.Is(err, identityErr) {
+		if _, err := store.CreateAccount(context.Background(), "guest", "uid-3"); !errors.Is(err, identityErr) {
 			t.Fatalf("expected identity insert error, got %v", err)
 		}
 		if err := mock.ExpectationsWereMet(); err != nil {

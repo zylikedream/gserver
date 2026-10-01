@@ -313,21 +313,21 @@ func (a *Actor) Call(pid PID, message any, timeout time.Duration) (any, error) {
 	return rsp, nil
 }
 
-// Watch 监视目标 actor;它终止时本 actor 会经 HandleDown 收到通知。
+// Monitor 监视目标 actor;它终止时本 actor 会经 HandleDown 收到通知。
 // 注意:该通知早于对端终止回调完成,不得作为"对端已落盘"的依据。
-func (a *Actor) Watch(pid PID) error {
+func (a *Actor) Monitor(pid PID) error {
 	target := pid.target()
 	if target == nil {
-		return gerror.New("watch on empty pid")
+		return gerror.New("monitor on empty pid")
 	}
 	return a.rt.Monitor(target)
 }
 
-// Unwatch 取消监视。
-func (a *Actor) Unwatch(pid PID) error {
+// Demonitor 取消监视。
+func (a *Actor) Demonitor(pid PID) error {
 	target := pid.target()
 	if target == nil {
-		return gerror.New("unwatch on empty pid")
+		return gerror.New("demonitor on empty pid")
 	}
 	return a.rt.Demonitor(target)
 }

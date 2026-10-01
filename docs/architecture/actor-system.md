@@ -78,7 +78,7 @@ func (g *GuildActor) Terminate(err error)                 // 终止路径：只�
 |---|---|
 | `SendTo(pid, msg)` | 异步发送（发送者是本 actor） |
 | `Call(pid, msg, timeout)` | 同步调用；**对端的业务失败已还原为 error**（见下） |
-| `Watch` / `Unwatch` | 监视目标进程终止（通知经 `HandleDown` 到达） |
+| `Monitor` / `Demonitor` | 监视目标进程终止（通知经 `HandleDown` 到达） |
 | `Stop(err)` / `StopRequested()` | 停止自身 |
 | `Timer()` | 定时器 |
 | `Sender()` / `Self()` / `Owner()` | 当前消息的发送者 / 自身地址 / 本次持有权 |
