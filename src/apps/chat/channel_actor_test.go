@@ -64,6 +64,9 @@ func expectChannelInsert(mock sqlmock.Sqlmock) {
 
 // ========== Init ==========
 
+// TestChannelActor_Init_Valid:入参 "1_100" 必须解析出 key{Type:1,ID:100},并留下可用的 ringBuffer。
+// 为什么需要:key 是频道 actor 的寻址基准,解析偏差会让后续所有消息被路由到错误的频道 actor。
+// 注意:helper 在 Init 之后把 a.channel/a.buffer 覆写为注入值,故 channel 非 nil 只反映注入,不证明 Init 解析出了 WORLD 频道。
 func TestChannelActor_Init_Valid(t *testing.T) {
 	a := newTestChannelActor(t, GuildChannel{})
 	if a.key.Type != 1 || a.key.ID != 100 {
@@ -77,6 +80,8 @@ func TestChannelActor_Init_Valid(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Init_NoArgs:无参调用必须返回错误。
+// 为什么需要:见 Init 首段注释——先占一份归属再回滚,会让一次注定失败的创建把所有权协调层搅进去。
 func TestChannelActor_Init_NoArgs(t *testing.T) {
 	a := NewChannelActor()
 	if err := a.Init(); err == nil {
@@ -84,6 +89,8 @@ func TestChannelActor_Init_NoArgs(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Init_InvalidFormat:"abc" 解析不出 type_id,Init 必须拒绝。
+// 为什么需要:放过它就会把一个 kind/id 全零的坏 actor 注册进集群,此后消息静默投递到"频道 0_0"。
 func TestChannelActor_Init_InvalidFormat(t *testing.T) {
 	a := NewChannelActor()
 	if err := a.Init("abc"); err == nil {
@@ -91,6 +98,8 @@ func TestChannelActor_Init_InvalidFormat(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Init_UnknownChannelType:"99_1" 解析成功但类型不在 channelRegistry,Init 必须报错。
+// 为什么需要:GetChannel 返回 !ok 时若继续执行,buffer 会挂在一个不存在的频道上,首次发消息就在 CanWrite 上空指针。
 func TestChannelActor_Init_UnknownChannelType(t *testing.T) {
 	a := NewChannelActor()
 	if err := a.Init("99_1"); err == nil {
@@ -100,6 +109,8 @@ func TestChannelActor_Init_UnknownChannelType(t *testing.T) {
 
 // ========== 成员注册/注销 ==========
 
+// TestChannelActor_Register_AddsMember:注册消息把 RoleID 记入 members,并盖上非零 JoinTime。
+// 为什么需要:members 就是 handleChannelSend 的广播名单,漏记则该玩家永远收不到频道推送,且没有任何报错。
 func TestChannelActor_Register_AddsMember(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	_, err := a.HandleMessage(&pb.ChannelRegisterMsg{
@@ -121,6 +132,8 @@ func TestChannelActor_Register_AddsMember(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Register_OverwriteExisting:同一 RoleID 重复注册必须幂等,members 仍只有 1 条。
+// 为什么需要:断线重连会让同一玩家注册两次;不幂等则广播名单翻倍,同一条消息被推送两遍。
 func TestChannelActor_Register_OverwriteExisting(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	msg := &pb.ChannelRegisterMsg{RoleId: 5, Pid: &pb.ActorPid{Name: "pid_old"}}
@@ -138,6 +151,8 @@ func TestChannelActor_Register_OverwriteExisting(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Unregister_RemovesMember:注销只摘掉对应 RoleID,其余成员原地保留。
+// 为什么需要:玩家断开/退会时只注销自己;误删整表会把还在线的玩家静默踢出频道推送。
 func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	reg := func(id int64) {
@@ -161,6 +176,8 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Unregister_LastMemberNoPanic:成员表清空后不 panic,落到 save + 30 分钟空闲回收定时器分支(WorldChannel 的 SaveInterval=0,save 直接早退)。
+// 为什么需要:这段分支跑在注销请求的同步栈上;panic 会带走整个 actor 及其内存 buffer,频道历史永久丢失。
 func TestChannelActor_Unregister_LastMemberNoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
@@ -178,6 +195,8 @@ func TestChannelActor_Unregister_LastMemberNoPanic(t *testing.T) {
 
 // ========== 消息发送 ==========
 
+// TestChannelActor_Send_EmptyContentRejected:空内容被 CanWrite 拒绝,不入 buffer,且 HandleMessage 仍返回 nil error。
+// 为什么需要:拒绝要按 invariants #9 走错误载荷应答;若漏判,空消息会被存盘并广播给全体成员。
 func TestChannelActor_Send_EmptyContentRejected(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	_, err := a.HandleMessage(&pb.ReqChannelSend{
@@ -191,6 +210,8 @@ func TestChannelActor_Send_EmptyContentRejected(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Send_AppendsToBuffer:合法消息入 buffer,PChatMsg 带 Content 与非零的秒级 Timestamp。
+// 为什么需要:Timestamp 由 actor 现场填充并作为落库排序依据,为 0 会让历史消息乱序。
 func TestChannelActor_Send_AppendsToBuffer(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	_, err := a.HandleMessage(&pb.ReqChannelSend{
@@ -208,6 +229,9 @@ func TestChannelActor_Send_AppendsToBuffer(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Send_WithMembersNoPanic:有成员在册时发送不 panic,消息照常入 buffer。
+// 为什么需要:成员循环里的 PublishRoleNotify 是显式忽略错误的,任何 panic 都会带走整个 actor 与其内存 buffer。
+// 注意:这里注册的 RoleID 为 0/-1,PublishRoleNotify 直接走 targetRoleID<=0 的 invalid 早退,owner 查找/notifyLocal/远端发布均未被触达。
 func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	// RoleID<=0: PublishRoleNotify 走 invalid 分支(不触达未初始化的全局 Redis),
@@ -232,6 +256,9 @@ func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 
 // ========== 历史记录 ==========
 
+// TestChannelActor_History_ReturnsBuffered:发 3 条后取最近 2 条,得到时间正序的 [m2,m3]。
+// 为什么需要:历史查询的语义就是"倒着裁剪的最近 N 条",顺序颠倒会让客户端时间线新旧错乱。
+// 注意:ReqChatChannelHistory 走的是 HandleCall,本测试发的是 HandleMessage(无该分支,静默 no-op),断言实际只落在 buffer.Recent(2) 本身。
 func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	send := func(content string) {
@@ -257,6 +284,9 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	}
 }
 
+// TestChannelActor_History_CountClamped:count 传 0/-1/100000 时请求不得报错或 panic。
+// 为什么需要:count 来自客户端,不 clamp 会让 Recent 按越界长度切片而 panic。
+// 注意:同 _History_ReturnsBuffered,此处发的是 HandleMessage,clamp 逻辑(位于 HandleCall)并未被执行。
 func TestChannelActor_History_CountClamped(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	if _, err := a.HandleMessage(&pb.ReqChannelSend{
@@ -343,7 +373,11 @@ func TestChannelActor_Save_DisabledChannelSkips(t *testing.T) {
 
 // ========== 生命周期 ==========
 
-// Init 对保存间隔>0 的频道应注册周期落盘定时器。
+// 注意:本测试并未验证 Init 注册了周期落盘定时器。生产 Init 确有
+// "SaveInterval()>0 则 AddTick(channel_save)"(channel_actor.go 的 Init 末段),
+// 但 newTestChannelActor 在 Init 解析完 a.channel/a.buffer **之后**又用测试频道覆盖了
+// a.channel,于是此处断言的只是注入常量的符号,恒为真。
+// 真正要测的是"定时器有没有被注册",那需要断言 Timer 状态,不是断言 SaveInterval()。
 func TestChannelActor_Init_WithSaveInterval(t *testing.T) {
 	a := newTestChannelActor(t, GuildChannel{})
 	if a.channel.SaveInterval() <= 0 {
@@ -351,7 +385,9 @@ func TestChannelActor_Init_WithSaveInterval(t *testing.T) {
 	}
 }
 
-// Init 对无保存间隔的频道不注册定时器,且不应出错。
+// 同 _WithSaveInterval:SaveInterval()==0 的分支(Init 不注册 channel_save 定时器)
+// 在这里同样没有被验证——helper 覆盖后该断言恒真。保留它是为了固定
+// WorldChannel 配置 SaveInterval 为 0 这一前置事实,不是测 Init。
 func TestChannelActor_Init_WithoutSaveInterval(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	if a.channel.SaveInterval() != 0 {
@@ -359,6 +395,9 @@ func TestChannelActor_Init_WithoutSaveInterval(t *testing.T) {
 	}
 }
 
+// TestChannelActor_Terminate_NoPanic:对零定时器、db 为 nil 的 actor 调 Terminate 不得 panic。
+// 为什么需要:Terminate 是 actor 停机路径,即使业务未初始化(如周期落盘定时器已随 actor
+// 一并销毁)也必须安全返回。panic 会让停机变成进程崩溃,而不是干净的模块停机。
 func TestChannelActor_Terminate_NoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	a.Terminate(nil)

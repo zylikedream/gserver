@@ -60,6 +60,12 @@ func swapRoleLimitConfig(config RoleLimitConfig) func() {
 	}
 }
 
+// TestLoadRoleLimitConfig: 严格解码契约——未知字段、缺失 default、rate/burst 非法
+// (≤0)、集合外模块名(含 RoleMain 本身)一律报错;未显式配置的模块继承 default,
+// 返回的 Modules 必须覆盖全部 14 个 roleModules 类型名。
+// 为什么需要: 返回值在启动时一次性注入包级 roleLimitConfig,消费方 (newRoleModuleGuard)
+// 直接按名字取桶,不做再校验;一个漏掉的模块名会让该模块**没有限流**而不是报错,
+// 一次刷接口就能打爆下游。disabled=true 不豁免数值校验,否则停用的模块能带着非法值上线。
 func TestLoadRoleLimitConfig(t *testing.T) {
 	baseDefault := "[role_limit.default]\nrate=10\nburst=20\n"
 	defaultPolicy := ModuleLimitPolicy{Rate: 10, Burst: 20}
@@ -194,6 +200,10 @@ func TestLoadRoleLimitConfig(t *testing.T) {
 	}
 }
 
+// TestLoadRoleLimitConfigRejectsNaNInfRate: rate 必须是正的有限数,NaN/±Inf 都要拒绝。
+// 为什么需要: 令牌桶按 rate 补令牌,NaN 代入 `tokens < 1` 恒为 false —— 桶会永远放行,
+// 该模块的限流彻底静默失效;+Inf 则让桶一次性补满,限流形同关闭。
+// TOML 无法表达这两个值,故走内存适配器(mapConfigAdapter),不能用 testRoleLimitConfigFile。
 func TestLoadRoleLimitConfigRejectsNaNInfRate(t *testing.T) {
 	for _, rate := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
 		cfg := testRoleLimitConfigMap(t, map[string]any{

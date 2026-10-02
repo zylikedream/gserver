@@ -14,6 +14,9 @@ import (
 // ========== ActorMgr ==========
 // ActorMgr 是通用的"id → 进程引用"登记表,gateway 用它跟踪在线会话。
 
+// TestActorMgr_AddAndGet: 登记表的核心往返——Add 写入的 PID,Get 必须按同一键原样取回同一身份。
+// 为什么需要: 未命中时 Get 静默返回零值 PID,消费方用 PIDIsZero 判定"查无此会话";
+// 取回失配会退化成同一条路径,把在线会话当成查无此会话而停止投递。
 func TestActorMgr_AddAndGet(t *testing.T) {
 	mgr := NewActorMgr("test")
 	pid := pidFromLocal(gen.PID{Node: "node1", ID: 1})
@@ -24,6 +27,9 @@ func TestActorMgr_AddAndGet(t *testing.T) {
 	}
 }
 
+// TestActorMgr_GetNotFound: 未注册的键必须回零值 PID(哨兵),不得残留上次值或 panic。
+// 为什么需要: 哨兵是"无会话"的唯一表达;返回脏值会让已下线的角色被当成在线,
+// 消息继续投给已销毁的 PID。
 func TestActorMgr_GetNotFound(t *testing.T) {
 	mgr := NewActorMgr("test")
 	if got := mgr.Get("missing"); !PIDIsZero(got) {
@@ -31,6 +37,9 @@ func TestActorMgr_GetNotFound(t *testing.T) {
 	}
 }
 
+// TestActorMgr_Remove: 会话终止后必须从表中摘净,Get 回零值 PID。
+// 为什么需要: 漏摘一条,OnlinePlayers 计数永久偏高,gateway 停机遍历 All 时
+// 还会对同一个已死 PID 重复调用 stopSession。
 func TestActorMgr_Remove(t *testing.T) {
 	mgr := NewActorMgr("test")
 	mgr.Add("id1", pidFromLocal(gen.PID{Node: "node1", ID: 1}))
@@ -40,6 +49,9 @@ func TestActorMgr_Remove(t *testing.T) {
 	}
 }
 
+// TestActorMgr_Count: Count 等于当前登记条数,随 Add 递增、随 Remove 递减。
+// 为什么需要: 会话建立与终止都把 Count 直接写进 OnlinePlayers 指标
+// (见 session.go),计错会静默错报在线人数,扩容判断随之失真。
 func TestActorMgr_Count(t *testing.T) {
 	mgr := NewActorMgr("test")
 	if mgr.Count() != 0 {
@@ -56,6 +68,10 @@ func TestActorMgr_Count(t *testing.T) {
 	}
 }
 
+// TestActorMgr_All: 返回当时登记的全部 PID 集合(本用例只断言条数)。
+// 为什么需要: gateway 停机靠 All 逐个 stopSession 关闭会话,漏一个就有连接活过停机。
+// 注意: All 用 make 新建切片返回副本,调用方遍历期间并发 Add/Remove 才安全,
+// 这个"副本"性质当前没有任何用例断言——All 改成返回底层视图不会让测试失败。
 func TestActorMgr_All(t *testing.T) {
 	mgr := NewActorMgr("test")
 	mgr.Add("a", pidFromLocal(gen.PID{Node: "n", ID: 1}))
@@ -65,6 +81,9 @@ func TestActorMgr_All(t *testing.T) {
 	}
 }
 
+// TestActorMgr_AllEmpty: 空表必须返回长度为 0 的切片,不 panic。
+// 为什么需要: 启动后从未有人登录的 gateway 停机时也要走完 All,
+// 这里是那条路径上唯一的边界。
 func TestActorMgr_AllEmpty(t *testing.T) {
 	mgr := NewActorMgr("test")
 	if all := mgr.All(); len(all) != 0 {
@@ -72,6 +91,9 @@ func TestActorMgr_AllEmpty(t *testing.T) {
 	}
 }
 
+// TestActorMgr_Overwrite: 同一键二次 Add 是替换而非追加:Count 仍为 1,Get 命中新 PID。
+// 为什么需要: 同一角色重连会复用同一个 RoleID 键;变成追加则旧 PID 仍留在表里,
+// 停机时被重复关闭,而当前在线的会话没有对应条目。
 func TestActorMgr_Overwrite(t *testing.T) {
 	mgr := NewActorMgr("test")
 	newPid := pidFromLocal(gen.PID{Node: "n2", ID: 9})
@@ -88,6 +110,10 @@ func TestActorMgr_Overwrite(t *testing.T) {
 // ========== PidEqual ==========
 // 进程标识是值类型:节点、序号、创建时刻三者共同决定身份。
 
+// TestPidEqual_Same: 节点、序号、创建时刻三者全同的本机引用即同一身份。
+// 为什么需要: PidEqual 是"是不是同一个会话/角色进程"的唯一判据,被 role 重复登录踢旧线
+// (role_main.go)、会话下线摘角色 (gateway session.go 的 HandleDown) 两处依赖;
+// 误判为不等 → 重复登录踢不掉旧连接,同一角色两条连接并存。
 func TestPidEqual_Same(t *testing.T) {
 	a := pidFromLocal(gen.PID{Node: "host", ID: 1, Creation: 100})
 	b := pidFromLocal(gen.PID{Node: "host", ID: 1, Creation: 100})
@@ -96,6 +122,9 @@ func TestPidEqual_Same(t *testing.T) {
 	}
 }
 
+// TestPidEqual_DifferentId: 序号不同即不同身份(同一节点上两个 actor 进程)。
+// 为什么需要: 同节点重启后序号会重用到旧值,只有连同创建时刻一起比才不误判;
+// 若序号被忽略,新进程会被当成旧进程仍在线,下线通知打不到正确对象。
 func TestPidEqual_DifferentId(t *testing.T) {
 	a := pidFromLocal(gen.PID{Node: "host", ID: 1})
 	b := pidFromLocal(gen.PID{Node: "host", ID: 2})
@@ -104,6 +133,9 @@ func TestPidEqual_DifferentId(t *testing.T) {
 	}
 }
 
+// TestPidEqual_DifferentHost: 节点名不同的本机引用不是同一身份,即便序号相同。
+// 为什么需要: 多节点部署时序号只在节点内唯一,漏比节点名会让另一台机器上的同序号
+// actor 被误认为同一个,下线/踢线动作打到别人的进程上。
 func TestPidEqual_DifferentHost(t *testing.T) {
 	a := pidFromLocal(gen.PID{Node: "host1", ID: 1})
 	b := pidFromLocal(gen.PID{Node: "host2", ID: 1})
@@ -121,18 +153,28 @@ func TestPidEqual_DifferentCreation(t *testing.T) {
 	}
 }
 
+// TestPidEqual_ZeroA: 零值 PID("尚无角色")与任何真实引用都不相等。
+// 为什么需要: gateway HandleDown 先比 PidEqual(pid, s.sessionInfo.RolePid) 再摘角色,
+// RolePid 为零(玩家还没进角色)时若判等,任何一次角色下线通知都会把尚未进角色的
+// 连接直接停掉。
 func TestPidEqual_ZeroA(t *testing.T) {
 	if PidEqual(PID{}, pidFromLocal(gen.PID{Node: "h", ID: 1})) {
 		t.Fatal("expected not equal with zero a")
 	}
 }
 
+// TestPidEqual_ZeroB: 同上,零值在任一侧结果一致——PidEqual 必须对称。
+// 为什么需要: 判据被两侧以不同参数顺序调用(HandleDown 与 role_main 相反),
+// 不对称时只有一侧会误判成相等,踢线行为随调用点而变,极难复现。
 func TestPidEqual_ZeroB(t *testing.T) {
 	if PidEqual(pidFromLocal(gen.PID{Node: "h", ID: 1}), PID{}) {
 		t.Fatal("expected not equal with zero b")
 	}
 }
 
+// TestPidEqual_BothZero: 两个零值相等,使"零 == 零"与"零 == 真实"的行为可预测。
+// 为什么需要: 依赖方靠零值相等来表示"本来就没有角色/会话",不需要额外分支;
+// 若改成不等,HandleDown 里"尚未绑定角色"的哨兵就失去了可比较的语义。
 func TestPidEqual_BothZero(t *testing.T) {
 	if !PidEqual(PID{}, PID{}) {
 		t.Fatal("expected equal for two zero pids")
