@@ -72,6 +72,9 @@ func publishHarvestablePlotSnapshot(cli gxyredis.Client, roleID int64) {
 	})
 }
 
+// TestReqPlotFriendInfoReadsSnapshot:好友地块列表与 CanSteal 只能来自好友发布的 Redis 快照,sqlmock 期望未被 DB 查询消耗。
+// 为什么需要:快照是刚收获完的实时状态。若改成直查 DB,CanSteal 会慢一次 flush,
+// 地块明明已收获仍显示可偷(点了报无货),或已偷过的地块仍显示可偷,导致重复偷取。
 func TestReqPlotFriendInfoReadsSnapshot(t *testing.T) {
 	steal, mock, _ := setupTestSteal(t)
 	friendID := int64(2002)
@@ -96,6 +99,9 @@ func TestReqPlotFriendInfoReadsSnapshot(t *testing.T) {
 	}
 }
 
+// TestReqPlotStealUsesPlotLock:偷取全程在 plotLockKey(owner,plot) 锁内完成写 steal_record,返回后锁键必须消失。
+// 为什么需要:锁把"校验可偷 + 写记录"变成临界区,是并发偷取不产生两条 steal_record 的唯一保障;
+// 返回后仍有残留锁键会让这块地再也无法被任何人偷。
 func TestReqPlotStealUsesPlotLock(t *testing.T) {
 	steal, mock, mr := setupTestSteal(t)
 	friendID := int64(2002)

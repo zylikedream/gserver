@@ -36,6 +36,8 @@ func scriptedBucketFactory(buckets map[int]*scriptedBucket) bucketFactory {
 	}
 }
 
+// TestRoleModuleGuardDisabledDoesNotConsumeToken:停用模块的 Check 必须返回 admissionDisabled 且零次调用桶——disabled 优先于令牌消费。
+// 为什么需要:停用模块若仍扣令牌,会白吃共享桶容量并把真正启用模块挤成 admissionLimited;桶在构造期就不为 disabled 模块创建,此处用脚本桶 calls==0 把该分支钉死。
 func TestRoleModuleGuardDisabledDoesNotConsumeToken(t *testing.T) {
 	config := testRoleLimitConfig()
 	policy := config.Modules["RoleFlower"]

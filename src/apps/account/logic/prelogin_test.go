@@ -48,6 +48,8 @@ func (s *capturingSigner) Verify(string, time.Time) (*gatetoken.Claims, error) {
 	return nil, errors.New("not implemented")
 }
 
+// TestCreateAccountWithIdentityCreatesFirstLogin:首次登录建号、isNew=true(只断言 id 非空,不断言具体值)。
+// 为什么需要:同包同助手的 account_model_test.go 版本更强(钉死 acc-test-1/10001),本条被其覆盖,合并时可删。
 func TestCreateAccountWithIdentityCreatesFirstLogin(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 
@@ -63,6 +65,8 @@ func TestCreateAccountWithIdentityCreatesFirstLogin(t *testing.T) {
 	}
 }
 
+// TestCreateAccountWithIdentityReturnsExistingRecord:二次登录复用既有账号、isNew=false。
+// 为什么需要:同包同助手的 account_model_test.go 版本更强,本条被其覆盖,合并时可删——重复测试不增加保护力。
 func TestCreateAccountWithIdentityReturnsExistingRecord(t *testing.T) {
 	store := newInMemoryAccountStore()
 	svc := newTestService(store)
@@ -84,6 +88,8 @@ func TestCreateAccountWithIdentityReturnsExistingRecord(t *testing.T) {
 	}
 }
 
+// TestBuildPreloginResponseRejectsOldVersion:版本低于 MinVersion 时必须先于建号与签发返回错误。
+// 为什么需要:校验排在 CreateAccountWithIdentity 之前;顺序一旦颠倒,老客户端已建出账号才被拒,留下垃圾号。
 func TestBuildPreloginResponseRejectsOldVersion(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 
@@ -102,6 +108,8 @@ func TestBuildPreloginResponseRejectsOldVersion(t *testing.T) {
 	}
 }
 
+// TestBuildPreloginResponseReturnsGateAndToken:响应必须给出 gate 地址、签发串与 account_id/role_id。
+// 为什么需要:客户端拿 gate_token 后要自行连网关并进入指定角色;缺字段是在握手后才暴露的失败,表现为连不上网关。
 func TestBuildPreloginResponseReturnsGateAndToken(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
@@ -128,6 +136,8 @@ func TestBuildPreloginResponseReturnsGateAndToken(t *testing.T) {
 	}
 }
 
+// TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond:ExpiresIn 对正 TTL 向上取整到秒(500ms → 1),是精度要求不是上限。
+// 为什么需要:向下截断会让客户端按更短的寿命丢 token 并反复重登,或让上报寿命短于服务端实际有效期。
 func TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
@@ -151,6 +161,8 @@ func TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond(t *testing.T) {
 	}
 }
 
+// TestAccountHandlerPreloginReturnsPayload:handler 只做转发,返回的具体类型必须是 *PreloginResponse 且字段不丢。
+// 为什么需要:网关按类型断言取字段;改成接口/零值后客户端拿到空 token,编译期没有任何信号。
 func TestAccountHandlerPreloginReturnsPayload(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
@@ -187,6 +199,8 @@ func TestAccountHandlerPreloginReturnsPayload(t *testing.T) {
 	}
 }
 
+// TestBuildPreloginResponseSignsCompleteClaims:gate_token 必须带齐 account_id、role_id、platform、env、issuer、iat/exp。
+// 为什么需要:网关只认 token 里的 claims;少一个 claim 客户端就无法在握手后自行路由与判断环境,失败发生在登录之后。
 func TestBuildPreloginResponseSignsCompleteClaims(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 	now := time.Unix(1710000000, 0)
@@ -230,6 +244,8 @@ func TestBuildPreloginResponseSignsCompleteClaims(t *testing.T) {
 	}
 }
 
+// TestBuildPreloginResponsePropagatesSignerError:签名失败时返回 nil 响应并原样上浮 signer 的错误。
+// 为什么需要:返回无 GateToken 的半成品响应,客户端会拿空 token 去连网关,失败点离登录很远且难排查。
 func TestBuildPreloginResponsePropagatesSignerError(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 	signErr := errors.New("signer unavailable")
@@ -242,6 +258,8 @@ func TestBuildPreloginResponsePropagatesSignerError(t *testing.T) {
 	}
 }
 
+// TestValidateClientVersion:版本按数字段逐位比,缺位补 0——不是字符串比较。
+// 为什么需要:「equal with omitted trailing component」(1.2 vs 1.2.0)与「newer minor uses numeric comparison」(1.10.0 vs 1.2.0)两行承重:字符串比较会误拒前者、把 1.10.0 判成比 1.2.0 旧。
 func TestValidateClientVersion(t *testing.T) {
 	for _, test := range []struct {
 		name          string
@@ -268,6 +286,8 @@ func TestValidateClientVersion(t *testing.T) {
 	}
 }
 
+// TestTTLSeconds:正 TTL 向上取整到秒(1ns→1、1s+1ns→2),非正 TTL 归 0。
+// 为什么需要:亚秒 TTL 若被截断成 0,客户端会以「token 已过期」处理刚拿到的凭据,登录后立刻失效并反复重登。
 func TestTTLSeconds(t *testing.T) {
 	for _, test := range []struct {
 		ttl  time.Duration

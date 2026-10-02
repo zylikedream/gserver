@@ -34,6 +34,9 @@ func guildRows() *sqlmock.Rows {
 			time.Unix(1000, 0), time.Unix(1000, 0), 1)
 }
 
+// TestGuildActor_LoadFromDB:loadFromDB 必须把 members 这类 jsonb 列反序列化成
+// *GuildMember 切片,并只按主键取单行。为什么需要:addMember/canApprove/LeaveGuild
+// 全部在内存 Data 上判定;jsonb 反序列化一旦失效,公会不会报错,只会所有人静默变成"非成员"。
 func TestGuildActor_LoadFromDB(t *testing.T) {
 	gormDB, mock := newGuildDBMock(t)
 	g := &GuildActor{GuildID: 1, db: gormDB}
@@ -59,6 +62,9 @@ func TestGuildActor_LoadFromDB(t *testing.T) {
 	}
 }
 
+// TestGuildActor_LoadFromDB_NotFound:加载失败时 Data 必须保持 nil(赋值在 err 检查之后)。
+// 为什么需要:Terminate 无条件调用 save,而 save 只按 Data==nil 判空;若失败路径留下空
+// 对象,进程退出时就会把一条空公会行 UPDATE 回数据库,覆盖真实数据。
 func TestGuildActor_LoadFromDB_NotFound(t *testing.T) {
 	gormDB, mock := newGuildDBMock(t)
 	g := &GuildActor{GuildID: 999, db: gormDB}
@@ -77,6 +83,8 @@ func TestGuildActor_LoadFromDB_NotFound(t *testing.T) {
 	}
 }
 
+// TestGuildActor_Save:落盘必须是单事务的 UPDATE(不是 INSERT),由 TickSave/OnModStop 共用。
+// 为什么需要:改成 INSERT 会在重启后产生重复行;拆掉事务则中断时留下半写状态,内存与数据库静默分叉。
 func TestGuildActor_Save(t *testing.T) {
 	gormDB, mock := newGuildDBMock(t)
 	g := &GuildActor{
@@ -101,6 +109,9 @@ func TestGuildActor_Save(t *testing.T) {
 	}
 }
 
+// TestGuildActor_TerminatePersists:正常停止路径必须先落盘再由门面释放归属(不变量 #4)。
+// 为什么需要:省掉这次落盘时,进程收到的最后一段内存变更(职位/成员/日志)永久丢失,
+// 且没有任何报错——玩家只会看到公会状态莫名回退。
 func TestGuildActor_TerminatePersists(t *testing.T) {
 	// 走真实构造路径:验证终止路径确实接上了落盘。
 	g := NewGuildActor()
@@ -124,6 +135,9 @@ func TestGuildActor_TerminatePersists(t *testing.T) {
 	}
 }
 
+// TestGuildActor_Save_NilData:Data 为 nil 时 save 必须完全不发 SQL。
+// 为什么需要:这是 NotFound 那条不变量的执行点;没有它,加载失败的 actor 停止时会
+// 用空对象把数据库里的真实行覆盖成空行。
 func TestGuildActor_Save_NilData(t *testing.T) {
 	gormDB, mock := newGuildDBMock(t)
 	g := &GuildActor{GuildID: 1, db: gormDB, Data: nil}
