@@ -310,6 +310,7 @@ func Test_Registry_MultipleServices(t *testing.T) {
 }
 
 func Test_Registry_Options(t *testing.T) {
+	requireConsulIntegration(t)
 	gtest.C(t, func(t *gtest.T) {
 		// Test with custom address
 		registry1, err := New(WithAddress("localhost:8500"))

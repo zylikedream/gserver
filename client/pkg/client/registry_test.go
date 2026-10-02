@@ -56,12 +56,7 @@ func TestRegistryNewInstance(t *testing.T) {
 	if msg == nil {
 		t.Fatal("expected non-nil message for id 10001")
 	}
-	handshake, ok := msg.(*pb.ReqHandShake)
-	if !ok {
+	if _, ok := msg.(*pb.ReqHandShake); !ok {
 		t.Fatal("expected *pb.ReqHandShake")
-	}
-	handshake.GateToken = "test_token"
-	if handshake.GateToken != "test_token" {
-		t.Error("failed to set field on new instance")
 	}
 }

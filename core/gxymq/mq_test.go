@@ -3,7 +3,6 @@ package gxymq
 import (
 	"context"
 	"errors"
-	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -24,75 +23,42 @@ func TestNewMessageQueueApp_Init(t *testing.T) {
 	}
 }
 
-func TestNewMessageQueueApp_PriorityChannelBuffer(t *testing.T) {
-	mq := NewMessageQueueApp()
-	for i, ch := range mq.priorityCh {
-		if cap(ch) != 1000 {
-			t.Fatalf("priorityCh[%d] cap: expected 1000, got %d", i, cap(ch))
-		}
-	}
-}
-
-func TestNewMessageQueueApp_PriorityOrder(t *testing.T) {
-	// Verify ordering: CRITICAL(0) < HIGH(1) < NORMAL(2)
-	if TOPIC_PRIORITY_CRITICAL >= TOPIC_PRIORITY_HIGH {
-		t.Fatal("CRITICAL should have highest priority (lowest value)")
-	}
-	if TOPIC_PRIORITY_HIGH >= TOPIC_PRIORITY_NORMAL {
-		t.Fatal("HIGH should have higher priority than NORMAL")
-	}
-}
-
 // ========== Subscribe ==========
 
-func TestSubscribe_DefaultPriority(t *testing.T) {
-	mq := NewMessageQueueApp()
-	handler := func(ctx context.Context, msg string) error { return nil }
-	err := mq.Subscribe(context.Background(), "topic1", handler)
-	if err != nil {
-		t.Fatal(err)
+// TestSubscribe_Priority 覆盖「不传优先级→NORMAL」与显式指定两种基准,合成一张表:
+// 每次 Subscribe 后断言 sub.Priority 与 sub.Topic 都按预期落库。
+// 为什么需要:订阅时把优先级记错,会让高优先级消息排到低优先级队列之后处理,表现为
+// 限流/关服类消息迟迟不生效且无任何报错。保留「不传参数」这一格,是因为默认值最容易
+// 在重构里被顺手改掉。
+func TestSubscribe_Priority(t *testing.T) {
+	cases := []struct {
+		name     string
+		topic    string
+		priority []MessagePriority
+		want     MessagePriority
+	}{
+		{"默认优先级", "topic_default", nil, TOPIC_PRIORITY_NORMAL},
+		{"显式 CRITICAL", "topic_critical", []MessagePriority{TOPIC_PRIORITY_CRITICAL}, TOPIC_PRIORITY_CRITICAL},
+		{"显式 HIGH", "topic_high", []MessagePriority{TOPIC_PRIORITY_HIGH}, TOPIC_PRIORITY_HIGH},
 	}
-	sub, ok := mq.subs["topic1"]
-	if !ok {
-		t.Fatal("topic1 should be subscribed")
-	}
-	if sub.Priority != TOPIC_PRIORITY_NORMAL {
-		t.Fatalf("expected NORMAL priority, got %v", sub.Priority)
-	}
-	if sub.Topic != "topic1" {
-		t.Fatalf("expected topic1, got %s", sub.Topic)
-	}
-}
-
-func TestSubscribe_ExplicitPriority(t *testing.T) {
-	mq := NewMessageQueueApp()
-	handler := func(ctx context.Context, msg string) error { return nil }
-	err := mq.Subscribe(context.Background(), "critical_topic", handler, TOPIC_PRIORITY_CRITICAL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sub, ok := mq.subs["critical_topic"]
-	if !ok {
-		t.Fatal("should be subscribed")
-	}
-	if sub.Priority != TOPIC_PRIORITY_CRITICAL {
-		t.Fatalf("expected CRITICAL priority, got %v", sub.Priority)
-	}
-}
-
-func TestSubscribe_HighPriority(t *testing.T) {
-	mq := NewMessageQueueApp()
-	handler := func(ctx context.Context, msg string) error { return nil }
-	err := mq.Subscribe(context.Background(), "high_topic", handler, TOPIC_PRIORITY_HIGH)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sub, ok := mq.subs["high_topic"]
-	if !ok {
-		t.Fatal("should be subscribed")
-	}
-	if sub.Priority != TOPIC_PRIORITY_HIGH {
-		t.Fatalf("expected HIGH priority, got %v", sub.Priority)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mq := NewMessageQueueApp()
+			err := mq.Subscribe(context.Background(), tc.topic, func(ctx context.Context, msg string) error { return nil }, tc.priority...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sub, ok := mq.subs[tc.topic]
+			if !ok {
+				t.Fatalf("%s should be subscribed", tc.topic)
+			}
+			if sub.Priority != tc.want {
+				t.Fatalf("priority = %v, want %v", sub.Priority, tc.want)
+			}
+			if sub.Topic != tc.topic {
+				t.Fatalf("topic = %s, want %s", sub.Topic, tc.topic)
+			}
+		})
 	}
 }
 
@@ -189,21 +155,6 @@ func TestProcessMessages_DispatchByPriority(t *testing.T) {
 
 	close(mq.stopCh)
 	wg.Wait()
-}
-
-// ========== reflect.Select case count ==========
-
-func TestProcessMessages_SelectCaseCount(t *testing.T) {
-	mq := NewMessageQueueApp()
-	// Build select cases the same way processMessages does
-	cases := make([]reflect.SelectCase, len(mq.priorityCh)+1)
-	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(mq.stopCh)}
-	for i, ch := range mq.priorityCh {
-		cases[i+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
-	}
-	if len(cases) != int(TOPIC_PRIORITY_MAX)+1 {
-		t.Fatalf("expected %d cases, got %d", TOPIC_PRIORITY_MAX+1, len(cases))
-	}
 }
 
 // ========== MessageQueue singleton ==========

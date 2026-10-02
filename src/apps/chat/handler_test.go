@@ -4,6 +4,8 @@ package chat
 
 import (
 	"context"
+	"github.com/DATA-DOG/go-sqlmock"
+	"gserver/src/pkg/deps"
 	"testing"
 )
 
@@ -31,19 +33,32 @@ func TestHandler_StorePrivateMsg_InvalidSender(t *testing.T) {
 	}
 }
 
-// TestHandler_StorePrivateMsg_ValidSender 合法 sender 通过校验(DB 未初始化, 走到持久化报错即可)。
+// TestHandler_StorePrivateMsg_ValidSender sender 合法时必须真正走到持久化:
+// 用 sqlmock 断言 INSERT 被发出,而不是"返回了任意错误"。
+// 这是与 InvalidSender 的分界——校验放行之后,DB 才是下一个必经步骤。
 func TestHandler_StorePrivateMsg_ValidSender(t *testing.T) {
-	h := &ChatHandler{} // d.DB nil → StorePrivateMsg 在 gorm 调用时 panic? 见下
-	ctx := context.Background()
-	// 校验通过后调用 StorePrivateMsg → d.DB 为 nil → gorm nil 接收者?
-	// gorm.DB 是 struct, nil 指针调用 WithContext 会 panic。此处只验证校验层,
-	// 预期走到持久化报错(而不是"invalid sender")。
-	_, err := h.StorePrivateMsg(ctx, &StorePrivateMsgReq{
-		Sender:   `{"roleId":100}`,
+	gormDB, mock := newChatDBMock(t)
+	h := &ChatHandler{d: deps.Deps{DB: gormDB}}
+
+	mock.ExpectBegin()
+	mock.ExpectQuery(`INSERT INTO "chat_private_message"`).
+		WithArgs(int64(100), int64(200), int64(100), "hi", sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectCommit()
+
+	rsp, err := h.StorePrivateMsg(context.Background(), &StorePrivateMsgReq{
+		Sender:   `{"role_id":100}`,
 		TargetID: 200,
 		Content:  "hi",
 	})
-	if err == nil {
-		t.Fatal("expected persist-stage error (db nil)")
+	if err != nil {
+		t.Fatalf("valid sender must reach persist, got %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("store not reached: %v", err)
+	}
+	m, ok := rsp.(map[string]int64)
+	if !ok || m["timestamp"] <= 0 {
+		t.Fatalf("unexpected response: %#v", rsp)
 	}
 }
