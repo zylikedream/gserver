@@ -20,6 +20,8 @@ func newPlotLockModule(t *testing.T) (*RoleModule, *miniredis.Miniredis) {
 	return &RoleModule{Role: &RoleMain{RoleID: 1001, deps: deps.Deps{Redis: cli}}}, mr
 }
 
+// TestWithPlotLocksAcquiresUniqueKeysAndReleases:withPlotLocks 对 plotID 去重(3,1,2,1 → 3 个锁键),回调返回后全部释放。
+// 为什么需要:重复键若不去重,同一 owner 对同一把锁加两次会在解锁时先删掉自己的锁再误删他人抢到的锁,或直接自死锁。
 func TestWithPlotLocksAcquiresUniqueKeysAndReleases(t *testing.T) {
 	mod, mr := newPlotLockModule(t)
 
@@ -38,6 +40,9 @@ func TestWithPlotLocksAcquiresUniqueKeysAndReleases(t *testing.T) {
 	}
 }
 
+// TestWithPlotLocksReturnsBusyAndReleasesPartial:第 2 号锁被他人持有时返回 ErrPlotBusy,且回滚已取得的 1 号锁,只剩他人的键。
+// 为什么需要:部分回滚是这块地的偷取还能再被偷的唯一保证。跳过回滚则本次残留的锁键会一直占着,
+// 后续所有偷取该地块的请求都返回 busy——该地块永久无法被偷。
 func TestWithPlotLocksReturnsBusyAndReleasesPartial(t *testing.T) {
 	mod, mr := newPlotLockModule(t)
 	if err := mr.Set(plotLockKey(1001, 2), "held-by-someone-else"); err != nil {

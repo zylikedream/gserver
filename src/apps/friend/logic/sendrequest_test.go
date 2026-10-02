@@ -34,6 +34,10 @@ func friendDataColumns() []string {
 	return []string{"player_id", "friends", "incoming", "outgoing", "cooldowns", "update_at"}
 }
 
+// TestSendRequest_Success:发起申请要按升序 FOR UPDATE 锁双方两行(行不存在时 lockRow
+// 内 Create 空行)、各 saveRow 一次(Save 为全列 UPDATE)、并以 Commit 收尾。
+// 为什么需要:outgoing 与 incoming 必须落在同一次提交里;漏一次 saveRow 会出现
+// "我发出去了他收不到",申请永远无人可见,而 sqlmock 的有序期望正好能抓住次序错乱。
 func TestSendRequest_Success(t *testing.T) {
 	gormDB, mock := newFriendDBMock(t)
 	ctx := context.Background()
@@ -69,6 +73,10 @@ func TestSendRequest_Success(t *testing.T) {
 	}
 }
 
+// TestSendRequest_SelfAdd:fromID == toID 必须在开启事务之前返回 ErrSelfAdd,
+// 且不产生任何 SQL。
+// 为什么需要:自加会把同一 player_id 同时写进 outgoing 和 incoming,制造自己向自己
+// 发申请的死循环,后续所有同意/拒绝都被这条脏记录卡住。
 func TestSendRequest_SelfAdd(t *testing.T) {
 	gormDB, mock := newFriendDBMock(t)
 
@@ -82,6 +90,10 @@ func TestSendRequest_SelfAdd(t *testing.T) {
 	}
 }
 
+// TestSendRequest_AlreadyFriend:双方 friends 已互相包含时返回 ErrAlreadyFriend 并回滚,
+// 不追加任何申请。
+// 为什么需要:漏这条判定会重复堆积申请行并触发"发送申请数量已达上限",
+// 让玩家再也加不了任何新好友。
 func TestSendRequest_AlreadyFriend(t *testing.T) {
 	gormDB, mock := newFriendDBMock(t)
 	ctx := context.Background()

@@ -99,6 +99,8 @@ func newTestService(store accountStore) *Service {
 	}
 }
 
+// TestLoadAccountByIdentityReturnsNilWhenMissing:未注册的身份返回 (nil, nil)——「没找到」不是错误。
+// 为什么需要:CreateAccountWithIdentity 靠 nil 判定「首次登录」;一旦把 not-found 当错误上浮,新玩家首次登录被拒。
 func TestLoadAccountByIdentityReturnsNilWhenMissing(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 
@@ -111,6 +113,8 @@ func TestLoadAccountByIdentityReturnsNilWhenMissing(t *testing.T) {
 	}
 }
 
+// TestCreateAccountWithIdentityCreatesAccountAndIdentity:首次登录建号并落 identity,isNew=true,account_id/role_id 由 store 分配后原样回传。
+// 为什么需要:role_id 决定该玩家全部数据的归属;少一次回传就是把玩家写进别人的账号,数据永久错位。
 func TestCreateAccountWithIdentityCreatesAccountAndIdentity(t *testing.T) {
 	store := newInMemoryAccountStore()
 	svc := newTestService(store)
@@ -127,6 +131,8 @@ func TestCreateAccountWithIdentityCreatesAccountAndIdentity(t *testing.T) {
 	}
 }
 
+// TestCreateAccountWithIdentityReturnsExistingAccount:同一 platform+uid 二次登录返回同一条记录、isNew=false。
+// 为什么需要:重复建号会分到新的 role_id,老玩家的角色数据留在旧账号里,表现为登录后数据凭空消失。
 func TestCreateAccountWithIdentityReturnsExistingAccount(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 
@@ -143,6 +149,8 @@ func TestCreateAccountWithIdentityReturnsExistingAccount(t *testing.T) {
 	}
 }
 
+// TestCreateAccountWithIdentityReloadsAfterUniquenessConflict:唯一约束冲突必须转成「重查取赢家那一行」,既不返回错误也不建第二个号。
+// 为什么需要:多实例同时首次登录同一身份时只有 unique 冲突能兜底;上浮错误会随机踢掉一个玩家,重试再撞一次。
 func TestCreateAccountWithIdentityReloadsAfterUniquenessConflict(t *testing.T) {
 	svc := newTestService(&uniquenessConflictAccountStore{})
 
@@ -158,6 +166,8 @@ func TestCreateAccountWithIdentityReloadsAfterUniquenessConflict(t *testing.T) {
 	}
 }
 
+// TestAccountIdentityRequiresBothPlatformFields:identity 必须 platform 与 platform_uid 同时存在,缺任一即拒绝。
+// 为什么需要:半填的身份键会与另一平台/另一玩家的身份相撞,让 A 平台的玩家登进 B 平台的账号。
 func TestAccountIdentityRequiresBothPlatformFields(t *testing.T) {
 	svc := newTestService(newInMemoryAccountStore())
 
@@ -180,6 +190,8 @@ func TestAccountIdentityRequiresBothPlatformFields(t *testing.T) {
 	}
 }
 
+// TestCreateAccountWithIdentityPropagatesDependencyErrors:三处依赖失败(首次查库、建号、冲突后重查)必须原样上浮,errors.Is 可见。
+// 为什么需要:吞掉冲突后重查的错误会让调用方拿到空账号却当作成功,随后签发的 gate_token 指向不存在的角色。
 func TestCreateAccountWithIdentityPropagatesDependencyErrors(t *testing.T) {
 	lookupErr := errors.New("lookup unavailable")
 	createErr := errors.New("store unavailable")

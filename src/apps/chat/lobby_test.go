@@ -50,6 +50,9 @@ func lobbySize(t *testing.T, srv *miniredis.Miniredis, lobbyID string) int {
 	return s
 }
 
+// TestJoinLobby_FirstPlayerCreatesLobby:空索引时 lua 必须走 INCR 分支,从 1 起发厅并落成员。
+// 为什么需要:counter 起点或 INCR 丢失会让首个玩家拿到 0/空厅 id,此后所有广播写错 key,
+// 全服世界频道消息静默丢失。
 func TestJoinLobby_FirstPlayerCreatesLobby(t *testing.T) {
 	d, srv := newChatTestDeps(t)
 	ctx := context.Background()
@@ -66,6 +69,9 @@ func TestJoinLobby_FirstPlayerCreatesLobby(t *testing.T) {
 	}
 }
 
+// TestJoinLobby_SameLobbyUntilFull:ZREVRANGEBYSCORE 必须只挑人数未满
+// WorldChatLobbyMaxPlayers 的厅,满员后另开新厅。为什么需要:容量判断错一次,超员玩家
+// 就被塞进已满的厅(推送放大/客户端卡死),或每次都新建厅导致大厅碎片化。
 func TestJoinLobby_SameLobbyUntilFull(t *testing.T) {
 	d, srv := newChatTestDeps(t)
 	ctx := context.Background()
@@ -102,6 +108,9 @@ func TestJoinLobby_SameLobbyUntilFull(t *testing.T) {
 	}
 }
 
+// TestJoinLobby_ReusesFreedSlot:有人离厅后 sizes 计数回落,新玩家必须复用该厅而非新建。
+// 为什么需要:这是 zset 计数的回收路径;不回落到阈值以下时,空闲厅会永久从候选里消失,
+// 长跑后每次匹配都新开一个 ID,大厅数量无界增长、老玩家再也碰不到人。
 func TestJoinLobby_ReusesFreedSlot(t *testing.T) {
 	d, srv := newChatTestDeps(t)
 	ctx := context.Background()
@@ -127,6 +136,9 @@ func TestJoinLobby_ReusesFreedSlot(t *testing.T) {
 	}
 }
 
+// TestLeaveLobby_UnknownLobby:离一个不存在的厅(重连后旧 lobbyID、定时器晚到)必须返回 nil。
+// 为什么需要:它是个纯 SREM/ZINCRBY,没有存在性校验;若改成报错,客户端重连或延迟
+// 离厅广播会把正常流程打成错误,玩家卡在"无法退出大厅"的状态。
 func TestLeaveLobby_UnknownLobby(t *testing.T) {
 	d, _ := newChatTestDeps(t)
 	ctx := context.Background()

@@ -98,6 +98,8 @@ func withHandshake(t *testing.T, s *Session) {
 
 // ========== sessionDisconnectReason ==========
 
+// TestSessionDisconnectReason:终止原因到断连标签是一张固定映射表;未知错误必须落到 "error",而不是空串。
+// 为什么需要:这张标签是断连统计与客户端提示的唯一来源,映射塌成同一个值后限流/idle 排查会彻底失去分辨率。
 func TestSessionDisconnectReason(t *testing.T) {
 	cases := []struct {
 		err  error
@@ -126,6 +128,8 @@ func TestSessionDisconnectReason(t *testing.T) {
 
 // ========== Init ==========
 
+// TestSession_Init:Init 后会话处于 StateConnected,且连接时间与客户端活跃时间均已初始化。
+// 为什么需要:时间戳为零会让第一条客户端消息就被判为空闲踢线,新连接秒断。
 func TestSession_Init(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	if s.state != StateConnected {
@@ -148,6 +152,8 @@ func TestSession_Init_RecordsLastActive(t *testing.T) {
 
 // ========== HandleMessage 路由 ==========
 
+// TestSession_HandleMessage_ClientMsg:HandleMessage 必须按具体类型路由 *message.Message 到客户端处理路径,不做反射分派。
+// 为什么需要:路由表一旦退化,业务消息被静默吞掉返回 nil,表现为客户端「发了没反应」且无任何日志。
 func TestSession_HandleMessage_ClientMsg(t *testing.T) {
 	s, _, ep := newTestSession(t, newTestDeps())
 	withHandshake(t, s)
@@ -159,6 +165,8 @@ func TestSession_HandleMessage_ClientMsg(t *testing.T) {
 	}
 }
 
+// TestSession_HandleMessage_ServerMsg:*pb.ServerMsg 必须路由到服务端响应路径,并让 RspAccountLogin 把状态推进到 StateLogin。
+// 为什么需要:登录应答状态不推进,后续业务包被当成未登录处理,表现为「握手成功但永远登不上」。
 func TestSession_HandleMessage_ServerMsg(t *testing.T) {
 	s, _, ep := newTestSession(t, newTestDeps())
 	withHandshake(t, s)
@@ -195,6 +203,8 @@ func TestSession_HandleDown_RoleTerminated(t *testing.T) {
 	}
 }
 
+// TestSession_HandleMessage_RoleTerminated_OtherPid:只有与本会话 RolePid 完全相同的终止通知才可拆掉会话。
+// 为什么需要:PID 比对若只看 Node/ID 忽略 Creation,或其他角色的 Down 误入本会话,会把别人的在线玩家踢下线。
 func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	withHandshake(t, s)
@@ -208,6 +218,8 @@ func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
 	}
 }
 
+// TestSession_HandleMessage_ActorError:*pb.ActorError 是运行时错误投递,会话必须立即 Stop 而不是吞掉。
+// 为什么需要:不停止就会留下一条既无角色也无心跳的僵尸会话,占着连接与在线数指标不释放。
 func TestSession_HandleMessage_ActorError(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	_, _ = s.HandleMessage(&pb.ActorError{Reason: "boom"})
@@ -218,6 +230,8 @@ func TestSession_HandleMessage_ActorError(t *testing.T) {
 
 // ========== 握手 ==========
 
+// TestSession_Handshake_NotHandshakeMsg:首包不是 *pb.ReqHandShake 时必须在解析任何字段前报错。
+// 为什么需要:先解 token 再校验类型,会让畸形首包触发令牌校验副作用,并把内部错误当认证失败上报。
 func TestSession_Handshake_NotHandshakeMsg(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	if err := s.handleHandshake(context.Background(), &pb.ReqChannelSend{}); err == nil {
@@ -225,6 +239,8 @@ func TestSession_Handshake_NotHandshakeMsg(t *testing.T) {
 	}
 }
 
+// TestSession_Handshake_Maintenance:维护开关(gateMaintenanceEnv=1)开启时握手一律拒绝,且早于令牌校验。
+// 为什么需要:维护期仍放行激活,等于发版中让新角色进来,数据写到正在替换的逻辑上。
 func TestSession_Handshake_Maintenance(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	t.Setenv(gateMaintenanceEnv, "1")
@@ -234,6 +250,8 @@ func TestSession_Handshake_Maintenance(t *testing.T) {
 	}
 }
 
+// TestSession_Handshake_EmptyToken:空 GateToken 必须被 resolveHandshakeIdentity 拒绝。
+// 为什么需要:空串若绕过校验,任何匿名连接都能拿到会话身份——认证形同虚设。
 func TestSession_Handshake_EmptyToken(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	if err := s.handleHandshake(context.Background(), &pb.ReqHandShake{GateToken: ""}); err == nil {
@@ -241,6 +259,8 @@ func TestSession_Handshake_EmptyToken(t *testing.T) {
 	}
 }
 
+// TestSession_Handshake_ActivateRoleFailed:身份合法但 activateRole 失败时,握手整体失败,错误原样上抛。
+// 为什么需要:吞掉激活错误并继续,会话没有 RolePid 却进入 StateHandshake,之后每个包都投递失败,连接空转到超时。
 func TestSession_Handshake_ActivateRoleFailed(t *testing.T) {
 	d := newTestDeps()
 	d.ActivateRole = func(context.Context, int64) (gxyactor.PID, error) {
@@ -254,6 +274,8 @@ func TestSession_Handshake_ActivateRoleFailed(t *testing.T) {
 	}
 }
 
+// TestSession_Handshake_Success:成功握手必须一次性完成身份落地、监视角色、回 RspHandShake、登记会话表并进入 StateHandshake。
+// 为什么需要:这几步分散在多处,漏掉监视则角色崩溃后连接永不断,漏掉登记则在线数与踢同端逻辑全部失真。
 func TestSession_Handshake_Success(t *testing.T) {
 	d := newTestDeps()
 	s, subj, ep := newTestSession(t, d)
@@ -420,6 +442,8 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 
 // ========== 客户端消息 ==========
 
+// TestSession_ClientMessage_Logout:客户端主动登出(ReqAccountLogout)由网关本地终止会话,不转发给角色。
+// 为什么需要:本地不拦而转发,角色侧登出后网关仍认为在线,同账号重登被 multi login 顶掉,用户被反复踢下线。
 func TestSession_ClientMessage_Logout(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.ReqAccountLogout{}}
@@ -431,6 +455,8 @@ func TestSession_ClientMessage_Logout(t *testing.T) {
 	}
 }
 
+// TestSession_ClientMessage_NotProto:DATA_PACKET 的载荷不是 proto.Message 时必须报错。
+// 为什么需要:类型断言失败若继续转发,会把不可序列化的载荷塞进 Actor 邮箱,故障点从入参校验漂移到投递处,难以定位。
 func TestSession_ClientMessage_NotProto(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: "not a proto"}
@@ -439,6 +465,8 @@ func TestSession_ClientMessage_NotProto(t *testing.T) {
 	}
 }
 
+// TestSession_ClientMessage_DataPacket_NoRolePid:未握手(RolePid 为零)时投递失败只记日志,处理函数仍返回 nil。
+// 为什么需要:把投递失败升级为错误,会话停止链路会把「角色暂时不可达」误判成致命错误,正常消息被无声丢弃。
 func TestSession_ClientMessage_DataPacket_NoRolePid(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps()) // 未握手, RolePid nil
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
@@ -450,6 +478,8 @@ func TestSession_ClientMessage_DataPacket_NoRolePid(t *testing.T) {
 
 // ========== 服务端消息 ==========
 
+// TestSession_ServerMessage_BadAny:ServerMsg 里的 Any 无法反序列化时必须返回错误,不做静默忽略。
+// 为什么需要:静默忽略会吞掉协议不匹配的信号,版本错配时表现为客户端永久等待且无告警。
 func TestSession_ServerMessage_BadAny(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	bad := &anypb.Any{TypeUrl: "garbage", Value: []byte{0xff}}
@@ -458,6 +488,8 @@ func TestSession_ServerMessage_BadAny(t *testing.T) {
 	}
 }
 
+// TestSession_ServerMessage_DisconnectedSkipsSend:会话已 StateDisconnected 时跳过向客户端发送(且不得被本次响应改回已登录)。
+// 为什么需要:往已关闭连接写数据,轻则 panic/报错刷屏,重则复用已释放的连接句柄写坏下一个请求。
 func TestSession_ServerMessage_DisconnectedSkipsSend(t *testing.T) {
 	s, _, ep := newTestSession(t, newTestDeps())
 	withHandshake(t, s)
@@ -476,6 +508,8 @@ func TestSession_ServerMessage_DisconnectedSkipsSend(t *testing.T) {
 
 // ========== sendClientMsg ==========
 
+// TestSession_SendClientMsg_Success:发送成功时只下发这一条消息,不改会话状态。
+// 为什么需要:顺手推进状态会让「已回复」与「已登录」脱钩,业务包提前到达造成竞态登录。
 func TestSession_SendClientMsg_Success(t *testing.T) {
 	s, _, ep := newTestSession(t, newTestDeps())
 	if err := s.sendClientMsg(context.Background(), &pb.RspHandShake{}); err != nil {
@@ -486,6 +520,8 @@ func TestSession_SendClientMsg_Success(t *testing.T) {
 	}
 }
 
+// TestSession_SendClientMsg_FailureStopsSession:endpoint 发送失败时立即 Stop 会话,并把错误吞掉返回 nil。
+// 为什么需要:只记日志不停止,会留下半开连接:写侧已断、读侧仍在,连接与心跳定时器永不释放,泄漏直到进程退出。
 func TestSession_SendClientMsg_FailureStopsSession(t *testing.T) {
 	s, _, ep := newTestSession(t, newTestDeps())
 	ep.sendErr = gerror.New("conn broken")
@@ -499,6 +535,8 @@ func TestSession_SendClientMsg_FailureStopsSession(t *testing.T) {
 
 // ========== 空闲检测 ==========
 
+// TestSession_SessionCheck_ClientIdle:客户端活跃时间超过 SESSION_CLIENT_IDLE_TIMEOUT 时必须停止会话。
+// 为什么需要:空闲踢线是网关唯一的死连接回收手段;失效后 NAT 后的半死连接会永久堆积,吃满文件描述符。
 func TestSession_SessionCheck_ClientIdle(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	s.sessionInfo.ClientLastActive = time.Now().Add(-SESSION_CLIENT_IDLE_TIMEOUT - time.Minute)
@@ -508,6 +546,8 @@ func TestSession_SessionCheck_ClientIdle(t *testing.T) {
 	}
 }
 
+// TestSession_SessionCheck_ServerIdle:服务端侧超时(SESSION_SERVER_IDLE_TIMEOUT)独立于客户端超时单独判定。
+// 为什么需要:只判一侧时,角色已死但客户端还在的场景永不回收,在线数虚高且同端顶号失效。
 func TestSession_SessionCheck_ServerIdle(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	s.sessionInfo.ServerLastActive = time.Now().Add(-SESSION_SERVER_IDLE_TIMEOUT - time.Minute)
@@ -517,6 +557,8 @@ func TestSession_SessionCheck_ServerIdle(t *testing.T) {
 	}
 }
 
+// TestSession_SessionCheck_Active:两侧活跃时间都是当前值时不得停止会话。
+// 为什么需要:把阈值写反或用零值比较会让每次定时检查都踢线,表现为登录成功后秒断。
 func TestSession_SessionCheck_Active(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	s.updateClientLastActive()
@@ -529,6 +571,8 @@ func TestSession_SessionCheck_Active(t *testing.T) {
 
 // ========== Terminate ==========
 
+// TestSession_Terminate_WithRole:带角色终止时必须关闭连接、置 StateDisconnected,并把会话从会话表移除。
+// 为什么需要:漏掉 Remove 会让角色表里留下死会话,同账号再次登录被顶号,用户被永久挡在门外。
 func TestSession_Terminate_WithRole(t *testing.T) {
 	d := newTestDeps()
 	s, _, ep := newTestSession(t, d)
@@ -565,6 +609,8 @@ func TestSession_Terminate_WithRole_NilReason(t *testing.T) {
 	}
 }
 
+// TestSession_Terminate_WithoutRole:未握手(roleID=0)的会话终止走同一条路径,不因查不到角色而 panic 或跳过关连接。
+// 为什么需要:为 0 的角色 ID 进会话表做 Remove/通知角色,会在最常见的握手前失败路径上崩溃,网关进程被一条坏连接带走。
 func TestSession_Terminate_WithoutRole(t *testing.T) {
 	s, _, ep := newTestSession(t, newTestDeps())
 	s.Terminate(nil)
@@ -577,7 +623,8 @@ func TestSession_Terminate_WithoutRole(t *testing.T) {
 }
 
 // ========== 活跃时间戳 ==========
-
+// TestSession_UpdateLastActive:客户端与服务端活跃时间戳由各自的 update*LastActive 推进,空闲检查据此判活。
+// 为什么需要:两个时间戳若更新错位(只更一侧),一侧会立即超时踢线;不更新则玩家每 SESSION_*_IDLE_TIMEOUT 必被断。
 func TestSession_UpdateLastActive(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	old := time.Now().Add(-time.Hour)

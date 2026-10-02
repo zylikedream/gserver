@@ -1,3 +1,14 @@
+// 本文件固化 login_limit 配置节的**严格解码**契约。
+//
+// 规则来源: login_limit_config.go 的 LoadLoginLimitConfig + validateLoginLimitConfig,
+// 六个字段全部必填(rate 单位为令牌/秒,burst 为令牌容量,max_inflight 为并发登录上限,
+// queue_size 为等待队列长度,wait_timeout 为排队超时);缺项、未知字段、数值非法一律报错,
+// 且 **enabled=false 不豁免校验**。
+// 为什么这样定: 这份配置启动时构造唯一的登录入口令牌桶,进程内没有第二道防线。
+// 少校验一项,一个写错或漏写的字段会让限流静默失效(限流器形同关闭)或永久拒绝所有登录,
+// 两者都不会在开发期暴露,只在压测或被撞库时以"登录接口挂了"的形式出现。
+// 后果: 本文件任一用例回归 = 上述两种故障之一重新变得可配置。
+
 package logic
 
 import (
@@ -61,6 +72,12 @@ func disabledLoginLimitTOML(content string) string {
 	return strings.Replace(content, "enabled = true", "enabled = false", 1)
 }
 
+// TestLoadLoginLimitConfig: 六个字段全缺一即报**逐字相同**的缺项错误(不是任意错误);
+// 未知字段、rate/burst/max_inflight 为 0、queue_size 为负、wait_timeout 为 0 都拒绝;
+// queue_size = 0 合法(不排队,直接快速失败),enabled = false 不豁免任何数值校验。
+// 为什么需要: queue_size=0 与"非法 queue_size"只差一个负号,却分别是"限流"与"配置事故";
+// 而 enabled=false 的分支走的是 newLoginLimiter(config, nil, ...) —— 桶根本没建,
+// 数值若不校验就永远没人会发现,一旦有人改回 enabled=true 就带着非法值上线。
 func TestLoadLoginLimitConfig(t *testing.T) {
 	want := LoginLimitConfig{
 		Enabled:     true,
@@ -139,6 +156,11 @@ func TestLoadLoginLimitConfig(t *testing.T) {
 	}
 }
 
+// TestLoadLoginLimitConfigRejectsNaNInfRate: rate 为 NaN/±Inf 时必须报错,且错误文本
+// 含具体的非法值(断言全文相等),以便运维从启动日志直接看出是哪个值坏了。
+// 为什么需要: gxylimit.Bucket 按 rate 补令牌,NaN 让 `tokens < 1` 恒为 false ——
+// acquire 每次都放行,登录限流彻底静默失效,撞库流量直达账号校验;+Inf 则让桶瞬间补满。
+// TOML 表达不出这两个值,故必须走内存适配器 loginLimitMapConfigAdapter。
 func TestLoadLoginLimitConfigRejectsNaNInfRate(t *testing.T) {
 	cases := []struct {
 		name    string
