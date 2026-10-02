@@ -38,6 +38,13 @@ func (m *memoryManager) Release(_ context.Context, key string, token string) {
 	}
 }
 
+// TestWithSortsAndReleases:With 必须同时满足三个契约,断言分散在三处——
+//   - :44-46 回调执行期间 4 个 key 去重成 3 把锁且**同时持有**(不是依次释放);
+//   - :52-55 按字典序加锁(1→2→3);
+//   - :56-58 回调返回后全部释放。
+//
+// 为什么需要:防死锁依赖"全局统一顺序 + 全程持有"这一组合。只排序不同时持有,
+// 等于两把锁之间开了窗口;只持有不排序,反向调用方仍会互持。缺任一条都能构造出真实死锁。
 func TestWithSortsAndReleases(t *testing.T) {
 	mem := newMemoryManager()
 	err := With(context.Background(), mem, []string{"3", "1", "2", "1"}, time.Second, func() error {
@@ -58,6 +65,10 @@ func TestWithSortsAndReleases(t *testing.T) {
 	}
 }
 
+// TestWithReturnsBusyAndReleasesPartial:任一键拿不到时,已取得的锁必须全部回滚
+// (:71-73),且回调不得执行。
+// 为什么需要:不回滚会永久泄漏已持有的锁,调用方再也拿不到该键——
+// 表现为后续所有并发操作永久阻塞,不报错。
 func TestWithReturnsBusyAndReleasesPartial(t *testing.T) {
 	mem := newMemoryManager()
 	mem.blocked["2"] = true
@@ -73,6 +84,11 @@ func TestWithReturnsBusyAndReleasesPartial(t *testing.T) {
 	}
 }
 
+// TestSleepBeforeRetryHonorsContextCancel:ctx 已取消时,sleepBeforeRetry 必须立即返回
+// context.Canceled,不睡完请求的重试间隔。
+// 为什么需要:关服与超时路径会走这里,真去睡满 30ms 退避会让停机被无谓拖慢,
+// 大量并发重试时尤其明显。:85 的 20ms 是**时延上界,不是精度要求**——
+// 取 20ms 是为容忍 CI 调度抖动。
 func TestSleepBeforeRetryHonorsContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

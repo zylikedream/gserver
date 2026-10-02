@@ -297,6 +297,11 @@ func TestActorLocatorReleaseDoesNotDeleteNewOwner(t *testing.T) {
 	}
 }
 
+// TestActorLocatorTokenMismatchFencesImmediately:Redis 里的租约被换成别的令牌后,
+// 下一次续租返回 refreshed=false,租约心跳必须**立即**围栏(errActorLocatorLeaseInvalid,
+// 见 actor_locator.go:472-474),而不是等租约 TTL 到期。
+// 为什么:令牌不符意味着另一个实例已接管本节点。留着 fenced=false 继续服务会与新持有者
+// 并发写同一 actor,造成静默的重复落库——不报错,只丢数据。
 func TestActorLocatorTokenMismatchFencesImmediately(t *testing.T) {
 	locator, _, server := newActorLocatorTestPair(t)
 	locator.heartbeatInterval = 5 * time.Millisecond
@@ -323,6 +328,11 @@ func TestActorLocatorTokenMismatchFencesImmediately(t *testing.T) {
 	}
 }
 
+// TestActorLocatorRenewalErrorsFenceAtDeadlineOnce:续租出错(如 Redis 断开)时
+// actor_locator.go:466-470 只记录错误、**不**围栏,心跳继续;围栏推迟到已确认的租约
+// deadline 由 deadlineTimer 触发(actor_locator.go:406-407)。本测试断言两个契约:
+// 围栏确实发生了(:346-350),且丢失回调**恰好触发一次**(:351-354)——
+// 重复回调会让每个调用方各自处置一次"租约已丢",产生重复终止。
 func TestActorLocatorRenewalErrorsFenceAtDeadlineOnce(t *testing.T) {
 	locator, _, _ := newActorLocatorTestPair(t)
 	locator.heartbeatInterval = 5 * time.Millisecond
@@ -354,6 +364,11 @@ func TestActorLocatorRenewalErrorsFenceAtDeadlineOnce(t *testing.T) {
 	}
 }
 
+// TestActorLocatorBlockedRenewalCannotDelayDeadlineFence:续租 goroutine 被卡住
+// (阻塞到 ctx 结束)时,deadlineTimer 必须独立触发围栏。renewing 标志位使后续 tick
+// 跳过再发起续租(:440-441),若围栏依赖续租返回,一个卡住的 Redis 会让本节点无限期
+// 持有过期租约继续服务。错误是 errActorLocatorLeaseDeadline(围栏来自 deadlineTimer
+// 而非续租结果,见 :462-463)。
 func TestActorLocatorBlockedRenewalCannotDelayDeadlineFence(t *testing.T) {
 	locator, _, _ := newActorLocatorTestPair(t)
 	locator.heartbeatInterval = 5 * time.Millisecond
@@ -386,6 +401,7 @@ func TestActorLocatorBlockedRenewalCannotDelayDeadlineFence(t *testing.T) {
 		t.Fatal("blocked renewal delayed lease deadline fence")
 	}
 }
+
 func TestActorLocatorSuccessfulRenewalsExtendDeadline(t *testing.T) {
 	locator, _, _ := newActorLocatorTestPair(t)
 	locator.heartbeatInterval = 5 * time.Millisecond

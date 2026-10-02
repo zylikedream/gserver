@@ -29,6 +29,12 @@ func TestBucketInitialBurstAndExhaustion(t *testing.T) {
 	}
 }
 
+// TestBucketRefillsAndCapsAtBurst:一个测试断言**两件不同的事**,分处首尾:
+//   - :47-53 推进 500ms(Rate 2 → 1 个令牌)证明按速率补充;
+//   - :54-63 推进 10s(足够补满数十个令牌)证明补充量被 Burst=2 **截断**。
+//
+// 为什么需要:封顶只由最后一次 Allow 拒绝证明——去掉上限实现,前 53 行全绿,
+// 只有最后一行会红。不写清楚就会误以为 :48-53 也在测封顶。
 func TestBucketRefillsAndCapsAtBurst(t *testing.T) {
 	clock := &fakeClock{now: time.Unix(100, 0)}
 	bucket, err := newBucket(Config{Rate: 2, Burst: 2}, clock.Now)

@@ -161,6 +161,9 @@ func TestRemoveFriend_Success(t *testing.T) {
 
 // ========== lockBoth 顺序 ==========
 
+// TestLockBoth_Ascending:入参已升序(100,200)时,lockBoth 按序加锁 100 → 200。
+// 这是基准情形;真正的契约在 _Descending——两个测试断言的是**同一条**不变量。
+// 为什么需要:sqlmock 的 ExpectQuery 是有序匹配,反序加锁会直接参数不匹配而失败。
 func TestLockBoth_Ascending(t *testing.T) {
 	gormDB, mock := newFriendDBMock(t)
 	mock.ExpectBegin()
@@ -183,6 +186,9 @@ func TestLockBoth_Ascending(t *testing.T) {
 	}
 }
 
+// TestLockBoth_Descending:入参降序(200,100)时,lockBoth 仍必须先锁较小者 100。
+// 为什么需要:加好友与删好友是双向操作,若按各自调用方的参数顺序加锁,两个反向事务
+// 会各持对方需要的行锁,互相等待——死锁,且只在并发下偶发,单线程测试永远测不到。
 func TestLockBoth_Descending(t *testing.T) {
 	gormDB, mock := newFriendDBMock(t)
 	mock.ExpectBegin()

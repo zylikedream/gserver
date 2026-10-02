@@ -4,6 +4,12 @@ import (
 	"testing"
 )
 
+// TestEncodeDecodeHandshake:逐字节钉死 LTIV 定长头布局——
+// Size(2B, 小端, **不含自身**) + Type(1B) + ID(2B, 小端) = 5 字节,其后才是 Payload。
+// 对应生产 codec.go:34/44-46。下面的 expectedSize 里的 `1 + 2` 就是 Type(1B)+ID(2B),
+// 若头里增删字段,这个常数必须同步改。
+// 为什么需要:服务端(Go)与跨语言客户端按同一布局解析,改动头布局会静默打断互通——
+// 单侧测试不会发现,要到联调才暴露。Type 用 0 表示握手。
 func TestEncodeDecodeHandshake(t *testing.T) {
 	codec := NewLTIVCodec()
 
