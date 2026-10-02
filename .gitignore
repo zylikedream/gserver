@@ -38,6 +38,7 @@ docs/development/*
 !docs/development/guild-e2e.md
 !docs/development/error-handling.md
 !docs/development/logging.md
+!docs/development/testing.md
 !docs/system/
 docs/system/*
 !docs/system/flower.md
