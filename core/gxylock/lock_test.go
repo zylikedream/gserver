@@ -38,10 +38,10 @@ func (m *memoryManager) Release(_ context.Context, key string, token string) {
 	}
 }
 
-// TestWithSortsAndReleases:With 必须同时满足三个契约,断言分散在三处——
-//   - :44-46 回调执行期间 4 个 key 去重成 3 把锁且**同时持有**(不是依次释放);
-//   - :52-55 按字典序加锁(1→2→3);
-//   - :56-58 回调返回后全部释放。
+// TestWithSortsAndReleases:With 必须同时满足三个契约,断言分散在回调前/内/后三处——
+//   - 回调**执行期间**:4 个 key 去重成 3 把锁且全部同时持有(不是依次释放);
+//   - 加锁顺序:按字典序 1→2→3(由 memoryManager 记录实际获取序列并断言);
+//   - 回调**返回后**:一把都不剩。
 //
 // 为什么需要:防死锁依赖"全局统一顺序 + 全程持有"这一组合。只排序不同时持有,
 // 等于两把锁之间开了窗口;只持有不排序,反向调用方仍会互持。缺任一条都能构造出真实死锁。
@@ -65,8 +65,8 @@ func TestWithSortsAndReleases(t *testing.T) {
 	}
 }
 
-// TestWithReturnsBusyAndReleasesPartial:任一键拿不到时,已取得的锁必须全部回滚
-// (:71-73),且回调不得执行。
+// TestWithReturnsBusyAndReleasesPartial:任一键拿不到时返回 ErrBusy,已取得的那几把锁
+// 必须全部回滚(断言 mem.held 归零),且回调不得执行。
 // 为什么需要:不回滚会永久泄漏已持有的锁,调用方再也拿不到该键——
 // 表现为后续所有并发操作永久阻塞,不报错。
 func TestWithReturnsBusyAndReleasesPartial(t *testing.T) {

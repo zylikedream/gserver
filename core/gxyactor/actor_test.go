@@ -183,6 +183,10 @@ func TestPidEqual_BothZero(t *testing.T) {
 
 // ========== PIDIsZero ==========
 
+// TestPIDIsZero:只有"两个方向都空"的引用才算零值,带节点或带本机进程标识的一律不算。
+// 为什么需要:零值是"尚未绑定角色/会话"的唯一哨兵,gateway 在挂 Monitor 之前、role 在
+// 判断会话是否还活着时都只靠它;把一个真实引用误判成零值,角色终止通知就发不出去,
+// 连接永久悬挂不回收。
 func TestPIDIsZero(t *testing.T) {
 	if !PIDIsZero(PID{}) {
 		t.Fatal("zero pid must be reported as zero")
@@ -193,8 +197,12 @@ func TestPIDIsZero(t *testing.T) {
 }
 
 // ========== actorKey ==========
-// 所有权键的格式是对外契约(跨版本要读同一条记录),因此固定断言。
 
+// TestActorKeyLocateKey:所有权记录在 Redis 里的完整键名是**跨版本要读同一条记录**的契约,
+// 这里固定断言整串,而不是只断言后缀。
+// 为什么需要:claim 写、locate 读、release 删、节点选择全都由这同一个键派生;格式一变,
+// 已写进去的记录再也读不到,归属退化成"查无此记录"而不报错,同一个逻辑身份会被
+// 再激活出第二个 actor,两份角色数据并发互相覆盖。
 func TestActorKeyLocateKey(t *testing.T) {
 	key := actorKey{kind: "role", id: "123"}.locateKey()
 	expected := "gserver:locate:node:actor:role:123"
@@ -203,6 +211,10 @@ func TestActorKeyLocateKey(t *testing.T) {
 	}
 }
 
+// TestActorKeyLocateKey_EmptyKind:kind 为空时不报错、也不折叠或省略那一段——键里保留一个
+// **空段**("...:actor::456")。它与上一个用例成对,把"空 kind 是照常拼进去的"钉死。
+// 为什么需要:键是按段拼的;实现一旦改成跳过空字段,空 kind 就会落到别人也在用的键形上,
+// 一个身份抢走或释放另一个身份的所有权,现场没有任何报错可查。
 func TestActorKeyLocateKey_EmptyKind(t *testing.T) {
 	key := actorKey{kind: "", id: "456"}.locateKey()
 	expected := "gserver:locate:node:actor::456"
@@ -244,6 +256,12 @@ func TestActorKeyReplyMatchesRemoteRef(t *testing.T) {
 
 // ========== 所有权获取（需要 Redis）==========
 
+// TestClaimAndLocate(需 Redis,RUN_REDIS_TESTS=1):claim 拿到的所有权必须能被 locate **原样读回**
+// 同一个 owner(节点 + 代次 + 令牌),不是只证明"claim 返回了非空"。用例也顺带钉住 Claim 的前置:
+// 没有有效节点租约时 claim 不会成功,故先 acquireNodeLease。
+// 为什么需要:激活层靠 locate 决定"这个 actor 在哪台节点上",消息路由与终止清理都走它;
+// 写进去读不回来(编码或键派生不一致)时,已归属的 actor 被当成无主重新创建,
+// 同一逻辑身份出现两个实例并发处理同一批消息。
 func TestClaimAndLocate(t *testing.T) {
 	if os.Getenv("RUN_REDIS_TESTS") != "1" {
 		t.Skip("set RUN_REDIS_TESTS=1 to run Redis integration tests")
@@ -283,6 +301,11 @@ func TestClaimAndLocate(t *testing.T) {
 
 // ========== ActorError ==========
 
+// TestActorError:业务失败必须以*错误载荷*过线,而不是伪装成一次成功应答——handler 自行
+// `reply(ActorError(reason))` 并返回 nil,Actor.Call 在收到该载荷时把它还原成 error 返回。
+// 为什么需要:调用方统一只写 `if err != nil`;门面不再还原,业务拒绝(例如聊天频道拒写)会被
+// 当成正常结果继续往下走,以为消息已发出而不再补偿,失败静默丢数据。
+// Reason 必须原样透传:它是失败原因唯一留给业务的字样,被吞掉或改写就只能靠猜。
 func TestActorError(t *testing.T) {
 	err := ActorError("something failed")
 	if err == nil {

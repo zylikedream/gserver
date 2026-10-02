@@ -256,9 +256,12 @@ func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 
 // ========== 历史记录 ==========
 
-// TestChannelActor_History_ReturnsBuffered:发 3 条后取最近 2 条,得到时间正序的 [m2,m3]。
-// 为什么需要:历史查询的语义就是"倒着裁剪的最近 N 条",顺序颠倒会让客户端时间线新旧错乱。
-// 注意:ReqChatChannelHistory 走的是 HandleCall,本测试发的是 HandleMessage(无该分支,静默 no-op),断言实际只落在 buffer.Recent(2) 本身。
+// TestChannelActor_History_ReturnsBuffered:发 3 条后经 **HandleCall** 取最近 2 条,
+// 得到按时间正序的 [m2,m3];断言落在返回的 RspChatChannelHistory 载荷上,而不是直接
+// 读 buffer。
+// 为什么需要:ReqChatChannelHistory 是同步请求,只由 HandleCall 处理;若测试改走
+// HandleMessage,switch 无此分支会静默 return nil,nil,断言就落空——历史查询路径
+// 实际从未被执行,删掉整个 case 测试照样绿。
 func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	send := func(content string) {
@@ -273,20 +276,30 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	send("m2")
 	send("m3")
 
-	if _, err := a.HandleMessage(&pb.ReqChatChannelHistory{
+	// HandleCall 才是该请求的入口;返回值即客户端看到的响应载荷。
+	rsp, err := a.HandleCall(&pb.ReqChatChannelHistory{
 		ChannelType: 1, ChannelId: 100, Count: 2,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("history: %v", err)
 	}
-	msgs := a.buffer.Recent(2)
-	if len(msgs) != 2 || msgs[0].Content != "m2" || msgs[1].Content != "m3" {
-		t.Fatalf("expected last 2 msgs, got %+v", msgs)
+	hist, ok := rsp.(*pb.RspChatChannelHistory)
+	if !ok {
+		t.Fatalf("expected *pb.RspChatChannelHistory, got %T", rsp)
+	}
+	if len(hist.Messages) != 2 || hist.Messages[0].Content != "m2" || hist.Messages[1].Content != "m3" {
+		t.Fatalf("expected last 2 msgs in order, got %+v", hist.Messages)
 	}
 }
 
-// TestChannelActor_History_CountClamped:count 传 0/-1/100000 时请求不得报错或 panic。
-// 为什么需要:count 来自客户端,不 clamp 会让 Recent 按越界长度切片而 panic。
-// 注意:同 _History_ReturnsBuffered,此处发的是 HandleMessage,clamp 逻辑(位于 HandleCall)并未被执行。
+// TestChannelActor_History_CountClamped:count 传 0/-1/100000 时,经 HandleCall 必须返回
+// *RspChatChannelHistory 且恰好带回全部 1 条已缓冲消息——不得 nil、不得报错、不得 panic。
+// 为什么需要:count 完全来自客户端。响应若是 nil,客户端拿到一个空结构而非历史,
+// 表现为"频道历史永远是空的"且服务端无任何报错。
+// 注:HandleCall 的 clamp 与 ringBuffer.Recent 自身的越界保护当前是双层的——Recent
+// 也会把 count 收敛到 len,所以这个用例断言的是**端到端响应正确性**;若将来去掉
+// HandleCall 的 clamp,本用例仍应通过(Recent 那层兜住)。真正只由 HandleCall 承担的
+// 是"把越界 count 挡在进 Recent 之前",当前无可观测差异。
 func TestChannelActor_History_CountClamped(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	if _, err := a.HandleMessage(&pb.ReqChannelSend{
@@ -294,12 +307,19 @@ func TestChannelActor_History_CountClamped(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	// count<=0 与超上限都应 clamp 到 RingBufferSize, 不 panic
 	for _, c := range []int32{0, -1, 100000} {
-		if _, err := a.HandleMessage(&pb.ReqChatChannelHistory{
+		rsp, err := a.HandleCall(&pb.ReqChatChannelHistory{
 			ChannelType: 1, ChannelId: 100, Count: c,
-		}); err != nil {
+		})
+		if err != nil {
 			t.Fatalf("history count=%d: %v", c, err)
+		}
+		hist, ok := rsp.(*pb.RspChatChannelHistory)
+		if !ok {
+			t.Fatalf("count=%d: expected *pb.RspChatChannelHistory, got %T", c, rsp)
+		}
+		if len(hist.Messages) != 1 || hist.Messages[0].Content != "x" {
+			t.Fatalf("count=%d: expected the single buffered msg, got %+v", c, hist.Messages)
 		}
 	}
 }
