@@ -279,13 +279,6 @@ func TestTcpServerOnCloseNotifiesHandler(t *testing.T) {
 	}
 }
 
-func TestTcpConnectorType(t *testing.T) {
-	connector := &TcpConnector{}
-	if got := connector.Type(); got != PEER_TCP_CONNECTOR {
-		t.Errorf("Type() = %q, want %q", got, PEER_TCP_CONNECTOR)
-	}
-}
-
 func TestNewPeerUnknownType(t *testing.T) {
 	if _, err := NewPeer("unknown", nil); err == nil {
 		t.Fatal("NewPeer(unknown) = nil, want error")

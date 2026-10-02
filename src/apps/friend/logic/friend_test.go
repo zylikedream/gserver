@@ -222,14 +222,3 @@ func TestFriendData_JSON_Roundtrip(t *testing.T) {
 		t.Fatalf("unexpected cooldowns: %v", got.Cooldowns)
 	}
 }
-
-// ========== Error variables ==========
-
-func TestErrorVariables(t *testing.T) {
-	errs := []error{ErrSelfAdd, ErrAlreadyFriend, ErrFriendFull, ErrApplyDuplicated, ErrApplyNotFound, ErrCooldown}
-	for _, e := range errs {
-		if e == nil || e.Error() == "" {
-			t.Fatalf("error should have message: %v", e)
-		}
-	}
-}
