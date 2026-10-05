@@ -15,8 +15,10 @@ import (
 	"gserver/protocol/pb"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gserver/core/gxymetrics"
 )
 
 // TestMain 初始化全局 actor app(不建 system/不绑端口),
@@ -229,21 +231,19 @@ func TestChannelActor_Send_AppendsToBuffer(t *testing.T) {
 	}
 }
 
-// TestChannelActor_Send_WithMembersNoPanic:有成员在册时发送不 panic,消息照常入 buffer。
-// 为什么需要:成员循环里的 PublishRoleNotify 是显式忽略错误的,任何 panic 都会带走整个 actor 与其内存 buffer。
-// 注意:这里注册的 RoleID 为 0/-1,PublishRoleNotify 直接走 targetRoleID<=0 的 invalid 早退,owner 查找/notifyLocal/远端发布均未被触达。
+// TestChannelActor_Send_WithMembersNoPanic 注册正数 RoleID 后发消息,必须真的走完
+// "通知所有成员"分支:PublishRoleNotify 越过 invalid 短路,进入归属查找并判定 offline。
+// 用 role_notify_publish_total 的 offline 计数证明通知确实发出——
+// RoleID<=0 会在 invalid 分支就返回,该计数不涨,测试就抓不到成员漏通知。
 func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	// RoleID<=0: PublishRoleNotify 走 invalid 分支(不触达未初始化的全局 Redis),
-	// 测试聚焦"通知所有成员"流程不 panic + buffer 追加。
-	for _, id := range []int64{0, -1} {
-		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
-			RoleId: id, Pid: &pb.ActorPid{Name: "p" + string(rune(id))},
-		}); err != nil {
+	const members = 2
+	for _, id := range []int64{11, 22} {
+		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{RoleId: id}); err != nil {
 			t.Fatalf("register %d: %v", id, err)
 		}
 	}
-	// 通知所有成员(PublishRoleNotify 经全局 app 失败无害), 不应 panic
+	before := notifyPublishCount("offline")
 	if _, err := a.HandleMessage(&pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "hi",
 	}); err != nil {
@@ -252,6 +252,15 @@ func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 	if a.buffer.Len() != 1 {
 		t.Fatalf("expected 1 buffered msg, got %d", a.buffer.Len())
 	}
+	if got := notifyPublishCount("offline") - before; got != members {
+		t.Fatalf("expected %v member notifications, got %v", members, got)
+	}
+}
+
+// notifyPublishCount 读 role_notify_publish_total 的 target=offline 计数:
+// 该分支只在归属查找判定"目标不在线"时递增,invalid 短路不会走到。
+func notifyPublishCount(target string) float64 {
+	return testutil.ToFloat64(gxymetrics.RoleNotifyPublish.WithLabelValues("NotifyChatChannel", "offline", target))
 }
 
 // ========== 历史记录 ==========

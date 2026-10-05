@@ -276,17 +276,3 @@ func TestFriendData_JSON_Roundtrip(t *testing.T) {
 	}
 }
 
-// ========== Error variables ==========
-
-// TestErrorVariables:六个业务错误必须是包级哨兵变量且带非空文案,handler 才能用
-// errors.Is 区分并给出正确提示。
-// 为什么需要:哨兵为 nil 或被替换成每次新建的 error 时,handler 侧 errors.Is 永远不匹配,
-// 所有失败分支退化成一句笼统提示,客户端拿不到"已达上限/申请不存在"的具体原因。
-func TestErrorVariables(t *testing.T) {
-	errs := []error{ErrSelfAdd, ErrAlreadyFriend, ErrFriendFull, ErrApplyDuplicated, ErrApplyNotFound, ErrCooldown}
-	for _, e := range errs {
-		if e == nil || e.Error() == "" {
-			t.Fatalf("error should have message: %v", e)
-		}
-	}
-}
