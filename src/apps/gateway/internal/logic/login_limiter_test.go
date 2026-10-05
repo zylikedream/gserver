@@ -119,6 +119,8 @@ func assertLoginGauges(t *testing.T, inflight, queued float64) {
 	}
 }
 
+// TestLoginLimiterDisabledBypassesAdmission:Enabled=false 时 acquire 必须直接返回 noop permit——不查令牌桶、不占并发槽、不读时钟。
+// 为什么需要:关掉限流等于「更严格」会让线上关停后仍拒登录;桶被调用则脚本化结果耗尽,误报限流。
 func TestLoginLimiterDisabledBypassesAdmission(t *testing.T) {
 	resetLoginGauges(t)
 	config := validLimiterConfig()
@@ -148,6 +150,8 @@ func TestLoginLimiterDisabledBypassesAdmission(t *testing.T) {
 	}
 }
 
+// TestLoginLimiterRateLimitPrecedesGate:令牌桶判定必须排在并发闸门之前,被限流的请求不得进入 slots 或队列。
+// 为什么需要:顺序反了,洪泛客户端先占满全部并发槽,合法用户全被 queue_full 挤掉——限流反而放大拒绝。
 func TestLoginLimiterRateLimitPrecedesGate(t *testing.T) {
 	resetLoginGauges(t)
 	bucket := &scriptedBucket{results: []bool{false}}
@@ -177,6 +181,8 @@ func TestLoginLimiterRateLimitPrecedesGate(t *testing.T) {
 	}
 }
 
+// TestLoginLimiterImmediatePermitReleaseIsIdempotent:同一个 permit 重复 Release 只能归还一次槽位。
+// 为什么需要:非幂等的释放会虚增 login_limit_total{result=ok},并让 inflight 计数持续漂高,最终把所有登录全部拒掉。
 func TestLoginLimiterImmediatePermitReleaseIsIdempotent(t *testing.T) {
 	resetLoginGauges(t)
 	bucket := &scriptedBucket{results: []bool{true}}
@@ -201,6 +207,8 @@ func TestLoginLimiterImmediatePermitReleaseIsIdempotent(t *testing.T) {
 	}
 }
 
+// TestLoginLimiterQueuedRequestAcquiresAfterRelease:释放槽位后,队首等待者被唤醒并成功获得 permit,其定时器必须已 Stop。
+// 为什么需要:唤醒逻辑丢了就会永久阻塞在队列里直到 WaitTimeout,表现为登录随机卡死而非报错。
 func TestLoginLimiterQueuedRequestAcquiresAfterRelease(t *testing.T) {
 	resetLoginGauges(t)
 	bucket := &scriptedBucket{results: []bool{true, true}}
@@ -246,6 +254,8 @@ func TestLoginLimiterQueuedRequestAcquiresAfterRelease(t *testing.T) {
 	}
 }
 
+// TestLoginLimiterZeroQueueRejectsWhenFull:QueueSize=0 表示不排队,并发槽满即刻 ErrLoginQueueFull。
+// 为什么需要:零容量若被当成「无限」或「1」,无队列配置下洪泛会退化成无限堆积,登录服务被打挂。
 func TestLoginLimiterZeroQueueRejectsWhenFull(t *testing.T) {
 	resetLoginGauges(t)
 	config := validLimiterConfig()
@@ -281,6 +291,8 @@ func TestLoginLimiterZeroQueueRejectsWhenFull(t *testing.T) {
 	assertLoginGauges(t, 0, 0)
 }
 
+// TestLoginLimiterRejectsBeyondQueueCapacity:队列满后只拒绝新来者,已在队中的等待者不受影响,槽位释放后仍能拿到 permit。
+// 为什么需要:实现若在 enterQueue 失败时顺手清空队列,会连带丢掉已排队者的名额,登录请求被静默丢弃且无处报错。
 func TestLoginLimiterRejectsBeyondQueueCapacity(t *testing.T) {
 	resetLoginGauges(t)
 	bucket := &scriptedBucket{results: []bool{true, true, true}}
@@ -330,6 +342,8 @@ func TestLoginLimiterRejectsBeyondQueueCapacity(t *testing.T) {
 	assertLoginGauges(t, 0, 0)
 }
 
+// TestLoginLimiterQueueTimeoutRemovesWaiter:等待超时(WaitTimeout)后必须 leaveQueue 并停掉定时器,不影响已在跑的登录。
+// 为什么需要:队列长度不回收会永久占用配额,系统重启式雪崩——并发槽一直满、队列一直满,限流器彻底堵死。
 func TestLoginLimiterQueueTimeoutRemovesWaiter(t *testing.T) {
 	resetLoginGauges(t)
 	bucket := &scriptedBucket{results: []bool{true, true}}
@@ -377,6 +391,8 @@ func TestLoginLimiterQueueTimeoutRemovesWaiter(t *testing.T) {
 	assertLoginGauges(t, 0, 0)
 }
 
+// TestLoginLimiterContextCancellationRemovesWaiter:调用方 ctx 取消时立刻返回包装的 context.Canceled 并同样回收队列名额。
+// 为什么需要:网关关闭/连接断开后若协程仍挂在队列上,每次取消都泄漏一个名额,最终无人能登录。
 func TestLoginLimiterContextCancellationRemovesWaiter(t *testing.T) {
 	resetLoginGauges(t)
 	bucket := &scriptedBucket{results: []bool{true, true}}
@@ -425,6 +441,8 @@ func TestLoginLimiterContextCancellationRemovesWaiter(t *testing.T) {
 	assertLoginGauges(t, 0, 0)
 }
 
+// TestLoginLimiterConcurrentMaxInflight:64 个并发请求对 MaxInflight=4 的闸门,实际同时持证数不得超过 4,且全部成功。
+// 为什么需要:信号量容量算错(比如用了 QueueSize)会静默超发,并发登录把下游 role 服务压垮且监控看不出来。
 func TestLoginLimiterConcurrentMaxInflight(t *testing.T) {
 	resetLoginGauges(t)
 	const (
@@ -519,6 +537,8 @@ func TestLoginLimiterConcurrentMaxInflight(t *testing.T) {
 	}
 }
 
+// TestLoginLimiterConstructorUsesProductionBucketWithoutRefund:NewLoginLimiter 必须装真实 gxylimit.Bucket(Rate=1e-9/s,Burst=1),Release 只退并发槽不退令牌。
+// 为什么需要:若把 Release 也当成退还令牌,限流形同虚设;若退化成测试替身,生产限流曲线与压测结论全部失真。
 func TestLoginLimiterConstructorUsesProductionBucketWithoutRefund(t *testing.T) {
 	resetLoginGauges(t)
 	config := validLimiterConfig()

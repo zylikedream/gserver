@@ -14,6 +14,9 @@ import (
 // ========== ActorMgr ==========
 // ActorMgr 是通用的"id → 进程引用"登记表,gateway 用它跟踪在线会话。
 
+// TestActorMgr_AddAndGet: 登记表的核心往返——Add 写入的 PID,Get 必须按同一键原样取回同一身份。
+// 为什么需要: 未命中时 Get 静默返回零值 PID,消费方用 PIDIsZero 判定"查无此会话";
+// 取回失配会退化成同一条路径,把在线会话当成查无此会话而停止投递。
 func TestActorMgr_AddAndGet(t *testing.T) {
 	mgr := NewActorMgr("test")
 	pid := pidFromLocal(gen.PID{Node: "node1", ID: 1})
@@ -24,6 +27,9 @@ func TestActorMgr_AddAndGet(t *testing.T) {
 	}
 }
 
+// TestActorMgr_GetNotFound: 未注册的键必须回零值 PID(哨兵),不得残留上次值或 panic。
+// 为什么需要: 哨兵是"无会话"的唯一表达;返回脏值会让已下线的角色被当成在线,
+// 消息继续投给已销毁的 PID。
 func TestActorMgr_GetNotFound(t *testing.T) {
 	mgr := NewActorMgr("test")
 	if got := mgr.Get("missing"); !PIDIsZero(got) {
@@ -31,6 +37,9 @@ func TestActorMgr_GetNotFound(t *testing.T) {
 	}
 }
 
+// TestActorMgr_Remove: 会话终止后必须从表中摘净,Get 回零值 PID。
+// 为什么需要: 漏摘一条,OnlinePlayers 计数永久偏高,gateway 停机遍历 All 时
+// 还会对同一个已死 PID 重复调用 stopSession。
 func TestActorMgr_Remove(t *testing.T) {
 	mgr := NewActorMgr("test")
 	mgr.Add("id1", pidFromLocal(gen.PID{Node: "node1", ID: 1}))
@@ -40,6 +49,9 @@ func TestActorMgr_Remove(t *testing.T) {
 	}
 }
 
+// TestActorMgr_Count: Count 等于当前登记条数,随 Add 递增、随 Remove 递减。
+// 为什么需要: 会话建立与终止都把 Count 直接写进 OnlinePlayers 指标
+// (见 session.go),计错会静默错报在线人数,扩容判断随之失真。
 func TestActorMgr_Count(t *testing.T) {
 	mgr := NewActorMgr("test")
 	if mgr.Count() != 0 {
@@ -56,6 +68,10 @@ func TestActorMgr_Count(t *testing.T) {
 	}
 }
 
+// TestActorMgr_All: 返回当时登记的全部 PID 集合(本用例只断言条数)。
+// 为什么需要: gateway 停机靠 All 逐个 stopSession 关闭会话,漏一个就有连接活过停机。
+// 注意: All 用 make 新建切片返回副本,调用方遍历期间并发 Add/Remove 才安全,
+// 这个"副本"性质当前没有任何用例断言——All 改成返回底层视图不会让测试失败。
 func TestActorMgr_All(t *testing.T) {
 	mgr := NewActorMgr("test")
 	mgr.Add("a", pidFromLocal(gen.PID{Node: "n", ID: 1}))
@@ -65,6 +81,9 @@ func TestActorMgr_All(t *testing.T) {
 	}
 }
 
+// TestActorMgr_AllEmpty: 空表必须返回长度为 0 的切片,不 panic。
+// 为什么需要: 启动后从未有人登录的 gateway 停机时也要走完 All,
+// 这里是那条路径上唯一的边界。
 func TestActorMgr_AllEmpty(t *testing.T) {
 	mgr := NewActorMgr("test")
 	if all := mgr.All(); len(all) != 0 {
@@ -72,6 +91,9 @@ func TestActorMgr_AllEmpty(t *testing.T) {
 	}
 }
 
+// TestActorMgr_Overwrite: 同一键二次 Add 是替换而非追加:Count 仍为 1,Get 命中新 PID。
+// 为什么需要: 同一角色重连会复用同一个 RoleID 键;变成追加则旧 PID 仍留在表里,
+// 停机时被重复关闭,而当前在线的会话没有对应条目。
 func TestActorMgr_Overwrite(t *testing.T) {
 	mgr := NewActorMgr("test")
 	newPid := pidFromLocal(gen.PID{Node: "n2", ID: 9})
@@ -88,6 +110,10 @@ func TestActorMgr_Overwrite(t *testing.T) {
 // ========== PidEqual ==========
 // 进程标识是值类型:节点、序号、创建时刻三者共同决定身份。
 
+// TestPidEqual_Same: 节点、序号、创建时刻三者全同的本机引用即同一身份。
+// 为什么需要: PidEqual 是"是不是同一个会话/角色进程"的唯一判据,被 role 重复登录踢旧线
+// (role_main.go)、会话下线摘角色 (gateway session.go 的 HandleDown) 两处依赖;
+// 误判为不等 → 重复登录踢不掉旧连接,同一角色两条连接并存。
 func TestPidEqual_Same(t *testing.T) {
 	a := pidFromLocal(gen.PID{Node: "host", ID: 1, Creation: 100})
 	b := pidFromLocal(gen.PID{Node: "host", ID: 1, Creation: 100})
@@ -96,6 +122,9 @@ func TestPidEqual_Same(t *testing.T) {
 	}
 }
 
+// TestPidEqual_DifferentId: 序号不同即不同身份(同一节点上两个 actor 进程)。
+// 为什么需要: 同节点重启后序号会重用到旧值,只有连同创建时刻一起比才不误判;
+// 若序号被忽略,新进程会被当成旧进程仍在线,下线通知打不到正确对象。
 func TestPidEqual_DifferentId(t *testing.T) {
 	a := pidFromLocal(gen.PID{Node: "host", ID: 1})
 	b := pidFromLocal(gen.PID{Node: "host", ID: 2})
@@ -104,6 +133,9 @@ func TestPidEqual_DifferentId(t *testing.T) {
 	}
 }
 
+// TestPidEqual_DifferentHost: 节点名不同的本机引用不是同一身份,即便序号相同。
+// 为什么需要: 多节点部署时序号只在节点内唯一,漏比节点名会让另一台机器上的同序号
+// actor 被误认为同一个,下线/踢线动作打到别人的进程上。
 func TestPidEqual_DifferentHost(t *testing.T) {
 	a := pidFromLocal(gen.PID{Node: "host1", ID: 1})
 	b := pidFromLocal(gen.PID{Node: "host2", ID: 1})
@@ -121,18 +153,28 @@ func TestPidEqual_DifferentCreation(t *testing.T) {
 	}
 }
 
+// TestPidEqual_ZeroA: 零值 PID("尚无角色")与任何真实引用都不相等。
+// 为什么需要: gateway HandleDown 先比 PidEqual(pid, s.sessionInfo.RolePid) 再摘角色,
+// RolePid 为零(玩家还没进角色)时若判等,任何一次角色下线通知都会把尚未进角色的
+// 连接直接停掉。
 func TestPidEqual_ZeroA(t *testing.T) {
 	if PidEqual(PID{}, pidFromLocal(gen.PID{Node: "h", ID: 1})) {
 		t.Fatal("expected not equal with zero a")
 	}
 }
 
+// TestPidEqual_ZeroB: 同上,零值在任一侧结果一致——PidEqual 必须对称。
+// 为什么需要: 判据被两侧以不同参数顺序调用(HandleDown 与 role_main 相反),
+// 不对称时只有一侧会误判成相等,踢线行为随调用点而变,极难复现。
 func TestPidEqual_ZeroB(t *testing.T) {
 	if PidEqual(pidFromLocal(gen.PID{Node: "h", ID: 1}), PID{}) {
 		t.Fatal("expected not equal with zero b")
 	}
 }
 
+// TestPidEqual_BothZero: 两个零值相等,使"零 == 零"与"零 == 真实"的行为可预测。
+// 为什么需要: 依赖方靠零值相等来表示"本来就没有角色/会话",不需要额外分支;
+// 若改成不等,HandleDown 里"尚未绑定角色"的哨兵就失去了可比较的语义。
 func TestPidEqual_BothZero(t *testing.T) {
 	if !PidEqual(PID{}, PID{}) {
 		t.Fatal("expected equal for two zero pids")
@@ -141,6 +183,10 @@ func TestPidEqual_BothZero(t *testing.T) {
 
 // ========== PIDIsZero ==========
 
+// TestPIDIsZero:只有"两个方向都空"的引用才算零值,带节点或带本机进程标识的一律不算。
+// 为什么需要:零值是"尚未绑定角色/会话"的唯一哨兵,gateway 在挂 Monitor 之前、role 在
+// 判断会话是否还活着时都只靠它;把一个真实引用误判成零值,角色终止通知就发不出去,
+// 连接永久悬挂不回收。
 func TestPIDIsZero(t *testing.T) {
 	if !PIDIsZero(PID{}) {
 		t.Fatal("zero pid must be reported as zero")
@@ -151,8 +197,12 @@ func TestPIDIsZero(t *testing.T) {
 }
 
 // ========== actorKey ==========
-// 所有权键的格式是对外契约(跨版本要读同一条记录),因此固定断言。
 
+// TestActorKeyLocateKey:所有权记录在 Redis 里的完整键名是**跨版本要读同一条记录**的契约,
+// 这里固定断言整串,而不是只断言后缀。
+// 为什么需要:claim 写、locate 读、release 删、节点选择全都由这同一个键派生;格式一变,
+// 已写进去的记录再也读不到,归属退化成"查无此记录"而不报错,同一个逻辑身份会被
+// 再激活出第二个 actor,两份角色数据并发互相覆盖。
 func TestActorKeyLocateKey(t *testing.T) {
 	key := actorKey{kind: "role", id: "123"}.locateKey()
 	expected := "gserver:locate:node:actor:role:123"
@@ -161,6 +211,10 @@ func TestActorKeyLocateKey(t *testing.T) {
 	}
 }
 
+// TestActorKeyLocateKey_EmptyKind:kind 为空时不报错、也不折叠或省略那一段——键里保留一个
+// **空段**("...:actor::456")。它与上一个用例成对,把"空 kind 是照常拼进去的"钉死。
+// 为什么需要:键是按段拼的;实现一旦改成跳过空字段,空 kind 就会落到别人也在用的键形上,
+// 一个身份抢走或释放另一个身份的所有权,现场没有任何报错可查。
 func TestActorKeyLocateKey_EmptyKind(t *testing.T) {
 	key := actorKey{kind: "", id: "456"}.locateKey()
 	expected := "gserver:locate:node:actor::456"
@@ -202,6 +256,12 @@ func TestActorKeyReplyMatchesRemoteRef(t *testing.T) {
 
 // ========== 所有权获取（需要 Redis）==========
 
+// TestClaimAndLocate(需 Redis,RUN_REDIS_TESTS=1):claim 拿到的所有权必须能被 locate **原样读回**
+// 同一个 owner(节点 + 代次 + 令牌),不是只证明"claim 返回了非空"。用例也顺带钉住 Claim 的前置:
+// 没有有效节点租约时 claim 不会成功,故先 acquireNodeLease。
+// 为什么需要:激活层靠 locate 决定"这个 actor 在哪台节点上",消息路由与终止清理都走它;
+// 写进去读不回来(编码或键派生不一致)时,已归属的 actor 被当成无主重新创建,
+// 同一逻辑身份出现两个实例并发处理同一批消息。
 func TestClaimAndLocate(t *testing.T) {
 	if os.Getenv("RUN_REDIS_TESTS") != "1" {
 		t.Skip("set RUN_REDIS_TESTS=1 to run Redis integration tests")
@@ -241,6 +301,11 @@ func TestClaimAndLocate(t *testing.T) {
 
 // ========== ActorError ==========
 
+// TestActorError:业务失败必须以*错误载荷*过线,而不是伪装成一次成功应答——handler 自行
+// `reply(ActorError(reason))` 并返回 nil,Actor.Call 在收到该载荷时把它还原成 error 返回。
+// 为什么需要:调用方统一只写 `if err != nil`;门面不再还原,业务拒绝(例如聊天频道拒写)会被
+// 当成正常结果继续往下走,以为消息已发出而不再补偿,失败静默丢数据。
+// Reason 必须原样透传:它是失败原因唯一留给业务的字样,被吞掉或改写就只能靠猜。
 func TestActorError(t *testing.T) {
 	err := ActorError("something failed")
 	if err == nil {
