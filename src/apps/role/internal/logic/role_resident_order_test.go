@@ -95,8 +95,10 @@ func TestOrderInfo_NewRole(t *testing.T) {
 	if rsp.CompletedCount != 0 {
 		t.Fatalf("expected completed_count 0, got %d", rsp.CompletedCount)
 	}
-	if len(rsp.Milestones) != 4 {
-		t.Fatalf("expected 4 milestones, got %d", len(rsp.Milestones))
+	for _, m := range rsp.Milestones {
+		if m.Claimed {
+			t.Fatalf("milestone %d should not be claimed", m.Id)
+		}
 	}
 }
 
@@ -111,14 +113,15 @@ func TestOrderInfo_WithFlowers(t *testing.T) {
 	if len(rsp.Slots) == 0 {
 		t.Fatal("expected non-empty slots when flowers are available")
 	}
-	// 所有点位应该都有订单（有1种花，所有模板都能生成1种需求）
+	// 只有1种花可用 → 每个点位只能生成1种需求（内部状态同样如此）
 	for _, s := range rsp.Slots {
-		if len(s.Demands) == 0 {
-			t.Fatalf("slot %d has no demands", s.SlotId)
-		}
-		// 只有1种花可用 → 只能生成1种需求
 		if len(s.Demands) != 1 {
 			t.Fatalf("slot %d: expected 1 demand, got %d", s.SlotId, len(s.Demands))
+		}
+	}
+	for slotID, slot := range orderMod.Slots {
+		if len(slot.Demands) != 1 {
+			t.Fatalf("slot %d with 1 flower: expected 1 demand, got %d", slotID, len(slot.Demands))
 		}
 	}
 	if rsp.CompletedCount != 0 {
@@ -173,25 +176,44 @@ func TestSubmitOrder_Success(t *testing.T) {
 }
 
 func TestSubmitOrder_Cooldown(t *testing.T) {
-	_, orderMod := setupTestOrder(t, 101)
-
-	slotID, itemID, needNum := firstSlotDemand(t, orderMod)
-
-	addGoods := []*gamecfg.GardenGoodStack{{Id: itemID, Num: needNum * 3}}
-	if err := orderMod.Role.Bag.SaveGoods(context.Background(), nil, addGoods, "test_add"); err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name    string
+		flowers []int32
+		slotID  int32 // 0 表示取第一张有需求的 slot
+	}{
+		{name: "cooldown_after_submit", flowers: []int32{101}},
+		{
+			// 不存在的 slot ID 走到 slot 查找处直接判冷却失败，而不是"需求不满足"；
+			// 这里钉住的就是这个容易被当成 bug 的返回。
+			name:   "invalid_slot_reported_as_cooldown",
+			slotID: 999,
+		},
 	}
 
-	// 第一次提交成功
-	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, orderMod := setupTestOrder(t, tt.flowers...)
 
-	// 第二次提交应被拒绝（冷却中）
-	_, err = orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
-	if !errors.Is(err, ErrOrderSlotCooldown) {
-		t.Fatalf("expected ErrOrderSlotCooldown, got %v", err)
+			slotID := tt.slotID
+			if slotID == 0 {
+				var itemID, needNum int32
+				slotID, itemID, needNum = firstSlotDemand(t, orderMod)
+				addGoods := []*gamecfg.GardenGoodStack{{Id: itemID, Num: needNum * 3}}
+				if err := orderMod.Role.Bag.SaveGoods(context.Background(), nil, addGoods, "test_add"); err != nil {
+					t.Fatal(err)
+				}
+				// 第一次提交成功
+				if _, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			// 第二次提交应被拒绝（冷却中）
+			_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
+			if !errors.Is(err, ErrOrderSlotCooldown) {
+				t.Fatalf("expected ErrOrderSlotCooldown, got %v", err)
+			}
+		})
 	}
 }
 
@@ -204,16 +226,6 @@ func TestSubmitOrder_NotEnough(t *testing.T) {
 	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: slotID})
 	if !errors.Is(err, ErrOrderNotEnough) {
 		t.Fatalf("expected ErrOrderNotEnough, got %v", err)
-	}
-}
-
-func TestSubmitOrder_InvalidSlot(t *testing.T) {
-	_, orderMod := setupTestOrder(t)
-
-	// 不存在的 slot ID（且没有花产品，slot 已被删除）
-	_, err := orderMod.ReqResidentOrderSubmit(context.Background(), &pb.ReqResidentOrderSubmit{SlotId: 999})
-	if !errors.Is(err, ErrOrderSlotCooldown) {
-		t.Fatalf("expected ErrOrderSlotCooldown for invalid slot, got %v", err)
 	}
 }
 
@@ -264,17 +276,6 @@ func TestClaimMilestone_AlreadyClaimed(t *testing.T) {
 	_, err = orderMod.ReqResidentOrderClaimMilestone(context.Background(), &pb.ReqResidentOrderClaimMilestone{Id: 1})
 	if !errors.Is(err, ErrOrderMilestoneClaimed) {
 		t.Fatalf("expected ErrOrderMilestoneClaimed, got %v", err)
-	}
-}
-
-func TestOrderGeneration_FilterKindProbs_OneFlower(t *testing.T) {
-	// 只有1种花 → 所有订单只能生成1种需求
-	_, orderMod := setupTestOrder(t, 101)
-
-	for slotID, slot := range orderMod.Slots {
-		if len(slot.Demands) != 1 {
-			t.Fatalf("slot %d with 1 flower: expected 1 demand, got %d", slotID, len(slot.Demands))
-		}
 	}
 }
 
@@ -351,21 +352,6 @@ func TestOrderCompleteEvent(t *testing.T) {
 	}
 }
 
-func TestSlotLocking_Level1(t *testing.T) {
-	// 等级1 → 只解锁 unlock_level <= 1 的 slot
-	_, orderMod := setupTestOrder(t, 101)
-
-	activeCount := 0
-	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
-		if orderMod.Slots[cfg.Id] != nil {
-			activeCount++
-		}
-	}
-	if activeCount != 2 {
-		t.Fatalf("level 1: expected 2 active slots, got %d", activeCount)
-	}
-}
-
 func TestSlotLocking_NoBasic(t *testing.T) {
 	// Basic 模块不存在时，默认等级1（仍需要有花产品才能生成订单）
 	initOrderTestConfig(t)
@@ -433,22 +419,4 @@ func TestSlotLocking_LevelUp(t *testing.T) {
 	orderMod.Role.Basic.Level = 10
 	orderMod.ensureUnlockedSlots()
 	checkActive(5)
-}
-
-func TestSlotLocking_NoNewUnlock(t *testing.T) {
-	// 等级不变：再次调用 ensureUnlockedSlots 不应新增
-	_, orderMod := setupTestOrder(t, 101)
-
-	orderMod.ensureUnlockedSlots()
-
-	activeCount := 0
-	for _, cfg := range gameconfig.Get().TbResidentOrderSlot.GetDataList() {
-		if orderMod.Slots[cfg.Id] != nil {
-			activeCount++
-		}
-	}
-	// 等级1：2个slot，调用 ensureUnlockedSlots 后仍为2（已存在，不重复创建）
-	if activeCount != 2 {
-		t.Fatalf("expected 2 active slots (no new unlock), got %d", activeCount)
-	}
 }

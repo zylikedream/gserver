@@ -10,6 +10,7 @@ import (
 	"gserver/src/apps/role/internal/logic/bag"
 	"gserver/src/pkg/gameconfig"
 
+	"ergo.services/ergo/testing/unit"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -37,6 +38,19 @@ func setupTestBag(t *testing.T) *RoleBag {
 	return bagMod
 }
 
+// setupNotifyingBag 起一个带真实 session 的 role actor,返回的 Subject 用于断言
+// SaveGoods 发给客户端的消息。opts 相关的用例必须走这里,否则 SendClient 直接返回。
+func setupNotifyingBag(t *testing.T) (*RoleBag, *unit.Subject) {
+	t.Helper()
+	role, subj, _ := spawnTestRole(t, 1001)
+	b := &RoleBag{
+		RoleModule:   RoleModule{Role: role, RoleID: role.RoleID},
+		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
+	}
+	role.Bag = b
+	return b, subj
+}
+
 func testGoodStack(id, num int32) *gamecfg.GardenGoodStack {
 	return &gamecfg.GardenGoodStack{Id: id, Num: num}
 }
@@ -52,71 +66,46 @@ func itemConfig(t *testing.T, goodID int32) *gamecfg.GardenItem {
 
 // ========== classifyGoods ==========
 
-func TestBagClassifyGoods_Nil(t *testing.T) {
-	result := classifyGoods(nil)
-	if len(result) != 0 {
-		t.Fatalf("expected empty, got %v", result)
-	}
-}
-
-func TestBagClassifyGoods_Empty(t *testing.T) {
-	result := classifyGoods([]*gamecfg.GardenGoodStack{})
-	if len(result) != 0 {
-		t.Fatalf("expected empty, got %v", result)
-	}
-}
-
-func TestBagClassifyGoods_Single(t *testing.T) {
-	result := classifyGoods([]*gamecfg.GardenGoodStack{testGoodStack(1001, 5)})
-	if len(result) != 1 {
-		t.Fatalf("expected 1, got %d", len(result))
-	}
-	if result[0].GoodID != 1001 || result[0].Num != 5 {
-		t.Fatalf("expected {1001,5}, got %v", result[0])
-	}
-}
-
+// classifyGoods 的分组契约:同 ID 必须累加,不同 ID 必须各留一条,
+// nil/空输入返回空列表而不是 nil。
 func TestBagClassifyGoods_MergeSameID(t *testing.T) {
-	result := classifyGoods([]*gamecfg.GardenGoodStack{
-		testGoodStack(1001, 3),
-		testGoodStack(1001, 7),
-	})
-	if len(result) != 1 {
-		t.Fatalf("expected 1, got %d", len(result))
+	tests := []struct {
+		name  string
+		input []*gamecfg.GardenGoodStack
+		want  map[int]uint64
+	}{
+		{"nil", nil, map[int]uint64{}},
+		{"empty", []*gamecfg.GardenGoodStack{}, map[int]uint64{}},
+		{"single", []*gamecfg.GardenGoodStack{testGoodStack(1001, 5)}, map[int]uint64{1001: 5}},
+		{"merge same id", []*gamecfg.GardenGoodStack{
+			testGoodStack(1001, 3),
+			testGoodStack(1001, 7),
+		}, map[int]uint64{1001: 10}},
+		{"multiple ids", []*gamecfg.GardenGoodStack{
+			testGoodStack(1001, 5),
+			testGoodStack(int32(GOLD_ITEM_ID), 10),
+		}, map[int]uint64{1001: 5, GOLD_ITEM_ID: 10}},
 	}
-	if result[0].GoodID != 1001 || result[0].Num != 10 {
-		t.Fatalf("expected {1001,10}, got %v", result[0])
-	}
-}
-
-func TestBagClassifyGoods_MultipleIDs(t *testing.T) {
-	result := classifyGoods([]*gamecfg.GardenGoodStack{
-		testGoodStack(1001, 5),
-		testGoodStack(int32(GOLD_ITEM_ID), 10),
-	})
-	if len(result) != 2 {
-		t.Fatalf("expected 2, got %d", len(result))
-	}
-	counts := map[int]uint64{}
-	for _, g := range result {
-		counts[g.GoodID] = g.Num
-	}
-	if counts[1001] != 5 || counts[GOLD_ITEM_ID] != 10 {
-		t.Fatalf("expected {1001:5, %d:10}, got %v", GOLD_ITEM_ID, counts)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := classifyGoods(tt.input)
+			if len(result) != len(tt.want) {
+				t.Fatalf("expected %d goods, got %d: %v", len(tt.want), len(result), result)
+			}
+			got := map[int]uint64{}
+			for _, g := range result {
+				got[g.GoodID] = g.Num
+			}
+			for id, wantNum := range tt.want {
+				if got[id] != wantNum {
+					t.Fatalf("good %d: expected num %d, got %d", id, wantNum, got[id])
+				}
+			}
+		})
 	}
 }
 
 // ========== GetGood ==========
-
-func TestBagGetGood_Exists(t *testing.T) {
-	b := setupTestBag(t)
-	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 50}
-
-	good := b.GetGood(1001)
-	if good.GoodID != 1001 || good.Num != 50 {
-		t.Fatalf("expected {1001,50}, got %v", good)
-	}
-}
 
 func TestBagGetGood_NotExists(t *testing.T) {
 	b := setupTestBag(t)
@@ -143,53 +132,44 @@ func TestBagCloneGoodsMap_Isolation(t *testing.T) {
 
 // ========== addSingleGood ==========
 
-func TestBagAddSingleGood_New(t *testing.T) {
-	b := setupTestBag(t)
-	goodsMap := make(GoodsMap)
-
-	op, err := b.addSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 5})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if op.PreNum != 0 || op.Num != 5 {
-		t.Fatalf("expected op {0->5}, got {%d->%d}", op.PreNum, op.Num)
-	}
-	if goodsMap[1001].Num != 5 {
-		t.Fatalf("expected map num 5, got %d", goodsMap[1001].Num)
-	}
-}
-
-func TestBagAddSingleGood_Stack(t *testing.T) {
-	b := setupTestBag(t)
-	goodsMap := GoodsMap{1001: {GoodID: 1001, Num: 10}}
-
-	op, err := b.addSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 20})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if op.PreNum != 10 || op.Num != 30 {
-		t.Fatalf("expected op {10->30}, got {%d->%d}", op.PreNum, op.Num)
-	}
-}
-
+// addSingleGood 的三条契约:新物品落库为 {0->N},已有物品累加为 {N->N+M},
+// 超过配置 MaxStack 必须拒绝且不写回 map。
 func TestBagAddSingleGood_ExceedMaxStack(t *testing.T) {
-	b := setupTestBag(t)
 	maxStack := uint64(itemConfig(t, 1001).MaxStack)
-	goodsMap := GoodsMap{1001: {GoodID: 1001, Num: maxStack - 1}}
-
-	_, err := b.addSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 2})
-	if !errors.Is(err, ErrGoodExceedMaxStack) {
-		t.Fatalf("expected ErrGoodExceedMaxStack, got %v", err)
+	tests := []struct {
+		name     string
+		goodsMap GoodsMap
+		add      bag.Good
+		wantPre  uint64
+		wantNum  uint64
+		wantErr  error
+	}{
+		{"new", make(GoodsMap), bag.Good{GoodID: 1001, Num: 5}, 0, 5, nil},
+		{"stack", GoodsMap{1001: {GoodID: 1001, Num: 10}}, bag.Good{GoodID: 1001, Num: 20}, 10, 30, nil},
+		{"exceed max stack", GoodsMap{1001: {GoodID: 1001, Num: maxStack - 1}}, bag.Good{GoodID: 1001, Num: 2}, 0, 0, ErrGoodExceedMaxStack},
 	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := setupTestBag(t)
 
-func TestBagAddSingleGood_LargeStack(t *testing.T) {
-	b := setupTestBag(t)
-	goodsMap := GoodsMap{GOLD_ITEM_ID: {GoodID: GOLD_ITEM_ID, Num: 1000}}
-
-	_, err := b.addSingleGood(goodsMap, bag.Good{GoodID: GOLD_ITEM_ID, Num: 1000})
-	if err != nil {
-		t.Fatalf("expected nil, got %v", err)
+			op, err := b.addSingleGood(tt.goodsMap, tt.add)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected err %v, got %v", tt.wantErr, err)
+			}
+			if tt.wantErr != nil {
+				// 拒绝时 map 必须保持原状,不能留下半写状态
+				if got := tt.goodsMap[1001].Num; got != maxStack-1 {
+					t.Fatalf("expected goodsMap untouched at %d, got %d", maxStack-1, got)
+				}
+				return
+			}
+			if op.PreNum != tt.wantPre || op.Num != tt.wantNum {
+				t.Fatalf("expected op {%d->%d}, got {%d->%d}", tt.wantPre, tt.wantNum, op.PreNum, op.Num)
+			}
+			if got := tt.goodsMap[1001].Num; got != tt.wantNum {
+				t.Fatalf("expected map num %d, got %d", tt.wantNum, got)
+			}
+		})
 	}
 }
 
@@ -205,35 +185,45 @@ func TestBagAddSingleGood_ConfigNotFound(t *testing.T) {
 
 // ========== decSingleGood ==========
 
-func TestBagDecSingleGood_Normal(t *testing.T) {
-	b := setupTestBag(t)
-	goodsMap := GoodsMap{1001: {GoodID: 1001, Num: 50}}
-
-	op, err := b.decSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 20})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if op.PreNum != 50 || op.Num != 30 {
-		t.Fatalf("expected op {50->30}, got {%d->%d}", op.PreNum, op.Num)
-	}
-	if goodsMap[1001].Num != 30 {
-		t.Fatalf("expected map num 30, got %d", goodsMap[1001].Num)
-	}
-}
-
+// decSingleGood 的扣除契约:够扣时按 扣前->扣后 记录,
+// 扣到 0 必须把条目从 map 删除(不留 Num=0 的僵尸行),
+// 持有量不足和完全不存在都归为同一个 ErrGoodNotEnough。
 func TestBagDecSingleGood_ToZero(t *testing.T) {
-	b := setupTestBag(t)
-	goodsMap := GoodsMap{1001: {GoodID: 1001, Num: 10}}
+	tests := []struct {
+		name     string
+		goodsMap GoodsMap
+		dec      bag.Good
+		wantPre  uint64
+		wantNum  uint64
+		wantErr  error
+		wantGone bool
+	}{
+		{"normal", GoodsMap{1001: {GoodID: 1001, Num: 50}}, bag.Good{GoodID: 1001, Num: 20}, 50, 30, nil, false},
+		{"to zero", GoodsMap{1001: {GoodID: 1001, Num: 10}}, bag.Good{GoodID: 1001, Num: 10}, 10, 0, nil, true},
+		{"not exists", make(GoodsMap), bag.Good{GoodID: 1001, Num: 1}, 0, 0, ErrGoodNotEnough, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := setupTestBag(t)
 
-	op, err := b.decSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 10})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if op.Num != 0 {
-		t.Fatalf("expected op num 0, got %d", op.Num)
-	}
-	if _, exists := goodsMap[1001]; exists {
-		t.Fatal("expected good deleted from map when num is 0")
+			op, err := b.decSingleGood(tt.goodsMap, tt.dec)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected err %v, got %v", tt.wantErr, err)
+			}
+			if tt.wantErr != nil {
+				if _, exists := tt.goodsMap[1001]; exists {
+					t.Fatal("expected goodsMap untouched on rejection")
+				}
+				return
+			}
+			if op.PreNum != tt.wantPre || op.Num != tt.wantNum {
+				t.Fatalf("expected op {%d->%d}, got {%d->%d}", tt.wantPre, tt.wantNum, op.PreNum, op.Num)
+			}
+			_, exists := tt.goodsMap[1001]
+			if exists == tt.wantGone {
+				t.Fatalf("expected exists=%v, got %v", !tt.wantGone, exists)
+			}
+		})
 	}
 }
 
@@ -247,115 +237,54 @@ func TestBagDecSingleGood_NotEnough(t *testing.T) {
 	}
 }
 
-func TestBagDecSingleGood_NotExists(t *testing.T) {
-	b := setupTestBag(t)
-	goodsMap := make(GoodsMap)
-
-	_, err := b.decSingleGood(goodsMap, bag.Good{GoodID: 1001, Num: 1})
-	if !errors.Is(err, ErrGoodNotEnough) {
-		t.Fatalf("expected ErrGoodNotEnough, got %v", err)
-	}
-}
-
 // ========== SaveGoods ==========
 
+// SaveGoods 的落库契约:扣除与添加可以在同一次调用里组合,
+// 普通物品与玩家经验物品走同一条背包路径(经验不特殊处理)。
 func TestBagSaveGoods_AddOnly(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test")
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name   string
+		goods  GoodsMap
+		remove []*gamecfg.GardenGoodStack
+		add    []*gamecfg.GardenGoodStack
+		want   map[int]uint64
+	}{
+		{"add only", nil, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, map[int]uint64{1001: 10}},
+		{"player exp stored", nil, nil, []*gamecfg.GardenGoodStack{testGoodStack(int32(PLAYER_EXP_ITEM_ID), 55)}, map[int]uint64{PLAYER_EXP_ITEM_ID: 55}},
+		{"normal and player exp add", nil, nil, []*gamecfg.GardenGoodStack{
+			testGoodStack(1001, 10),
+			testGoodStack(int32(PLAYER_EXP_ITEM_ID), 20),
+		}, map[int]uint64{1001: 10, PLAYER_EXP_ITEM_ID: 20}},
+		{"remove only", GoodsMap{1001: {GoodID: 1001, Num: 50}}, []*gamecfg.GardenGoodStack{testGoodStack(1001, 20)}, nil, map[int]uint64{1001: 30}},
+		{"remove and add", GoodsMap{
+			1001:         {GoodID: 1001, Num: 50},
+			GOLD_ITEM_ID: {GoodID: GOLD_ITEM_ID, Num: 100},
+		}, []*gamecfg.GardenGoodStack{testGoodStack(1001, 20)}, []*gamecfg.GardenGoodStack{
+			testGoodStack(int32(GOLD_ITEM_ID), 50),
+		}, map[int]uint64{1001: 30, GOLD_ITEM_ID: 150}},
 	}
-	if b.Goods[1001].Num != 10 {
-		t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
-	}
-	if !b.IsDirty() {
-		t.Fatal("expected dirty")
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := setupTestBag(t)
+			for id, g := range tt.goods {
+				b.Goods[id] = g
+			}
 
-func TestBagSaveGoods_PlayerExpStored(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(int32(PLAYER_EXP_ITEM_ID), 55)}, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got := b.Goods[PLAYER_EXP_ITEM_ID].Num; got != 55 {
-		t.Fatalf("expected exp item stored as 55, got %d", got)
-	}
-}
-
-func TestBagSaveGoods_NormalAndPlayerExpAdd(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{
-		testGoodStack(1001, 10),
-		testGoodStack(int32(PLAYER_EXP_ITEM_ID), 20),
-	}, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got := b.Goods[1001].Num; got != 10 {
-		t.Fatalf("expected normal item 10, got %d", got)
-	}
-	if got := b.Goods[PLAYER_EXP_ITEM_ID].Num; got != 20 {
-		t.Fatalf("expected exp item 20, got %d", got)
-	}
-}
-
-func TestBagSaveGoods_PlayerExpRetainedBeyondConfiguredMaxLevel(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(int32(PLAYER_EXP_ITEM_ID), 999999)}, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if got := b.Goods[PLAYER_EXP_ITEM_ID].Num; got != 999999 {
-		t.Fatalf("expected exp retained, got %d", got)
-	}
-}
-
-func TestBagSaveGoods_RemoveOnly(t *testing.T) {
-	b := setupTestBag(t)
-	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 50}
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, []*gamecfg.GardenGoodStack{testGoodStack(1001, 20)}, nil, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if b.Goods[1001].Num != 30 {
-		t.Fatalf("expected 30, got %d", b.Goods[1001].Num)
-	}
-}
-
-func TestBagSaveGoods_RemoveAndAdd(t *testing.T) {
-	b := setupTestBag(t)
-	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 50}
-	b.Goods[GOLD_ITEM_ID] = bag.BagGood{GoodID: GOLD_ITEM_ID, Num: 100}
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx,
-		[]*gamecfg.GardenGoodStack{testGoodStack(1001, 20)},
-		[]*gamecfg.GardenGoodStack{testGoodStack(int32(GOLD_ITEM_ID), 50)},
-		"trade",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if b.Goods[1001].Num != 30 {
-		t.Fatalf("expected 1001 num 30, got %d", b.Goods[1001].Num)
-	}
-	if b.Goods[GOLD_ITEM_ID].Num != 150 {
-		t.Fatalf("expected %d num 150, got %d", GOLD_ITEM_ID, b.Goods[GOLD_ITEM_ID].Num)
+			if err := b.SaveGoods(context.Background(), tt.remove, tt.add, "test"); err != nil {
+				t.Fatal(err)
+			}
+			if len(b.Goods) != len(tt.want) {
+				t.Fatalf("expected %d goods, got %d", len(tt.want), len(b.Goods))
+			}
+			for id, wantNum := range tt.want {
+				if got := b.Goods[id].Num; got != wantNum {
+					t.Fatalf("good %d: expected num %d, got %d", id, wantNum, got)
+				}
+			}
+			if !b.IsDirty() {
+				t.Fatal("expected dirty")
+			}
+		})
 	}
 }
 
@@ -388,19 +317,6 @@ func TestBagSaveGoods_AddFailed_Rollback(t *testing.T) {
 	}
 }
 
-func TestBagSaveGoods_EmptyOps(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, nil, nil, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(b.Goods) != 0 {
-		t.Fatalf("expected empty goods, got %d", len(b.Goods))
-	}
-}
-
 func TestBagSaveGoods_SameGoodRemoveThenAdd(t *testing.T) {
 	b := setupTestBag(t)
 	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 50}
@@ -421,102 +337,78 @@ func TestBagSaveGoods_SameGoodRemoveThenAdd(t *testing.T) {
 
 // ========== CheckGoods ==========
 
-func TestBagCheckGoods_Enough(t *testing.T) {
-	b := setupTestBag(t)
-	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 50}
-
-	if !b.CheckGoods([]*gamecfg.GardenGoodStack{testGoodStack(1001, 30)}) {
-		t.Fatal("expected true")
-	}
-}
-
+// CheckGoods 的判定契约:逐项比较持有量,任一项不足即 false,
+// nil 请求表示"无要求"必须是 true。
 func TestBagCheckGoods_NotEnough(t *testing.T) {
-	b := setupTestBag(t)
-	b.Goods[1001] = bag.BagGood{GoodID: 1001, Num: 5}
-
-	if b.CheckGoods([]*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}) {
-		t.Fatal("expected false")
+	tests := []struct {
+		name  string
+		goods GoodsMap
+		check []*gamecfg.GardenGoodStack
+		want  bool
+	}{
+		{"enough", GoodsMap{1001: {GoodID: 1001, Num: 50}}, []*gamecfg.GardenGoodStack{testGoodStack(1001, 30)}, true},
+		{"not enough", GoodsMap{1001: {GoodID: 1001, Num: 5}}, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, false},
+		{"not exists", nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 1)}, false},
+		{"nil", nil, nil, true},
 	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := setupTestBag(t)
+			for id, g := range tt.goods {
+				b.Goods[id] = g
+			}
 
-func TestBagCheckGoods_NotExists(t *testing.T) {
-	b := setupTestBag(t)
-
-	if b.CheckGoods([]*gamecfg.GardenGoodStack{testGoodStack(1001, 1)}) {
-		t.Fatal("expected false")
-	}
-}
-
-func TestBagCheckGoods_Nil(t *testing.T) {
-	b := setupTestBag(t)
-
-	if !b.CheckGoods(nil) {
-		t.Fatal("expected true for nil input")
-	}
-}
-
-// ========== MakeGoodStack ==========
-
-func TestMakeGoodStack(t *testing.T) {
-	s := bag.MakeGoodStack(1001, 50)
-	if s.Id != 1001 || s.Num != 50 {
-		t.Fatalf("expected {1001,50}, got {%d,%d}", s.Id, s.Num)
+			if got := b.CheckGoods(tt.check); got != tt.want {
+				t.Fatalf("expected %v, got %v", tt.want, got)
+			}
+		})
 	}
 }
 
 // ========== SaveGoodsOpts ==========
 
-func TestBagSaveGoods_Silent(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptSilent())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if b.Goods[1001].Num != 10 {
-		t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
-	}
-	if !b.IsDirty() {
-		t.Fatal("expected dirty even in silent mode")
-	}
-}
-
-func TestBagSaveGoods_DefaultOpts(t *testing.T) {
-	b := setupTestBag(t)
-	ctx := context.Background()
-
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if b.Goods[1001].Num != 10 {
-		t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
-	}
-}
-
+// opts 门控:OptNotifyReward 额外弹奖励,OptSilent 两种通知都不发
+// (但数据仍落库并标脏)。这是静默模式唯一的负向用例。
 func TestBagSaveGoods_NotifyRewardOpts(t *testing.T) {
-	role, subj, _ := spawnTestRole(t, 1001)
-	initTestGameConfig(t)
-	b := &RoleBag{
-		RoleModule:   RoleModule{Role: role, RoleID: role.RoleID},
-		RoleBagState: RoleBagState{Goods: make(GoodsMap)},
-	}
-	role.Bag = b
-	ctx := context.Background()
+	t.Run("notify reward", func(t *testing.T) {
+		b, subj := setupNotifyingBag(t)
 
-	err := b.SaveGoods(ctx, nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptNotifyReward())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if b.Goods[1001].Num != 10 {
-		t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
-	}
-	subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
-		reward, ok := m.(*pb.NotifyBagReward)
-		if !ok || len(reward.Goods) != 1 {
-			return false
+		err := b.SaveGoods(context.Background(), nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptNotifyReward())
+		if err != nil {
+			t.Fatal(err)
 		}
-		return reward.Goods[0].PropId == 1001 && reward.Goods[0].Num == 10
-	})).Assert()
+		if b.Goods[1001].Num != 10 {
+			t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
+		}
+		subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
+			reward, ok := m.(*pb.NotifyBagReward)
+			if !ok || len(reward.Goods) != 1 {
+				return false
+			}
+			return reward.Goods[0].PropId == 1001 && reward.Goods[0].Num == 10
+		})).Assert()
+	})
+
+	t.Run("silent", func(t *testing.T) {
+		b, subj := setupNotifyingBag(t)
+
+		err := b.SaveGoods(context.Background(), nil, []*gamecfg.GardenGoodStack{testGoodStack(1001, 10)}, "test", bag.OptSilent())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b.Goods[1001].Num != 10 {
+			t.Fatalf("expected 10, got %d", b.Goods[1001].Num)
+		}
+		if !b.IsDirty() {
+			t.Fatal("expected dirty even in silent mode")
+		}
+		subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
+			_, ok := m.(*pb.NotifyBagUpdate)
+			return ok
+		})).None().Assert()
+		subj.ShouldSend().Where(clientMsgMatcher(func(m proto.Message) bool {
+			_, ok := m.(*pb.NotifyBagReward)
+			return ok
+		})).None().Assert()
+	})
 }

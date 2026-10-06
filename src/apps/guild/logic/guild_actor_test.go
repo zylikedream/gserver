@@ -159,84 +159,54 @@ func TestGetMember_NotFound(t *testing.T) {
 
 // ========== canApprove ==========
 
-func TestCanApprove_Leader(t *testing.T) {
-	g := newTestGuild(t)
-	if !g.canApprove(100) {
-		t.Fatal("leader should approve")
+func TestCanApprove(t *testing.T) {
+	cases := []struct {
+		name   string
+		roleID int64
+		want   bool
+	}{
+		{"leader", 100, true},
+		{"vice leader", 200, true},
+		{"member", 300, false},
+		{"non-member", 999, false},
 	}
-}
-
-func TestCanApprove_ViceLeader(t *testing.T) {
-	g := newTestGuild(t)
-	if !g.canApprove(200) {
-		t.Fatal("vice leader should approve")
-	}
-}
-
-func TestCanApprove_Member(t *testing.T) {
-	g := newTestGuild(t)
-	if g.canApprove(300) {
-		t.Fatal("member should not approve")
-	}
-}
-
-func TestCanApprove_NonMember(t *testing.T) {
-	g := newTestGuild(t)
-	if g.canApprove(999) {
-		t.Fatal("non-member should not approve")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := newTestGuild(t).canApprove(c.roleID); got != c.want {
+				t.Fatalf("canApprove(%d) = %v, want %v", c.roleID, got, c.want)
+			}
+		})
 	}
 }
 
 // ========== canKick ==========
 
-func TestCanKick_LeaderKickMember(t *testing.T) {
-	g := newTestGuild(t)
-	if !g.canKick(100, 300) {
-		t.Fatal("leader should kick member")
+func TestCanKick(t *testing.T) {
+	cases := []struct {
+		name       string
+		opID       int64
+		targetID   int64
+		secondVice bool
+		want       bool
+	}{
+		{"leader kick member", 100, 300, false, true},
+		{"leader kick vice leader", 100, 200, false, true},
+		{"vice leader kick member", 200, 300, false, true},
+		{"vice leader cannot kick vice leader", 200, 250, true, false},
+		{"cannot kick leader", 200, 100, false, false},
+		{"cannot kick self", 100, 100, false, false},
+		{"member cannot kick", 300, 200, false, false},
 	}
-}
-
-func TestCanKick_LeaderKickViceLeader(t *testing.T) {
-	g := newTestGuild(t)
-	if !g.canKick(100, 200) {
-		t.Fatal("leader should kick vice leader")
-	}
-}
-
-func TestCanKick_ViceLeaderKickMember(t *testing.T) {
-	g := newTestGuild(t)
-	if !g.canKick(200, 300) {
-		t.Fatal("vice leader should kick member")
-	}
-}
-
-func TestCanKick_ViceLeaderCannotKickViceLeader(t *testing.T) {
-	g := newTestGuild(t)
-	// 250 is not in guild, so add one
-	g.Data.Members = append(g.Data.Members, &GuildMember{RoleID: 250, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER)})
-	if g.canKick(200, 250) {
-		t.Fatal("vice leader should not kick another vice leader")
-	}
-}
-
-func TestCanKick_CannotKickLeader(t *testing.T) {
-	g := newTestGuild(t)
-	if g.canKick(200, 100) {
-		t.Fatal("should not kick leader")
-	}
-}
-
-func TestCanKick_CannotKickSelf(t *testing.T) {
-	g := newTestGuild(t)
-	if g.canKick(100, 100) {
-		t.Fatal("should not kick self")
-	}
-}
-
-func TestCanKick_MemberCannotKick(t *testing.T) {
-	g := newTestGuild(t)
-	if g.canKick(300, 200) {
-		t.Fatal("member should not kick")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			g := newTestGuild(t)
+			if c.secondVice {
+				g.Data.Members = append(g.Data.Members, &GuildMember{RoleID: 250, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER)})
+			}
+			if got := g.canKick(c.opID, c.targetID); got != c.want {
+				t.Fatalf("canKick(%d, %d) = %v, want %v", c.opID, c.targetID, got, c.want)
+			}
+		})
 	}
 }
 
@@ -310,27 +280,6 @@ func TestOnDayRefresh_AllValid(t *testing.T) {
 	}
 }
 
-// ========== addLog 截断逻辑 ==========
-
-func TestAddLog_TruncatesAt100(t *testing.T) {
-	g := newTestGuild(t)
-	for range 105 {
-		g.Data.Logs = append(g.Data.Logs, &GuildLog{Content: "old"})
-	}
-	// 模拟 addLog 中的截断逻辑
-	entry := &GuildLog{Content: "new", CreatedAt: time.Now()}
-	g.Data.Logs = append(g.Data.Logs, entry)
-	if len(g.Data.Logs) > MaxLogCount {
-		g.Data.Logs = g.Data.Logs[len(g.Data.Logs)-MaxLogCount:]
-	}
-	if len(g.Data.Logs) != 100 {
-		t.Fatalf("expected 100, got %d", len(g.Data.Logs))
-	}
-	if g.Data.Logs[99].Content != "new" {
-		t.Fatal("last log should be new")
-	}
-}
-
 // ========== buildLogList ==========
 
 func TestBuildLogList(t *testing.T) {
@@ -376,104 +325,5 @@ func TestGuildLogs(t *testing.T) {
 	}
 	if len(rsp.Logs) != 1 {
 		t.Fatalf("expected 1 log, got %d", len(rsp.Logs))
-	}
-}
-
-// ========== SetPosition (pure logic, no DB/notify) ==========
-
-func TestSetPosition_LeaderSetsViceLeader(t *testing.T) {
-	g := newTestGuild(t)
-	// SetPosition calls notifyGuildInfo → need to avoid nil ActorBase
-	// Test the permission logic directly
-	op := g.getMember(100)
-	target := g.getMember(300)
-	if op == nil || op.Position >= int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
-		t.Fatal("leader should have permission")
-	}
-	if target == nil {
-		t.Fatal("target should exist")
-	}
-	target.Position = int32(gamecfg.GardenEGuildPosition_VICE_LEADER)
-	if m := g.getMember(300); m.Position != int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
-		t.Fatal("position should be updated")
-	}
-}
-
-// ========== TransferLeader logic ==========
-
-func TestTransferLeader_Logic(t *testing.T) {
-	g := newTestGuild(t)
-	op := g.getMember(100)
-	target := g.getMember(200)
-	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
-		t.Fatal("operator should be leader")
-	}
-	op.Position = int32(gamecfg.GardenEGuildPosition_MEMBER)
-	target.Position = int32(gamecfg.GardenEGuildPosition_LEADER)
-	g.Data.LeaderID = 200
-
-	if g.Data.LeaderID != 200 {
-		t.Fatal("leader ID should be 200")
-	}
-	if g.getMember(100).Position != int32(gamecfg.GardenEGuildPosition_MEMBER) {
-		t.Fatal("old leader should be member")
-	}
-	if g.getMember(200).Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
-		t.Fatal("new leader should be leader")
-	}
-}
-
-// ========== UpdateGuildInfo logic ==========
-
-func TestUpdateGuildInfo_Logic(t *testing.T) {
-	g := newTestGuild(t)
-	op := g.getMember(100)
-	if op == nil || op.Position > int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
-		t.Fatal("leader should have permission")
-	}
-	g.Data.Declaration = "new decl"
-	g.Data.Announcement = "new ann"
-	g.Data.NeedApproval = false
-	if g.Data.Declaration != "new decl" || g.Data.NeedApproval {
-		t.Fatal("guild info should be updated")
-	}
-}
-
-// ========== LeaveGuild logic ==========
-
-func TestLeaveGuild_MemberCanLeave(t *testing.T) {
-	g := newTestGuild(t)
-	op := g.getMember(300)
-	if op == nil {
-		t.Fatal("member should exist")
-	}
-	if op.Position == int32(gamecfg.GardenEGuildPosition_LEADER) {
-		t.Fatal("leader should not be able to leave via this path")
-	}
-	g.Data.Members = removeMember(g.Data.Members, 300)
-	g.Data.MemberCount = int32(len(g.Data.Members))
-	if len(g.Data.Members) != 2 || g.Data.MemberCount != 2 {
-		t.Fatalf("expected 2 members, got %d", g.Data.MemberCount)
-	}
-}
-
-// ========== DisbandGuild logic ==========
-
-func TestDisbandGuild_OnlyLeaderCanDisband(t *testing.T) {
-	g := newTestGuild(t)
-	op := g.getMember(100)
-	if op == nil || op.Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
-		t.Fatal("only leader can disband")
-	}
-	// Cannot disband with multiple members
-	if len(g.Data.Members) <= 1 {
-		t.Fatal("test setup error: expected multiple members")
-	}
-
-	// Remove all but leader
-	g.Data.Members = []*GuildMember{{RoleID: 100, Position: int32(gamecfg.GardenEGuildPosition_LEADER)}}
-	g.Data.MemberCount = 1
-	if len(g.Data.Members) > 1 {
-		t.Fatal("cannot disband when members > 1")
 	}
 }

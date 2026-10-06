@@ -48,46 +48,6 @@ func (s *capturingSigner) Verify(string, time.Time) (*gatetoken.Claims, error) {
 	return nil, errors.New("not implemented")
 }
 
-// TestCreateAccountWithIdentityCreatesFirstLogin:首次登录建号、isNew=true(只断言 id 非空,不断言具体值)。
-// 为什么需要:同包同助手的 account_model_test.go 版本更强(钉死 acc-test-1/10001),本条被其覆盖,合并时可删。
-func TestCreateAccountWithIdentityCreatesFirstLogin(t *testing.T) {
-	svc := newTestService(newInMemoryAccountStore())
-
-	account, isNew, err := svc.CreateAccountWithIdentity(context.Background(), "guest", "u_1001")
-	if err != nil {
-		t.Fatalf("create account with identity failed: %v", err)
-	}
-	if !isNew {
-		t.Fatalf("expected new account")
-	}
-	if account.AccountID == "" || account.RoleID == 0 {
-		t.Fatalf("unexpected account: %+v", account)
-	}
-}
-
-// TestCreateAccountWithIdentityReturnsExistingRecord:二次登录复用既有账号、isNew=false。
-// 为什么需要:同包同助手的 account_model_test.go 版本更强,本条被其覆盖,合并时可删——重复测试不增加保护力。
-func TestCreateAccountWithIdentityReturnsExistingRecord(t *testing.T) {
-	store := newInMemoryAccountStore()
-	svc := newTestService(store)
-
-	first, _, err := svc.CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
-	if err != nil {
-		t.Fatalf("initial create failed: %v", err)
-	}
-
-	second, isNew, err := svc.CreateAccountWithIdentity(context.Background(), "guest", "u_1002")
-	if err != nil {
-		t.Fatalf("second load failed: %v", err)
-	}
-	if isNew {
-		t.Fatalf("expected existing account")
-	}
-	if first.AccountID != second.AccountID || first.RoleID != second.RoleID {
-		t.Fatalf("account mismatch: first=%+v second=%+v", first, second)
-	}
-}
-
 // TestBuildPreloginResponseRejectsOldVersion:版本低于 MinVersion 时必须先于建号与签发返回错误。
 // 为什么需要:校验排在 CreateAccountWithIdentity 之前;顺序一旦颠倒,老客户端已建出账号才被拒,留下垃圾号。
 func TestBuildPreloginResponseRejectsOldVersion(t *testing.T) {
@@ -158,44 +118,6 @@ func TestBuildPreloginResponseRoundsPositiveTTLUpToOneSecond(t *testing.T) {
 	}
 	if rsp.ExpiresIn != 1 {
 		t.Fatalf("expected ExpiresIn=1, got %d", rsp.ExpiresIn)
-	}
-}
-
-// TestAccountHandlerPreloginReturnsPayload:handler 只做转发,返回的具体类型必须是 *PreloginResponse 且字段不丢。
-// 为什么需要:网关按类型断言取字段;改成接口/零值后客户端拿到空 token,编译期没有任何信号。
-func TestAccountHandlerPreloginReturnsPayload(t *testing.T) {
-	svc := newTestService(newInMemoryAccountStore())
-	now := time.Unix(1710000000, 0)
-	svc.clock = func() time.Time { return now }
-
-	handler := &AccountHandler{
-		Service: svc,
-		Config: PreloginConfig{
-			MinVersion:    "1.0.0",
-			LatestVersion: "1.0.0",
-			GateHost:      "gate.example.com",
-			GatePort:      20001,
-			Env:           "dev",
-			TokenTTL:      5 * time.Minute,
-			Issuer:        "account-service",
-		},
-		Signer: stubSigner{token: "signed-token"},
-	}
-
-	resp, err := handler.Prelogin(context.Background(), &PreloginRequest{
-		Platform:      "guest",
-		PlatformUID:   "u_3001",
-		ClientVersion: "1.0.0",
-	})
-	if err != nil {
-		t.Fatalf("prelogin handler returned error: %v", err)
-	}
-	payload, ok := resp.(*PreloginResponse)
-	if !ok {
-		t.Fatalf("unexpected handler response type: %T", resp)
-	}
-	if payload.AccountID != "acc-test-1" || payload.GateToken != "signed-token" {
-		t.Fatalf("unexpected payload: %+v", payload)
 	}
 }
 

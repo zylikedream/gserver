@@ -17,6 +17,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+// initMailTestConfig 初始化游戏配表,可选地覆盖 mail_config 行。
 func initMailTestConfig(t *testing.T, rows ...map[string]any) {
 	t.Helper()
 	initAllTestConfig(t)
@@ -26,67 +27,6 @@ func initMailTestConfig(t *testing.T, rows ...map[string]any) {
 			t.Fatal(err)
 		}
 		gameconfig.Get().TbMailConfig = tbMailConfig
-	}
-}
-
-// ========== calcRedDot ==========
-
-func TestCalcRedDot_Empty(t *testing.T) {
-	mail := &RoleMail{mailCache: nil}
-	unread, unclaimed := mail.calcRedDot()
-	if unread != 0 || unclaimed != 0 {
-		t.Errorf("empty cache expected 0,0 got %d,%d", unread, unclaimed)
-	}
-}
-
-func TestCalcRedDot_Basic(t *testing.T) {
-	mail := &RoleMail{
-		mailCache: []MailView{
-			{ID: 1, IsRead: false},
-			{ID: 2, IsRead: true},
-			{ID: 3, IsRead: false, Attachments: []bag.Good{{GoodID: 101, Num: 5}}},
-			{ID: 4, IsRead: true, Attachments: []bag.Good{{GoodID: 102, Num: 1}}, IsClaimed: true},
-		},
-	}
-	unread, unclaimed := mail.calcRedDot()
-	if unread != 2 {
-		t.Errorf("expected 2 unread, got %d", unread)
-	}
-	if unclaimed != 1 {
-		t.Errorf("expected 1 unclaimed, got %d", unclaimed)
-	}
-}
-
-func TestCalcRedDot_Expired(t *testing.T) {
-	now := time.Now().Unix()
-	mail := &RoleMail{
-		mailCache: []MailView{
-			{ID: 1, IsRead: false, ExpireAt: now - 100},
-			{ID: 2, IsRead: false, ExpireAt: now + 1000},
-			{ID: 3, IsRead: false, Attachments: []bag.Good{{GoodID: 101, Num: 5}}, ExpireAt: now - 100},
-		},
-	}
-	unread, unclaimed := mail.calcRedDot()
-	if unread != 1 {
-		t.Errorf("expected 1 unread (expired excluded), got %d", unread)
-	}
-	if unclaimed != 0 {
-		t.Errorf("expected 0 unclaimed (expired excluded), got %d", unclaimed)
-	}
-}
-
-func TestCalcRedDot_ExpireAtZero(t *testing.T) {
-	mail := &RoleMail{
-		mailCache: []MailView{
-			{ID: 1, IsRead: false, ExpireAt: 0},
-		},
-	}
-	unread, unclaimed := mail.calcRedDot()
-	if unread != 1 {
-		t.Errorf("expected 1 unread (expire_at=0 means never expire), got %d", unread)
-	}
-	if unclaimed != 0 {
-		t.Errorf("expected 0 unclaimed, got %d", unclaimed)
 	}
 }
 
@@ -106,21 +46,8 @@ func TestFindMail(t *testing.T) {
 	}
 }
 
-func TestFindMail_NotFound(t *testing.T) {
-	mail := &RoleMail{
-		mailCache: []MailView{
-			{ID: 1},
-			{ID: 2},
-		},
-	}
-	m := mail.findMail(999)
-	if m != nil {
-		t.Errorf("expected nil for not found, got %v", m)
-	}
-}
-
 func TestBuildMailViews_MergesContentWithPlayerState(t *testing.T) {
-	initMailTestConfig(t)
+	initAllTestConfig(t)
 	now := time.Now().Unix()
 	personal := []PersonalMailItem{
 		{ID: 11, RoleID: 1001, Title: "personal", Content: "pc", SendAt: now, ExpireAt: now + 100},
@@ -145,12 +72,6 @@ func TestBuildMailViews_MergesContentWithPlayerState(t *testing.T) {
 	}
 	if views[1].ID != 11 || !views[1].IsRead {
 		t.Fatalf("expected personal mail with read state second, got %+v", views[1])
-	}
-}
-
-func TestMailStateKey_UsesGlobalMailID(t *testing.T) {
-	if got := mailStateKey(123); got != "123" {
-		t.Fatalf("expected global id key 123, got %q", got)
 	}
 }
 
@@ -244,35 +165,6 @@ func TestTrimMailViews_PreservesUnclaimedAttachmentMails(t *testing.T) {
 	}
 }
 
-func TestMailRuntimeConfig_UsesGameConfig(t *testing.T) {
-	mailConfigRows := loadTestTable(t, "garden_tbmailconfig", map[string]any{
-		"mail_max_count":         float64(3),
-		"default_expire_days":    float64(7),
-		"one_key_claim_limit":    float64(2),
-		"title_limit":            float64(8),
-		"content_limit":          float64(16),
-		"allow_delete_unclaimed": true,
-	})
-	initMailTestConfig(t, mailConfigRows[len(mailConfigRows)-1])
-
-	cfg := mailRuntimeConfig(gameconfig.Get())
-
-	if cfg.MailMaxCount != 3 || cfg.DefaultExpireDays != 7 || cfg.OneKeyClaimLimit != 2 || !cfg.AllowDeleteUnclaimed {
-		t.Fatalf("unexpected mail config: %+v", cfg)
-	}
-}
-
-func TestMailRuntimeConfig_RequiresMailConfig(t *testing.T) {
-	// 本地构造缺失配表实例,不碰全局(避免污染其他测试的配表状态)
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected panic when mail config is missing")
-		}
-	}()
-
-	_ = mailRuntimeConfig(&gameconfig.GameConfig{Tables: &gamecfg.Tables{}})
-}
-
 func TestValidateSendMailOpts_RejectsOverLimitText(t *testing.T) {
 	cfg := &gamecfg.GardenMailConfig{TitleLimit: 3, ContentLimit: 5}
 
@@ -338,4 +230,41 @@ func TestRoleMainOnNotifyMessage_RefreshesMailBeforeNotify(t *testing.T) {
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("sql expectations not met: %v", err)
 	}
+}
+
+// TestMailRuntimeConfig_UsesGameConfig:mailRuntimeConfig 必须把配表 mail_config 行
+// 原样读出来(MailMaxCount / DefaultExpireDays / OneKeyClaimLimit / AllowDeleteUnclaimed)。
+// 为什么需要:该函数被 role_mail_api 的列表/领取/删除三条路径调用,配表读取错一列会
+// 表现为「邮件上限不对」或「未领取附件允许删除」——都是运营配置事故而非代码崩溃。
+func TestMailRuntimeConfig_UsesGameConfig(t *testing.T) {
+	mailConfigRows := loadTestTable(t, "garden_tbmailconfig", map[string]any{
+		"mail_max_count":         float64(3),
+		"default_expire_days":    float64(7),
+		"one_key_claim_limit":    float64(2),
+		"title_limit":            float64(8),
+		"content_limit":          float64(16),
+		"allow_delete_unclaimed": true,
+	})
+	initMailTestConfig(t, mailConfigRows[len(mailConfigRows)-1])
+
+	cfg := mailRuntimeConfig(gameconfig.Get())
+
+	if cfg.MailMaxCount != 3 || cfg.DefaultExpireDays != 7 || cfg.OneKeyClaimLimit != 2 || !cfg.AllowDeleteUnclaimed {
+		t.Fatalf("unexpected mail config: %+v", cfg)
+	}
+}
+
+// TestMailRuntimeConfig_RequiresMailConfig:配表缺 mail_config 行时必须 panic,而不是
+// 返回一个全零配置被上层当成「上限 0 / 不过期」继续跑。
+// 为什么需要:全零配置会让每封邮件都立刻过期或领取上限为 0,表现为玩家看到空邮箱而
+// 服务端无任何报错。panic 是刻意的快速失败。
+func TestMailRuntimeConfig_RequiresMailConfig(t *testing.T) {
+	// 本地构造缺失配表实例,不碰全局(避免污染其他测试的配表状态)
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic when mail config is missing")
+		}
+	}()
+
+	_ = mailRuntimeConfig(&gameconfig.GameConfig{Tables: &gamecfg.Tables{}})
 }

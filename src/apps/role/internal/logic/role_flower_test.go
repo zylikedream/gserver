@@ -143,18 +143,14 @@ func TestFlowerUnlock(t *testing.T) {
 
 // ========== FindBreeding ==========
 
-func TestFindBreeding_None(t *testing.T) {
+func TestFindBreeding_OneBreeding(t *testing.T) {
 	f := setupTestFlower(t)
 	f.AddFlower(context.Background(), flowerTestID)
 
 	if found := f.FindBreeding(); found != nil {
 		t.Fatalf("expected nil, got %v", found)
 	}
-}
 
-func TestFindBreeding_OneBreeding(t *testing.T) {
-	f := setupTestFlower(t)
-	f.AddFlower(context.Background(), flowerTestID)
 	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
 
 	found := f.FindBreeding()
@@ -203,11 +199,61 @@ func TestStartBreed_Success(t *testing.T) {
 }
 
 func TestStartBreed_NotUnlocked(t *testing.T) {
-	f := setupTestFlowerWithMaterials(t)
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) *RoleFlower
+		call    func(f *RoleFlower) error
+		wantErr error
+	}{
+		{
+			name:  "start_breed_not_unlocked",
+			setup: setupTestFlowerWithMaterials,
+			call: func(f *RoleFlower) error {
+				_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
+				return err
+			},
+			wantErr: ErrFlowerLocked,
+		},
+		{
+			name:  "finish_breed_not_unlocked",
+			setup: setupTestFlowerWithMaterials,
+			call: func(f *RoleFlower) error {
+				_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
+				return err
+			},
+			wantErr: ErrFlowerLocked,
+		},
+		{
+			name:  "upgrade_not_unlocked",
+			setup: setupTestFlowerWithEssence,
+			call: func(f *RoleFlower) error {
+				_, err := f.ReqFlowerUpgrade(context.Background(), &pb.ReqFlowerUpgrade{FlowerId: flowerTestID})
+				return err
+			},
+			wantErr: ErrFlowerLocked,
+		},
+		{
+			name: "start_breed_material_not_enough",
+			setup: func(t *testing.T) *RoleFlower {
+				f := setupTestFlower(t)
+				f.AddFlower(context.Background(), flowerTestID)
+				return f
+			},
+			call: func(f *RoleFlower) error {
+				_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
+				return err
+			},
+			wantErr: ErrGoodNotEnough,
+		},
+	}
 
-	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
-	if !errors.Is(err, ErrFlowerLocked) {
-		t.Fatalf("expected ErrFlowerLocked, got %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := tt.setup(t)
+			if err := tt.call(f); !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected %v, got %v", tt.wantErr, err)
+			}
+		})
 	}
 }
 
@@ -220,16 +266,6 @@ func TestStartBreed_AlreadyBreeding(t *testing.T) {
 	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestOtherID})
 	if !errors.Is(err, ErrFlowerBreedBusy) {
 		t.Fatalf("expected ErrFlowerBreedBusy, got %v", err)
-	}
-}
-
-func TestStartBreed_MaterialNotEnough(t *testing.T) {
-	f := setupTestFlower(t)
-	f.AddFlower(context.Background(), flowerTestID)
-
-	_, err := f.ReqFlowerStartBreed(context.Background(), &pb.ReqFlowerStartBreed{FlowerId: flowerTestID})
-	if err == nil {
-		t.Fatal("expected error, got nil")
 	}
 }
 
@@ -255,88 +291,64 @@ func TestFinishBreed_Success(t *testing.T) {
 	}
 }
 
-func TestFinishBreed_NotBreeding(t *testing.T) {
-	f := setupTestFlowerWithMaterials(t)
-	f.AddFlower(context.Background(), flowerTestID)
-	// status stays UNLOCKED
-
-	_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
-	if !errors.Is(err, ErrFlowerNotBreedDone) {
-		t.Fatalf("expected ErrFlowerNotBreedDone, got %v", err)
-	}
-}
-
 func TestFinishBreed_NotDone(t *testing.T) {
-	f := setupTestFlowerWithMaterials(t)
-	f.AddFlower(context.Background(), flowerTestID)
-	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
-	f.Flowers[flowerTestID].StateTime = time.Now().Add(1 * time.Hour) // future
-
-	_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
-	if !errors.Is(err, ErrFlowerNotBreedDone) {
-		t.Fatalf("expected ErrFlowerNotDone, got %v", err)
+	tests := []struct {
+		name  string
+		state pb.FlowerState
+		shift time.Duration
+	}{
+		{name: "not_breeding", state: pb.FlowerState_FLOWER_UNLOCKED},
+		{name: "breeding_not_elapsed", state: pb.FlowerState_FLOWER_BREEDING, shift: 1 * time.Hour},
 	}
-}
 
-func TestFinishBreed_NotUnlocked(t *testing.T) {
-	f := setupTestFlowerWithMaterials(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := setupTestFlowerWithMaterials(t)
+			f.AddFlower(context.Background(), flowerTestID)
+			f.Flowers[flowerTestID].State = int32(tt.state)
+			if tt.shift != 0 {
+				f.Flowers[flowerTestID].StateTime = time.Now().Add(tt.shift)
+			}
 
-	_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
-	if !errors.Is(err, ErrFlowerLocked) {
-		t.Fatalf("expected ErrFlowerLocked, got %v", err)
+			_, err := f.ReqFlowerFinishBreed(context.Background(), &pb.ReqFlowerFinishBreed{FlowerId: flowerTestID})
+			if !errors.Is(err, ErrFlowerNotBreedDone) {
+				t.Fatalf("expected ErrFlowerNotBreedDone, got %v", err)
+			}
+		})
 	}
 }
 
 // ========== BreedInfo ==========
 
 func TestBreedInfo_BreedDone(t *testing.T) {
-	f := setupTestFlower(t)
-	f.AddFlower(context.Background(), flowerTestID)
-	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
-	f.Flowers[flowerTestID].StateTime = time.Now().Add(-1 * time.Hour) // past
-
-	rsp, err := f.ReqFlowerInfo(context.Background(), &pb.ReqFlowerInfo{})
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name      string
+		shift     time.Duration
+		wantState pb.FlowerState
+	}{
+		{name: "breed_done", shift: -1 * time.Hour, wantState: pb.FlowerState_FLOWER_BREED_DONE},
+		{name: "still_breeding", shift: 1 * time.Hour, wantState: pb.FlowerState_FLOWER_BREEDING},
 	}
 
-	if len(rsp.Flowers) != 1 {
-		t.Fatalf("expected 1 flower, got %d", len(rsp.Flowers))
-	}
-	if rsp.Flowers[0].State != pb.FlowerState_FLOWER_BREED_DONE {
-		t.Fatalf("expected BREED_DONE, got %v", rsp.Flowers[0].State)
-	}
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := setupTestFlower(t)
+			f.AddFlower(context.Background(), flowerTestID)
+			f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
+			f.Flowers[flowerTestID].StateTime = time.Now().Add(tt.shift)
 
-func TestBreedInfo_StillBreeding(t *testing.T) {
-	f := setupTestFlower(t)
-	f.AddFlower(context.Background(), flowerTestID)
-	f.Flowers[flowerTestID].State = int32(pb.FlowerState_FLOWER_BREEDING)
-	f.Flowers[flowerTestID].StateTime = time.Now().Add(1 * time.Hour) // future
+			rsp, err := f.ReqFlowerInfo(context.Background(), &pb.ReqFlowerInfo{})
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	rsp, err := f.ReqFlowerInfo(context.Background(), &pb.ReqFlowerInfo{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(rsp.Flowers) != 1 {
-		t.Fatalf("expected 1 flower, got %d", len(rsp.Flowers))
-	}
-	if rsp.Flowers[0].State != pb.FlowerState_FLOWER_BREEDING {
-		t.Fatalf("expected BREEDING, got %v", rsp.Flowers[0].State)
-	}
-}
-
-func TestBreedInfo_Empty(t *testing.T) {
-	f := setupTestFlower(t)
-
-	rsp, err := f.ReqFlowerInfo(context.Background(), &pb.ReqFlowerInfo{})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(rsp.Flowers) != 0 {
-		t.Fatalf("expected 0 flowers, got %d", len(rsp.Flowers))
+			if len(rsp.Flowers) != 1 {
+				t.Fatalf("expected 1 flower, got %d", len(rsp.Flowers))
+			}
+			if rsp.Flowers[0].State != tt.wantState {
+				t.Fatalf("expected %v, got %v", tt.wantState, rsp.Flowers[0].State)
+			}
+		})
 	}
 }
 
@@ -406,15 +418,6 @@ func TestUpgradeFlower_NeedBreak(t *testing.T) {
 	_, err := f.ReqFlowerUpgrade(context.Background(), &pb.ReqFlowerUpgrade{FlowerId: flowerTestID})
 	if !errors.Is(err, ErrFlowerNeedBreak) {
 		t.Fatalf("expected ErrFlowerNeedBreak, got %v", err)
-	}
-}
-
-func TestUpgradeFlower_NotUnlocked(t *testing.T) {
-	f := setupTestFlowerWithEssence(t)
-
-	_, err := f.ReqFlowerUpgrade(context.Background(), &pb.ReqFlowerUpgrade{FlowerId: flowerTestID})
-	if !errors.Is(err, ErrFlowerLocked) {
-		t.Fatalf("expected ErrFlowerLocked, got %v", err)
 	}
 }
 

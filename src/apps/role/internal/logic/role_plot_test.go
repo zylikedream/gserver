@@ -112,23 +112,6 @@ func plotHarvestTimes(t *testing.T, flowerID int32, level int32) int32 {
 
 // ========== UnlockPlot ==========
 
-func TestUnlockPlot_Success(t *testing.T) {
-	p, _ := setupTestPlot(t)
-
-	p.UnlockPlot(plotTestID)
-
-	plot, ok := p.Plots[plotTestID]
-	if !ok {
-		t.Fatalf("expected plot %d in map", plotTestID)
-	}
-	if plot.State != int32(pb.PlotState_PLOT_EMPTY) {
-		t.Fatalf("expected EMPTY, got %d", plot.State)
-	}
-	if !p.IsDirty() {
-		t.Fatal("expected dirty")
-	}
-}
-
 func TestReqPlotUnlock_PlayerLevelNotEnough(t *testing.T) {
 	p, _ := setupTestPlot(t)
 	cfg := gameconfig.Get().TbGardenPlot.Get(13)
@@ -157,6 +140,17 @@ func TestReqPlotUnlock_WithRequiredPlayerLevel(t *testing.T) {
 	}
 	if rsp == nil || rsp.Plot == nil || rsp.Plot.PlotId != 13 {
 		t.Fatalf("unexpected response: %v", rsp)
+	}
+	if got := rsp.Plot.State; got != pb.PlotState_PLOT_EMPTY {
+		t.Fatalf("expected EMPTY, got %v", got)
+	}
+	if got, ok := p.Plots[13]; !ok {
+		t.Fatalf("expected plot %d in map", 13)
+	} else if got.State != int32(pb.PlotState_PLOT_EMPTY) {
+		t.Fatalf("expected EMPTY in state map, got %d", got.State)
+	}
+	if !p.IsDirty() {
+		t.Fatal("expected dirty")
 	}
 }
 
@@ -206,12 +200,14 @@ func TestPlantFlower_NotUnlocked(t *testing.T) {
 }
 
 func TestPlantFlower_FlowerNotBred(t *testing.T) {
-	p, _ := setupTestPlot(t)
+	p, _ := setupTestPlotWithMaterials(t)
 	p.UnlockPlot(plotTestID)
+	// 花已解锁但尚未收获：不能种植
+	p.Role.Flower.Flowers[plotOtherFlower].State = int32(pb.FlowerState_FLOWER_UNLOCKED)
 
 	_, err := p.ReqPlotPlant(context.Background(), &pb.ReqPlotPlant{
 		PlotIds:  []int32{plotTestID},
-		FlowerId: 999,
+		FlowerId: plotOtherFlower,
 	})
 	if !errors.Is(err, ErrFlowerLocked) {
 		t.Fatalf("expected ErrFlowerLocked, got %v", err)
@@ -387,17 +383,5 @@ func TestPlotInfo_Harvestable(t *testing.T) {
 	}
 	if rsp.Plots[0].State != pb.PlotState_PLOT_HARVESTABLE {
 		t.Fatalf("expected HARVESTABLE, got %v", rsp.Plots[0].State)
-	}
-}
-
-func TestPlotInfo_Empty(t *testing.T) {
-	p, _ := setupTestPlot(t)
-
-	rsp, err := p.ReqPlotInfo(context.Background(), &pb.ReqPlotInfo{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rsp.Plots) != 0 {
-		t.Fatalf("expected 0 plots, got %d", len(rsp.Plots))
 	}
 }

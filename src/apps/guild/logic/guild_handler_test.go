@@ -55,127 +55,94 @@ func expectRoleGuildReset(mock sqlmock.Sqlmock, roleID int64) {
 
 // ========== SetPosition ==========
 
-func TestSetPosition_Success(t *testing.T) {
-	initGuildTestConfig(t)
-	withRolePublic(t)
-	g := newTestGuildNeg(t)
-	_, mock := newGuildDBMock(t)
-	g.db = nil // 通知遍历成员为空? 不——负 RoleID 已避 Redis; addLog 不触发
-	// SetPosition 无 db 操作(纯内存 + 通知), 无需 sqlmock
-	_ = mock
-
-	rsp, err := g.SetPosition(context.Background(), &pb.ReqGuildSetPosition{
-		RoleId: -100, TargetId: -300, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER),
-	})
-	if err != nil {
-		t.Fatalf("SetPosition: %v", err)
+func TestSetPosition(t *testing.T) {
+	cases := []struct {
+		name        string
+		req         *pb.ReqGuildSetPosition
+		wantErr     error
+		wantSuccess bool
+	}{
+		{
+			"success", &pb.ReqGuildSetPosition{
+				RoleId: -100, TargetId: -300, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER),
+			}, nil, true,
+		},
+		{"permission denied", &pb.ReqGuildSetPosition{RoleId: -300, TargetId: -200, Position: int32(gamecfg.GardenEGuildPosition_MEMBER)}, ErrPermissionDenied, false},
+		{"self", &pb.ReqGuildSetPosition{RoleId: -100, TargetId: -100, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER)}, ErrCannotSetPositionToSelf, false},
+		{"target not found", &pb.ReqGuildSetPosition{RoleId: -100, TargetId: -999, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER)}, ErrMemberNotFound, false},
+		// 99 非法且 > 会长职位(1): 过权限检查, 命中 InvalidPosition
+		{"invalid position", &pb.ReqGuildSetPosition{RoleId: -100, TargetId: -300, Position: 99}, ErrInvalidPosition, false},
 	}
-	if rsp == nil {
-		t.Fatal("nil rsp")
-	}
-	if g.getMember(-300).Position != int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
-		t.Fatal("target position not updated")
-	}
-}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			initGuildTestConfig(t)
+			withRolePublic(t)
+			g := newTestGuildNeg(t)
 
-func TestSetPosition_PermissionDenied(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	// 成员(-300)设置职位 → 权限拒绝
-	_, err := g.SetPosition(context.Background(), &pb.ReqGuildSetPosition{
-		RoleId: -300, TargetId: -200, Position: int32(gamecfg.GardenEGuildPosition_MEMBER),
-	})
-	if !errors.Is(err, ErrPermissionDenied) {
-		t.Fatalf("expected ErrPermissionDenied, got %v", err)
-	}
-}
-
-func TestSetPosition_Self(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	_, err := g.SetPosition(context.Background(), &pb.ReqGuildSetPosition{
-		RoleId: -100, TargetId: -100, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER),
-	})
-	if !errors.Is(err, ErrCannotSetPositionToSelf) {
-		t.Fatalf("expected ErrCannotSetPositionToSelf, got %v", err)
-	}
-}
-
-func TestSetPosition_TargetNotFound(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	_, err := g.SetPosition(context.Background(), &pb.ReqGuildSetPosition{
-		RoleId: -100, TargetId: -999, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER),
-	})
-	if !errors.Is(err, ErrMemberNotFound) {
-		t.Fatalf("expected ErrMemberNotFound, got %v", err)
-	}
-}
-
-func TestSetPosition_InvalidPosition(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	// 99 非法且 > 会长职位(1): 过权限检查, 命中 InvalidPosition
-	_, err := g.SetPosition(context.Background(), &pb.ReqGuildSetPosition{
-		RoleId: -100, TargetId: -300, Position: 99,
-	})
-	if !errors.Is(err, ErrInvalidPosition) {
-		t.Fatalf("expected ErrInvalidPosition, got %v", err)
+			rsp, err := g.SetPosition(context.Background(), c.req)
+			if c.wantSuccess {
+				if err != nil {
+					t.Fatalf("SetPosition: %v", err)
+				}
+				if rsp == nil {
+					t.Fatal("nil rsp")
+				}
+				if g.getMember(-300).Position != int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
+					t.Fatal("target position not updated")
+				}
+				return
+			}
+			if !errors.Is(err, c.wantErr) {
+				t.Fatalf("expected %v, got %v", c.wantErr, err)
+			}
+		})
 	}
 }
 
 // ========== TransferLeader ==========
 
-func TestTransferLeader_Success(t *testing.T) {
-	initGuildTestConfig(t)
-	withRolePublic(t)
-	g := newTestGuildNeg(t)
-	gormDB, mock := newGuildDBMock(t)
-	g.db = gormDB
-	expectGuildSave(mock) // addLog
-
-	_, err := g.TransferLeader(context.Background(), &pb.ReqGuildTransferLeader{
-		RoleId: -100, TargetId: -300,
-	})
-	if err != nil {
-		t.Fatalf("TransferLeader: %v", err)
+func TestTransferLeader(t *testing.T) {
+	cases := []struct {
+		name        string
+		req         *pb.ReqGuildTransferLeader
+		wantErr     error
+		wantSuccess bool
+	}{
+		{"success", &pb.ReqGuildTransferLeader{RoleId: -100, TargetId: -300}, nil, true},
+		{"not leader", &pb.ReqGuildTransferLeader{RoleId: -200, TargetId: -300}, ErrPermissionDenied, false},
+		{"self", &pb.ReqGuildTransferLeader{RoleId: -100, TargetId: -100}, ErrCannotTransferToSelf, false},
 	}
-	if g.Data.LeaderID != -300 {
-		t.Fatalf("expected new leader -300, got %d", g.Data.LeaderID)
-	}
-	if g.getMember(-100).Position != int32(gamecfg.GardenEGuildPosition_MEMBER) {
-		t.Fatal("old leader should demote to member")
-	}
-	if g.getMember(-300).Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
-		t.Fatal("target should become leader")
-	}
-}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			initGuildTestConfig(t)
+			withRolePublic(t)
+			g := newTestGuildNeg(t)
+			if c.wantSuccess {
+				gormDB, mock := newGuildDBMock(t)
+				g.db = gormDB
+				expectGuildSave(mock) // addLog
+			}
 
-func TestTransferLeader_NotLeader(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	_, err := g.TransferLeader(context.Background(), &pb.ReqGuildTransferLeader{
-		RoleId: -200, TargetId: -300,
-	})
-	if !errors.Is(err, ErrPermissionDenied) {
-		t.Fatalf("expected ErrPermissionDenied, got %v", err)
-	}
-}
-
-func TestTransferLeader_Self(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	_, err := g.TransferLeader(context.Background(), &pb.ReqGuildTransferLeader{
-		RoleId: -100, TargetId: -100,
-	})
-	if !errors.Is(err, ErrCannotTransferToSelf) {
-		t.Fatalf("expected ErrCannotTransferToSelf, got %v", err)
+			_, err := g.TransferLeader(context.Background(), c.req)
+			if !c.wantSuccess {
+				if !errors.Is(err, c.wantErr) {
+					t.Fatalf("expected %v, got %v", c.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("TransferLeader: %v", err)
+			}
+			if g.Data.LeaderID != -300 {
+				t.Fatalf("expected new leader -300, got %d", g.Data.LeaderID)
+			}
+			if g.getMember(-100).Position != int32(gamecfg.GardenEGuildPosition_MEMBER) {
+				t.Fatal("old leader should demote to member")
+			}
+			if g.getMember(-300).Position != int32(gamecfg.GardenEGuildPosition_LEADER) {
+				t.Fatal("target should become leader")
+			}
+		})
 	}
 }
 
@@ -255,23 +222,25 @@ func TestLeaveGuild_NotMember(t *testing.T) {
 
 // ========== DisbandGuild ==========
 
-func TestDisbandGuild_NotLeader(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	_, err := g.DisbandGuild(context.Background(), &pb.ReqGuildDisband{RoleId: -200})
-	if !errors.Is(err, ErrPermissionDenied) {
-		t.Fatalf("expected ErrPermissionDenied, got %v", err)
+func TestDisbandGuild_Denied(t *testing.T) {
+	cases := []struct {
+		name    string
+		roleID  int64
+		wantErr error
+	}{
+		{"not leader", -200, ErrPermissionDenied},
+		{"has members", -100, ErrGuildHasMembers},
 	}
-}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			initGuildTestConfig(t)
+			g := newTestGuildNeg(t)
 
-func TestDisbandGuild_HasMembers(t *testing.T) {
-	initGuildTestConfig(t)
-	g := newTestGuildNeg(t)
-
-	_, err := g.DisbandGuild(context.Background(), &pb.ReqGuildDisband{RoleId: -100})
-	if !errors.Is(err, ErrGuildHasMembers) {
-		t.Fatalf("expected ErrGuildHasMembers, got %v", err)
+			_, err := g.DisbandGuild(context.Background(), &pb.ReqGuildDisband{RoleId: c.roleID})
+			if !errors.Is(err, c.wantErr) {
+				t.Fatalf("expected %v, got %v", c.wantErr, err)
+			}
+		})
 	}
 }
 

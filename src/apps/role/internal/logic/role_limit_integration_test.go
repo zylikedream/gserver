@@ -92,9 +92,10 @@ func clientRequestCounter(id string, msg proto.Message, result string) float64 {
 	return testutil.ToFloat64(gxymetrics.ClientRequests.WithLabelValues(msgID, msgName, result))
 }
 
-func TestRoleLimitIntegration_HandlerMap(t *testing.T) {
+func TestRoleLimitIntegration_RateLimited(t *testing.T) {
+	basic := &scriptedBucket{allowed: []bool{false}}
 	r := newRoleMainForLimitTest(t, limitTestConfig(), scriptedLimitFactory(t, map[float64]*scriptedBucket{
-		1:  {allowed: []bool{true}},
+		1:  basic,
 		2:  {allowed: []bool{true}},
 		10: {allowed: []bool{true}},
 	}))
@@ -110,15 +111,6 @@ func TestRoleLimitIntegration_HandlerMap(t *testing.T) {
 			t.Fatalf("moduleByMessage[%s] present, want absent", name)
 		}
 	}
-}
-
-func TestRoleLimitIntegration_RateLimited(t *testing.T) {
-	basic := &scriptedBucket{allowed: []bool{false}}
-	r := newRoleMainForLimitTest(t, limitTestConfig(), scriptedLimitFactory(t, map[float64]*scriptedBucket{
-		1:  basic,
-		2:  {allowed: []bool{true}},
-		10: {allowed: []bool{true}},
-	}))
 
 	reqID := "req-1"
 	limitedBefore := admissionCounter("RoleBasic", "limited")
