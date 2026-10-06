@@ -513,6 +513,11 @@ func (g *GuildActor) canKick(operatorID, targetID int64) bool {
 	if op == nil || target == nil {
 		return false
 	}
+	// 操作者必须至少是副会长。少了这一条,最后那行 Position<=Position 会让
+	// 普通成员之间(3<=3)互相可踢——而普通成员本不该有踢人权限。
+	if op.Position > int32(gamecfg.GardenEGuildPosition_VICE_LEADER) {
+		return false
+	}
 	// 只有会长(1)可以踢副会长(2)，会长和副会长都可以踢成员(3)
 	if target.Position == int32(gamecfg.GardenEGuildPosition_LEADER) {
 		return false

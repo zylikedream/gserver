@@ -182,26 +182,35 @@ func TestCanApprove(t *testing.T) {
 // ========== canKick ==========
 
 func TestCanKick(t *testing.T) {
+	// secondMember/secondVice:往 fixture 里补一个目标,使「同类踢同类」这类
+	// 需要第二个同职位成员的格子可测(默认 fixture 只有 100/200/300 三个)。
 	cases := []struct {
-		name       string
-		opID       int64
-		targetID   int64
-		secondVice bool
-		want       bool
+		name         string
+		opID         int64
+		targetID     int64
+		secondMember bool
+		secondVice   bool
+		want         bool
 	}{
-		{"leader kick member", 100, 300, false, true},
-		{"leader kick vice leader", 100, 200, false, true},
-		{"vice leader kick member", 200, 300, false, true},
-		{"vice leader cannot kick vice leader", 200, 250, true, false},
-		{"cannot kick leader", 200, 100, false, false},
-		{"cannot kick self", 100, 100, false, false},
-		{"member cannot kick", 300, 200, false, false},
+		{"leader kick member", 100, 300, false, false, true},
+		{"leader kick vice leader", 100, 200, false, false, true},
+		{"vice leader kick member", 200, 300, false, false, true},
+		{"vice leader cannot kick vice leader", 200, 250, false, true, false},
+		{"cannot kick leader", 200, 100, false, false, false},
+		{"cannot kick self", 100, 100, false, false, false},
+		{"member cannot kick vice leader", 300, 200, false, false, false},
+		// 回归格:少了 canKick 里的操作者职位下限,这一格会返回 true
+		// (Position 3 <= Position 3),普通成员就能互相踢出公会。
+		{"member cannot kick member", 300, 301, true, false, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			g := newTestGuild(t)
 			if c.secondVice {
 				g.Data.Members = append(g.Data.Members, &GuildMember{RoleID: 250, Position: int32(gamecfg.GardenEGuildPosition_VICE_LEADER)})
+			}
+			if c.secondMember {
+				g.Data.Members = append(g.Data.Members, &GuildMember{RoleID: 301, Position: int32(gamecfg.GardenEGuildPosition_MEMBER)})
 			}
 			if got := g.canKick(c.opID, c.targetID); got != c.want {
 				t.Fatalf("canKick(%d, %d) = %v, want %v", c.opID, c.targetID, got, c.want)
