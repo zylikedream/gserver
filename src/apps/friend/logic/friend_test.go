@@ -275,4 +275,3 @@ func TestFriendData_JSON_Roundtrip(t *testing.T) {
 		t.Fatalf("unexpected cooldowns: %v", got.Cooldowns)
 	}
 }
-
