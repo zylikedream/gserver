@@ -43,9 +43,20 @@ type fakeApplyEntry struct {
 
 // fakeFriendHandler 只实现本文件用到的 friend 路由,路径与响应体照生产 handler。
 type fakeFriendHandler struct {
-	data      *fakeFriendData // /list 响应体;为 nil 时返回空好友数据
-	failIDs   map[int64]bool  // /reject_request 中返回失败的目标
-	removeErr string          // /remove_friend 的业务错误文案
+	data        *fakeFriendData // /list 响应体;为 nil 时返回空好友数据
+	isFriendIDs map[int64]bool  // /is_friend 中判定为好友的目标(对称:查 A 的 B 就查 A 键)
+	failIDs     map[int64]bool  // /reject_request 中返回失败的目标
+	removeErr   string          // /remove_friend 的业务错误文案
+}
+
+type fakeFriendIsFriendReq struct {
+	g.Meta   `path:"/is_friend" method:"POST"`
+	PlayerID int64 `p:"player_id"`
+	TargetID int64 `p:"target_id"`
+}
+
+func (h *fakeFriendHandler) IsFriend(_ context.Context, req *fakeFriendIsFriendReq) (any, error) {
+	return map[string]bool{"is_friend": h.isFriendIDs[req.TargetID]}, nil
 }
 
 type fakeFriendListReq struct {

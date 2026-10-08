@@ -9,6 +9,7 @@ import (
 	"gserver/src/pkg/deps"
 
 	"gserver/core/gxyredis"
+	"gserver/core/gxyservice/gxyservicetest"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/alicebob/miniredis/v2"
@@ -17,10 +18,9 @@ import (
 
 // SQL 语句(依赖经 deps 注入,不打招呼就出现的话 sqlmock 会直接报错)。
 const (
-	sqlFriendRelationCount = `SELECT count\(\*\) FROM "friend_relation" WHERE player_id = \$1 AND friend_id = \$2`
-	sqlPlotStolenCount     = `SELECT count\(\*\) FROM "steal_record" WHERE owner_id = \$1 AND plot_id = \$2`
-	sqlStealRecordExists   = `SELECT count\(\*\) FROM "steal_record" WHERE stealer_id = \$1 AND owner_id = \$2 AND plot_id = \$3`
-	sqlCreateStealRecord   = `INSERT INTO "steal_record" \("owner_id","plot_id","stealer_id","flower_id","steal_time"\) VALUES \(\$1,\$2,\$3,\$4,\$5\) RETURNING "id"`
+	sqlPlotStolenCount   = `SELECT count\(\*\) FROM "steal_record" WHERE owner_id = \$1 AND plot_id = \$2`
+	sqlStealRecordExists = `SELECT count\(\*\) FROM "steal_record" WHERE stealer_id = \$1 AND owner_id = \$2 AND plot_id = \$3`
+	sqlCreateStealRecord = `INSERT INTO "steal_record" \("owner_id","plot_id","stealer_id","flower_id","steal_time"\) VALUES \(\$1,\$2,\$3,\$4,\$5\) RETURNING "id"`
 )
 
 func setupTestSteal(t *testing.T) (*RoleSteal, sqlmock.Sqlmock, *miniredis.Miniredis) {
@@ -50,10 +50,15 @@ func setupTestSteal(t *testing.T) (*RoleSteal, sqlmock.Sqlmock, *miniredis.Minir
 	return stealMod, mock, mr
 }
 
+// serveFriendDouble 装上 friend 服务替身,让准入判定走 HTTP 而非直查表。
+func serveFriendDouble(t *testing.T, friendIDs map[int64]bool) {
+	t.Helper()
+	reg := gxyservicetest.Install(t)
+	reg.Serve(t, "friend", &fakeFriendHandler{isFriendIDs: friendIDs})
+}
+
 // expectFriendAndStealReads 声明读路径的四条 SQL:是好友、(该地)未被偷过、(我)没偷过。
 func expectFriendAndStealReads(mock sqlmock.Sqlmock, friendID int64, stolen int64) {
-	mock.ExpectQuery(sqlFriendRelationCount).WithArgs(int64(1001), friendID).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery(sqlPlotStolenCount).WithArgs(friendID, int32(plotTestID)).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(stolen))
 	mock.ExpectQuery(sqlStealRecordExists).WithArgs(int64(1001), friendID, int32(plotTestID)).
@@ -78,6 +83,7 @@ func publishHarvestablePlotSnapshot(cli gxyredis.Client, roleID int64) {
 func TestReqPlotFriendInfoReadsSnapshot(t *testing.T) {
 	steal, mock, _ := setupTestSteal(t)
 	friendID := int64(2002)
+	serveFriendDouble(t, map[int64]bool{friendID: true})
 	publishHarvestablePlotSnapshot(steal.Redis(), friendID)
 	expectFriendAndStealReads(mock, friendID, 0)
 
@@ -99,12 +105,45 @@ func TestReqPlotFriendInfoReadsSnapshot(t *testing.T) {
 	}
 }
 
+// TestCallFriendIsFriend_GoesThroughService:准入判定必须经 friend 服务,不再直查
+// friend_relation 表。
+// 为什么需要:该表由 friend 应用持有。role 直查属于跨应用越界——friend 改表结构时
+// role 编译照过、运行时才炸,且两份好友判定会各自漂移。此处用「服务不可用 → false」
+// 钉住 fail-closed 语义:friend 挂掉时宁可拒绝一次操作,也不放行未经校验的准入。
+func TestCallFriendIsFriend_GoesThroughService(t *testing.T) {
+	reg := gxyservicetest.Install(t)
+	reg.Serve(t, "friend", &fakeFriendHandler{isFriendIDs: map[int64]bool{2002: true}})
+	ctx := context.Background()
+
+	if !callFriendIsFriend(ctx, 1001, 2002) {
+		t.Fatal("2002 should be a friend of 1001")
+	}
+	if callFriendIsFriend(ctx, 1001, 3003) {
+		t.Fatal("3003 should not be a friend of 1001")
+	}
+}
+
+// TestCallFriendIsFriend_FailsClosedOnServiceError:friend 服务不可用时必须返回 false。
+// 为什么需要:三个调用点(steal ×2、私聊 ×1)都拿这个布尔当准入闸门;返回 true 会让
+// 非好友通过准入,这是越权。停用服务即验证。
+func TestCallFriendIsFriend_FailsClosedOnServiceError(t *testing.T) {
+	// 只装注册表、不 Serve 任何 friend → 调用必然失败
+	gxyservicetest.Install(t)
+	ctx := context.Background()
+
+	// 未 Serve 任何 friend → 调用必然失败
+	if callFriendIsFriend(ctx, 1001, 2002) {
+		t.Fatal("must fail closed when friend service is unavailable")
+	}
+}
+
 // TestReqPlotStealUsesPlotLock:偷取全程在 plotLockKey(owner,plot) 锁内完成写 steal_record,返回后锁键必须消失。
 // 为什么需要:锁把"校验可偷 + 写记录"变成临界区,是并发偷取不产生两条 steal_record 的唯一保障;
 // 返回后仍有残留锁键会让这块地再也无法被任何人偷。
 func TestReqPlotStealUsesPlotLock(t *testing.T) {
 	steal, mock, mr := setupTestSteal(t)
 	friendID := int64(2002)
+	serveFriendDouble(t, map[int64]bool{friendID: true})
 	publishHarvestablePlotSnapshot(steal.Redis(), friendID)
 
 	expectFriendAndStealReads(mock, friendID, 0)
