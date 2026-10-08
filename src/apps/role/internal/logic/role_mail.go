@@ -319,7 +319,14 @@ func toMailDetailPB(mail *MailView) *pb.PMailDetail {
 	}
 }
 
-func (r *RoleMail) calcRedDot() (unread, unclaimed int32) {
+// calcRedDot 统计未读与未领附件的邮件数,供邮件红点用。
+// 当前全仓库无生产调用方——它此前只被自己的四个单元测试引用,那些测试在
+// 按 docs/development/testing.md 清理时删掉了(它们没保护任何契约,只复述了
+// 这个函数的实现),于是 unused 检查把它判成了未使用。
+//
+// 保留而非删除:红点是已规划的功能,这段逻辑是那项功能的规则本身
+// (过期邮件不计入;有附件且未领取才算未领)。接线时删掉这行 nolint。
+func (r *RoleMail) calcRedDot() (unread, unclaimed int32) { //nolint:unused // 未接线:等邮件红点功能。删除测试后无调用方。
 	now := time.Now().Unix()
 	for _, m := range r.mailCache {
 		if m.ExpireAt > 0 && m.ExpireAt < now {
