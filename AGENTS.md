@@ -94,6 +94,11 @@ Distributed game server on the **Actor model** (ergo) + GoFrame v2.
   - 压缩用 `git reset --soft <base>` 后重新提交, 或 `git rebase -i` 合并; 压缩后确认 `git diff <base>...HEAD` 与压缩前一致
   - 一条提交 = 一个功能, 提交信息写清为什么做、做了什么、怎么验证
 - **提交并推送后必须检查 CI action 结果**: 推送后查看 GitHub Actions 对应 run, 有报错先修复(workflow 解析失败/lint/test 失败均算), 确认全绿后才可合并或继续下一步
+- **review 按批次发起,不按 diff 发起**。一次 spawn review 子代理的成本(spawn + 子代理独立重建文件上下文 + 形成意见 + 写报告 + 主代理读报告 + 再改)远超10 行代码本身;按 diff 循环 review 是纯浪费。
+  - **必须 review**:跨模块边界或对外契约改动;删除或削弱断言;一个阶段的最后一个提交;写不出「改一行让它红」的测试的不确定处。
+  - **不要 review**:机械改动(重命名、表格合并、格式化);50 行以内且行为不变;改动已被一个会失败的测试覆盖。
+  - **优先用验证替代 review**:变异测试(删掉守卫/改动分支,看测试是否真的变红)比 reviewer 更便宜且结论更硬——reviewer 只能说「这里可能有问题」,变异测试说「确实会坏」。删除/合并类改动用「脚本比对改前改后的测试函数名集合 + 全量跑」抓漏。
+- **长任务(预计 >4h)按阶段切提交,不按功能切**。纯文档与收尾类步骤(改多个 README、归档)单独一个提交,与代码提交分开推;不要把文档改动和迁移代码混在同一份执行清单里按序执行——跑偏后会继续往下走。
 - **错误处理规范**: 见 `docs/development/error-handling.md`(cockroachdb/errors 唯一错误库, 错误产生点带栈, 禁止 %s/%v 吞错误)
 - **日志规范**: 见 `docs/development/logging.md`(统一 gxylog, 结构化字段, 错误必须 gxylog.Err(err) 打栈, 打印点只在最终处理处)
 - **测试规范**: 见 `docs/development/testing.md`(重构时先怀疑测试;只写不变量/边界/裁决/拒绝四类;禁止为绿改生产代码、抄生产逻辑、断言内部调用顺序)
