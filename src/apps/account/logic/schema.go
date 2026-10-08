@@ -11,6 +11,10 @@ func InitAccountSchema(ctx context.Context, db *gorm.DB) error {
 	if err := db.WithContext(ctx).Exec("CREATE SEQUENCE IF NOT EXISTS uid_role_seq").Error; err != nil {
 		return err
 	}
+	// 先建表:下面的起始值查询打在 account 表上,空库时表还不存在(42P01)。
+	if err := db.WithContext(ctx).AutoMigrate(&Account{}, &AccountIdentity{}); err != nil {
+		return err
+	}
 	// 起始值对齐现有数据,只在已有账号时执行;GREATEST 保证不回退
 	// (sequence 已推进或并发启动时保持较大值,幂等自愈)。
 	var maxRoleID int64
@@ -26,5 +30,5 @@ func InitAccountSchema(ctx context.Context, db *gorm.DB) error {
 			return err
 		}
 	}
-	return db.WithContext(ctx).AutoMigrate(&Account{}, &AccountIdentity{})
+	return nil
 }
