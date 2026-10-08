@@ -269,14 +269,28 @@ func getRelation(ctx context.Context, myID, targetID int64) (relation, error) {
 	return relationStranger, nil
 }
 
-// isFriend 查好友关系表。连接从接收者取(RoleModule.DB),测试经 deps 注入 sqlmock。
-func (r *RoleModule) isFriend(ctx context.Context, targetID int64) bool {
-	var count int64
-	err := r.DB().WithContext(ctx).Table("friend_relation").
-		Where("player_id = ? AND friend_id = ?", r.RoleID, targetID).
-		Count(&count).Error
+// callFriendIsFriend 经 friend 服务回答「两人是否已是好友」。
+// 此前本文件直接查 friend_relation 表——那是 friend 应用持有的表,role 直查属于
+// 跨应用越界(表结构变更时编译照过、运行时才炸,且与 friend 侧的判定逻辑会漂移)。
+//
+// 错误语义:一律返回 false,即 fail-closed。调用方据此拒绝准入(steal / 私聊)。
+// 这是刻意选择——friend 服务不可用时宁可拒绝一次操作,也不要放行一个未经
+// 校验的准入。代价是 friend 服务抖动会让 steal 与私聊同时不可用。
+func callFriendIsFriend(ctx context.Context, a, b int64) bool {
+	rsp, err := gxyhttp.HttpSystem().PostService(ctx, "friend",
+		fmt.Sprintf("is_friend?player_id=%d&target_id=%d", a, b))
 	if err != nil {
+		gxylog.Warn(ctx, "call friend is_friend failed",
+			gxylog.Num("player_id", a), gxylog.Num("target_id", b), gxylog.Err(err))
 		return false
 	}
-	return count > 0
+	var out struct {
+		IsFriend bool `json:"is_friend"`
+	}
+	if err := gconv.Scan(rsp.Data, &out); err != nil {
+		gxylog.Warn(ctx, "parse is_friend response failed",
+			gxylog.Num("player_id", a), gxylog.Num("target_id", b), gxylog.Err(err))
+		return false
+	}
+	return out.IsFriend
 }

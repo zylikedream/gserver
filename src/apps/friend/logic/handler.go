@@ -87,6 +87,30 @@ func (h *FriendHandler) List(ctx context.Context, req *ListReq) (any, error) {
 	return &data[0], nil
 }
 
+type IsFriendReq struct {
+	g.Meta `path:"/is_friend"`
+	// PlayerID 查询方;TargetID 目标方。friend_relation 一条好友存两行,
+	// 所以两个方向必须一致——本接口只查 (player_id, friend_id) 单行,
+	// 对称性由 addRelation/removeRelation 维护两行来保证。
+	PlayerID int64 `p:"player_id"`
+	TargetID int64 `p:"target_id"`
+}
+
+// IsFriend 回答「两人是否已互为好友」。
+// 这条接口存在的理由:调用方(role)此前直查 friend_relation 表,属于跨应用读
+// 对方的表——friend 改表结构时 role 侧编译照过、运行时才炸,且两份好友判定会漂移。
+// 改为经本接口后,表的归属只有 friend 一处。
+func (h *FriendHandler) IsFriend(ctx context.Context, req *IsFriendReq) (any, error) {
+	var count int64
+	err := h.db.WithContext(ctx).Model(&FriendRelation{}).
+		Where("player_id = ? AND friend_id = ?", req.PlayerID, req.TargetID).
+		Count(&count).Error
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return map[string]bool{"is_friend": count > 0}, nil
+}
+
 func mapErr(err error) error {
 	if err == nil {
 		return nil

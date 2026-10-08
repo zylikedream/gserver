@@ -102,7 +102,7 @@ func todayStr() string {
 func (r *RoleSteal) ReqPlotFriendInfo(ctx context.Context, req *pb.ReqPlotFriendInfo) (*pb.RspPlotFriendInfo, error) {
 	friendID := req.FriendId
 
-	if !r.isFriend(ctx, friendID) {
+	if !callFriendIsFriend(ctx, r.RoleID, friendID) {
 		return nil, errors.WithStack(ErrNotFriend)
 	}
 
@@ -147,7 +147,7 @@ func (r *RoleSteal) ReqPlotSteal(ctx context.Context, req *pb.ReqPlotSteal) (*pb
 	plotID := req.PlotId
 	cfg := r.Cfg().TbFriendConfig.Get()
 
-	if !r.isFriend(ctx, friendID) {
+	if !callFriendIsFriend(ctx, r.RoleID, friendID) {
 		return nil, errors.WithStack(ErrNotFriend)
 	}
 	if r.getDailyCount(friendID) >= cfg.StealPerFriendDailyLimit {
