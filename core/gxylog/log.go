@@ -200,6 +200,7 @@ func logf(ctx context.Context, lvl zapcore.Level, msg string, fields []Field) {
 		}
 		return
 	}
+	// 使用check+write, 避免手写logger.Debug, logger.Info
 	l := logger.WithOptions(zap.AddCallerSkip(2))
 	if ce := l.Check(lvl, msg); ce != nil {
 		ce.Write(toZapFields(ctx, fields)...)

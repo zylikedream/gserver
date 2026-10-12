@@ -3,6 +3,8 @@ package redis
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -62,8 +64,7 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	if err := r.client().HSet(ctx, key, field, service.GetValue()).Err(); err != nil {
 		return nil, err
 	}
-	r.setFieldTTL(ctx, key, field)
-	r.trackHeartbeat(key, field)
+	r.startHeartbeat(ctx, key, field)
 	return service, nil
 }
 
@@ -71,7 +72,7 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 	key := hashKey(service.GetName())
 	field := service.GetKey()
-	r.untrackHeartbeat(key, field)
+	r.stopHeartbeat(key, field)
 	return r.client().HDel(ctx, key, field).Err()
 }
 
@@ -121,16 +122,19 @@ func (r *Registry) Type() string {
 
 // ---- heartbeat ----
 
-// setFieldTTL sets field-level TTL on the hash field (Redis 7.4+ HEXPIRE).
-func (r *Registry) setFieldTTL(ctx context.Context, key, field string) {
-	ttl := int(defaultFieldTTL.Seconds())
-	if err := r.client().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
-		gxylog.Warn(context.Background(), "redis set field ttl failed",
-			gxylog.Str("key", key), gxylog.Str("field", field), gxylog.Err(err))
+// setFieldsTTL 给给定字段设置字段级 TTL(Redis 7.4+ HEXPIRE)。
+func (r *Registry) setFieldsTTL(ctx context.Context, key string, fields ...string) {
+	if err := r.client().HExpire(ctx, key, defaultFieldTTL, fields...).Err(); err != nil {
+		gxylog.Warn(ctx, "redis set field ttl failed",
+			gxylog.Str("key", key), gxylog.Err(err))
 	}
 }
 
-func (r *Registry) trackHeartbeat(key, field string) {
+// startHeartbeat 开始为字段续期:设置初始 TTL,并纳入周期续期列表。
+// 首次调用会启动续期协程。
+func (r *Registry) startHeartbeat(ctx context.Context, key, field string) {
+	r.setFieldsTTL(ctx, key, field)
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -145,7 +149,8 @@ func (r *Registry) trackHeartbeat(key, field string) {
 	}
 }
 
-func (r *Registry) untrackHeartbeat(key, field string) {
+// stopHeartbeat 把字段移出续期列表。
+func (r *Registry) stopHeartbeat(key, field string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -160,43 +165,27 @@ func (r *Registry) untrackHeartbeat(key, field string) {
 func (r *Registry) heartbeatLoop() {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
+	ctx := context.Background()
 
 	for {
 		select {
 		case <-ticker.C:
-			r.renewHeartbeats()
+			r.renewHeartbeats(ctx)
 		case <-r.stopCh:
 			return
 		}
 	}
 }
 
-func (r *Registry) renewHeartbeats() {
+func (r *Registry) renewHeartbeats(ctx context.Context) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	ttl := int(defaultFieldTTL.Seconds())
 	for key, fields := range r.heartbeats {
 		if len(fields) == 0 {
 			continue
 		}
-		fieldSlice := make([]string, 0, len(fields))
-		for f := range fields {
-			fieldSlice = append(fieldSlice, f)
-		}
-		args := make([]any, 5+len(fieldSlice))
-		args[0] = "HEXPIRE"
-		args[1] = key
-		args[2] = ttl
-		args[3] = "FIELDS"
-		args[4] = len(fieldSlice)
-		for i, f := range fieldSlice {
-			args[5+i] = f
-		}
-		if err := r.client().Do(context.Background(), args...).Err(); err != nil {
-			gxylog.Warn(context.Background(), "redis heartbeat renew failed",
-				gxylog.Str("key", key), gxylog.Err(err))
-		}
+		r.setFieldsTTL(ctx, key, slices.Collect(maps.Keys(fields))...)
 	}
 }
 
@@ -266,13 +255,14 @@ type watcher struct {
 func (w *watcher) Proceed() ([]gsvc.Service, error) {
 	ticker := time.NewTicker(w.registry.interval)
 	defer ticker.Stop()
+	ctx := context.Background()
 
 	for {
 		select {
 		case <-ticker.C:
-			services, hash, err := w.fetchWithHash()
+			services, hash, err := w.fetchWithHash(ctx)
 			if err != nil {
-				gxylog.Warn(context.Background(), "redis watcher fetch error", gxylog.Err(err))
+				gxylog.Warn(ctx, "redis watcher fetch error", gxylog.Err(err))
 				continue
 			}
 			w.mu.Lock()
@@ -295,8 +285,8 @@ func (w *watcher) Close() error {
 	return nil
 }
 
-func (w *watcher) fetchWithHash() ([]gsvc.Service, string, error) {
-	services, err := w.registry.Search(context.Background(), gsvc.SearchInput{Name: w.name})
+func (w *watcher) fetchWithHash(ctx context.Context) ([]gsvc.Service, string, error) {
+	services, err := w.registry.Search(ctx, gsvc.SearchInput{Name: w.name})
 	if err != nil {
 		return nil, "", err
 	}

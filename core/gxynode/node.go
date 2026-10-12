@@ -82,7 +82,7 @@ func (a *node) GetModName() string {
 }
 
 func (n *node) OnModStart(ctx context.Context) error {
-	gxylog.Info(context.Background(), "node starting....", gxylog.Str("name", n.Name))
+	gxylog.Info(ctx, "node starting....", gxylog.Str("name", n.Name))
 
 	loaded := map[string]bool{}
 	deps := []string{"metrics", "trace", "redis", "pgx", "actor", "service", "http", "mq"}
@@ -90,21 +90,21 @@ func (n *node) OnModStart(ctx context.Context) error {
 		if err := n.loadApp(ctx, dep, loaded); err != nil {
 			return err
 		}
-		gxylog.Info(context.Background(), "app loaded success", gxylog.Str("app", dep))
+		gxylog.Info(ctx, "app loaded success", gxylog.Str("app", dep))
 	}
 	for _, appName := range n.apps {
 		if err := n.loadApp(ctx, appName, loaded); err != nil {
 			return err
 		}
-		gxylog.Info(context.Background(), "app loaded success", gxylog.Str("app", appName))
+		gxylog.Info(ctx, "app loaded success", gxylog.Str("app", appName))
 	}
 	if err := n.loadApp(ctx, "thanks", loaded); err != nil {
-		gxylog.Error(context.Background(), "load thanks app failed", gxylog.Err(err))
+		gxylog.Error(ctx, "load thanks app failed", gxylog.Err(err))
 	}
 	return nil
 }
 
-// loadApp 递归加载 app 及其依赖，保证依赖先于使用者初始化
+// loadApp 递归加载 app
 func (n *node) loadApp(ctx context.Context, appName string, loaded map[string]bool) error {
 	if loaded[appName] {
 		return nil
@@ -122,17 +122,17 @@ func (n *node) loadApp(ctx context.Context, appName string, loaded map[string]bo
 }
 
 func (n *node) OnModStartAfter(ctx context.Context) error {
-	gxylog.Info(context.Background(), "node start success", gxylog.Str("name", n.Name))
+	gxylog.Info(ctx, "node start success", gxylog.Str("name", n.Name))
 	return nil
 }
 
 func (n *node) OnModStopBefore(ctx context.Context) error {
-	gxylog.Info(context.Background(), "node stopping...", gxylog.Str("name", n.Name))
+	gxylog.Info(ctx, "node stopping...", gxylog.Str("name", n.Name))
 	return nil
 }
 
 func (n *node) OnModStop(ctx context.Context) error {
-	gxylog.Info(context.Background(), "node stop success", gxylog.Str("name", n.Name))
+	gxylog.Info(ctx, "node stop success", gxylog.Str("name", n.Name))
 	return nil
 }
 

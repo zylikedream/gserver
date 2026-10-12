@@ -50,9 +50,11 @@ func (f *fakeRegistry) GetHashServices(ctx context.Context, name string) (gxyreg
 type fakeNodeEnv struct {
 	state gxyregistery.ServiceState
 	err   error
+	calls int
 }
 
 func (f *fakeNodeEnv) State(ctx context.Context) (gxyregistery.ServiceState, error) {
+	f.calls++
 	return f.state, f.err
 }
 
@@ -106,8 +108,8 @@ func TestRegisterServices(t *testing.T) {
 		&testService{name: "chat", host: "127.0.0.1:25041"},
 	}
 
-	if err := app.registerSevices(); err != nil {
-		t.Fatalf("registerSevices: %v", err)
+	if err := app.registerServices(context.Background()); err != nil {
+		t.Fatalf("registerServices: %v", err)
 	}
 	if len(reg.registerCalls) != 2 {
 		t.Fatalf("register calls = %d, want 2", len(reg.registerCalls))
@@ -129,45 +131,34 @@ func TestRegisterServicesError(t *testing.T) {
 	app := newSvcApp(reg)
 	app.Services = []IService{&testService{name: "role", host: "h"}}
 
-	if err := app.registerSevices(); err == nil {
-		t.Fatal("registerSevices = nil, want error")
+	if err := app.registerServices(context.Background()); err == nil {
+		t.Fatal("registerServices = nil, want error")
 	}
 }
 
-func TestRefreshServiceState(t *testing.T) {
-	t.Run("no_env_serving", func(t *testing.T) {
+func TestNodeState(t *testing.T) {
+	t.Run("no_env_not_serving", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{})
-		info := gxyregistery.NewServiceInfo("role", "node-1", "h", "v", 1)
-		if !app.refreshServiceState(context.Background(), info) {
-			t.Fatal("refreshServiceState = false, want true")
-		}
-		if info.State != gxyregistery.ServiceStateServing {
-			t.Errorf("state = %q, want serving", info.State)
+		state, ok := app.nodeState(context.Background())
+		if ok || state != gxyregistery.ServiceStateDraining {
+			t.Errorf("nodeState = %q/%v, want draining/false", state, ok)
 		}
 	})
 
 	t.Run("env_state_applied", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{})
 		app.nodeEnv = &fakeNodeEnv{state: gxyregistery.ServiceStateMaintaining}
-		info := gxyregistery.NewServiceInfo("role", "node-1", "h", "v", 1)
-		if !app.refreshServiceState(context.Background(), info) {
-			t.Fatal("refreshServiceState = false, want true")
-		}
-		if info.State != gxyregistery.ServiceStateMaintaining {
-			t.Errorf("state = %q, want maintaining", info.State)
+		state, ok := app.nodeState(context.Background())
+		if !ok || state != gxyregistery.ServiceStateMaintaining {
+			t.Errorf("nodeState = %q/%v, want maintaining/true", state, ok)
 		}
 	})
 
-	t.Run("env_error_keeps_state", func(t *testing.T) {
+	t.Run("env_error", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{})
 		app.nodeEnv = &fakeNodeEnv{err: errors.New("state down")}
-		info := gxyregistery.NewServiceInfo("role", "node-1", "h", "v", 1)
-		info.State = gxyregistery.ServiceStateServing
-		if app.refreshServiceState(context.Background(), info) {
-			t.Fatal("refreshServiceState = true, want false")
-		}
-		if info.State != gxyregistery.ServiceStateServing {
-			t.Errorf("state = %q, want unchanged serving", info.State)
+		if _, ok := app.nodeState(context.Background()); ok {
+			t.Fatal("nodeState ok = true, want false on env error")
 		}
 	})
 }
@@ -177,8 +168,8 @@ func TestRefreshRegisteredServices(t *testing.T) {
 		reg := &fakeRegistry{}
 		app := newSvcApp(reg)
 		app.Services = []IService{&testService{name: "role", host: "h"}}
-		if err := app.registerSevices(); err != nil {
-			t.Fatalf("registerSevices: %v", err)
+		if err := app.registerServices(context.Background()); err != nil {
+			t.Fatalf("registerServices: %v", err)
 		}
 		// 初始 serving;随后节点状态变为 draining。
 		app.nodeEnv = &fakeNodeEnv{state: gxyregistery.ServiceStateDraining}
@@ -196,8 +187,8 @@ func TestRefreshRegisteredServices(t *testing.T) {
 		reg := &fakeRegistry{}
 		app := newSvcApp(reg)
 		app.Services = []IService{&testService{name: "role", host: "h"}}
-		if err := app.registerSevices(); err != nil {
-			t.Fatalf("registerSevices: %v", err)
+		if err := app.registerServices(context.Background()); err != nil {
+			t.Fatalf("registerServices: %v", err)
 		}
 		app.refreshRegisteredServices(context.Background())
 		if len(reg.registerCalls) != 1 {
@@ -209,13 +200,33 @@ func TestRefreshRegisteredServices(t *testing.T) {
 		reg := &fakeRegistry{}
 		app := newSvcApp(reg)
 		app.Services = []IService{&testService{name: "role", host: "h"}}
-		if err := app.registerSevices(); err != nil {
-			t.Fatalf("registerSevices: %v", err)
+		if err := app.registerServices(context.Background()); err != nil {
+			t.Fatalf("registerServices: %v", err)
 		}
 		app.nodeEnv = &fakeNodeEnv{err: errors.New("state down")}
 		app.refreshRegisteredServices(context.Background())
 		if len(reg.registerCalls) != 1 {
 			t.Errorf("register calls = %d, want 1 (state refresh failed)", len(reg.registerCalls))
+		}
+	})
+
+	// 节点状态与注册的服务数量无关:每轮只读一次。
+	t.Run("state_read_once_per_tick", func(t *testing.T) {
+		app := newSvcApp(&fakeRegistry{})
+		app.Services = []IService{
+			&testService{name: "role", host: "h1"},
+			&testService{name: "chat", host: "h2"},
+			&testService{name: "mail", host: "h3"},
+		}
+		env := &fakeNodeEnv{state: gxyregistery.ServiceStateServing}
+		app.nodeEnv = env
+		if err := app.registerServices(context.Background()); err != nil {
+			t.Fatalf("registerServices: %v", err)
+		}
+		env.calls = 0
+		app.refreshRegisteredServices(context.Background())
+		if env.calls != 1 {
+			t.Errorf("nodeEnv.State calls = %d, want 1 for 3 services", env.calls)
 		}
 	})
 }
@@ -272,8 +283,8 @@ func TestOnModStopUnregisters(t *testing.T) {
 		&testService{name: "role", host: "h1"},
 		&testService{name: "chat", host: "h2"},
 	}
-	if err := app.registerSevices(); err != nil {
-		t.Fatalf("registerSevices: %v", err)
+	if err := app.registerServices(context.Background()); err != nil {
+		t.Fatalf("registerServices: %v", err)
 	}
 	app.nodeEnv = &fakeNodeEnv{state: gxyregistery.ServiceStateServing}
 
