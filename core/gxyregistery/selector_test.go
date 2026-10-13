@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 	"testing"
 
 	"gserver/core/gxyregistery/types"
@@ -91,4 +92,47 @@ func TestSelectorReturnsNilWhenNoServingServices(t *testing.T) {
 	if svc != nil {
 		t.Fatalf("expected nil when all services are unavailable, got %s", svc.NodeName)
 	}
+}
+
+// TestSelectorConcurrentSafety 选择器在请求路径上被多协程共享,共享状态必须并发安全。
+// 覆盖两个曾经的缺陷:serviceIndex 用 gmap 的 safe=false 构造(裸 map,并发读写触发
+// fatal error: concurrent map read and map write),以及 round-robin 用 singleflight
+// 合并同 key 并发调用,导致所有请求拿到同一下标(轮询退化为固定打一个节点)。
+//
+// 一致性哈希选择器的并发用例暂缺:它需要并发触发 rebuildRing,而环是原地
+// Clear+Set 的共享 AVL 树,该缺陷未修前用例必然为红(见 selector.go rebuildRing)。
+func TestSelectorConcurrentSafety(t *testing.T) {
+	svcs := []*types.ServiceInfo{
+		makeServiceInfo("role", "role-0", "10.244.0.43:19001"),
+		makeServiceInfo("role", "role-1", "10.244.0.38:19001"),
+	}
+
+	t.Run("round_robin_distributes_concurrent_calls", func(t *testing.T) {
+		sel := RoundRobinSelector()
+		h := HashServices{ServiceInfos: svcs, Hash: "1"}
+
+		const callers = 64
+		picked := make([]string, callers)
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for i := range callers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				// 同一服务名并发:singleflight 版本会让所有调用拿到同一个下标
+				picked[i] = sel.Select(context.Background(), "role", "k", h).NodeName
+			}()
+		}
+		close(start)
+		wg.Wait()
+
+		distinct := map[string]bool{}
+		for _, n := range picked {
+			distinct[n] = true
+		}
+		if len(distinct) != len(svcs) {
+			t.Fatalf("并发轮询只命中 %d 个节点, want %d(全部):%v", len(distinct), len(svcs), distinct)
+		}
+	})
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+	"sync"
+	"sync/atomic"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxyregistery/types"
@@ -12,7 +14,6 @@ import (
 
 	"github.com/gogf/gf/v2/container/gmap"
 	"github.com/gogf/gf/v2/container/gtree"
-	"golang.org/x/sync/singleflight"
 )
 
 type ServiceSelector interface {
@@ -36,14 +37,14 @@ func (s *randomServiceSelector) Select(ctx context.Context, service string, _ st
 	return services[rand.Intn(len(services))]
 }
 
+// roundRobinServiceSelector 按服务名各持一个计数器,轮流返回成员。
+// 计数器用 atomic 而非 singleflight:singleflight 会把同 key 并发调用合并成
+// 同一个结果,导致并发下所有请求拿到同一下标(轮询退化为固定打一个节点)。
 type roundRobinServiceSelector struct {
-	serviceIndex *gmap.StrIntMap
-	sfg          singleflight.Group
+	indexes sync.Map // service → *atomic.Int64
 }
 
-var roundRobinSelector = &roundRobinServiceSelector{
-	serviceIndex: gmap.NewStrIntMap(false),
-}
+var roundRobinSelector = &roundRobinServiceSelector{}
 
 func RoundRobinSelector() ServiceSelector {
 	return roundRobinSelector
@@ -54,13 +55,9 @@ func (s *roundRobinServiceSelector) Select(ctx context.Context, service string, 
 	if len(services) == 0 {
 		return nil
 	}
-	// 使用singleflight.Group确保每个服务的索引更新是原子的
-	val, _, _ := s.sfg.Do(service, func() (any, error) {
-		index := s.serviceIndex.GetOrSet(service, 0)
-		s.serviceIndex.Set(service, (index+1)%len(services))
-		return index, nil
-	})
-	return services[val.(int)]
+	counter, _ := s.indexes.LoadOrStore(service, new(atomic.Int64))
+	n := counter.(*atomic.Int64).Add(1) - 1
+	return services[int(n%int64(len(services)))]
 }
 
 // consistentHashSelector 实现基于一致性哈希的服务选择器
@@ -86,7 +83,7 @@ func ConsistentHashSelector() ServiceSelector {
 func ConsistentHashSelectorWithVirtualNodes(count int) ServiceSelector {
 	return &consistentHashSelector{
 		rings:            gmap.NewStrAnyMap(true),
-		hashs:            gmap.NewStrStrMap(false),
+		hashs:            gmap.NewStrStrMap(true),
 		virtualNodeCount: count,
 	}
 }
