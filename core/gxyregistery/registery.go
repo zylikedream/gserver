@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxyregistery/types"
 	"gserver/core/gxyutil"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -30,9 +31,13 @@ type IRegistery interface {
 }
 
 type registery struct {
-	gsvc.Registry
+	regist   gsvc.Registry
 	services *gmap.StrAnyMap
 	seqs     *gmap.StrIntMap
+	// watchStarted 保证每个服务名只会启动一个 StartWatch 协程。
+	// 缓存未命中时并发 Search 会重复触发启动,导致同一名字有多个 watcher
+	// 同时消费后端并写缓存。按 name 而非全局:否则首个名字会堵死其余名字。
+	watchStarted sync.Map
 }
 
 func NewRegistery() (*registery, error) {
@@ -57,23 +62,23 @@ func NewRegistery() (*registery, error) {
 		return nil, err
 	}
 	return &registery{
-		Registry: r,
+		regist:   r,
 		services: gmap.NewStrAnyMap(true),
 		seqs:     gmap.NewStrIntMap(true),
 	}, nil
 }
 
 func (r *registery) Register(ctx context.Context, svcInfo *types.ServiceInfo) error {
-	_, err := r.Registry.Register(ctx, svcInfo)
+	_, err := r.regist.Register(ctx, svcInfo)
 	return err
 }
 
 func (r *registery) UnRegister(ctx context.Context, svcInfo *types.ServiceInfo) error {
-	return r.Deregister(ctx, svcInfo)
+	return r.regist.Deregister(ctx, svcInfo)
 }
 
 func (r *registery) Search(ctx context.Context, name string) ([]*types.ServiceInfo, error) {
-	services, err := r.Registry.Search(ctx, gsvc.SearchInput{
+	services, err := r.regist.Search(ctx, gsvc.SearchInput{
 		Name: name,
 	})
 	if err != nil {
@@ -85,7 +90,6 @@ func (r *registery) Search(ctx context.Context, name string) ([]*types.ServiceIn
 		go r.StartWatch(name)
 	}
 	return serviceInfos, nil
-
 }
 
 func (r *registery) toServiceInfo(svc gsvc.Service) *types.ServiceInfo {
@@ -153,30 +157,22 @@ func (r *registery) compareServiceInfos(old, new []*types.ServiceInfo) bool {
 }
 
 func (r *registery) StartWatch(name string) {
-	ctx := context.Background()
-	watcher, err := r.Watch(ctx, name)
-	if err != nil {
-		gxylog.Error(ctx, "Watch err", gxylog.Err(err))
+	// LoadOrStore 保证并发 Search 下每个名字只有第一个调用方启动协程
+	if _, loaded := r.watchStarted.LoadOrStore(name, struct{}{}); loaded {
 		return
 	}
-
-	// 服务变更防抖定时器
-	var debounceTimer *time.Timer
-	var pendingServices []*types.ServiceInfo
-	debounceDuration := 2 * time.Second
-
-	// 防抖处理函数
-	processDebouncedUpdate := func() {
-		if pendingServices != nil {
-			r.updateServices(name, pendingServices)
-			pendingServices = nil
-		}
+	ctx := context.Background()
+	watcher, err := r.regist.Watch(ctx, name)
+	if err != nil {
+		r.watchStarted.Delete(name)
+		gxylog.Error(ctx, "Watch err", gxylog.Err(err))
+		return
 	}
 
 	for {
 		services, err := watcher.Proceed()
 		if err != nil {
-			gxylog.Error(context.Background(), "Proceed failed", gxylog.Err(err))
+			gxylog.Error(ctx, "Proceed failed", gxylog.Err(err))
 			// 添加重试延迟，避免错误风暴
 			time.Sleep(time.Second)
 			continue
@@ -195,22 +191,24 @@ func (r *registery) StartWatch(name string) {
 			}
 		}
 
-		// 使用防抖机制，合并短时间内的多次变更
-		pendingServices = serviceInfos
-
-		if debounceTimer != nil {
-			debounceTimer.Stop()
-		}
-
-		debounceTimer = time.AfterFunc(debounceDuration, processDebouncedUpdate)
+		// 直接生效。上游已自带合并(consul watcher 的 eventChan 容量为 1 且非阻塞投递,
+		// redis watcher 按轮询间隔返回),此处再加防抖会饿死:事件间隔小于防抖窗口时
+		// 缓存永远不更新,而 GetHashServices 缓存非空后不回源查询。
+		r.updateServices(ctx, name, serviceInfos)
 	}
 }
 
-func (r *registery) updateServices(name string, services []*types.ServiceInfo) {
+// updateServices 写入本地缓存并递增版本号,版本号即 HashServices.Hash,
+// 消费方据此判断是否需要重建哈希环。
+func (r *registery) updateServices(ctx context.Context, name string, services []*types.ServiceInfo) {
 	r.services.Set(name, services)
 	newSeq := r.seqs.GetOrSet(name, 0) + 1
 	r.seqs.Set(name, newSeq)
-	gxylog.Info(context.Background(), "Updating services", gxylog.Str("name", name), gxylog.Num("count", len(services)), gxylog.Num("seq", newSeq), gxylog.Str("services", gxyutil.FormatObject(services)))
+	gxylog.Info(ctx, "Updating services", gxylog.Str("name", name),
+		gxylog.Num("count", len(services)), gxylog.Num("seq", newSeq))
+	// 全量成员列表仅调试时需要,故留在 Debug 级
+	gxylog.Debug(ctx, "Updating services detail", gxylog.Str("name", name),
+		gxylog.Str("services", gxyutil.FormatObject(services)))
 }
 
 func (r *registery) GetHashServices(ctx context.Context, name string) (HashServices, error) {
@@ -221,7 +219,7 @@ func (r *registery) GetHashServices(ctx context.Context, name string) (HashServi
 		if err != nil {
 			return HashServices{}, err
 		}
-		r.updateServices(name, services)
+		r.updateServices(ctx, name, services)
 	}
 	seq := r.seqs.GetOrSet(name, 0)
 	return HashServices{
