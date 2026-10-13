@@ -95,12 +95,11 @@ func TestSelectorReturnsNilWhenNoServingServices(t *testing.T) {
 }
 
 // TestSelectorConcurrentSafety 选择器在请求路径上被多协程共享,共享状态必须并发安全。
-// 覆盖两个曾经的缺陷:serviceIndex 用 gmap 的 safe=false 构造(裸 map,并发读写触发
-// fatal error: concurrent map read and map write),以及 round-robin 用 singleflight
-// 合并同 key 并发调用,导致所有请求拿到同一下标(轮询退化为固定打一个节点)。
-//
-// 一致性哈希选择器的并发用例暂缺:它需要并发触发 rebuildRing,而环是原地
-// Clear+Set 的共享 AVL 树,该缺陷未修前用例必然为红(见 selector.go rebuildRing)。
+// 覆盖三个曾经的缺陷:
+//   - serviceIndex 用 gmap 的 safe=false 构造(裸 map,并发读写触发 fatal error:
+//     concurrent map read and map write);
+//   - round-robin 用 singleflight 合并同 key 并发调用,导致所有请求拿到同一下标;
+//   - 一致性哈希环被原地 Clear+Set,并发读者会遍历到残缺的环。
 func TestSelectorConcurrentSafety(t *testing.T) {
 	svcs := []*types.ServiceInfo{
 		makeServiceInfo("role", "role-0", "10.244.0.43:19001"),
@@ -134,5 +133,53 @@ func TestSelectorConcurrentSafety(t *testing.T) {
 		if len(distinct) != len(svcs) {
 			t.Fatalf("并发轮询只命中 %d 个节点, want %d(全部):%v", len(distinct), len(svcs), distinct)
 		}
+	})
+
+	// 两版成员集交替出现(模拟成员变化),并发 Select 必须始终返回"调用方那一版"
+	// 的成员:原地重建的环会被读者看到残缺态,从而取到另一版的节点。
+	t.Run("consistent_hash_returns_node_of_queried_version", func(t *testing.T) {
+		sel := ConsistentHashSelectorWithVirtualNodes(100)
+
+		verA := HashServices{Hash: "a", ServiceInfos: []*types.ServiceInfo{
+			makeServiceInfo("role", "role-0", "10.244.0.43:19001"),
+			makeServiceInfo("role", "role-1", "10.244.0.38:19001"),
+		}}
+		verB := HashServices{Hash: "b", ServiceInfos: []*types.ServiceInfo{
+			makeServiceInfo("role", "role-0", "10.244.0.43:19001"),
+			makeServiceInfo("role", "role-2", "10.244.0.39:19001"),
+		}}
+		allowed := func(h HashServices, n *types.ServiceInfo) bool {
+			for _, svc := range h.ServiceInfos {
+				if svc.NodeName == n.NodeName {
+					return true
+				}
+			}
+			return false
+		}
+
+		const callers = 64
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for i := range callers {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				h := verA
+				if i%2 == 1 {
+					h = verB
+				}
+				got := sel.Select(context.Background(), "role", fmt.Sprintf("key-%d", i), h)
+				if got == nil {
+					t.Error("Select 返回 nil")
+					return
+				}
+				if !allowed(h, got) {
+					t.Errorf("返回 %s, 不属于查询的版本 %s", got.NodeName, h.Hash)
+				}
+			}()
+		}
+		close(start)
+		wg.Wait()
 	})
 }

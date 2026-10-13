@@ -64,10 +64,17 @@ func (s *roundRobinServiceSelector) Select(ctx context.Context, service string, 
 // 一致性哈希算法可以在节点数量变化时最小化键的重新映射
 // 通过虚拟节点机制提高哈希分布的均匀性
 
+// ringEntry 是一份哈希环快照:构建完成后 ring 不再被修改,成员变化时整体替换
+// map 中的指针。读者要么看到旧快照、要么看到新快照,不存在中间态 —— 原地
+// Clear+Set 会让并发读者遍历到一个残缺的环,取到不属于当前成员集的节点。
+type ringEntry struct {
+	ring *gtree.AVLTree
+	hash string
+}
+
 type consistentHashSelector struct {
-	// 每个服务节点对应的一致性哈希环
-	rings *gmap.StrAnyMap
-	hashs *gmap.StrStrMap
+	// entries: service → *ringEntry
+	entries *gmap.StrAnyMap
 	// 真实节点映射的虚拟节点数量
 	virtualNodeCount int
 }
@@ -82,8 +89,7 @@ func ConsistentHashSelector() ServiceSelector {
 // ConsistentHashSelectorWithVirtualNodes 返回自定义虚拟节点数量的一致性哈希选择器
 func ConsistentHashSelectorWithVirtualNodes(count int) ServiceSelector {
 	return &consistentHashSelector{
-		rings:            gmap.NewStrAnyMap(true),
-		hashs:            gmap.NewStrStrMap(true),
+		entries:          gmap.NewStrAnyMap(true),
 		virtualNodeCount: count,
 	}
 }
@@ -96,38 +102,36 @@ func (s *consistentHashSelector) Select(ctx context.Context, service string, key
 		return nil
 	}
 
-	ring := s.ring(service)
-	if hashval := s.hashs.Get(service); hashval == "" || hashval != hservices.Hash {
-		s.rebuildRing(ring, services)
-		s.hashs.Set(service, hservices.Hash)
+	// 环与版本号成对读取:分成两次读会拿到"新版本号配旧环",从而漏掉重建
+	entry, _ := s.entries.Get(service).(*ringEntry)
+	if entry == nil || entry.hash != hservices.Hash {
+		entry = &ringEntry{ring: s.buildRing(services), hash: hservices.Hash}
+		s.entries.Set(service, entry)
 		gxylog.Debug(ctx, "consistentHashSelector rebuild ring",
 			gxylog.Str("ring", service), gxylog.Str("hash", hservices.Hash),
 			gxylog.Str("services", gxyutil.FormatObject(services)))
 	}
 
-	if node := pickRingNode(ring, s.hash(key)); node != nil {
+	// 用局部变量 entry.ring,不重新回 map 取:保证"校验过的版本"与"查询的环"同源
+	if node := pickRingNode(entry.ring, s.hash(key)); node != nil {
 		return node
 	}
 
-	gxylog.Warn(context.Background(), "consistentHashSelector Select no node found, return random node")
+	gxylog.Warn(ctx, "consistentHashSelector Select no node found, return random node")
 	return services[rand.Intn(len(services))]
 }
 
-// ring 返回该服务的哈希环,不存在则创建。
-func (s *consistentHashSelector) ring(ringKey string) *gtree.AVLTree {
-	if val := s.rings.Get(ringKey); val != nil {
-		return val.(*gtree.AVLTree)
-	}
-	var ring *gtree.AVLTree
-	s.rings.LockFunc(func(m map[string]any) {
-		// 双重检查，防止在获取锁的过程中其他协程已经创建
-		if val, exists := m[ringKey]; exists {
-			ring = val.(*gtree.AVLTree)
-			return
+// buildRing 为给定成员集构建新的一致性哈希环。构建在旁路进行,不影响正在使用
+// 旧快照的读者;构建完成后此环不再被修改。
+// 传 safe=true 是防御性的:环本应只读,万一将来有人误改,加锁能兜住。
+func (s *consistentHashSelector) buildRing(services []*types.ServiceInfo) *gtree.AVLTree {
+	ring := gtree.NewAVLTree(compareHashKey, true)
+	for _, node := range services {
+		for j := range s.virtualNodeCount {
+			// 虚拟节点标识:同一真实节点映射出多个环上位置,改善分布均匀性
+			ring.Set(s.hash(fmt.Sprintf("%s:%s:%d", node.Name, node.NodeHost, j)), node)
 		}
-		ring = gtree.NewAVLTree(compareHashKey)
-		m[ringKey] = ring
-	})
+	}
 	return ring
 }
 
