@@ -262,3 +262,15 @@ func TestRegistry_RenewHeartbeats(t *testing.T) {
 		t.Errorf("chat fields = %v, want [f3]", got["gserver:svc:chat"])
 	}
 }
+
+// TestHeartbeatWindowHasMargin 锁住漏拍余量:HEXPIRE 是重置 TTL 且对已不存在的
+// 字段不复活,字段过期即永久消失(需重新 Register),所以 TTL 必须显著大于心跳
+// 间隔。收窄到 1.5 倍(30s/20s)时连续漏 1 拍就丢节点,该用例即变红。
+func TestHeartbeatWindowHasMargin(t *testing.T) {
+	const minRatio = 3
+	if defaultFieldTTL < minRatio*heartbeatInterval {
+		t.Fatalf("TTL %s / 心跳 %s = %.1f, 需 >= %d:否则漏拍即永久丢失节点",
+			defaultFieldTTL, heartbeatInterval,
+			float64(defaultFieldTTL)/float64(heartbeatInterval), minRatio)
+	}
+}

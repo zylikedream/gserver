@@ -21,9 +21,12 @@ const (
 	redisServiceKeyPrefix = "gserver:svc"
 	// defaultPollInterval 是 watcher 轮询间隔,同时决定发现侧最长延迟。
 	defaultPollInterval = 10 * time.Second
-	// defaultFieldTTL 是字段过期时间,heartbeatInterval 必须显著小于它:
-	// 漏拍时字段先于下一拍过期,节点即从发现中消失(自愈式失效,无需人工清理)。
-	defaultFieldTTL   = 30 * time.Second
+	// defaultFieldTTL 是字段过期时间。HEXPIRE 是重置而非累加,且对已不存在的
+	// 字段返回 0、不会复活 —— 字段一旦过期就是永久消失(要重新 Register 才回来),
+	// 所以必须给足漏拍余量:TTL/heartbeat = 3,连续漏 2 拍(40s 持续失败)才过期。
+	// 反向代价是崩溃节点最长 60s 才从发现中消失,由调用方请求超时兜底,量级与
+	// consul 后端的 DeregisterCriticalServiceAfter=1m 一致。
+	defaultFieldTTL   = 60 * time.Second
 	heartbeatInterval = 20 * time.Second
 )
 
