@@ -14,6 +14,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 )
 
 // localServiceLookup 让能力目录始终指向本节点,把激活路径固定在"本节点创建"分支。
@@ -21,8 +22,8 @@ type localServiceLookup struct {
 	nodeName string
 }
 
-func (l localServiceLookup) GetServiceInfo(context.Context, string, string, gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
-	return gxyregistery.NewServiceInfo("race", l.nodeName, "127.0.0.1:0", "v1.0.0", 1)
+func (l localServiceLookup) GetServiceInfo(context.Context, string, string, gxyregistery.ServiceSelector) *types.ServiceInfo {
+	return types.NewServiceInfo("race", l.nodeName, "127.0.0.1:0", "v1.0.0", 1)
 }
 
 // gatedStore 在第 gateAt 次 Locate 之前执行一次 gate,其余行为直通。

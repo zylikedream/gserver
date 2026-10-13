@@ -8,6 +8,7 @@ import (
 
 	"gserver/core/gxynodeenv"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 )
 
 // testService 覆盖 ServiceName/Host,嵌入 Service 获取默认 Weight/Version。
@@ -22,23 +23,23 @@ func (s *testService) Host() string        { return s.host }
 
 // fakeRegistry 实现 IRegistery,记录注册/注销调用。
 type fakeRegistry struct {
-	registerCalls   []*gxyregistery.ServiceInfo
-	unregisterCalls []*gxyregistery.ServiceInfo
+	registerCalls   []*types.ServiceInfo
+	unregisterCalls []*types.ServiceInfo
 	registerErr     error
 	hashErr         error
 	hashResult      gxyregistery.HashServices
 }
 
-func (f *fakeRegistry) Register(ctx context.Context, service *gxyregistery.ServiceInfo) error {
+func (f *fakeRegistry) Register(ctx context.Context, service *types.ServiceInfo) error {
 	f.registerCalls = append(f.registerCalls, service)
 	return f.registerErr
 }
 
-func (f *fakeRegistry) Search(ctx context.Context, name string) ([]*gxyregistery.ServiceInfo, error) {
+func (f *fakeRegistry) Search(ctx context.Context, name string) ([]*types.ServiceInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeRegistry) UnRegister(ctx context.Context, service *gxyregistery.ServiceInfo) error {
+func (f *fakeRegistry) UnRegister(ctx context.Context, service *types.ServiceInfo) error {
 	f.unregisterCalls = append(f.unregisterCalls, service)
 	return nil
 }
@@ -48,21 +49,21 @@ func (f *fakeRegistry) GetHashServices(ctx context.Context, name string) (gxyreg
 }
 
 type fakeNodeEnv struct {
-	state gxyregistery.ServiceState
+	state types.ServiceState
 	err   error
 	calls int
 }
 
-func (f *fakeNodeEnv) State(ctx context.Context) (gxyregistery.ServiceState, error) {
+func (f *fakeNodeEnv) State(ctx context.Context) (types.ServiceState, error) {
 	f.calls++
 	return f.state, f.err
 }
 
 type fakeSelector struct {
-	picked *gxyregistery.ServiceInfo
+	picked *types.ServiceInfo
 }
 
-func (s *fakeSelector) Select(ctx context.Context, service string, key string, services gxyregistery.HashServices) *gxyregistery.ServiceInfo {
+func (s *fakeSelector) Select(ctx context.Context, service string, key string, services gxyregistery.HashServices) *types.ServiceInfo {
 	return s.picked
 }
 
@@ -121,7 +122,7 @@ func TestRegisterServices(t *testing.T) {
 	if role.Version != DEFAULT_VERSION || role.Weight != DEFAULT_WEIGHT {
 		t.Errorf("role defaults = version %q weight %d", role.Version, role.Weight)
 	}
-	if role.State != gxyregistery.ServiceStateServing {
+	if role.State != types.ServiceStateServing {
 		t.Errorf("state = %q, want serving (no nodeEnv)", role.State)
 	}
 }
@@ -140,16 +141,16 @@ func TestNodeState(t *testing.T) {
 	t.Run("no_env_not_serving", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{})
 		state, ok := app.nodeState(context.Background())
-		if ok || state != gxyregistery.ServiceStateDraining {
+		if ok || state != types.ServiceStateDraining {
 			t.Errorf("nodeState = %q/%v, want draining/false", state, ok)
 		}
 	})
 
 	t.Run("env_state_applied", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{})
-		app.nodeEnv = &fakeNodeEnv{state: gxyregistery.ServiceStateMaintaining}
+		app.nodeEnv = &fakeNodeEnv{state: types.ServiceStateMaintaining}
 		state, ok := app.nodeState(context.Background())
-		if !ok || state != gxyregistery.ServiceStateMaintaining {
+		if !ok || state != types.ServiceStateMaintaining {
 			t.Errorf("nodeState = %q/%v, want maintaining/true", state, ok)
 		}
 	})
@@ -172,13 +173,13 @@ func TestRefreshRegisteredServices(t *testing.T) {
 			t.Fatalf("registerServices: %v", err)
 		}
 		// 初始 serving;随后节点状态变为 draining。
-		app.nodeEnv = &fakeNodeEnv{state: gxyregistery.ServiceStateDraining}
+		app.nodeEnv = &fakeNodeEnv{state: types.ServiceStateDraining}
 
 		app.refreshRegisteredServices(context.Background())
 		if len(reg.registerCalls) != 2 {
 			t.Fatalf("register calls = %d, want 2 (initial + state change)", len(reg.registerCalls))
 		}
-		if got := reg.registerCalls[1].State; got != gxyregistery.ServiceStateDraining {
+		if got := reg.registerCalls[1].State; got != types.ServiceStateDraining {
 			t.Errorf("re-registered state = %q, want draining", got)
 		}
 	})
@@ -218,7 +219,7 @@ func TestRefreshRegisteredServices(t *testing.T) {
 			&testService{name: "chat", host: "h2"},
 			&testService{name: "mail", host: "h3"},
 		}
-		env := &fakeNodeEnv{state: gxyregistery.ServiceStateServing}
+		env := &fakeNodeEnv{state: types.ServiceStateServing}
 		app.nodeEnv = env
 		if err := app.registerServices(context.Background()); err != nil {
 			t.Fatalf("registerServices: %v", err)
@@ -232,7 +233,7 @@ func TestRefreshRegisteredServices(t *testing.T) {
 }
 
 func TestGetServiceInfo(t *testing.T) {
-	picked := gxyregistery.NewServiceInfo("role", "node-1", "h", "v", 1)
+	picked := types.NewServiceInfo("role", "node-1", "h", "v", 1)
 	t.Run("selects", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{hashResult: gxyregistery.HashServices{}})
 		got := app.GetServiceInfo(context.Background(), "role", "key", &fakeSelector{picked: picked})
@@ -249,12 +250,12 @@ func TestGetServiceInfo(t *testing.T) {
 }
 
 func TestGetAddressByNodeName(t *testing.T) {
-	svcA := gxyregistery.NewServiceInfo("role", "node-1", "127.0.0.1:25011", "v1", 1)
-	svcB := gxyregistery.NewServiceInfo("role", "node-2", "127.0.0.1:25012", "v1", 1)
+	svcA := types.NewServiceInfo("role", "node-1", "127.0.0.1:25011", "v1", 1)
+	svcB := types.NewServiceInfo("role", "node-2", "127.0.0.1:25012", "v1", 1)
 
 	t.Run("hit", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{hashResult: gxyregistery.HashServices{
-			ServiceInfos: []*gxyregistery.ServiceInfo{svcA, svcB},
+			ServiceInfos: []*types.ServiceInfo{svcA, svcB},
 		}})
 		if got := app.GetAddressByNodeName(context.Background(), "role", "node-2"); got != "127.0.0.1:25012" {
 			t.Errorf("GetAddressByNodeName = %q, want 127.0.0.1:25012", got)
@@ -262,7 +263,7 @@ func TestGetAddressByNodeName(t *testing.T) {
 	})
 	t.Run("miss", func(t *testing.T) {
 		app := newSvcApp(&fakeRegistry{hashResult: gxyregistery.HashServices{
-			ServiceInfos: []*gxyregistery.ServiceInfo{svcA},
+			ServiceInfos: []*types.ServiceInfo{svcA},
 		}})
 		if got := app.GetAddressByNodeName(context.Background(), "role", "node-9"); got != "" {
 			t.Errorf("GetAddressByNodeName = %q, want empty", got)
@@ -286,7 +287,7 @@ func TestOnModStopUnregisters(t *testing.T) {
 	if err := app.registerServices(context.Background()); err != nil {
 		t.Fatalf("registerServices: %v", err)
 	}
-	app.nodeEnv = &fakeNodeEnv{state: gxyregistery.ServiceStateServing}
+	app.nodeEnv = &fakeNodeEnv{state: types.ServiceStateServing}
 
 	if err := app.OnModStop(context.Background()); err != nil {
 		t.Fatalf("OnModStop: %v", err)

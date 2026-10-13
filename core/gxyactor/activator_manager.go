@@ -11,6 +11,7 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxyredis"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 
@@ -136,7 +137,7 @@ type activatorManager struct {
 // actorServiceLookup 提供能力目录查询:哪些节点能承载该能力。
 // 节点名到地址的解析不在这里 —— 那由运行时的注册适配器负责(见 ADR 0011)。
 type actorServiceLookup interface {
-	GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo
+	GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *types.ServiceInfo
 }
 
 // NewActivatorManager 创建激活协调层。nodeID 即节点身份(见 ADR 0018)。

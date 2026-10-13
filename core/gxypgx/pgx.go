@@ -12,6 +12,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	"github.com/cockroachdb/errors"
 )
 
 type PGXApp struct {
@@ -28,13 +30,6 @@ type pgxConfig struct {
 }
 
 var pgxAppInstance *PGXApp
-
-func PGX() *PGXApp {
-	if pgxAppInstance == nil || pgxAppInstance.db == nil {
-		gxylog.Error(context.Background(), "pgx not init, miss config")
-	}
-	return pgxAppInstance
-}
 
 // DB 返回全局数据库连接;未初始化时返回 nil(生产由模块启动初始化,测试兜底不 panic)。
 func DB() *gorm.DB {
@@ -89,8 +84,9 @@ func (p *PGXApp) OnModStart(ctx context.Context) error {
 	sqlDB.SetMaxIdleConns(p.conf.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(time.Duration(p.conf.ConnMaxLifetime) * time.Minute)
 
+	// 探活失败交给模块树上抛:main.go 统一记栈并终止,Fatal 会跳过已启动模块的停机
 	if err := sqlDB.PingContext(ctx); err != nil {
-		gxylog.Fatal(ctx, "postgres ping failed", gxylog.Err(err))
+		return errors.WithStack(err)
 	}
 	gxylog.Info(ctx, "postgres(gorm) start success", gxylog.Str("url", p.conf.URL))
 	return nil

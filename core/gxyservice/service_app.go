@@ -4,10 +4,12 @@ package gxyservice
 
 import (
 	"context"
+
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
 	"gserver/core/gxynodeenv"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 	"gserver/core/gxyutil"
 	"time"
 )
@@ -16,7 +18,7 @@ import (
 type serviceApp struct {
 	gxyapp.App
 	Services         []IService
-	serviceInfo      []*gxyregistery.ServiceInfo
+	serviceInfo      []*types.ServiceInfo
 	registry         gxyregistery.IRegistery
 	nodeInstanceName string
 	nodeEnv          gxynodeenv.NodeEnv
@@ -81,7 +83,7 @@ func (s *serviceApp) registerServices(ctx context.Context) error {
 	// 节点状态每轮只取一次:它与服务数量无关
 	state, hasState := s.nodeState(ctx)
 	for _, service := range s.Services {
-		svcInfo := gxyregistery.NewServiceInfo(
+		svcInfo := types.NewServiceInfo(
 			service.ServiceName(),
 			s.nodeInstanceName,
 			service.Host(),
@@ -139,9 +141,9 @@ func (s *serviceApp) refreshRegisteredServices(ctx context.Context) {
 }
 
 // nodeState 读取节点状态;第二个返回值表示读取是否成功,失败时调用方应保留原状态。
-func (s *serviceApp) nodeState(ctx context.Context) (gxyregistery.ServiceState, bool) {
+func (s *serviceApp) nodeState(ctx context.Context) (types.ServiceState, bool) {
 	if s.nodeEnv == nil {
-		return gxyregistery.ServiceStateDraining, false
+		return types.ServiceStateDraining, false
 	}
 	state, err := s.nodeEnv.State(ctx)
 	if err != nil {
@@ -168,7 +170,7 @@ func (s *serviceApp) OnModStop(ctx context.Context) error {
 }
 
 // GetServiceInfo 按 key 在 name 类服务里选一个目标地址;选择算法由 selector 决定。
-func (s *serviceApp) GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo {
+func (s *serviceApp) GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *types.ServiceInfo {
 	services, err := s.registry.GetHashServices(ctx, name)
 	if err != nil {
 		gxylog.Error(ctx, "get service failed", gxylog.Str("name", name), gxylog.Str("key", key), gxylog.Err(err))

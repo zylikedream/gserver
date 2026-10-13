@@ -3,22 +3,22 @@ package gxynodeenv
 import (
 	"testing"
 
-	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 )
 
 func TestMapOKGOpsState(t *testing.T) {
 	tests := []struct {
 		name string
 		ops  string
-		want gxyregistery.ServiceState
+		want types.ServiceState
 	}{
-		{name: "empty is serving", ops: "", want: gxyregistery.ServiceStateServing},
-		{name: "none is serving", ops: "None", want: gxyregistery.ServiceStateServing},
-		{name: "allocated is serving", ops: "Allocated", want: gxyregistery.ServiceStateServing},
-		{name: "wait to be deleted is draining", ops: "WaitToBeDeleted", want: gxyregistery.ServiceStateDraining},
-		{name: "kill is draining", ops: "Kill", want: gxyregistery.ServiceStateDraining},
-		{name: "maintaining is maintaining", ops: "Maintaining", want: gxyregistery.ServiceStateMaintaining},
-		{name: "unknown is serving", ops: "Custom", want: gxyregistery.ServiceStateServing},
+		{name: "empty is serving", ops: "", want: types.ServiceStateServing},
+		{name: "none is serving", ops: "None", want: types.ServiceStateServing},
+		{name: "allocated is serving", ops: "Allocated", want: types.ServiceStateServing},
+		{name: "wait to be deleted is draining", ops: "WaitToBeDeleted", want: types.ServiceStateDraining},
+		{name: "kill is draining", ops: "Kill", want: types.ServiceStateDraining},
+		{name: "maintaining is maintaining", ops: "Maintaining", want: types.ServiceStateMaintaining},
+		{name: "unknown is serving", ops: "Custom", want: types.ServiceStateServing},
 	}
 
 	for _, tt := range tests {

@@ -2,7 +2,9 @@ package gxyregistery
 
 import (
 	"context"
+
 	"gserver/core/gxylog"
+	"gserver/core/gxyregistery/types"
 	"gserver/core/gxyutil"
 	"sort"
 	"time"
@@ -21,9 +23,9 @@ const (
 )
 
 type IRegistery interface {
-	Register(ctx context.Context, service *ServiceInfo) error
-	Search(ctx context.Context, name string) ([]*ServiceInfo, error)
-	UnRegister(ctx context.Context, service *ServiceInfo) error
+	Register(ctx context.Context, service *types.ServiceInfo) error
+	Search(ctx context.Context, name string) ([]*types.ServiceInfo, error)
+	UnRegister(ctx context.Context, service *types.ServiceInfo) error
 	GetHashServices(ctx context.Context, name string) (HashServices, error)
 }
 
@@ -61,16 +63,16 @@ func NewRegistery() (*registery, error) {
 	}, nil
 }
 
-func (r *registery) Register(ctx context.Context, svcInfo *ServiceInfo) error {
+func (r *registery) Register(ctx context.Context, svcInfo *types.ServiceInfo) error {
 	_, err := r.Registry.Register(ctx, svcInfo)
 	return err
 }
 
-func (r *registery) UnRegister(ctx context.Context, svcInfo *ServiceInfo) error {
+func (r *registery) UnRegister(ctx context.Context, svcInfo *types.ServiceInfo) error {
 	return r.Deregister(ctx, svcInfo)
 }
 
-func (r *registery) Search(ctx context.Context, name string) ([]*ServiceInfo, error) {
+func (r *registery) Search(ctx context.Context, name string) ([]*types.ServiceInfo, error) {
 	services, err := r.Registry.Search(ctx, gsvc.SearchInput{
 		Name: name,
 	})
@@ -86,20 +88,20 @@ func (r *registery) Search(ctx context.Context, name string) ([]*ServiceInfo, er
 
 }
 
-func (r *registery) toServiceInfo(svc gsvc.Service) *ServiceInfo {
+func (r *registery) toServiceInfo(svc gsvc.Service) *types.ServiceInfo {
 	if svc.GetValue() == "" {
 		return nil
 	}
-	sv, err := NewServiceFromBytes([]byte(svc.GetValue()))
+	sv, err := types.NewServiceFromBytes([]byte(svc.GetValue()))
 	if err != nil {
-		gxylog.Error(context.Background(), "NewServiceFromBytes failed", gxylog.Err(err))
+		gxylog.Error(context.Background(), "types.NewServiceFromBytes failed", gxylog.Err(err))
 		return nil
 	}
 	return sv
 }
 
-func (r *registery) toServiceInfos(svcs []gsvc.Service) []*ServiceInfo {
-	serviceInfos := []*ServiceInfo{}
+func (r *registery) toServiceInfos(svcs []gsvc.Service) []*types.ServiceInfo {
+	serviceInfos := []*types.ServiceInfo{}
 	for _, svc := range svcs {
 		sv := r.toServiceInfo(svc)
 		if sv == nil {
@@ -126,13 +128,13 @@ func (r *registery) toServiceInfos(svcs []gsvc.Service) []*ServiceInfo {
 }
 
 // compareServiceInfos 比较两个服务信息列表是否相等
-func (r *registery) compareServiceInfos(old, new []*ServiceInfo) bool {
+func (r *registery) compareServiceInfos(old, new []*types.ServiceInfo) bool {
 	if len(old) != len(new) {
 		return false
 	}
 
 	// 创建映射以便快速查找
-	oldMap := make(map[string]*ServiceInfo)
+	oldMap := make(map[string]*types.ServiceInfo)
 	for _, svc := range old {
 		oldMap[svc.GetKey()] = svc
 	}
@@ -160,7 +162,7 @@ func (r *registery) StartWatch(name string) {
 
 	// 服务变更防抖定时器
 	var debounceTimer *time.Timer
-	var pendingServices []*ServiceInfo
+	var pendingServices []*types.ServiceInfo
 	debounceDuration := 2 * time.Second
 
 	// 防抖处理函数
@@ -185,7 +187,7 @@ func (r *registery) StartWatch(name string) {
 		// 获取当前服务列表进行比较，避免不必要的更新
 		currentServices := r.services.Get(name)
 		if currentServices != nil {
-			currentSvcList, ok := currentServices.([]*ServiceInfo)
+			currentSvcList, ok := currentServices.([]*types.ServiceInfo)
 			if ok && r.compareServiceInfos(currentSvcList, serviceInfos) {
 				// 服务信息没有实际变化，跳过更新
 				gxylog.Debug(ctx, "No actual change in services, skipping update", gxylog.Str("service", name))
@@ -204,7 +206,7 @@ func (r *registery) StartWatch(name string) {
 	}
 }
 
-func (r *registery) updateServices(name string, services []*ServiceInfo) {
+func (r *registery) updateServices(name string, services []*types.ServiceInfo) {
 	r.services.Set(name, services)
 	newSeq := r.seqs.GetOrSet(name, 0) + 1
 	r.seqs.Set(name, newSeq)
@@ -213,7 +215,7 @@ func (r *registery) updateServices(name string, services []*ServiceInfo) {
 
 func (r *registery) GetHashServices(ctx context.Context, name string) (HashServices, error) {
 	var err error
-	services, ok := r.services.Get(name).([]*ServiceInfo)
+	services, ok := r.services.Get(name).([]*types.ServiceInfo)
 	if !ok || len(services) == 0 {
 		services, err = r.Search(ctx, name)
 		if err != nil {

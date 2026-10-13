@@ -19,6 +19,7 @@ import (
 
 	"gserver/core/gxyhttp"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 	"gserver/core/gxyservice"
 )
 
@@ -28,7 +29,7 @@ const testNodeName = "gxyservicetest"
 // Registry 是 gxyregistery.IRegistery 的内存实现,按服务名收集本进程内的假服务。
 type Registry struct {
 	mu   sync.Mutex
-	svcs map[string][]*gxyregistery.ServiceInfo
+	svcs map[string][]*types.ServiceInfo
 }
 
 // Install 在组装处装上内存服务注册表,并返回它供 Serve 登记假服务。
@@ -53,18 +54,18 @@ func (r *Registry) Serve(t testing.TB, name string, handler any) string {
 	t.Cleanup(func() { _ = svr.Shutdown() })
 
 	host := svr.GetListenedAddress()
-	svc := gxyregistery.NewServiceInfo(name, testNodeName, host, gxyservice.DEFAULT_VERSION, gxyservice.DEFAULT_WEIGHT)
+	svc := types.NewServiceInfo(name, testNodeName, host, gxyservice.DEFAULT_VERSION, gxyservice.DEFAULT_WEIGHT)
 	if err := r.Register(context.Background(), svc); err != nil {
 		t.Fatalf("register fake service %s: %v", name, err)
 	}
 	return host
 }
 
-func (r *Registry) Register(_ context.Context, service *gxyregistery.ServiceInfo) error {
+func (r *Registry) Register(_ context.Context, service *types.ServiceInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.svcs == nil {
-		r.svcs = make(map[string][]*gxyregistery.ServiceInfo)
+		r.svcs = make(map[string][]*types.ServiceInfo)
 	}
 	for i, cur := range r.svcs[service.Name] {
 		if cur.NodeName == service.NodeName {
@@ -76,7 +77,7 @@ func (r *Registry) Register(_ context.Context, service *gxyregistery.ServiceInfo
 	return nil
 }
 
-func (r *Registry) UnRegister(_ context.Context, service *gxyregistery.ServiceInfo) error {
+func (r *Registry) UnRegister(_ context.Context, service *types.ServiceInfo) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	list := r.svcs[service.Name]
@@ -89,7 +90,7 @@ func (r *Registry) UnRegister(_ context.Context, service *gxyregistery.ServiceIn
 	return nil
 }
 
-func (r *Registry) Search(_ context.Context, name string) ([]*gxyregistery.ServiceInfo, error) {
+func (r *Registry) Search(_ context.Context, name string) ([]*types.ServiceInfo, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.svcs[name], nil

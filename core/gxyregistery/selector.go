@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/md5"
 	"fmt"
+
 	"gserver/core/gxylog"
+	"gserver/core/gxyregistery/types"
 	"gserver/core/gxyutil"
 	"math/rand"
 
@@ -14,7 +16,7 @@ import (
 )
 
 type ServiceSelector interface {
-	Select(ctx context.Context, service string, key string, services HashServices) *ServiceInfo
+	Select(ctx context.Context, service string, key string, services HashServices) *types.ServiceInfo
 }
 
 type randomServiceSelector struct {
@@ -26,7 +28,7 @@ func RandomSelector() ServiceSelector {
 	return randomSelector
 }
 
-func (s *randomServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *ServiceInfo {
+func (s *randomServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *types.ServiceInfo {
 	services := servingServices(hservices.ServiceInfos)
 	if len(services) == 0 {
 		return nil
@@ -47,7 +49,7 @@ func RoundRobinSelector() ServiceSelector {
 	return roundRobinSelector
 }
 
-func (s *roundRobinServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *ServiceInfo {
+func (s *roundRobinServiceSelector) Select(ctx context.Context, service string, _ string, hservices HashServices) *types.ServiceInfo {
 	services := servingServices(hservices.ServiceInfos)
 	if len(services) == 0 {
 		return nil
@@ -91,7 +93,7 @@ func ConsistentHashSelectorWithVirtualNodes(count int) ServiceSelector {
 
 // Select 根据一致性哈希算法选择一个服务节点
 // 使用service作为key计算哈希值，在哈希环上找到对应的节点
-func (s *consistentHashSelector) Select(ctx context.Context, service string, key string, hservices HashServices) *ServiceInfo {
+func (s *consistentHashSelector) Select(ctx context.Context, service string, key string, hservices HashServices) *types.ServiceInfo {
 	services := servingServices(hservices.ServiceInfos)
 	if len(services) == 0 {
 		return nil
@@ -147,11 +149,11 @@ func compareHashKey(a, b any) int {
 }
 
 // pickRingNode 在环上选第一个哈希值 >= hash 的节点;没有则取第一个节点(形成环回)。
-func pickRingNode(ring *gtree.AVLTree, hash uint32) *ServiceInfo {
-	var selected *ServiceInfo
+func pickRingNode(ring *gtree.AVLTree, hash uint32) *types.ServiceInfo {
+	var selected *types.ServiceInfo
 	ring.IteratorAsc(func(key, value any) bool {
 		if key.(uint32) >= hash {
-			selected = value.(*ServiceInfo)
+			selected = value.(*types.ServiceInfo)
 			return false
 		}
 		return true
@@ -160,14 +162,14 @@ func pickRingNode(ring *gtree.AVLTree, hash uint32) *ServiceInfo {
 		return selected
 	}
 	ring.IteratorAsc(func(_, value any) bool {
-		selected = value.(*ServiceInfo)
+		selected = value.(*types.ServiceInfo)
 		return false
 	})
 	return selected
 }
 
-func servingServices(services []*ServiceInfo) []*ServiceInfo {
-	filtered := make([]*ServiceInfo, 0, len(services))
+func servingServices(services []*types.ServiceInfo) []*types.ServiceInfo {
+	filtered := make([]*types.ServiceInfo, 0, len(services))
 	for _, svc := range services {
 		if svc != nil && svc.IsServing() {
 			filtered = append(filtered, svc)
@@ -177,7 +179,7 @@ func servingServices(services []*ServiceInfo) []*ServiceInfo {
 }
 
 // rebuildRing 重建一致性哈希环
-func (s *consistentHashSelector) rebuildRing(ring *gtree.AVLTree, services []*ServiceInfo) {
+func (s *consistentHashSelector) rebuildRing(ring *gtree.AVLTree, services []*types.ServiceInfo) {
 	// 清空现有哈希环
 	ring.Clear()
 
