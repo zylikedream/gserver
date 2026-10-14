@@ -226,3 +226,57 @@ func TestMessageQueue_Singleton(t *testing.T) {
 		t.Fatal("MessageQueue() should return the same instance")
 	}
 }
+
+// ========== OnModStartAfter 启动契约 ==========
+
+// countingQueue 记录后端被调用次数。
+type countingQueue struct {
+	starts int
+	subs   int
+}
+
+func (q *countingQueue) Publish(context.Context, string, string) error { return nil }
+func (q *countingQueue) Subscribe(context.Context, string, TopicHandler) error {
+	q.subs++
+	return nil
+}
+func (q *countingQueue) Start(context.Context) error { q.starts++; return nil }
+func (q *countingQueue) Close(context.Context) error { return nil }
+
+// TestOnModStartAfterStartsQueueOnce 后端只应 Start 一次。
+// 原实现在 WorkerCount 循环之后又调了一次 Start(复制残留):对 redis 后端只是
+// 重复赋值,对 pulsar 后端则是重复创建客户端并泄漏前一个。
+func TestOnModStartAfterStartsQueueOnce(t *testing.T) {
+	q := &countingQueue{}
+	mq := &messageQueueApp{
+		queue: q,
+		subs: map[string]*SubInfo{
+			"topic": {Topic: "topic", Priority: TOPIC_PRIORITY_NORMAL, Handler: func(context.Context, string) error { return nil }},
+		},
+		config: &messageQueueConfig{WorkerCount: 0}, // 不起 worker,避免协程泄漏
+		stopCh: make(chan struct{}),
+	}
+
+	if err := mq.OnModStartAfter(context.Background()); err != nil {
+		t.Fatalf("OnModStartAfter: %v", err)
+	}
+	if q.starts != 1 {
+		t.Fatalf("queue.Start 调用 %d 次, want 1", q.starts)
+	}
+	if q.subs != 1 {
+		t.Fatalf("queue.Subscribe 调用 %d 次, want 1", q.subs)
+	}
+}
+
+// TestPulsarStartCreatesClient Start 的契约:返回 nil 就意味着 client 已就绪。
+// 原实现用包级 client 变量判空、且条件写反(`if client != nil`),于是 p.client 恒为
+// nil 而 Start 仍返回 nil —— 之后 Publish/Subscribe/Close 都是 nil 接口方法调用,
+// 直接 panic。URL 为空时 NewClient 立即返回错误,用它区分两种实现。
+func TestPulsarStartCreatesClient(t *testing.T) {
+	p := &PulsarMQ{config: &pulsarMQConfig{URL: ""}, stopCh: make(chan struct{})}
+
+	err := p.Start(context.Background())
+	if err == nil && p.client == nil {
+		t.Fatal("Start 返回 nil 但 client 为 nil:后续 Publish/Subscribe/Close 会 panic")
+	}
+}

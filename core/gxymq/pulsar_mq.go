@@ -10,8 +10,6 @@ import (
 	"github.com/gogf/gf/v2/os/gcfg"
 )
 
-var client pulsar.Client
-
 // PulsarMQ pulsar消息队列实现
 type PulsarMQ struct {
 	// Pulsar客户端
@@ -39,16 +37,11 @@ func NewPulsarMQ(cfg *gcfg.Config) (*PulsarMQ, error) {
 }
 
 func (p *PulsarMQ) Start(ctx context.Context) error {
-	clientOptions := pulsar.ClientOptions{
+	client, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: p.config.URL,
-	}
-
-	var err error
-	if client != nil {
-		client, err = pulsar.NewClient(clientOptions)
-		if err != nil {
-			return gerror.Wrap(err, "Pulsar client Start failed")
-		}
+	})
+	if err != nil {
+		return gerror.Wrap(err, "Pulsar client Start failed")
 	}
 	p.client = client
 	return nil

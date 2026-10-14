@@ -99,9 +99,6 @@ func (mq *messageQueueApp) OnModStartAfter(ctx context.Context) error {
 	for range mq.config.WorkerCount {
 		go func() { _ = mq.processMessages(ctx) }()
 	}
-	if err := mq.queue.Start(ctx); err != nil {
-		return err
-	}
 	return nil
 }
 
