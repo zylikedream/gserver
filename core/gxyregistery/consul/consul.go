@@ -222,26 +222,36 @@ func (r *Registry) ttlHealthCheck(ctx context.Context, serviceID string, reg *ap
 			return
 		case <-ticker.C:
 		}
-		err := r.client.Agent().PassTTL(checkID, "")
-		if err != nil {
-			r.logger.Errorf(context.Background(), "failed to pass TTL health check: %s, error %+v, retry count: %d", checkID, err, retryCount)
-			retryCount++
-			if retryCount <= maxRetries {
-				time.Sleep(retryInterval)
-				continue
-			}
-			// 达到最大重试次数，尝试重新注册服务
-			r.logger.Errorf(context.Background(), "max retries reached for health check: %s, try to re-register", checkID)
-			if err := r.client.Agent().ServiceRegister(reg); err != nil {
-				r.logger.Errorf(context.Background(), "failed to re-register service: %s, error %+v", checkID, err)
-				return
-			}
-			// 重新注册成功，重置重试计数继续健康检查
-			r.logger.Infof(context.Background(), "re-register service success: %s", checkID)
+
+		if err := r.client.Agent().PassTTL(checkID, ""); err == nil {
 			retryCount = 0
 			continue
+		} else {
+			retryCount++
+			r.logger.Errorf(context.Background(), "failed to pass TTL health check: %s, error %+v, retry count: %d", checkID, err, retryCount)
+
+			// 连续失败达到阈值:TTL 可能已过期被 consul 摘除,重新注册挂回去。
+			// 这个协程持有"本节点在 consul 里存活"的不变量,失败也不能退出 ——
+			// 退出后 TTL 无人续期,consul 会在 DeregisterCriticalServiceAfter 后
+			// 摘除本节点,且没有任何路径会重启它。
+			if retryCount >= maxRetries {
+				r.logger.Errorf(context.Background(), "max retries reached for health check: %s, try to re-register", checkID)
+				if rerr := r.client.Agent().ServiceRegister(reg); rerr != nil {
+					r.logger.Errorf(context.Background(), "failed to re-register service: %s, error %+v", checkID, rerr)
+				} else {
+					r.logger.Infof(context.Background(), "re-register service success: %s", checkID)
+					retryCount = 0
+				}
+			}
+
+			// 退避等待,可被停机中断;ticker 会丢弃这段时间的 tick,不会积压
+			select {
+			case <-ctx.Done():
+				r.logger.Infof(context.Background(), "health check stopped for service: %s", serviceID)
+				return
+			case <-time.After(retryInterval):
+			}
 		}
-		retryCount = 0
 	}
 }
 
@@ -254,9 +264,5 @@ func (r *Registry) GetAddress() string {
 
 // Watch creates and returns a watcher for specified service.
 func (r *Registry) Watch(ctx context.Context, key string) (gsvc.Watcher, error) {
-	watcher, err := newWatcher(r, key)
-	if err != nil {
-		return nil, err
-	}
-	return watcher, nil
+	return newWatcher(r, key)
 }

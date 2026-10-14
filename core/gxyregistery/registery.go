@@ -8,7 +8,6 @@ import (
 	"gserver/core/gxyutil"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/container/gmap"
@@ -161,21 +160,27 @@ func (r *registery) StartWatch(name string) {
 	if _, loaded := r.watchStarted.LoadOrStore(name, struct{}{}); loaded {
 		return
 	}
+	// 退出即失效:哨兵与缓存条目一起清掉,让下一次 Search 能重建 watcher。
+	// 只清哨兵不够 —— 缓存条目不失效则永远是"有效"的,Search 里 !Contains(name)
+	// 再不为真,这个服务名就永久没有 watcher 了(缓存也冻在最后一次快照上)。
+	defer func() {
+		r.watchStarted.Delete(name)
+		r.services.Remove(name)
+	}()
+
 	ctx := context.Background()
 	watcher, err := r.regist.Watch(ctx, name)
 	if err != nil {
-		r.watchStarted.Delete(name)
-		gxylog.Error(ctx, "Watch err", gxylog.Err(err))
+		gxylog.Error(ctx, "watch failed", gxylog.Err(err))
 		return
 	}
+	defer func() { _ = watcher.Close() }()
 
 	for {
 		services, err := watcher.Proceed()
 		if err != nil {
-			gxylog.Error(ctx, "Proceed failed", gxylog.Err(err))
-			// 添加重试延迟，避免错误风暴
-			time.Sleep(time.Second)
-			continue
+			gxylog.Error(ctx, "watch proceed failed", gxylog.Err(err))
+			return
 		}
 
 		serviceInfos := r.toServiceInfos(services)

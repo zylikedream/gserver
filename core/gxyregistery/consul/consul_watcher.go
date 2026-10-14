@@ -30,7 +30,10 @@ type Watcher struct {
 	services  []gsvc.Service // Current services
 }
 
-// New creates and returns a new watcher.
+// newWatcher 建立 watcher 并启动 watch plan。
+// 初始化查询同步执行:失败必须让调用方拿到错误 —— 若异步吞掉,plan 永远不会
+// 启动、eventChan 永远不会有信号,而 Proceed 只在 Close 时返回 error,
+// 消费方将无法感知死亡,该服务名的发现数据会永久冻结。
 func newWatcher(registry *Registry, key string) (*Watcher, error) {
 	w := &Watcher{
 		registry:  registry,
@@ -39,33 +42,24 @@ func newWatcher(registry *Registry, key string) (*Watcher, error) {
 		eventChan: make(chan struct{}, 1),
 	}
 
-	// Start watching
-	go w.watch()
-
-	return w, nil
-}
-
-// watch starts the watching process.
-func (w *Watcher) watch() {
-	entries, _, err := w.registry.client.Health().Service(w.key, "", true, &api.QueryOptions{})
+	entries, _, err := registry.client.Health().Service(key, "", true, &api.QueryOptions{})
 	if err != nil {
-		return
+		return nil, err
 	}
 	initServices, err := w.Services(entries)
 	if err != nil {
-		return
+		return nil, err
 	}
-
 	w.mu.Lock()
 	w.services = initServices
 	w.mu.Unlock()
 
 	plan, err := watch.Parse(map[string]any{
 		"type":    "service",
-		"service": w.key,
+		"service": key,
 	})
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	w.mu.Lock()
@@ -75,7 +69,7 @@ func (w *Watcher) watch() {
 	plan.Handler = w.onServiceChange
 	go w.runPlan(plan)
 
-	<-w.closeChan
+	return w, nil
 }
 
 // onServiceChange 是 consul watch 回调:更新本地服务列表并通知等待者。

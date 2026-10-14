@@ -2,6 +2,7 @@ package gxyregistery
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -197,4 +198,58 @@ func TestWatchStartedIsPerName(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("Watch 调用次数 = %d, want 2 (每个名字一次)", fr.watchCall.Load())
+}
+
+// failingWatcher 的 Proceed 立即返回错误,模拟 watcher 死亡。
+type failingWatcher struct{ closed atomic.Int64 }
+
+func (w *failingWatcher) Proceed() ([]gsvc.Service, error) { return nil, errors.New("watch died") }
+func (w *failingWatcher) Close() error                     { w.closed.Add(1); return nil }
+
+func waitUntil(t *testing.T, timeout time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("条件在超时内未成立")
+}
+
+// TestStartWatchInvalidatesCacheOnWatcherExit watcher 退出时缓存条目必须一起失效。
+// 不清缓存的话条目永远"有效",Search 里 !Contains(name) 再不成立,该服务名就永久
+// 没有 watcher 了 —— 缓存冻在最后一次快照上,且没有任何路径能重建 watcher。
+func TestStartWatchInvalidatesCacheOnWatcherExit(t *testing.T) {
+	fw := &failingWatcher{}
+	fr := &fakeRegistry{watcher: fw, current: []gsvc.Service{member("10.0.0.1:19001")}}
+
+	r := &registery{
+		regist:   fr,
+		services: gmap.NewStrAnyMap(true),
+		seqs:     gmap.NewStrIntMap(true),
+	}
+
+	// 首次查询:写缓存 + 起 watcher,watcher 立刻失败退出
+	if _, err := r.Search(context.Background(), "role"); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+
+	waitUntil(t, 5*time.Second, func() bool {
+		_, ok := r.services.Get("role").([]*types.ServiceInfo)
+		return !ok
+	})
+	if got := fr.watchCall.Load(); got != 1 {
+		t.Fatalf("Watch 调用次数 = %d, want 1", got)
+	}
+	if got := fw.closed.Load(); got != 1 {
+		t.Fatalf("watcher.Close 调用次数 = %d, want 1", got)
+	}
+
+	// 下一次查询必须能重建 watcher
+	if _, err := r.Search(context.Background(), "role"); err != nil {
+		t.Fatalf("Search again: %v", err)
+	}
+	waitUntil(t, 5*time.Second, func() bool { return fr.watchCall.Load() >= 2 })
 }
