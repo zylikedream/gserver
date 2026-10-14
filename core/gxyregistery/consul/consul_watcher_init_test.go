@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gogf/gf/v2/os/glog"
 	"github.com/hashicorp/consul/api"
 )
 
@@ -35,4 +36,14 @@ func TestNewWatcherReturnsInitError(t *testing.T) {
 	if watcher != nil {
 		t.Fatalf("newWatcher watcher = %v, want nil", watcher)
 	}
+}
+
+// newTestRegistry 提供带 logger 的 Registry,供不依赖 consul 的纯函数测试使用。
+func newTestRegistry(t *testing.T) *Registry {
+	t.Helper()
+	client, err := api.NewClient(&api.Config{Address: "127.0.0.1:8500"})
+	if err != nil {
+		t.Fatalf("api.NewClient: %v", err)
+	}
+	return &Registry{client: client, address: "127.0.0.1:8500", logger: glog.New()}
 }

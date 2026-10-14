@@ -137,10 +137,12 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	}
 	meta["data"] = service.GetValue()
 	// Create registration
+	// Tags[0] 必须是版本:consul_discovery 的版本过滤与 watcher 的 Services
+	// 都按位置读取它,顺序写反会让版本过滤静默失效
 	reg := &api.AgentServiceRegistration{
 		ID:      serviceID,
 		Name:    service.GetName(),
-		Tags:    []string{service.GetName(), service.GetVersion()},
+		Tags:    []string{service.GetVersion(), service.GetName()},
 		Meta:    meta,
 		Address: service.GetEndpoints()[0].Host(),
 		Port:    service.GetEndpoints()[0].Port(),
