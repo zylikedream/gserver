@@ -2,8 +2,9 @@ package gxylimit
 
 import (
 	"math"
-	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/cockroachdb/errors"
 )
@@ -13,13 +14,11 @@ type Config struct {
 	Burst int
 }
 
+// Bucket 是限流桶:补充数学由 golang.org/x/time/rate 提供,此处只保留
+// 本仓库的契约——构造校验与包内时钟注入(测试用假时钟,不 sleep)。
 type Bucket struct {
-	mu     sync.Mutex
-	rate   float64
-	burst  float64
-	tokens float64
-	last   time.Time
-	now    func() time.Time
+	limiter *rate.Limiter
+	now     func() time.Time
 }
 
 func NewBucket(config Config) (*Bucket, error) {
@@ -35,26 +34,12 @@ func newBucket(config Config, now func() time.Time) (*Bucket, error) {
 	}
 
 	return &Bucket{
-		rate:   config.Rate,
-		burst:  float64(config.Burst),
-		tokens: float64(config.Burst),
-		last:   now(),
-		now:    now,
+		limiter: rate.NewLimiter(rate.Limit(config.Rate), config.Burst),
+		now:     now,
 	}, nil
 }
 
+// Allow 报告此刻是否放行并消费一个令牌。时钟由构造注入,被拒时不推进库状态。
 func (b *Bucket) Allow() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	now := b.now()
-	if elapsed := now.Sub(b.last).Seconds(); elapsed > 0 {
-		b.tokens = math.Min(b.burst, b.tokens+elapsed*b.rate)
-		b.last = now
-	}
-	if b.tokens < 1 {
-		return false
-	}
-	b.tokens--
-	return true
+	return b.limiter.AllowN(b.now(), 1)
 }
