@@ -2,16 +2,21 @@ package gxymq
 
 import (
 	"context"
+	"sync/atomic"
+
 	"gserver/core/gxyapp"
 	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
-	"reflect"
 
 	"github.com/gogf/gf/v2/frame/g"
 )
 
 // MessageQueueType 消息队列类型
 type MessageQueueType string
+
+// msgBufferSize 是待处理消息队列的容量:worker 忙不过来时先缓冲,满了则反压到
+// 订阅回调(进而阻塞该主题的接收协程)。
+const msgBufferSize = 1000
 
 const (
 	// MessageQueuePulsar Pulsar消息队列
@@ -34,12 +39,14 @@ type messageQueueConfig struct {
 
 type messageQueueApp struct {
 	gxyapp.App
-	queue      IMessageQueue
-	priorityCh []chan PriorityData
-	subs       map[string]*SubInfo
-	config     *messageQueueConfig
-	// 是否已关闭
+	queue  IMessageQueue
+	msgCh  chan queuedMessage
+	subs   map[string]*SubInfo
+	config *messageQueueConfig
+	// stopCh 关闭后 worker 退出
 	stopCh chan struct{}
+	// started 标记 OnModStartAfter 是否已跑完,决定 Subscribe 是否需要即时建立订阅
+	started atomic.Bool
 }
 
 var mqApp *messageQueueApp
@@ -51,12 +58,9 @@ func MessageQueue() *messageQueueApp {
 // NewMessageQueueApp 创建消息队列实例，延迟初始化到 OnModInit
 func NewMessageQueueApp() *messageQueueApp {
 	mqApp = &messageQueueApp{
-		priorityCh: make([]chan PriorityData, TOPIC_PRIORITY_MAX),
-		subs:       make(map[string]*SubInfo),
-		stopCh:     make(chan struct{}),
-	}
-	for i := range int(TOPIC_PRIORITY_MAX) {
-		mqApp.priorityCh[i] = make(chan PriorityData, 1000)
+		msgCh:  make(chan queuedMessage, msgBufferSize),
+		subs:   make(map[string]*SubInfo),
+		stopCh: make(chan struct{}),
 	}
 	return mqApp
 }
@@ -99,6 +103,7 @@ func (mq *messageQueueApp) OnModStartAfter(ctx context.Context) error {
 	for range mq.config.WorkerCount {
 		go func() { _ = mq.processMessages(ctx) }()
 	}
+	mq.started.Store(true)
 	return nil
 }
 
@@ -108,17 +113,19 @@ func (mq *messageQueueApp) Publish(ctx context.Context, topic string, msg string
 	return mq.queue.Publish(ctx, topic, msg)
 }
 
-// Subscribe 订阅指定主题，基于topic优先级处理消息
-func (mq *messageQueueApp) Subscribe(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error, priorityArg ...MessagePriority) error {
-	priority := TOPIC_PRIORITY_NORMAL
-	if len(priorityArg) > 0 {
-		priority = priorityArg[0]
+// Subscribe 订阅指定主题。
+// 启动完成之后再订阅必须立即建立订阅:startSubscribe 只在 OnModStartAfter 跑一次,
+// 若此时仅写入 subs,该订阅会静默失效(sub 记下了但没人消费)。启动完成后的路径
+// 不写 subs —— 那时 subs 已无人再读,写它反而与 startSubscribe 的遍历构成竞争。
+func (mq *messageQueueApp) Subscribe(ctx context.Context, topic string, handler func(ctx context.Context, msg string) error) error {
+	sub := &SubInfo{
+		Topic:   topic,
+		Handler: handler,
 	}
-	mq.subs[topic] = &SubInfo{
-		Topic:    topic,
-		Priority: priority,
-		Handler:  handler,
+	if mq.started.Load() {
+		return mq.doSubscribe(ctx, sub)
 	}
+	mq.subs[topic] = sub
 	return nil
 }
 
@@ -133,8 +140,7 @@ func (mq *messageQueueApp) startSubscribe(ctx context.Context) error {
 func (mq *messageQueueApp) doSubscribe(ctx context.Context, subInfo *SubInfo) error {
 	// 创建Redis订阅者
 	if err := mq.queue.Subscribe(ctx, subInfo.Topic, func(ctx context.Context, msg string) error {
-		// 发送消息到通道
-		mq.priorityCh[subInfo.Priority] <- PriorityData{
+		mq.msgCh <- queuedMessage{
 			Topic:   subInfo.Topic,
 			Data:    msg,
 			Handler: subInfo.Handler,
@@ -144,28 +150,18 @@ func (mq *messageQueueApp) doSubscribe(ctx context.Context, subInfo *SubInfo) er
 		return err
 	}
 
-	// 初始化消息通道
-	gxylog.Info(ctx, "Subscribing to topic", gxylog.Str("topic", subInfo.Topic), gxylog.Num("priority", subInfo.Priority))
+	gxylog.Info(ctx, "Subscribing to topic", gxylog.Str("topic", subInfo.Topic))
 
 	return nil
 }
 
-// processMessages 处理消息
+// processMessages 消费队列,直到停机。
 func (mq *messageQueueApp) processMessages(ctx context.Context) error {
-	// 构建动态select case，阻塞等待所有优先级通道
-	cases := make([]reflect.SelectCase, len(mq.priorityCh)+1)
-	cases[0] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(mq.stopCh)}
-	for i, ch := range mq.priorityCh {
-		cases[i+1] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ch)}
-	}
-
 	for {
-		idx, val, ok := reflect.Select(cases)
-		if idx == 0 {
-			return nil // stopCh closed
-		}
-		if ok {
-			msg := val.Interface().(PriorityData)
+		select {
+		case <-mq.stopCh:
+			return nil
+		case msg := <-mq.msgCh:
 			if err := msg.Handler(ctx, msg.Data); err != nil {
 				gxylog.Error(ctx, "Failed to process message", gxylog.Str("data", msg.Data), gxylog.Str("topic", msg.Topic), gxylog.Err(err))
 			}
@@ -173,9 +169,12 @@ func (mq *messageQueueApp) processMessages(ctx context.Context) error {
 	}
 }
 
-// Close 关闭消息队列，释放所有资源
+// OnModStopBefore 停机:先停后端订阅(不再产生新消息),再关闭停止通道让
+// worker 退出。原来只停了后端,worker 一直阻塞在 reflect.Select 上永不退出 ——
+// "模块停了但消费者还在跑",且已缓冲在 msgCh 里的消息仍会被处理。
 func (mq *messageQueueApp) OnModStopBefore(ctx context.Context) error {
 	_ = mq.queue.Close(ctx)
-	gxylog.Info(ctx, "Redis message queue closed")
+	close(mq.stopCh)
+	gxylog.Info(ctx, "message queue stopped")
 	return nil
 }
