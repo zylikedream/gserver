@@ -13,8 +13,6 @@ type fakeProducer struct {
 	pulsar.Producer
 	mu   sync.Mutex
 	sent []string
-	// topic 仅用于断言缓存按 topic 分组
-	name string
 }
 
 func (p *fakeProducer) Send(_ context.Context, msg *pulsar.ProducerMessage) (pulsar.MessageID, error) {

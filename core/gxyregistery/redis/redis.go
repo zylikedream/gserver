@@ -220,12 +220,9 @@ func (w *watcher) Proceed() ([]gsvc.Service, error) {
 	ticker := time.NewTicker(w.registry.interval)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			return w.registry.Search(context.Background(), gsvc.SearchInput{Name: w.name})
-		}
-	}
+	// 等一拍再查:先等 ticker 保证两次查询之间有间隔
+	<-ticker.C
+	return w.registry.Search(context.Background(), gsvc.SearchInput{Name: w.name})
 }
 
 // Close 由 gsvc.Watcher 接口要求。轮询由 Proceed 的调用方驱动,

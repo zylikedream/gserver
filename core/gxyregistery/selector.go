@@ -179,24 +179,6 @@ func servingServices(services []*types.ServiceInfo) []*types.ServiceInfo {
 	return filtered
 }
 
-// rebuildRing 重建一致性哈希环
-func (s *consistentHashSelector) rebuildRing(ring *gtree.AVLTree, services []*types.ServiceInfo) {
-	// 清空现有哈希环
-	ring.Clear()
-
-	// 为每个节点创建多个虚拟节点，并将它们添加到哈希环上
-	for _, node := range services {
-		for j := 0; j < s.virtualNodeCount; j++ {
-			// 为虚拟节点生成唯一标识
-			virtualNodeKey := fmt.Sprintf("%s:%s:%d", node.Name, node.NodeHost, j)
-			// 计算虚拟节点的哈希值
-			hash := s.hash(virtualNodeKey)
-			// 添加到哈希环
-			ring.Set(hash, node)
-		}
-	}
-}
-
 // hash 计算字符串的哈希值
 func (s *consistentHashSelector) hash(key string) uint32 {
 	// 使用MD5计算哈希值
