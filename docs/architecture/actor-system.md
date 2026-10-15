@@ -14,7 +14,7 @@ GServer 基于 [ergo](https://ergo.services) 构建 Actor 系统，封装在 `co
 │                 activatorManager                           │
 │   激活协调：租约、归属、能力目录选择、陈旧记录清理             │
 ├──────────────────────────────────────────────────────────┤
-│  业务 Actor (内嵌 *gxyactor.Actor)                          │
+│  业务 Actor (内嵌 *gxyactor.BaseActor)                          │
 │  自行在同步初始化段取得所有权、终止路径先落盘后释放             │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -31,7 +31,7 @@ GServer 基于 [ergo](https://ergo.services) 构建 Actor 系统，封装在 `co
 - `OnModStart`：登记节点级地址记录，挂载追踪导出器与运行时指标
 - `OnModStop`：**优雅停止**——等待所有进程的终止回调返回（终止回调内含最终落库与所有权释放，强制停止会静默丢失最后一次存盘，见 invariants #10）
 
-### Actor 基类（`actor.go`）
+### 基类（`BaseActor`，`actor.go`）
 
 业务对象**不内嵌任何运行时类型**：门面在业务与运行时之间放一个只面向运行时的适配对象
 （见 [ADR 0017](adr-0017-business-runtime-isolation.md)）。交给运行时的永远是适配对象，
@@ -42,16 +42,16 @@ GServer 基于 [ergo](https://ergo.services) 构建 Actor 系统，封装在 `co
 
 ```go
 type GuildActor struct {
-    *gxyactor.EntityActor // 承载持久实体；只参与运行时的 actor 内嵌 *gxyactor.Actor
+    *gxyactor.EntityActor // 承载持久实体；只参与运行时的 actor 内嵌 *gxyactor.BaseActor
     // 业务字段
 }
 ```
 
 基类补的是"运行时没给而项目需要"的东西：带日志与追踪上下文的 `context`、按消息类型的
-反射分派、定时器。这些都在 `Actor` 上——**分派属于"是个 actor"，与是否承载实体无关**。
+反射分派、定时器。这些都在 `BaseActor` 上——**分派属于"是个 actor"，与是否承载实体无关**。
 `EntityActor` 只在此之上加**所有权**（单写者语义）。
 
-**业务入口（全部可选，实现哪个就有哪个能力）：**
+**业务入口（六个都在 `BaseActor` 上有默认实现，覆写哪个就接管哪个）：**
 
 ```go
 func (g *GuildActor) Init(args ...any) error              // 同步段：只绑标识、纯内存校验
@@ -185,7 +185,7 @@ gserver:locate:node:epoch              →  全局世代计数器
 
 ```go
 // role_service.go —— 业务交出"怎么造自己",不交出"自己叫什么名字"
-gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
+gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.ActorBehavior {
     return logic.NewRoleMain()
 })
 ```
@@ -248,7 +248,7 @@ gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.IActor {
 
 | 文件 | 内容 |
 |------|------|
-| `core/gxyactor/actor.go` | `Actor` 基类：生命周期、按消息类型分派、定时器、对外操作 |
+| `core/gxyactor/actor.go` | `BaseActor` 基类：生命周期、按消息类型分派、定时器、对外操作 |
 | `core/gxyactor/system.go` | `actorApp` 全局单例、运行时节点、创建与发送 |
 | `core/gxyactor/helper.go` | 全局函数（注册、创建、`SendAsNode`） |
 | `core/gxyactor/activator_manager.go` | 激活协调：归属查询、重定位、陈旧记录清理、能力目录 |

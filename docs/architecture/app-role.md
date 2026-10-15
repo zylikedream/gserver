@@ -23,7 +23,7 @@ Role App 是 GServer 最核心的业务系统，每个在线玩家对应一个 R
 
 ```go
 func (r *roleService) OnModStart(ctx context.Context) error {
-    if err := gxyactor.RegisterActorKind(r.ServiceName(), func() gxyactor.IActor {
+    if err := gxyactor.RegisterActorKind(r.ServiceName(), func() gxyactor.ActorBehavior {
         return logic.NewRoleMain()
     }); err != nil {
         return err
