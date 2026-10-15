@@ -2,7 +2,6 @@ package gxyactor
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"gserver/core/gxylog"
@@ -133,26 +132,26 @@ func (b *BaseActor) base() *BaseActor {
 
 // HandleMessage 是默认的异步消息入口:按消息类型反射分派。
 // 业务覆写它以自行路由(如按来源分流)时,不再走分派表。
-func (b *BaseActor) HandleMessage(msg any) (any, error) { return b.dispatch(msg, false) }
+//
+// 没有对应处理器时返回 (nil, nil):异步消息没有调用方在等回包,把"没有这条路由"
+// 当致命会让一条发错地方的消息终止整个 actor(见 TestUnroutedMessageDoesNotTerminateActor)。
+func (b *BaseActor) HandleMessage(msg any) (any, error) {
+	if b.msgHandler.GetMethodMeta(msg) == nil {
+		return nil, nil
+	}
+	return b.dispatch(msg)
+}
 
 // HandleCall 是默认的同步请求入口:按消息类型反射分派。
 //
 // 与 HandleMessage 的差别**只在没有对应处理器时**:同步请求有调用方在等回包,
 // 返回 (nil, nil) 等于一个响应都不发 —— 调用方只能等到超时,而"这条路由不存在"
-// 是它可以立刻知道的事。因此这里返回错误,由适配层转成业务失败回给调用方
-// (见 invariants #9)。异步入口相反:没有调用方在等,不处理是常态。
-func (b *BaseActor) HandleCall(msg any) (any, error) { return b.dispatch(msg, true) }
+// 是它可以立刻知道的事。因此这里交由 dispatch 报错,由适配层转成业务失败回给
+// 调用方(见 invariants #9)。异步入口相反:没有等待者,不处理是常态。
+func (b *BaseActor) HandleCall(msg any) (any, error) { return b.dispatch(msg) }
 
-// dispatch 按消息类型查找已注册的处理器。strict 决定"没有对应处理器"如何处理:
-// 异步入口传 false(静默跳过,报错会把无关消息变成进程终止),同步入口传 true。
-func (b *BaseActor) dispatch(msg any, strict bool) (any, error) {
-	if b.msgHandler.GetMethodMeta(msg) == nil {
-		if strict {
-			return nil, errors.Errorf("no handler for %T", msg)
-		}
-		gxylog.Warn(b.Ctx, "no handler for message", gxylog.Str("msg_type", fmt.Sprintf("%T", msg)))
-		return nil, nil
-	}
+// dispatch 按消息类型查表分派;没有对应处理器时报错(错误里带具体消息名)。
+func (b *BaseActor) dispatch(msg any) (any, error) {
 	return b.msgHandler.CallWithMsg(b.Ctx, msg)
 }
 

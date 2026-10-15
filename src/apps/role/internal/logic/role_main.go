@@ -370,7 +370,7 @@ func (r *RoleMain) dispatchClientMsg(ctx context.Context, id string, pbmsg proto
 		return rsp, result, err
 	}
 
-	res, err := r.HandleCall(pbmsg)
+	res, err := r.BaseActor.HandleCall(pbmsg) //nolint:staticcheck // 显式经基类调用:客户端协议路径不该被 RoleMain 自己的 HandleCall 覆写劫持
 	if err != nil {
 		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
 		return r.errorAck(id, err)
