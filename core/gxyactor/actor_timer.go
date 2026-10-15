@@ -20,7 +20,7 @@ import (
 // 触发回到邮箱意味着回调在 actor 上下文中串行执行,不需要额外的并发保护;
 // 且不会在 actor 已经终止后继续执行。
 type ActorTimer struct {
-	actor         *Actor
+	actor         *BaseActor
 	callbackFuncs map[string]func(ctx context.Context)
 	cancels       []gen.CancelFunc
 	// cronJobs 记录本 actor 注册的 cron 任务名,终止时逐个注销,
@@ -28,7 +28,7 @@ type ActorTimer struct {
 	cronJobs []gen.Atom
 }
 
-func newActorTimer(a *Actor) *ActorTimer {
+func newActorTimer(a *BaseActor) *ActorTimer {
 	return &ActorTimer{
 		actor:         a,
 		callbackFuncs: make(map[string]func(ctx context.Context)),
@@ -136,7 +136,7 @@ func (s *ActorTimer) Active(ctx context.Context, msg ActorTimerMsg) {
 // jobName 生成 cron 任务名。cron 是节点级的,而每个 actor 都要注册自己的
 // 每日任务,因此任务名必须带上 actor 身份以避免冲突。
 func (s *ActorTimer) jobName(name string) gen.Atom {
-	owner := "pid" + s.actor.self.String()
+	owner := "pid" + s.actor.pid.String()
 	if n := s.actor.rt.Name(); n != "" {
 		owner = string(n)
 	}

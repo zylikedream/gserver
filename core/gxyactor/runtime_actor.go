@@ -27,8 +27,8 @@ import (
 type runtimeActor struct {
 	act.Actor // ergoactor
 
-	base *Actor
-	biz  ActorBehavior
+	base     *BaseActor
+	behavior ActorBehavior
 }
 
 // ActorFactory 把业务构造器适配成运行时的进程工厂。
@@ -44,16 +44,16 @@ type runtimeActor struct {
 // 无条件重建是刻意的——构造器给的空标签没有信息,不该留着。
 func ActorFactory(kind string, ctor ActorConstructor) gen.ProcessFactory {
 	return func() gen.ProcessBehavior {
-		biz := ctor()
-		base := biz.actorBase()
+		behavior := ctor()
+		base := behavior.base()
 		base.kind = kind
 		base.Ctx = gxylog.NewContext(context.Background(), kind)
-		return newRuntimeActor(base, biz)
+		return newRuntimeActor(base, behavior)
 	}
 }
 
-func newRuntimeActor(base *Actor, biz ActorBehavior) *runtimeActor {
-	return &runtimeActor{base: base, biz: biz}
+func newRuntimeActor(base *BaseActor, behavior ActorBehavior) *runtimeActor {
+	return &runtimeActor{base: base, behavior: behavior}
 }
 
 // ===== 运行时回调:只出现在本类型上 =====
@@ -64,22 +64,20 @@ func newRuntimeActor(base *Actor, biz ActorBehavior) *runtimeActor {
 // 同步段必须够快且不碰数据库——耗时加载属于异步段。
 func (r *runtimeActor) Init(args ...any) error {
 	r.base.rt = r
-	r.base.self = pidFromLocal(r.PID())
+	r.base.pid = pidFromLocal(r.PID())
 	r.base.initArgs = args
 	r.base.startup()
 
-	if s, ok := r.biz.(initializer); ok {
-		if err := s.Init(args...); err != nil {
-			return err
-		}
+	if err := r.behavior.Init(args...); err != nil {
+		return err
 	}
 
 	// 分派目标是业务对象自身,必须在处理任何消息之前注册。
 	// 任何 actor 都可按消息类型分派,与是否承载实体无关。
-	r.base.msgHandler.AddHandler(r.biz)
+	r.base.msgHandler.AddHandler(r.behavior)
 
 	// 实体层在同步段取归属:此时尚未处理任何业务消息(不变量 #3)。
-	if e := entityOf(r.biz); e != nil {
+	if e := entityOf(r.behavior); e != nil {
 		if _, err := e.acquireOwnership(); err != nil {
 			return err
 		}
@@ -87,10 +85,7 @@ func (r *runtimeActor) Init(args ...any) error {
 
 	// 编排归门面:业务只声明异步段做什么,不必自己发消息。
 	// 在此投递,邮箱为空,因此它必然先于任何外部业务消息被处理。
-	if _, ok := r.biz.(asyncInitializer); ok {
-		return r.SendPID(r.PID(), actorInitMsg{})
-	}
-	return nil
+	return r.SendPID(r.PID(), actorInitMsg{})
 }
 
 // HandleMessage 是运行时回调(异步)。**业务不覆写本方法**——它看不到本类型。
@@ -102,11 +97,9 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 	// 机制分流:这些消息业务看不到,也不该看到。
 	switch msg := message.(type) {
 	case actorInitMsg:
-		if s, ok := r.biz.(asyncInitializer); ok {
-			if err := s.AsyncInit(); err != nil {
-				gxylog.Error(r.base.Ctx, "async init failed", gxylog.Err(err))
-				return err
-			}
+		if err := r.behavior.AsyncInit(); err != nil {
+			gxylog.Error(r.base.Ctx, "async init failed", gxylog.Err(err))
+			return err
 		}
 		return nil
 	case ActorTimerMsg:
@@ -131,9 +124,7 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 		return r.base.stopReason()
 	case gen.MessageDownPID:
 		// 监视通知翻译成门面身份后交给业务:业务侧不出现运行时消息类型。
-		if h, ok := r.biz.(downHandler); ok {
-			h.HandleDown(PidFromRuntime(msg.PID))
-		}
+		r.behavior.HandleDown(PidFromRuntime(msg.PID))
 		return r.base.stopReason()
 	}
 
@@ -146,7 +137,7 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 	}
 
 	// 断言必然成立:业务对象经内嵌基类获得默认入口(见 Actor.HandleMessage)。
-	rsp, err := r.biz.(messageHandler).HandleMessage(decoded)
+	rsp, err := r.behavior.HandleMessage(decoded)
 	gxymetrics.ActorMessages.WithLabelValues(r.base.kind).Inc()
 	if err != nil {
 		gxylog.Error(r.base.Ctx, "handle msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
@@ -171,7 +162,7 @@ func (r *runtimeActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, 
 	}
 
 	// 断言必然成立:业务对象经内嵌基类获得默认入口(见 Actor.HandleCall)。
-	rsp, err := r.biz.(callHandler).HandleCall(decoded)
+	rsp, err := r.behavior.HandleCall(decoded)
 	gxymetrics.ActorMessages.WithLabelValues(r.base.kind).Inc()
 	if err != nil {
 		gxylog.Error(r.base.Ctx, "handle rpc msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
@@ -188,10 +179,8 @@ func (r *runtimeActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, 
 // 顺序即语义:先让业务完成最终落盘,再由实体层释放归属(不变量 #4),最后收拾
 // 运行环境。颠倒会让新持有者推进世代,使本次落盘被拒。
 func (r *runtimeActor) Terminate(reason error) {
-	if t, ok := r.biz.(terminator); ok {
-		t.Terminate(reason)
-	}
-	if e := entityOf(r.biz); e != nil {
+	r.behavior.Terminate(reason)
+	if e := entityOf(r.behavior); e != nil {
 		e.dropOwnership(r.base.Ctx)
 	}
 	r.base.shutdown()

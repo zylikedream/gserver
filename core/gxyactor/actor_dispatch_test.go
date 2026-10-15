@@ -15,7 +15,7 @@ import (
 // 分派属于"是个 actor"这一层:任何 actor 都可以只声明"哪类消息由哪个方法处理",
 // 与是否参与所有权协议无关(见 ADR 0015)。
 type notifyActor struct {
-	*Actor
+	*BaseActor
 	handled []string
 }
 
@@ -29,7 +29,7 @@ func spawnNotify(t *testing.T) (*notifyActor, *unit.Subject) {
 	t.Helper()
 	var a *notifyActor
 	subj, err := unit.Spawn(t, ActorFactory("notify", func() ActorBehavior {
-		a = &notifyActor{Actor: NewActor()}
+		a = &notifyActor{BaseActor: NewBaseActor()}
 		return a
 	}), gen.ProcessOptions{})
 	if err != nil {
@@ -69,15 +69,22 @@ func TestUnroutedMessageDoesNotTerminateActor(t *testing.T) {
 	}
 }
 
-// 显式调用 DispatchDefault 时,没有处理器仍是错误——调用方正是要判断
-// "有没有这条路由"(如协议错误处理)。
-func TestDispatchDefaultReportsMissingRoute(t *testing.T) {
+// 同步请求没有对应处理器时必须返回错误,异步消息则保持静默。
+//
+// 为什么需要:两条入口的差别**只在这里**。同步请求有调用方拿着 ref 在等回包,
+// 返回 (nil, nil) 等于一个响应都不发 —— 调用方只能等到超时(角色侧客户端协议
+// 错误路径还依赖这个错误去回 errorAck 并计 error 指标);异步消息没有等待者,
+// 把"没有这条路由"当致命会把一条发错地方的消息变成进程终止。
+func TestEntrypointsDifferOnMissingRoute(t *testing.T) {
 	a, _ := spawnNotify(t)
 
-	if _, err := a.DispatchDefault(&pb.Ack{Reason: "x"}); err != nil {
+	if _, err := a.HandleCall(&pb.Ack{Reason: "x"}); err != nil {
 		t.Fatalf("已注册的处理器不应报错: %v", err)
 	}
-	if _, err := a.DispatchDefault("no handler for this"); err == nil {
-		t.Fatal("没有对应处理器时 DispatchDefault 必须返回错误")
+	if _, err := a.HandleCall("no handler for this"); err == nil {
+		t.Fatal("同步请求无路由必须返回错误,否则调用方只能等到超时")
+	}
+	if _, err := a.HandleMessage("no handler for this"); err != nil {
+		t.Fatalf("异步消息无路由不应报错: %v", err)
 	}
 }

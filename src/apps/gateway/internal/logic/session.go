@@ -121,7 +121,7 @@ type SessionInfo struct {
 
 // Session 会话Actor，继承自ActorBase
 type Session struct {
-	*gxyactor.Actor
+	*gxyactor.BaseActor
 	deps        SessionDeps       // 组装根注入的进程级组件
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
@@ -133,8 +133,8 @@ func NewSession(ep endpoint.Endpoint, d SessionDeps) *Session {
 		deps:        d.withDefaults(),
 		endpoint:    ep,
 		sessionInfo: &SessionInfo{},
+		BaseActor:   gxyactor.NewBaseActor(),
 	}
-	s.Actor = gxyactor.NewActor()
 	return s
 }
 

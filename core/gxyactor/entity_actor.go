@@ -38,7 +38,7 @@ func entityOf(biz ActorBehavior) *EntityActor {
 // 本层**只负责所有权**。按消息类型的分派属于"是个 actor"这一层,在 Actor 上;
 // 两者无关:不承载实体的 actor 一样可以按消息类型分派。
 type EntityActor struct {
-	*Actor
+	*BaseActor
 
 	// 本次激活持有的所有权,在同步初始化段获取、终止路径释放。
 	owner   ActorOwner
@@ -47,7 +47,7 @@ type EntityActor struct {
 
 // NewEntityActor 创建承载实体的业务基类。
 func NewEntityActor() *EntityActor {
-	return &EntityActor{Actor: NewActor()}
+	return &EntityActor{BaseActor: NewBaseActor()}
 }
 
 // ===== 门面内部:由运行时适配对象驱动 =====

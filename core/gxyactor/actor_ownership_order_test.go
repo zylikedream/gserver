@@ -60,7 +60,7 @@ func TestOwnershipReleasedAfterTerminate(t *testing.T) {
 
 	// 经运行时适配对象走终止路径:业务的最终落盘先于门面释放归属,
 	// 两者都在这一条路径上(见 ADR 0017)。
-	newRuntimeActor(biz.Actor, biz).Terminate(nil)
+	newRuntimeActor(biz.BaseActor, biz).Terminate(nil)
 
 	if !biz.terminateCalled {
 		t.Fatal("business Terminate must run")

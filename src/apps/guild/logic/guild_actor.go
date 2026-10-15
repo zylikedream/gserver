@@ -44,7 +44,7 @@ func NewGuildActor() *GuildActor {
 	return g
 }
 
-// ===== IActor 接口 =====
+// ===== ActorBehavior 接口 =====
 
 // Init 是同步初始化段:只绑标识。归属的取得由门面在本段之后执行,业务不介入时序。
 func (g *GuildActor) Init(args ...any) error {

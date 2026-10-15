@@ -8,7 +8,7 @@ import (
 )
 
 // kindProbe 是最小业务对象:只内嵌基类,不实现任何业务入口。
-type kindProbe struct{ *Actor }
+type kindProbe struct{ *BaseActor }
 
 // 工厂必须把注册名的键写入实例,业务构造器不参与命名。
 //
@@ -18,7 +18,7 @@ type kindProbe struct{ *Actor }
 func TestActorFactoryWritesRegistryKeyAsKind(t *testing.T) {
 	var probe *kindProbe
 	factory := ActorFactory("guild", func() ActorBehavior {
-		probe = &kindProbe{Actor: NewActor()}
+		probe = &kindProbe{BaseActor: NewBaseActor()}
 		return probe
 	})
 	if _, err := unit.Spawn(t, factory, gen.ProcessOptions{}); err != nil {
@@ -36,7 +36,7 @@ func TestActorFactoryWritesRegistryKeyAsKind(t *testing.T) {
 func TestRuntimeSeesAdapterNotBusiness(t *testing.T) {
 	var probe *kindProbe
 	factory := ActorFactory("guild", func() ActorBehavior {
-		probe = &kindProbe{Actor: NewActor()}
+		probe = &kindProbe{BaseActor: NewBaseActor()}
 		return probe
 	})
 	subj, err := unit.Spawn(t, factory, gen.ProcessOptions{})
@@ -48,7 +48,7 @@ func TestRuntimeSeesAdapterNotBusiness(t *testing.T) {
 	if !ok {
 		t.Fatalf("运行时的行为实例类型 = %T, want *runtimeActor", subj.Behavior())
 	}
-	if rt.biz != ActorBehavior(probe) {
+	if rt.behavior != ActorBehavior(probe) {
 		t.Fatal("适配对象必须持有业务对象")
 	}
 }

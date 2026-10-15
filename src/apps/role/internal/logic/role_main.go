@@ -331,6 +331,7 @@ func (t *clientReqTrace) observe(ctx context.Context) {
 	}
 }
 
+// HandleClientMsg 处理客户端消息handler,并返回应答。
 func (r *RoleMain) HandleClientMsg(ctx context.Context, climsg *pb.ClientMsg) (proto.Message, error) {
 	id := climsg.Id
 	t := &clientReqTrace{msgID: id, msgName: "unknown", result: "error", start: time.Now()}
@@ -369,10 +370,10 @@ func (r *RoleMain) dispatchClientMsg(ctx context.Context, id string, pbmsg proto
 		return rsp, result, err
 	}
 
-	res, dispatchErr := r.DispatchDefault(pbmsg)
-	if dispatchErr != nil {
-		logClientProtocolError(ctx, r.RoleID, msgID, msgName, dispatchErr)
-		return r.errorAck(id, dispatchErr)
+	res, err := r.HandleCall(pbmsg)
+	if err != nil {
+		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
+		return r.errorAck(id, err)
 	}
 	if res == nil {
 		return nil, "ok", nil

@@ -14,7 +14,7 @@ import (
 // callProbe 在初始化期间向目标发起一次同步调用,把结果留给测试断言。
 // 用真实的 actor 实例而非手工拼装的半成品:Call 是绑定进程后的对外操作。
 type callProbe struct {
-	*Actor
+	*BaseActor
 
 	target  PID
 	result  any
@@ -23,7 +23,7 @@ type callProbe struct {
 
 func newCallProbe(target PID) *callProbe {
 	p := &callProbe{target: target}
-	p.Actor = NewActor()
+	p.BaseActor = NewBaseActor()
 	return p
 }
 

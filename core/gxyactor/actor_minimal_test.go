@@ -10,7 +10,7 @@ import (
 // plainActor 是"简单 actor"的写法示例:只内嵌 Actor、只实现 HandleMessage。
 // 不涉及分派、不承载实体、构造时不传自身。
 type plainActor struct {
-	*Actor
+	*BaseActor
 	handled []any
 }
 
@@ -23,7 +23,7 @@ func spawnPlain(t *testing.T) (*plainActor, *unit.Subject) {
 	t.Helper()
 	var p *plainActor
 	subj, err := unit.Spawn(t, ActorFactory("plain", func() ActorBehavior {
-		p = &plainActor{Actor: NewActor()}
+		p = &plainActor{BaseActor: NewBaseActor()}
 		return p
 	}), gen.ProcessOptions{})
 	if err != nil {
@@ -49,7 +49,7 @@ func TestPlainActorReceivesMessage(t *testing.T) {
 
 // returnActor 只实现同步请求入口。
 type returnActor struct {
-	*Actor
+	*BaseActor
 }
 
 func (a *returnActor) HandleCall(_ any) (any, error) { return "called", nil }
@@ -58,7 +58,7 @@ func (a *returnActor) HandleCall(_ any) (any, error) { return "called", nil }
 func TestActorWithoutEntryIgnoresMessage(t *testing.T) {
 	var a *returnActor
 	subj, err := unit.Spawn(t, ActorFactory("return_only", func() ActorBehavior {
-		a = &returnActor{Actor: NewActor()}
+		a = &returnActor{BaseActor: NewBaseActor()}
 		return a
 	}), gen.ProcessOptions{})
 	if err != nil {

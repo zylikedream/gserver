@@ -43,7 +43,7 @@ ActivateActor(guildID)
          └── AddDaily(DayRefresh)
          │
     HandleMessage
-         ├── 业务消息 → DispatchDefault 反射派发
+         ├── 业务消息 → 按消息类型反射派发
          └── Timer → save / onDayRefresh
          │
     Terminate → StopModule

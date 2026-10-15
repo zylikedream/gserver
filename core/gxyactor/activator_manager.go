@@ -436,14 +436,14 @@ func (g *activatorManager) spawnLocal(_ context.Context, k actorKey) (PID, error
 }
 
 type activatorActor struct {
-	*Actor
+	*BaseActor
 	mgr *activatorManager
 }
 
 func newActivatorActor(mgr *activatorManager) *activatorActor {
 	a := &activatorActor{mgr: mgr}
 	// 激活协调者不承载实体:用基础层,类型上就取不到所有权(见 ADR 0015)。
-	a.Actor = NewActor()
+	a.BaseActor = NewBaseActor()
 	return a
 }
 
