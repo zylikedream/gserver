@@ -18,7 +18,7 @@ import (
 //
 // 与生产路径一致:交给运行时的是门面的适配对象,业务对象藏在它里面。
 // 返回的业务对象已绑定进程,可直接调用其业务方法或经 Subject 收发消息。
-func Spawn[T gxyactor.Business](t testing.TB, kind string, ctor func() T, args ...any) (T, *unit.Subject) {
+func Spawn[T gxyactor.ActorBehavior](t testing.TB, kind string, ctor func() T, args ...any) (T, *unit.Subject) {
 	t.Helper()
 	var biz T
 	subj, err := unit.Spawn(t, factoryFor(kind, ctor, &biz), gen.ProcessOptions{}, args...)
@@ -32,7 +32,7 @@ func Spawn[T gxyactor.Business](t testing.TB, kind string, ctor func() T, args .
 
 // SpawnErr 在 mock 节点上创建 actor,返回初始化错误(若有)。
 // 用于验证初始化失败路径。
-func SpawnErr[T gxyactor.Business](t testing.TB, kind string, ctor func() T, args ...any) (T, error) {
+func SpawnErr[T gxyactor.ActorBehavior](t testing.TB, kind string, ctor func() T, args ...any) (T, error) {
 	t.Helper()
 	var biz T
 	subj, err := unit.Spawn(t, factoryFor(kind, ctor, &biz), gen.ProcessOptions{}, args...)
@@ -46,8 +46,8 @@ func SpawnErr[T gxyactor.Business](t testing.TB, kind string, ctor func() T, arg
 
 // factoryFor 构造进程工厂,并把创建出来的业务对象写回 out——
 // 门面持有业务对象,测试需要拿到它来断言。
-func factoryFor[T gxyactor.Business](kind string, ctor func() T, out *T) gen.ProcessFactory {
-	return gxyactor.ActorFactory(kind, func() gxyactor.Business {
+func factoryFor[T gxyactor.ActorBehavior](kind string, ctor func() T, out *T) gen.ProcessFactory {
+	return gxyactor.ActorFactory(kind, func() gxyactor.ActorBehavior {
 		*out = ctor()
 		return *out
 	})

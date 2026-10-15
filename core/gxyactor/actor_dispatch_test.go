@@ -28,7 +28,7 @@ func (a *notifyActor) HandleAck(_ context.Context, msg *pb.Ack) (any, error) {
 func spawnNotify(t *testing.T) (*notifyActor, *unit.Subject) {
 	t.Helper()
 	var a *notifyActor
-	subj, err := unit.Spawn(t, ActorFactory("notify", func() Business {
+	subj, err := unit.Spawn(t, ActorFactory("notify", func() ActorBehavior {
 		a = &notifyActor{Actor: NewActor()}
 		return a
 	}), gen.ProcessOptions{})

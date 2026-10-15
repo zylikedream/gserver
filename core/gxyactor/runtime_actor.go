@@ -25,10 +25,10 @@ import (
 // 编排也归这里:同步段与异步段的衔接、分派目标的注册时机、监视通知的翻译。
 // 业务只声明"异步段做什么",不负责"什么时候做"。
 type runtimeActor struct {
-	act.Actor
+	act.Actor // ergoactor
 
 	base *Actor
-	biz  Business
+	biz  ActorBehavior
 }
 
 // ActorFactory 把业务构造器适配成运行时的进程工厂。
@@ -42,7 +42,7 @@ type runtimeActor struct {
 //
 // 同时按 kind 建立日志上下文:此后本 actor 的每条日志都带该字段。
 // 无条件重建是刻意的——构造器给的空标签没有信息,不该留着。
-func ActorFactory(kind string, ctor func() Business) gen.ProcessFactory {
+func ActorFactory(kind string, ctor ActorConstructor) gen.ProcessFactory {
 	return func() gen.ProcessBehavior {
 		biz := ctor()
 		base := biz.actorBase()
@@ -52,7 +52,7 @@ func ActorFactory(kind string, ctor func() Business) gen.ProcessFactory {
 	}
 }
 
-func newRuntimeActor(base *Actor, biz Business) *runtimeActor {
+func newRuntimeActor(base *Actor, biz ActorBehavior) *runtimeActor {
 	return &runtimeActor{base: base, biz: biz}
 }
 

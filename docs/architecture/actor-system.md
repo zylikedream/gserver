@@ -185,7 +185,7 @@ gserver:locate:node:epoch              →  全局世代计数器
 
 ```go
 // role_service.go —— 业务交出"怎么造自己",不交出"自己叫什么名字"
-gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.Business {
+gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.ActorBehavior {
     return logic.NewRoleMain()
 })
 ```

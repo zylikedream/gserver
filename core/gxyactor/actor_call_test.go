@@ -60,7 +60,7 @@ func runProbe(t *testing.T, stub func(*unit.Subject, gen.PID)) *callProbe {
 	t.Helper()
 	raw := gen.PID{Node: "unit@localhost", ID: 99}
 	var probe *callProbe
-	subj := unit.Prepare(t, ActorFactory("call_probe", func() Business {
+	subj := unit.Prepare(t, ActorFactory("call_probe", func() ActorBehavior {
 		probe = newCallProbe(pidFromLocal(raw))
 		return probe
 	}), gen.ProcessOptions{})

@@ -17,7 +17,7 @@ type kindProbe struct{ *Actor }
 // 才查得到提升的方法。
 func TestActorFactoryWritesRegistryKeyAsKind(t *testing.T) {
 	var probe *kindProbe
-	factory := ActorFactory("guild", func() Business {
+	factory := ActorFactory("guild", func() ActorBehavior {
 		probe = &kindProbe{Actor: NewActor()}
 		return probe
 	})
@@ -35,7 +35,7 @@ func TestActorFactoryWritesRegistryKeyAsKind(t *testing.T) {
 // (见 ADR 0017)。
 func TestRuntimeSeesAdapterNotBusiness(t *testing.T) {
 	var probe *kindProbe
-	factory := ActorFactory("guild", func() Business {
+	factory := ActorFactory("guild", func() ActorBehavior {
 		probe = &kindProbe{Actor: NewActor()}
 		return probe
 	})
@@ -48,7 +48,7 @@ func TestRuntimeSeesAdapterNotBusiness(t *testing.T) {
 	if !ok {
 		t.Fatalf("运行时的行为实例类型 = %T, want *runtimeActor", subj.Behavior())
 	}
-	if rt.biz != Business(probe) {
+	if rt.biz != ActorBehavior(probe) {
 		t.Fatal("适配对象必须持有业务对象")
 	}
 }

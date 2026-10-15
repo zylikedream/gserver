@@ -22,7 +22,7 @@ func (a *plainActor) HandleMessage(msg any) (any, error) {
 func spawnPlain(t *testing.T) (*plainActor, *unit.Subject) {
 	t.Helper()
 	var p *plainActor
-	subj, err := unit.Spawn(t, ActorFactory("plain", func() Business {
+	subj, err := unit.Spawn(t, ActorFactory("plain", func() ActorBehavior {
 		p = &plainActor{Actor: NewActor()}
 		return p
 	}), gen.ProcessOptions{})
@@ -57,7 +57,7 @@ func (a *returnActor) HandleCall(_ any) (any, error) { return "called", nil }
 // 未实现 HandleMessage 的 actor 不处理异步消息,门面静默跳过而非报错。
 func TestActorWithoutEntryIgnoresMessage(t *testing.T) {
 	var a *returnActor
-	subj, err := unit.Spawn(t, ActorFactory("return_only", func() Business {
+	subj, err := unit.Spawn(t, ActorFactory("return_only", func() ActorBehavior {
 		a = &returnActor{Actor: NewActor()}
 		return a
 	}), gen.ProcessOptions{})

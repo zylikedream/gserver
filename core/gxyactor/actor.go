@@ -19,15 +19,12 @@ import (
 //
 // 业务只交出"怎么造自己",不交出"自己叫什么名字":能力名由登记处按注册表的键
 // 写入,构造器不认识它(见 ActorFactory)。
-type ActorConstructor func() Business
+type ActorConstructor func() ActorBehavior
 
-// Business 是业务对象的类型约束,由内嵌门面基类的结构体满足。
-//
-// 方法未导出:包外类型无法自行实现它,只能通过**内嵌门面基类**获得。因此
-// "登记一个业务对象"这件事无法被伪造,门面不必再声明一个可被冒名的接口。
-//
-// 业务对象不被运行时看见——它与运行时之间的适配在 runtime_actor.go(见 ADR 0017)。
-type Business interface {
+// ActorBehavior 是业务行为对象的类型约束,由内嵌门面基类的结构体满足。
+// 命名与运行时的 ProcessBehavior 同一词汇:它是"门面能分发、运行时看不见"
+// 的回调对象,业务对象实现 Init/Message/Call/Terminate 等入口即是它的行为。
+type ActorBehavior interface {
 	actorBase() *Actor
 }
 
@@ -134,14 +131,14 @@ func NewActor() *Actor {
 	}
 }
 
-// actorBase 使内嵌本类型的业务对象满足 Business。
+// actorBase 使内嵌本类型的业务对象满足 ActorBehavior。
 func (a *Actor) actorBase() *Actor { return a }
 
 // biz 返回外层业务对象(工厂返回的那个结构体)。
 //
 // 必须经运行时句柄取:Go 的内嵌是静态分派,基类内部无法直接调到外层的覆写。
 // 它是"按需发现业务实现了哪些入口"的唯一来源。
-func (a *Actor) biz() Business {
+func (a *Actor) biz() ActorBehavior {
 	if a.rt == nil {
 		return nil
 	}
@@ -314,7 +311,7 @@ func (a *Actor) Call(pid PID, message any, timeout time.Duration) (any, error) {
 }
 
 // Monitor 监视目标 actor;它终止时本 actor 会经 HandleDown 收到通知。
-// 注意:该通知早于对端终止回调完成,不得作为"对端已落盘"的依据。
+// 注意:该通知早于对端终止回调完成
 func (a *Actor) Monitor(pid PID) error {
 	target := pid.target()
 	if target == nil {

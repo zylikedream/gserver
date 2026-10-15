@@ -96,7 +96,7 @@ func (s *activatorSupervisor) Init(_ ...any) (act.SupervisorSpec, error) {
 // 用"总是重启":激活协调者没有需要恢复的状态,也不参与归属协议,因此重建它不会
 // 与任何外部权威冲突——这正是它和承载实体的 actor 的分界(见 ADR 0019)。
 func activatorSupervisorSpec(g *activatorManager) act.SupervisorSpec {
-	routerCtor := func() Business { return newActivatorActor(g) }
+	routerCtor := func() ActorBehavior { return newActivatorActor(g) }
 	return act.SupervisorSpec{
 		Type: act.SupervisorTypeOneForOne,
 		Restart: act.SupervisorRestart{

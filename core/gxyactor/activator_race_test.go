@@ -125,7 +125,7 @@ func newRaceFixture(t *testing.T) (*activatorManager, gen.Node, *gatedStore, fun
 		store:         gate,
 		serviceLookup: localServiceLookup{nodeName: nodeID},
 	}
-	if err := mgr.RegisterActorKind("race", func() Business {
+	if err := mgr.RegisterActorKind("race", func() ActorBehavior {
 		return &raceActor{EntityActor: NewEntityActor(), release: release}
 	}); err != nil {
 		t.Fatalf("register kind: %v", err)

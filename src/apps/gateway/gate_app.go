@@ -74,7 +74,7 @@ func (s *gateApp) OnModStop(ctx context.Context) error {
 }
 
 func spawnSession(ep endpoint.Endpoint, d logic.SessionDeps) (gxyactor.PID, error) {
-	return gxyactor.Spawn("session", func() gxyactor.Business {
+	return gxyactor.Spawn("session", func() gxyactor.ActorBehavior {
 		return logic.NewSession(ep, d)
 	})
 }

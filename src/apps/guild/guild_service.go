@@ -22,7 +22,7 @@ func (s *guildService) ServiceName() string {
 }
 
 func (s *guildService) OnModStart(ctx context.Context) error {
-	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.Business {
+	if err := gxyactor.RegisterActorKind(s.ServiceName(), func() gxyactor.ActorBehavior {
 		return guildlogic.NewGuildActor()
 	}); err != nil {
 		return err

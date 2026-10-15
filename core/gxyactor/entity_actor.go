@@ -17,7 +17,7 @@ type entityProvider interface{ entityActor() *EntityActor }
 func (e *EntityActor) entityActor() *EntityActor { return e }
 
 // entityOf 取出业务对象内嵌的实体层;不承载实体时返回 nil。
-func entityOf(biz Business) *EntityActor {
+func entityOf(biz ActorBehavior) *EntityActor {
 	if e, ok := biz.(entityProvider); ok {
 		return e.entityActor()
 	}
