@@ -161,16 +161,22 @@ func (r *runtimeActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, 
 		return nil, err
 	}
 
-	// 断言必然成立:业务对象经内嵌基类获得默认入口(见 Actor.HandleCall)。
+	// 业务入口经内嵌基类获得默认实现(见 Actor.HandleCall),此处直接调用。
 	rsp, err := r.behavior.HandleCall(decoded)
 	gxymetrics.ActorMessages.WithLabelValues(r.base.kind).Inc()
-	if err != nil {
+	switch {
+	case err != nil:
 		gxylog.Error(r.base.Ctx, "handle rpc msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
 		r.base.sendResponse(from, ref, &pb.ActorError{Reason: err.Error()})
-	} else if rsp != nil {
+	case rsp == nil:
+		// 同步请求必须给出应答:业务既没有返回结果,也没有导出的能力自行回复
+		// (sendResponse/sendReply 都是包内方法)。走到这里说明某个 handler 漏写了
+		// 应答——静默不发会让调用方一直等到超时,把这个 bug 藏起来。
+		gxylog.Error(r.base.Ctx, "handle rpc msg returned no response", gxylog.Any("payload", decoded))
+		r.base.sendResponse(from, ref, &pb.ActorError{Reason: "no response for sync request"})
+	default:
 		r.base.sendResponse(from, ref, rsp)
 	}
-	// (nil, nil) 表示已自行回复。
 	return nil, r.base.stopReason()
 }
 

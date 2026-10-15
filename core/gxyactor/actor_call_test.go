@@ -111,3 +111,38 @@ func TestActorCallReturnsResponse(t *testing.T) {
 		t.Fatalf("响应内容 = %q, want %q", got.Reason, want.Reason)
 	}
 }
+
+// nilRspActor 注册了一个故意不返回应答的 handler。
+type nilRspActor struct{ *BaseActor }
+
+// HandleAck 按分派约定注册,故意返回 (nil, nil)。
+func (a *nilRspActor) HandleAck(_ context.Context, _ *pb.Ack) (any, error) { return nil, nil }
+
+// TestSyncCallWithoutResponseReturnsError:同步请求的 handler 返回 (nil, nil) 时,
+// 调用方必须立刻收到业务错误,而不是"一个响应都没有"。
+//
+// 为什么需要:业务侧发不出自己的应答(sendResponse/sendReply 都是包内方法),所以
+// "没返回结果"在同步路径上只可能是漏写应答。此前这种情形静默无响应,调用方要等满
+// 超时才失败,把 bug 藏起来(harness 的 Call 在无应答时返回 (nil, nil),正是超时的形状)。
+func TestSyncCallWithoutResponseReturnsError(t *testing.T) {
+	var a *nilRspActor
+	subj, err := unit.Spawn(t, ActorFactory("nil_rsp", func() ActorBehavior {
+		a = &nilRspActor{BaseActor: NewBaseActor()}
+		return a
+	}), gen.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+
+	rsp, err := subj.Call(gen.PID{}, &pb.Ack{Reason: "x"})
+	if err != nil {
+		t.Fatalf("harness 层不应报错: %v", err)
+	}
+	aerr, ok := rsp.(*pb.ActorError)
+	if !ok {
+		t.Fatalf("同步请求无应答时必须回业务错误,实际 %#v", rsp)
+	}
+	if aerr.GetReason() == "" {
+		t.Fatal("错误必须说明原因")
+	}
+}
