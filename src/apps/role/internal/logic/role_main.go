@@ -135,8 +135,7 @@ func NewRoleMain() *RoleMain {
 //
 // 耗时的加载不在这里——它由初始化期间自投的消息驱动(见 asyncInit),
 // 这样创建调用不必等数据库往返,而业务消息因邮箱串行仍排在加载之后。
-func (r *RoleMain) Init(args ...any) error {
-	ctx := r.Ctx
+func (r *RoleMain) Init(ctx context.Context, args ...any) error {
 	if len(args) == 0 {
 		return gerror.New("roleID is required in init args")
 	}
@@ -160,8 +159,7 @@ func (r *RoleMain) Init(args ...any) error {
 // AsyncInit 是异步初始化段:耗时加载(数据库 fence、模块状态、定时器)。
 // 由门面在同步段之后自投消息驱动,业务不自己发消息。
 // 归属已由门面在此之前取得(不变量 #3)。
-func (r *RoleMain) AsyncInit() error {
-	ctx := r.Ctx
+func (r *RoleMain) AsyncInit(ctx context.Context) error {
 	r.actorOwner = r.Owner()
 	if r.actorOwner.NodeID == "" || r.actorOwner.Epoch == 0 {
 		return gerror.Newf("actor owner is invalid, owner: %v", r.actorOwner)
@@ -370,7 +368,7 @@ func (r *RoleMain) dispatchClientMsg(ctx context.Context, id string, pbmsg proto
 		return rsp, result, err
 	}
 
-	res, err := r.BaseActor.HandleCall(pbmsg) //nolint:staticcheck // 显式经基类调用:客户端协议路径不该被 RoleMain 自己的 HandleCall 覆写劫持
+	res, err := r.BaseActor.HandleCall(ctx, pbmsg) //nolint:staticcheck // 显式经基类调用:客户端协议路径不该被 RoleMain 自己的 HandleCall 覆写劫持
 	if err != nil {
 		logClientProtocolError(ctx, r.RoleID, msgID, msgName, err)
 		return r.errorAck(id, err)
@@ -757,8 +755,7 @@ func roleLogoutReason(reason string) string {
 // Terminate 是终止路径:先走模块停止(含落盘)。
 // 归属释放由门面在本方法返回后执行——顺序不可颠倒,先释放所有权会让新持有者
 // 推进世代,使本次落盘被拒绝(不变量 #4)。
-func (r *RoleMain) Terminate(err error) {
-	ctx := r.Ctx
+func (r *RoleMain) Terminate(ctx context.Context, err error) {
 	gxylog.Debug(ctx, "role stopped", gxylog.Err(err))
 	if serr := r.StopModule(ctx); serr != nil {
 		gxylog.Error(ctx, "stop module error", gxylog.Err(serr))

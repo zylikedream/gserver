@@ -28,7 +28,7 @@ func newOrderingActor(ownerKey string, client redis.UniversalClient) *orderingAc
 
 // Terminate 代表"最终落盘"的位置:此处所有权必须仍然由本实例持有。
 // 释放由门面在本方法返回后执行,业务不介入。
-func (a *orderingActor) Terminate(reason error) {
+func (a *orderingActor) Terminate(_ context.Context, reason error) {
 	a.terminateCalled = true
 	n, err := a.client.Exists(context.Background(), a.ownerKey).Result()
 	a.ownerStillPresentAtTerminate = err == nil && n > 0

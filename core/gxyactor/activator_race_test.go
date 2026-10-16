@@ -56,7 +56,7 @@ type raceActor struct {
 	release <-chan struct{}
 }
 
-func (a *raceActor) Init(_ ...any) error {
+func (a *raceActor) Init(_ context.Context, _ ...any) error {
 	<-a.release
 	return nil
 }

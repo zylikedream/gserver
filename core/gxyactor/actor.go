@@ -28,13 +28,15 @@ type ActorConstructor func() ActorBehavior
 //
 // 这些名字由业务独占:运行时回调只出现在门面的适配对象上,而业务对象不会被
 // 当作运行时的行为对象交给运行时,因此两组名字不可能相撞(见 ADR 0017)。
+// 六个入口都收一个 ctx:门面在分派时为**每条消息**派生它(父是本 actor 的 ctx,
+// 再挂上这条消息的链路标识),业务用它打日志与访问外部依赖,不必自己从 Ctx 取。
 type ActorBehavior interface {
-	Init(args ...any) error
-	AsyncInit() error
-	HandleMessage(msg any) (any, error)
-	HandleCall(msg any) (any, error)
-	HandleDown(pid PID)
-	Terminate(err error)
+	Init(ctx context.Context, args ...any) error
+	AsyncInit(ctx context.Context) error
+	HandleMessage(ctx context.Context, msg any) (any, error)
+	HandleCall(ctx context.Context, msg any) (any, error)
+	HandleDown(ctx context.Context, pid PID)
+	Terminate(ctx context.Context, err error)
 	base() *BaseActor
 }
 
@@ -111,11 +113,11 @@ func NewBaseActor() *BaseActor {
 	}
 }
 
-func (b *BaseActor) Init(args ...any) error {
+func (b *BaseActor) Init(ctx context.Context, args ...any) error {
 	return nil
 }
 
-func (b *BaseActor) AsyncInit() error {
+func (b *BaseActor) AsyncInit(ctx context.Context) error {
 	return nil
 }
 
@@ -135,11 +137,11 @@ func (b *BaseActor) base() *BaseActor {
 //
 // 没有对应处理器时返回 (nil, nil):异步消息没有调用方在等回包,把"没有这条路由"
 // 当致命会让一条发错地方的消息终止整个 actor(见 TestUnroutedMessageDoesNotTerminateActor)。
-func (b *BaseActor) HandleMessage(msg any) (any, error) {
+func (b *BaseActor) HandleMessage(ctx context.Context, msg any) (any, error) {
 	if b.msgHandler.GetMethodMeta(msg) == nil {
 		return nil, nil
 	}
-	return b.dispatch(msg)
+	return b.dispatch(ctx, msg)
 }
 
 // HandleCall 是默认的同步请求入口:按消息类型反射分派。
@@ -148,11 +150,13 @@ func (b *BaseActor) HandleMessage(msg any) (any, error) {
 // 返回 (nil, nil) 等于一个响应都不发 —— 调用方只能等到超时,而"这条路由不存在"
 // 是它可以立刻知道的事。因此这里交由 dispatch 报错,由适配层转成业务失败回给
 // 调用方(见 invariants #9)。异步入口相反:没有等待者,不处理是常态。
-func (b *BaseActor) HandleCall(msg any) (any, error) { return b.dispatch(msg) }
+func (b *BaseActor) HandleCall(ctx context.Context, msg any) (any, error) {
+	return b.dispatch(ctx, msg)
+}
 
 // dispatch 按消息类型查表分派;没有对应处理器时报错(错误里带具体消息名)。
-func (b *BaseActor) dispatch(msg any) (any, error) {
-	return b.msgHandler.CallWithMsg(b.Ctx, msg)
+func (b *BaseActor) dispatch(ctx context.Context, msg any) (any, error) {
+	return b.msgHandler.CallWithMsg(ctx, msg)
 }
 
 // AddMsgHandler 为指定对象注册消息分派,返回注册到的方法。
@@ -302,10 +306,10 @@ func (b *BaseActor) Demonitor(pid PID) error {
 	return b.rt.Demonitor(target)
 }
 
-func (b *BaseActor) HandleDown(pid PID) {
+func (b *BaseActor) HandleDown(ctx context.Context, pid PID) {
 }
 
-func (b *BaseActor) Terminate(err error) {
+func (b *BaseActor) Terminate(ctx context.Context, err error) {
 }
 
 // SetTracingSpanAttribute 为当前处理的消息附加追踪属性。

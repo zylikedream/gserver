@@ -81,7 +81,7 @@ func NewChannelActor() *ChannelActor {
 	return a
 }
 
-func (a *ChannelActor) Init(args ...any) error {
+func (a *ChannelActor) Init(ctx context.Context, args ...any) error {
 	// 先校验参数:不合法时不必惊动所有权协调层,否则会为一次注定失败的创建
 	// 先占一份归属再回滚。
 	if len(args) < 1 {
@@ -97,7 +97,6 @@ func (a *ChannelActor) Init(args ...any) error {
 	if !ok {
 		return errors.New("unknown channel type")
 	}
-	ctx := a.Ctx
 	a.channel = ch
 	a.buffer = newRingBuffer(ch.RingBufferSize())
 	a.loadHistory(ctx)
@@ -111,8 +110,7 @@ func (a *ChannelActor) Init(args ...any) error {
 //
 // 异步路径上业务失败不能返回 error(那会终止本 actor),因此以错误载荷应答,
 // 见 invariants #9。
-func (a *ChannelActor) HandleMessage(msg any) (any, error) {
-	ctx := a.Ctx
+func (a *ChannelActor) HandleMessage(ctx context.Context, msg any) (any, error) {
 	switch m := msg.(type) {
 	case *pb.ChannelRegisterMsg:
 		a.members[m.RoleId] = &channelMember{
@@ -164,7 +162,7 @@ func (a *ChannelActor) handleChannelSend(ctx context.Context, m *pb.ReqChannelSe
 }
 
 // HandleCall 是业务入口(同步请求)。
-func (a *ChannelActor) HandleCall(msg any) (any, error) {
+func (a *ChannelActor) HandleCall(ctx context.Context, msg any) (any, error) {
 	switch m := msg.(type) {
 	case *pb.ReqChatChannelHistory:
 		count := int(m.Count)
@@ -178,7 +176,7 @@ func (a *ChannelActor) HandleCall(msg any) (any, error) {
 
 // Terminate 是终止路径:最终落盘。
 // 归属释放与定时器停止由门面在本方法返回后执行。
-func (a *ChannelActor) Terminate(err error) {
+func (a *ChannelActor) Terminate(ctx context.Context, err error) {
 	a.save(a.Ctx)
 }
 

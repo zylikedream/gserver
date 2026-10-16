@@ -48,6 +48,32 @@ func spanIDFromErgo(id uint64) trace.SpanID {
 	return out
 }
 
+// ContextWithErgoTrace 把运行时在消息处理期间维护的链路标识装进 ctx,
+// 使该 ctx 上的日志自动带上 trace_id(见 gxylog 的注入逻辑)。
+//
+// 标识取自运行时的"当前传播链路":它在消息带链路时被激活、处理结束即恢复
+// (见 act.Actor),因此**非零即表示本条消息在被追踪的链路上**。零值原样返回,
+// 日志会退化成 ctx_id —— 与"未采样不打 trace_id"的既有判断一致。
+//
+// 装入的是**远端 span 上下文**(调用方在链路中的位置),与导出器同一做法:
+// 运行时的 SpanID 是发送方那一段的标识;链路起点没有它时补一个合法标识,
+// 否则 SpanContext 不合法,日志依旧拿不到 trace_id。
+func ContextWithErgoTrace(ctx context.Context, t gen.Tracing) context.Context {
+	if t.ID == [2]uint64{} {
+		return ctx
+	}
+	spanID := spanIDFromErgo(t.SpanID)
+	if !spanID.IsValid() {
+		spanID = randomSpanID()
+	}
+	return trace.ContextWithRemoteSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceIDFromErgo(t.ID),
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+		Remote:     true,
+	}))
+}
+
 // ergoIDGenerator 让 span 直接采用运行时给出的标识。
 // 无运行时标识时(业务自行创建的 span)退回随机生成。
 type ergoIDGenerator struct{}

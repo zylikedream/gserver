@@ -160,7 +160,7 @@ func TestSession_HandleMessage_ClientMsg(t *testing.T) {
 	ep.sentMsgs = nil
 
 	msg := &message.Message{Type: message.MESSAGE_TYPE_DATA_PACKET, Msg: &pb.RspAccountLogin{}}
-	if _, err := s.HandleMessage(msg); err != nil {
+	if _, err := s.HandleMessage(t.Context(), msg); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
 }
@@ -177,7 +177,7 @@ func TestSession_HandleMessage_ServerMsg(t *testing.T) {
 		t.Fatalf("anypb.New: %v", err)
 	}
 	serverMsg := &pb.ServerMsg{Msg: anyMsg}
-	if _, err := s.HandleMessage(serverMsg); err != nil {
+	if _, err := s.HandleMessage(t.Context(), serverMsg); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
 	}
 	if s.state != StateLogin {
@@ -209,7 +209,7 @@ func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
 	withHandshake(t, s)
 
-	_, _ = s.HandleMessage(gen.MessageDownPID{PID: gen.PID{Node: "test@127.0.0.1", ID: 99, Creation: 1}})
+	_, _ = s.HandleMessage(t.Context(), gen.MessageDownPID{PID: gen.PID{Node: "test@127.0.0.1", ID: 99, Creation: 1}})
 	if s.StopRequested() {
 		t.Fatal("unrelated Terminated should not stop session")
 	}
@@ -222,7 +222,7 @@ func TestSession_HandleMessage_RoleTerminated_OtherPid(t *testing.T) {
 // 为什么需要:不停止就会留下一条既无角色也无心跳的僵尸会话,占着连接与在线数指标不释放。
 func TestSession_HandleMessage_ActorError(t *testing.T) {
 	s, _, _ := newTestSession(t, newTestDeps())
-	_, _ = s.HandleMessage(&pb.ActorError{Reason: "boom"})
+	_, _ = s.HandleMessage(t.Context(), &pb.ActorError{Reason: "boom"})
 	if !s.StopRequested() {
 		t.Fatal("expected Stop after ActorError")
 	}
@@ -345,7 +345,7 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 			}
 			// 端到端:运行时以 handler 返回的终止原因调用 Terminate, 它据此计算
 			// 断连标签; sentinel 错误对象必须原样到达, 不因包裹/重建而降级。
-			s.Terminate(tc.err)
+			s.Terminate(t.Context(), tc.err)
 			if !ep.closed {
 				t.Fatal("expected endpoint closed after Terminate")
 			}
@@ -578,7 +578,7 @@ func TestSession_Terminate_WithRole(t *testing.T) {
 	s, _, ep := newTestSession(t, d)
 	withHandshake(t, s)
 
-	s.Terminate(gerror.New("client account logout"))
+	s.Terminate(t.Context(), gerror.New("client account logout"))
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}
@@ -597,7 +597,7 @@ func TestSession_Terminate_WithRole_NilReason(t *testing.T) {
 	s, _, ep := newTestSession(t, d)
 	withHandshake(t, s)
 
-	s.Terminate(nil)
+	s.Terminate(t.Context(), nil)
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}
@@ -613,7 +613,7 @@ func TestSession_Terminate_WithRole_NilReason(t *testing.T) {
 // 为什么需要:为 0 的角色 ID 进会话表做 Remove/通知角色,会在最常见的握手前失败路径上崩溃,网关进程被一条坏连接带走。
 func TestSession_Terminate_WithoutRole(t *testing.T) {
 	s, _, ep := newTestSession(t, newTestDeps())
-	s.Terminate(nil)
+	s.Terminate(t.Context(), nil)
 	if !ep.closed {
 		t.Fatal("endpoint not closed")
 	}

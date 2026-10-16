@@ -1,6 +1,7 @@
 package gxytrace
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // withRecordingProvider 把全局 provider 换成同步记录到内存的实例,
@@ -135,5 +137,35 @@ func TestErgoExporterMarksError(t *testing.T) {
 	}
 	if spans[0].Status.Code.String() != "Error" {
 		t.Fatalf("状态 = %v, want Error", spans[0].Status.Code)
+	}
+}
+
+// TestContextWithErgoTrace 覆盖"运行时标识进 ctx"这件事的判据:
+// 日志只在该 span **有效且被采样**时才注入 trace_id,因此这两条必须成立;
+// 链路起点没有 span id、以及零值(不在被追踪链路上)是两个会静默退化的边界。
+func TestContextWithErgoTrace(t *testing.T) {
+	ids := [2]uint64{0x1122334455667788, 0x99aabbccddeeff00}
+	want := traceIDFromErgo(ids)
+
+	ctx := ContextWithErgoTrace(context.Background(), gen.Tracing{ID: ids, SpanID: 0x1234})
+	sc := trace.SpanFromContext(ctx).SpanContext()
+	if !sc.IsValid() || !sc.IsSampled() {
+		t.Fatalf("span 必须有效且被采样,否则日志拿不到 trace_id: %v", sc)
+	}
+	if sc.TraceID() != want {
+		t.Fatalf("trace id = %s, want %s", sc.TraceID(), want)
+	}
+
+	// 链路起点没有 span id:仍须给出合法标识,否则 IsValid 为假、日志静默退化。
+	root := trace.SpanFromContext(
+		ContextWithErgoTrace(context.Background(), gen.Tracing{ID: ids})).SpanContext()
+	if !root.IsValid() || root.TraceID() != want {
+		t.Fatalf("没有 span id 的链路起点也必须可用: %v", root)
+	}
+
+	// 零值表示本条消息不在被追踪的链路上:原样返回,日志退化成 ctx_id。
+	if trace.SpanFromContext(
+		ContextWithErgoTrace(context.Background(), gen.Tracing{})).SpanContext().IsValid() {
+		t.Fatal("零值不应产生 span context")
 	}
 }

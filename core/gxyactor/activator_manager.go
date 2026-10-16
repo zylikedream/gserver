@@ -449,10 +449,10 @@ func newActivatorActor(mgr *activatorManager) *activatorActor {
 
 // HandleCall 处理来自其他节点的激活请求(业务入口)。
 // 用同步调用而非异步消息:激活需要立即拿到结果或明确的"换节点重试"。
-func (a *activatorActor) HandleCall(msg any) (any, error) {
+func (a *activatorActor) HandleCall(ctx context.Context, msg any) (any, error) {
 	switch req := msg.(type) {
 	case *pb.ActorActive:
-		return a.handleActive(a.Ctx, req)
+		return a.handleActive(ctx, req)
 	}
 	return nil, nil
 }

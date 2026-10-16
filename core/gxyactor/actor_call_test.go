@@ -28,7 +28,7 @@ func newCallProbe(target PID) *callProbe {
 }
 
 // Init 是同步初始化段:基类环境已由门面备好,此处只做自己的事。
-func (p *callProbe) Init(args ...any) error {
+func (p *callProbe) Init(_ context.Context, args ...any) error {
 	p.result, p.callErr = p.Call(p.target, &pb.Ack{}, 5*time.Second)
 	return nil
 }

@@ -78,13 +78,13 @@ func TestUnroutedMessageDoesNotTerminateActor(t *testing.T) {
 func TestEntrypointsDifferOnMissingRoute(t *testing.T) {
 	a, _ := spawnNotify(t)
 
-	if _, err := a.HandleCall(&pb.Ack{Reason: "x"}); err != nil {
+	if _, err := a.HandleCall(t.Context(), &pb.Ack{Reason: "x"}); err != nil {
 		t.Fatalf("已注册的处理器不应报错: %v", err)
 	}
-	if _, err := a.HandleCall("no handler for this"); err == nil {
+	if _, err := a.HandleCall(t.Context(), "no handler for this"); err == nil {
 		t.Fatal("同步请求无路由必须返回错误,否则调用方只能等到超时")
 	}
-	if _, err := a.HandleMessage("no handler for this"); err != nil {
+	if _, err := a.HandleMessage(t.Context(), "no handler for this"); err != nil {
 		t.Fatalf("异步消息无路由不应报错: %v", err)
 	}
 }

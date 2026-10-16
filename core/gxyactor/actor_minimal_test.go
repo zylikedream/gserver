@@ -1,6 +1,7 @@
 package gxyactor
 
 import (
+	"context"
 	"testing"
 
 	"ergo.services/ergo/gen"
@@ -14,7 +15,7 @@ type plainActor struct {
 	handled []any
 }
 
-func (a *plainActor) HandleMessage(msg any) (any, error) {
+func (a *plainActor) HandleMessage(_ context.Context, msg any) (any, error) {
 	a.handled = append(a.handled, msg)
 	return nil, nil
 }
@@ -52,7 +53,7 @@ type returnActor struct {
 	*BaseActor
 }
 
-func (a *returnActor) HandleCall(_ any) (any, error) { return "called", nil }
+func (a *returnActor) HandleCall(_ context.Context, _ any) (any, error) { return "called", nil }
 
 // 未实现 HandleMessage 的 actor 不处理异步消息,门面静默跳过而非报错。
 func TestActorWithoutEntryIgnoresMessage(t *testing.T) {

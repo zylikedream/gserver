@@ -47,7 +47,7 @@ func NewGuildActor() *GuildActor {
 // ===== ActorBehavior 接口 =====
 
 // Init 是同步初始化段:只绑标识。归属的取得由门面在本段之后执行,业务不介入时序。
-func (g *GuildActor) Init(args ...any) error {
+func (g *GuildActor) Init(ctx context.Context, args ...any) error {
 	if len(args) < 1 {
 		return errors.New("guild actor init args error")
 	}
@@ -60,8 +60,7 @@ func (g *GuildActor) Init(args ...any) error {
 
 // AsyncInit 是异步初始化段:耗时加载与定时器。
 // 由门面在同步段之后自投消息驱动,业务不自己发消息。
-func (g *GuildActor) AsyncInit() error {
-	ctx := g.Ctx
+func (g *GuildActor) AsyncInit(ctx context.Context) error {
 	if err := g.loadFromDB(ctx); err != nil {
 		return err
 	}
@@ -86,7 +85,7 @@ func (g *GuildActor) loadFromDB(_ context.Context) error {
 
 // Terminate 是终止路径:最终落盘。
 // 归属释放与定时器停止由门面在本方法返回后执行——顺序不可颠倒(不变量 #4)。
-func (g *GuildActor) Terminate(err error) {
+func (g *GuildActor) Terminate(ctx context.Context, err error) {
 	g.save(g.Ctx)
 	gxylog.Info(g.Ctx, "guild actor stopped", gxylog.Num("guildID", g.GuildID))
 }

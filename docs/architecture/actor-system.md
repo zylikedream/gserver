@@ -54,13 +54,18 @@ type GuildActor struct {
 **业务入口（六个都在 `BaseActor` 上有默认实现，覆写哪个就接管哪个）：**
 
 ```go
-func (g *GuildActor) Init(args ...any) error              // 同步段：只绑标识、纯内存校验
-func (g *GuildActor) AsyncInit() error                    // 异步段：耗时加载（门面驱动，不必自投消息）
-func (g *GuildActor) HandleMessage(msg any) (any, error)  // 异步消息
-func (g *GuildActor) HandleCall(msg any) (any, error)     // 同步请求
-func (g *GuildActor) HandleDown(pid gxyactor.PID)         // 被监视目标终止
-func (g *GuildActor) Terminate(err error)                 // 终止路径：只做最终落盘
+func (g *GuildActor) Init(ctx context.Context, args ...any) error             // 同步段：只绑标识、纯内存校验
+func (g *GuildActor) AsyncInit(ctx context.Context) error                     // 异步段：耗时加载（门面驱动，不必自投消息）
+func (g *GuildActor) HandleMessage(ctx context.Context, msg any) (any, error) // 异步消息
+func (g *GuildActor) HandleCall(ctx context.Context, msg any) (any, error)    // 同步请求
+func (g *GuildActor) HandleDown(ctx context.Context, pid gxyactor.PID)        // 被监视目标终止
+func (g *GuildActor) Terminate(ctx context.Context, err error)                // 终止路径：只做最终落盘
 ```
+
+**入口的 `ctx` 由门面给，业务不自己取。** 它是**消息级**的：父是本 actor 的 `Ctx`
+（带 `kind` 等常量字段），再挂上本条消息的链路标识——因此入口里的日志自动带
+`trace_id`，不必从 `Ctx` 里捞。没有入站消息的入口（`Init` / `Terminate`）用
+actor 级的 `Ctx`。
 
 这些名字由业务独占：运行时回调只出现在适配对象上，两组名字不可能相撞。业务因此
 **不需要**记得"覆写时调回基类"——那类约定已不存在。

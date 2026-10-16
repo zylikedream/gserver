@@ -128,7 +128,7 @@ func TestGuildActor_TerminatePersists(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	g.Terminate(nil)
+	g.Terminate(t.Context(), nil)
 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("actor 停止时必须落盘: %v", err)
