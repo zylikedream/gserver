@@ -11,6 +11,7 @@ import (
 	"gserver/core/gxymodule"
 	"gserver/core/gxyredis"
 	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 	"gserver/core/gxyservice"
 	"gserver/protocol/pb"
 
@@ -95,7 +96,7 @@ func (s *activatorSupervisor) Init(_ ...any) (act.SupervisorSpec, error) {
 // 用"总是重启":激活协调者没有需要恢复的状态,也不参与归属协议,因此重建它不会
 // 与任何外部权威冲突——这正是它和承载实体的 actor 的分界(见 ADR 0019)。
 func activatorSupervisorSpec(g *activatorManager) act.SupervisorSpec {
-	routerCtor := func() Business { return newActivatorActor(g) }
+	routerCtor := func() ActorBehavior { return newActivatorActor(g) }
 	return act.SupervisorSpec{
 		Type: act.SupervisorTypeOneForOne,
 		Restart: act.SupervisorRestart{
@@ -136,7 +137,7 @@ type activatorManager struct {
 // actorServiceLookup 提供能力目录查询:哪些节点能承载该能力。
 // 节点名到地址的解析不在这里 —— 那由运行时的注册适配器负责(见 ADR 0011)。
 type actorServiceLookup interface {
-	GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *gxyregistery.ServiceInfo
+	GetServiceInfo(ctx context.Context, name string, key string, selector gxyregistery.ServiceSelector) *types.ServiceInfo
 }
 
 // NewActivatorManager 创建激活协调层。nodeID 即节点身份(见 ADR 0018)。
@@ -435,23 +436,23 @@ func (g *activatorManager) spawnLocal(_ context.Context, k actorKey) (PID, error
 }
 
 type activatorActor struct {
-	*Actor
+	*BaseActor
 	mgr *activatorManager
 }
 
 func newActivatorActor(mgr *activatorManager) *activatorActor {
 	a := &activatorActor{mgr: mgr}
 	// 激活协调者不承载实体:用基础层,类型上就取不到所有权(见 ADR 0015)。
-	a.Actor = NewActor()
+	a.BaseActor = NewBaseActor()
 	return a
 }
 
 // HandleCall 处理来自其他节点的激活请求(业务入口)。
 // 用同步调用而非异步消息:激活需要立即拿到结果或明确的"换节点重试"。
-func (a *activatorActor) HandleCall(msg any) (any, error) {
+func (a *activatorActor) HandleCall(ctx context.Context, msg any) (any, error) {
 	switch req := msg.(type) {
 	case *pb.ActorActive:
-		return a.handleActive(a.Ctx, req)
+		return a.handleActive(ctx, req)
 	}
 	return nil, nil
 }

@@ -121,7 +121,7 @@ type SessionInfo struct {
 
 // Session 会话Actor，继承自ActorBase
 type Session struct {
-	*gxyactor.Actor
+	*gxyactor.BaseActor
 	deps        SessionDeps       // 组装根注入的进程级组件
 	endpoint    endpoint.Endpoint // 网络端点
 	state       SessionState      // 会话状态
@@ -133,15 +133,14 @@ func NewSession(ep endpoint.Endpoint, d SessionDeps) *Session {
 		deps:        d.withDefaults(),
 		endpoint:    ep,
 		sessionInfo: &SessionInfo{},
+		BaseActor:   gxyactor.NewBaseActor(),
 	}
-	s.Actor = gxyactor.NewActor()
 	return s
 }
 
 // HandleMessage 是业务入口(异步)。消息已由门面还原,此处直接分流。
 // 会话的来源固定(客户端、角色、监视通知),不走反射分派。
-func (s *Session) HandleMessage(msg any) (any, error) {
-	ctx := s.Ctx
+func (s *Session) HandleMessage(ctx context.Context, msg any) (any, error) {
 	switch msg := msg.(type) {
 	case *message.Message:
 		gxylog.Debug(ctx, "handle client msg", gxylog.Str("payload", gxyutil.FormatObject(msg)))
@@ -159,8 +158,7 @@ func (s *Session) HandleMessage(msg any) (any, error) {
 }
 
 // Init 是同步初始化段:会话建立时初始化状态并启动空闲检查。
-func (s *Session) Init(args ...any) error {
-	ctx := s.Ctx
+func (s *Session) Init(ctx context.Context, args ...any) error {
 	s.sessionInfo = &SessionInfo{
 		ConnectTime:      time.Now(),
 		ClientLastActive: time.Now(),
@@ -255,7 +253,7 @@ func (s *Session) resolveHandshakeIdentity(token string) (*handshakeIdentity, er
 // HandleDown 是监视通知入口:被监视的角色进程终止。
 // 注意:该通知早于对端终止回调完成,因此这里只做会话清理,
 // 不读取对端状态、不据此释放所有权。
-func (s *Session) HandleDown(pid gxyactor.PID) {
+func (s *Session) HandleDown(ctx context.Context, pid gxyactor.PID) {
 	if gxyactor.PidEqual(pid, s.sessionInfo.RolePid) {
 		s.sessionInfo.RolePid = gxyactor.PID{}
 		s.Stop(errors.New("role terminated"))
@@ -349,8 +347,7 @@ func (s *Session) sendClientMsg(ctx context.Context, msg proto.Message) error {
 // Terminate 终止会话
 // Terminate 是运行时回调:清理会话状态、关闭连接,最后由基类停定时器。
 // err 为 nil 表示正常结束(连接干净关闭),此时没有原因可打。
-func (s *Session) Terminate(err error) {
-	ctx := s.Ctx
+func (s *Session) Terminate(ctx context.Context, err error) {
 	gxylog.Debug(ctx, "session terminating", gxylog.Num("roleID", s.sessionInfo.RoleID), gxylog.Err(err))
 	s.deps.Sessions.Remove(s.sessionInfo.RoleID)
 	gxymetrics.OnlinePlayers.Set(float64(s.deps.Sessions.Count()))

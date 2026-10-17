@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ type mockRedisClient struct {
 	hsetFn    func(ctx context.Context, key string, values ...any) *redis.IntCmd
 	hdelFn    func(ctx context.Context, key string, fields ...string) *redis.IntCmd
 	hgetAllFn func(ctx context.Context, key string) *redis.MapStringStringCmd
+	hexpireFn func(ctx context.Context, key string, expiration time.Duration, fields ...string) *redis.IntSliceCmd
 	doFn      func(ctx context.Context, args ...any) *redis.Cmd
 }
 
@@ -31,6 +33,15 @@ func (m *mockRedisClient) HDel(ctx context.Context, key string, fields ...string
 
 func (m *mockRedisClient) HGetAll(ctx context.Context, key string) *redis.MapStringStringCmd {
 	return m.hgetAllFn(ctx, key)
+}
+
+func (m *mockRedisClient) HExpire(ctx context.Context, key string, expiration time.Duration, fields ...string) *redis.IntSliceCmd {
+	if m.hexpireFn != nil {
+		return m.hexpireFn(ctx, key, expiration, fields...)
+	}
+	cmd := redis.NewIntSliceCmd(ctx)
+	cmd.SetVal([]int64{1})
+	return cmd
 }
 
 func (m *mockRedisClient) Do(ctx context.Context, args ...any) *redis.Cmd {
@@ -209,26 +220,57 @@ func TestServiceFromJSON_EmptyPodName(t *testing.T) {
 	}
 }
 
-func TestWatcherHashChangesWhenServiceValueChanges(t *testing.T) {
+// ---- heartbeat renew ----
+
+// 续期按 hash key 分组:同一 key 下所有字段一次 HEXPIRE,TTL 使用 defaultFieldTTL。
+func TestRegistry_RenewHeartbeats(t *testing.T) {
+	type call struct {
+		key    string
+		ttl    time.Duration
+		fields []string
+	}
+	var calls []call
 	mock := &mockRedisClient{}
-	currentValue := `{"Name":"role","NodeName":"role-0","Version":"1.0","Weight":0,"NodeHost":"10.0.0.1:19001","State":"serving"}`
-	mock.hgetAllFn = func(_ context.Context, key string) *redis.MapStringStringCmd {
-		return makeMapCmd(map[string]string{"role-0": currentValue})
+	mock.hexpireFn = func(_ context.Context, key string, expiration time.Duration, fields ...string) *redis.IntSliceCmd {
+		calls = append(calls, call{key: key, ttl: expiration, fields: fields})
+		cmd := redis.NewIntSliceCmd(context.Background())
+		cmd.SetVal([]int64{1})
+		return cmd
 	}
 
 	r := newWithRedis(mock, 0)
-	w := &watcher{registry: r, name: "role"}
+	r.heartbeats["gserver:svc:role"] = map[string]struct{}{"f1": {}, "f2": {}}
+	r.heartbeats["gserver:svc:chat"] = map[string]struct{}{"f3": {}}
 
-	_, hash1, err := w.fetchWithHash()
-	if err != nil {
-		t.Fatalf("fetchWithHash failed: %v", err)
+	r.renewHeartbeats(context.Background())
+
+	if len(calls) != 2 {
+		t.Fatalf("HExpire calls = %d, want 2 (one per hash key)", len(calls))
 	}
-	currentValue = `{"Name":"role","NodeName":"role-0","Version":"1.0","Weight":0,"NodeHost":"10.0.0.1:19001","State":"draining"}`
-	_, hash2, err := w.fetchWithHash()
-	if err != nil {
-		t.Fatalf("fetchWithHash failed: %v", err)
+	got := make(map[string][]string, len(calls))
+	for _, c := range calls {
+		if c.ttl != defaultFieldTTL {
+			t.Errorf("ttl = %s, want %s", c.ttl, defaultFieldTTL)
+		}
+		slices.Sort(c.fields)
+		got[c.key] = c.fields
 	}
-	if hash1 == hash2 {
-		t.Fatalf("expected hash to change when service value changes, got %q", hash1)
+	if !slices.Equal(got["gserver:svc:role"], []string{"f1", "f2"}) {
+		t.Errorf("role fields = %v, want [f1 f2]", got["gserver:svc:role"])
+	}
+	if !slices.Equal(got["gserver:svc:chat"], []string{"f3"}) {
+		t.Errorf("chat fields = %v, want [f3]", got["gserver:svc:chat"])
+	}
+}
+
+// TestHeartbeatWindowHasMargin 锁住漏拍余量:HEXPIRE 是重置 TTL 且对已不存在的
+// 字段不复活,字段过期即永久消失(需重新 Register),所以 TTL 必须显著大于心跳
+// 间隔。收窄到 1.5 倍(30s/20s)时连续漏 1 拍就丢节点,该用例即变红。
+func TestHeartbeatWindowHasMargin(t *testing.T) {
+	const minRatio = 3
+	if defaultFieldTTL < minRatio*heartbeatInterval {
+		t.Fatalf("TTL %s / 心跳 %s = %.1f, 需 >= %d:否则漏拍即永久丢失节点",
+			defaultFieldTTL, heartbeatInterval,
+			float64(defaultFieldTTL)/float64(heartbeatInterval), minRatio)
 	}
 }

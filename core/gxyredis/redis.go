@@ -88,7 +88,3 @@ func (r *redisApp) OnModStop(ctx context.Context) error {
 	gxylog.Info(ctx, "redis stop success")
 	return nil
 }
-
-func (r *redisApp) RunScript(ctx context.Context, script *redis.Script, keys []string, args ...any) *redis.Cmd {
-	return script.Run(ctx, r.client, keys, args...)
-}

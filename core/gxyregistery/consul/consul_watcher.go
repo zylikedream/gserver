@@ -7,9 +7,11 @@
 package consul
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
+	"net"
 	"sort"
+	"strconv"
 	"sync"
 
 	"github.com/hashicorp/consul/api"
@@ -30,7 +32,10 @@ type Watcher struct {
 	services  []gsvc.Service // Current services
 }
 
-// New creates and returns a new watcher.
+// newWatcher 建立 watcher 并启动 watch plan。
+// 初始化查询同步执行:失败必须让调用方拿到错误 —— 若异步吞掉,plan 永远不会
+// 启动、eventChan 永远不会有信号,而 Proceed 只在 Close 时返回 error,
+// 消费方将无法感知死亡,该服务名的发现数据会永久冻结。
 func newWatcher(registry *Registry, key string) (*Watcher, error) {
 	w := &Watcher{
 		registry:  registry,
@@ -39,33 +44,20 @@ func newWatcher(registry *Registry, key string) (*Watcher, error) {
 		eventChan: make(chan struct{}, 1),
 	}
 
-	// Start watching
-	go w.watch()
-
-	return w, nil
-}
-
-// watch starts the watching process.
-func (w *Watcher) watch() {
-	entries, _, err := w.registry.client.Health().Service(w.key, "", true, &api.QueryOptions{})
+	entries, _, err := registry.client.Health().Service(key, "", true, &api.QueryOptions{})
 	if err != nil {
-		return
+		return nil, err
 	}
-	initServices, err := w.Services(entries)
-	if err != nil {
-		return
-	}
-
 	w.mu.Lock()
-	w.services = initServices
+	w.services = w.Services(entries)
 	w.mu.Unlock()
 
 	plan, err := watch.Parse(map[string]any{
 		"type":    "service",
-		"service": w.key,
+		"service": key,
 	})
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	w.mu.Lock()
@@ -75,7 +67,7 @@ func (w *Watcher) watch() {
 	plan.Handler = w.onServiceChange
 	go w.runPlan(plan)
 
-	<-w.closeChan
+	return w, nil
 }
 
 // onServiceChange 是 consul watch 回调:更新本地服务列表并通知等待者。
@@ -90,10 +82,8 @@ func (w *Watcher) onServiceChange(_ uint64, data any) {
 	if !ok {
 		return
 	}
-	services, _ := w.Services(entries)
-
 	w.mu.Lock()
-	w.services = services
+	w.services = w.Services(entries)
 	w.mu.Unlock()
 
 	select {
@@ -155,49 +145,50 @@ func (w *Watcher) Close() error {
 	}
 }
 
-// Services returns current services from the watcher.
-func (w *Watcher) Services(entries []*api.ServiceEntry) ([]gsvc.Service, error) {
-	// Query services directly from Consul
-
-	// Convert entries to services
+// Services 把 consul 条目转成服务实例,只保留健康且元数据可解析的条目。
+// 单个条目损坏只跳过它并记日志:整体返回错误会让一个坏成员的负载
+// 令本节点看不到所有健康对端。
+func (w *Watcher) Services(entries []*api.ServiceEntry) []gsvc.Service {
 	var services []gsvc.Service
 	for _, entry := range entries {
-		if entry.Checks.AggregatedStatus() == api.HealthPassing {
-			metadata := make(map[string]any)
-			if entry.Service.Meta != nil {
-				if metaStr, ok := entry.Service.Meta["data"]; ok {
-					if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
-						return nil, gerror.Wrap(err, "failed to unmarshal data")
-					}
+		if entry.Checks.AggregatedStatus() != api.HealthPassing {
+			continue
+		}
+
+		metadata := make(map[string]any)
+		if entry.Service.Meta != nil {
+			if metaStr, ok := entry.Service.Meta["data"]; ok && metaStr != "" {
+				if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
+					w.registry.logger.Warningf(context.Background(),
+						"skip service %s: unmarshal metadata failed: %v", entry.Service.Service, err)
+					continue
 				}
 			}
-
-			// Get version from metadata or tags
-			version := ""
-			if v, ok := entry.Service.Meta["version"]; ok {
-				version = v
-			} else if len(entry.Service.Tags) > 0 {
-				version = entry.Service.Tags[0]
-			}
-
-			// Create service instance
-			service := &gsvc.LocalService{
-				Name:     entry.Service.Service,
-				Version:  version,
-				Metadata: metadata,
-				Endpoints: []gsvc.Endpoint{
-					gsvc.NewEndpoint(fmt.Sprintf("%s:%d", entry.Service.Address, entry.Service.Port)),
-				},
-			}
-			services = append(services, service)
 		}
+
+		// version 优先取 meta,退回 tags[0](Register 保证 tags[0] 是版本)
+		version := ""
+		if v, ok := entry.Service.Meta["version"]; ok {
+			version = v
+		} else if len(entry.Service.Tags) > 0 {
+			version = entry.Service.Tags[0]
+		}
+
+		services = append(services, &gsvc.LocalService{
+			Name:     entry.Service.Service,
+			Version:  version,
+			Metadata: metadata,
+			Endpoints: []gsvc.Endpoint{
+				gsvc.NewEndpoint(net.JoinHostPort(entry.Service.Address, strconv.Itoa(entry.Service.Port))),
+			},
+		})
 	}
 
-	// Sort services by version
+	// 排序保证同一份成员集产生同样的顺序(消费方依赖顺序的确定性)
 	if len(services) > 0 {
 		sort.Slice(services, func(i, j int) bool {
 			return services[i].GetVersion() < services[j].GetVersion()
 		})
 	}
-	return services, nil
+	return services
 }

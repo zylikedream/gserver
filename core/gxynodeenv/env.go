@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"gserver/core/gxyregistery"
+	"gserver/core/gxyregistery/types"
 
 	"github.com/cockroachdb/errors"
 )
@@ -23,7 +23,7 @@ const (
 )
 
 type NodeEnv interface {
-	State(ctx context.Context) (gxyregistery.ServiceState, error)
+	State(ctx context.Context) (types.ServiceState, error)
 }
 
 type LocalNodeEnv struct{}
@@ -32,8 +32,8 @@ func NewLocalNodeEnv() *LocalNodeEnv {
 	return &LocalNodeEnv{}
 }
 
-func (LocalNodeEnv) State(context.Context) (gxyregistery.ServiceState, error) {
-	return gxyregistery.ServiceStateServing, nil
+func (LocalNodeEnv) State(context.Context) (types.ServiceState, error) {
+	return types.ServiceStateServing, nil
 }
 
 func NewAutoNodeEnv() NodeEnv {
@@ -112,7 +112,7 @@ func newK8sHTTPClient() (*http.Client, error) {
 	}, nil
 }
 
-func (e *K8sNodeEnv) State(ctx context.Context) (gxyregistery.ServiceState, error) {
+func (e *K8sNodeEnv) State(ctx context.Context) (types.ServiceState, error) {
 	url := fmt.Sprintf("%s/apis/game.kruise.io/v1alpha1/namespaces/%s/gameservers/%s", e.apiServer, e.namespace, e.gsName)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -138,13 +138,13 @@ func (e *K8sNodeEnv) State(ctx context.Context) (gxyregistery.ServiceState, erro
 	return mapOKGOpsState(gs.Spec.OpsState), nil
 }
 
-func mapOKGOpsState(opsState string) gxyregistery.ServiceState {
+func mapOKGOpsState(opsState string) types.ServiceState {
 	switch opsState {
 	case "WaitToBeDeleted", "Kill":
-		return gxyregistery.ServiceStateDraining
+		return types.ServiceStateDraining
 	case "Maintaining":
-		return gxyregistery.ServiceStateMaintaining
+		return types.ServiceStateMaintaining
 	default:
-		return gxyregistery.ServiceStateServing
+		return types.ServiceStateServing
 	}
 }

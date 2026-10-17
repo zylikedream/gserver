@@ -1,6 +1,7 @@
 package gxyactor
 
 import (
+	"context"
 	"testing"
 
 	"ergo.services/ergo/gen"
@@ -10,11 +11,11 @@ import (
 // plainActor 是"简单 actor"的写法示例:只内嵌 Actor、只实现 HandleMessage。
 // 不涉及分派、不承载实体、构造时不传自身。
 type plainActor struct {
-	*Actor
+	*BaseActor
 	handled []any
 }
 
-func (a *plainActor) HandleMessage(msg any) (any, error) {
+func (a *plainActor) HandleMessage(_ context.Context, msg any) (any, error) {
 	a.handled = append(a.handled, msg)
 	return nil, nil
 }
@@ -22,8 +23,8 @@ func (a *plainActor) HandleMessage(msg any) (any, error) {
 func spawnPlain(t *testing.T) (*plainActor, *unit.Subject) {
 	t.Helper()
 	var p *plainActor
-	subj, err := unit.Spawn(t, ActorFactory("plain", func() Business {
-		p = &plainActor{Actor: NewActor()}
+	subj, err := unit.Spawn(t, ActorFactory("plain", func() ActorBehavior {
+		p = &plainActor{BaseActor: NewBaseActor()}
 		return p
 	}), gen.ProcessOptions{})
 	if err != nil {
@@ -49,16 +50,16 @@ func TestPlainActorReceivesMessage(t *testing.T) {
 
 // returnActor 只实现同步请求入口。
 type returnActor struct {
-	*Actor
+	*BaseActor
 }
 
-func (a *returnActor) HandleCall(_ any) (any, error) { return "called", nil }
+func (a *returnActor) HandleCall(_ context.Context, _ any) (any, error) { return "called", nil }
 
 // 未实现 HandleMessage 的 actor 不处理异步消息,门面静默跳过而非报错。
 func TestActorWithoutEntryIgnoresMessage(t *testing.T) {
 	var a *returnActor
-	subj, err := unit.Spawn(t, ActorFactory("return_only", func() Business {
-		a = &returnActor{Actor: NewActor()}
+	subj, err := unit.Spawn(t, ActorFactory("return_only", func() ActorBehavior {
+		a = &returnActor{BaseActor: NewBaseActor()}
 		return a
 	}), gen.ProcessOptions{})
 	if err != nil {

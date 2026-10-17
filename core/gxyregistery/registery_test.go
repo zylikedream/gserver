@@ -2,9 +2,10 @@ package gxyregistery
 
 import (
 	"context"
-	"gserver/core/gxyutil"
 	"os"
 	"testing"
+
+	"gserver/core/gxyutil"
 
 	"github.com/gogf/gf/v2/encoding/gjson"
 )

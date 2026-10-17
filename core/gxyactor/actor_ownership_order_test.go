@@ -28,7 +28,7 @@ func newOrderingActor(ownerKey string, client redis.UniversalClient) *orderingAc
 
 // Terminate 代表"最终落盘"的位置:此处所有权必须仍然由本实例持有。
 // 释放由门面在本方法返回后执行,业务不介入。
-func (a *orderingActor) Terminate(reason error) {
+func (a *orderingActor) Terminate(_ context.Context, reason error) {
 	a.terminateCalled = true
 	n, err := a.client.Exists(context.Background(), a.ownerKey).Result()
 	a.ownerStillPresentAtTerminate = err == nil && n > 0
@@ -60,7 +60,7 @@ func TestOwnershipReleasedAfterTerminate(t *testing.T) {
 
 	// 经运行时适配对象走终止路径:业务的最终落盘先于门面释放归属,
 	// 两者都在这一条路径上(见 ADR 0017)。
-	newRuntimeActor(biz.Actor, biz).Terminate(nil)
+	newRuntimeActor(biz.BaseActor, biz).Terminate(nil)
 
 	if !biz.terminateCalled {
 		t.Fatal("business Terminate must run")

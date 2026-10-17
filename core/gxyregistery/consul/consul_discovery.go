@@ -10,7 +10,6 @@ import (
 	"context"
 	"net"
 	"strconv"
-	"time"
 
 	"github.com/hashicorp/consul/api"
 
@@ -20,10 +19,10 @@ import (
 )
 
 // Search searches and returns services with specified condition.
+// 单次点查:不设 WaitIndex,故 WaitTime 无效(consul 只在带 index 时才阻塞),
+// 这里要的就是"当前状态"而非长轮询。
 func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Service, error) {
-	services, _, err := r.client.Health().Service(in.Name, "", true, &api.QueryOptions{
-		WaitTime: time.Second * 3,
-	})
+	services, _, err := r.client.Health().Service(in.Name, "", true, &api.QueryOptions{})
 	if err != nil {
 		return nil, gerror.Wrap(err, "failed to get services from consul")
 	}
@@ -35,7 +34,10 @@ func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Serv
 		}
 		metadata, err := parseServiceMeta(service)
 		if err != nil {
-			return nil, err
+			// 单个条目负载损坏只跳过并记日志:整体失败会让一个坏成员
+			// 令本节点看不到所有健康对端
+			r.logger.Warningf(ctx, "skip service %s: %v", service.Service.Service, err)
+			continue
 		}
 		if !matchesSearch(in, service, metadata) {
 			continue

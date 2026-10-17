@@ -3,29 +3,36 @@ package redis
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxyredis"
+	"gserver/core/gxyregistery/types"
 
-	"github.com/gogf/gf/v2/encoding/gjson"
 	"github.com/gogf/gf/v2/errors/gerror"
 	"github.com/gogf/gf/v2/net/gsvc"
 )
 
 const (
 	redisServiceKeyPrefix = "gserver:svc"
-	defaultPollInterval   = 10 * time.Second
-	defaultFieldTTL       = 30 * time.Second
-	heartbeatInterval     = 20 * time.Second
+	// defaultPollInterval 是 watcher 轮询间隔,同时决定发现侧最长延迟。
+	defaultPollInterval = 10 * time.Second
+	// defaultFieldTTL 是字段过期时间。HEXPIRE 是重置而非累加,且对已不存在的
+	// 字段返回 0、不会复活 —— 字段一旦过期就是永久消失(要重新 Register 才回来),
+	// 所以必须给足漏拍余量:TTL/heartbeat = 3,连续漏 2 拍(40s 持续失败)才过期。
+	// 反向代价是崩溃节点最长 60s 才从发现中消失,由调用方请求超时兜底,量级与
+	// consul 后端的 DeregisterCriticalServiceAfter=1m 一致。
+	defaultFieldTTL   = 60 * time.Second
+	heartbeatInterval = 20 * time.Second
 )
 
-// Registry implements gsvc.Registry using Redis + DNS.
-// Service data is stored in Redis Hash with field-level TTL,
-// NodeHost already contains the correct pod IP set via POD_IP at registration time.
+// Registry 用 Redis Hash 实现 gsvc.Registry:
+// 每个服务名一个 hash key,每个实例一个 field,过期靠字段级 TTL 自然淘汰。
+// NodeHost 在注册时已通过 POD_IP 写成真实地址,无需 DNS 解析。
 type Registry struct {
 	interval time.Duration
 	// client 惰性取用缓存客户端:进程内单例可能晚于本对象初始化。
@@ -38,7 +45,7 @@ type Registry struct {
 	started    bool
 }
 
-// New returns a new DNS registry.
+// New 返回一个轮询式的服务注册表。
 func New(interval time.Duration) *Registry {
 	if interval <= 0 {
 		interval = defaultPollInterval
@@ -62,8 +69,7 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 	if err := r.client().HSet(ctx, key, field, service.GetValue()).Err(); err != nil {
 		return nil, err
 	}
-	r.setFieldTTL(ctx, key, field)
-	r.trackHeartbeat(key, field)
+	r.startHeartbeat(ctx, key, field)
 	return service, nil
 }
 
@@ -71,7 +77,7 @@ func (r *Registry) Register(ctx context.Context, service gsvc.Service) (gsvc.Ser
 func (r *Registry) Deregister(ctx context.Context, service gsvc.Service) error {
 	key := hashKey(service.GetName())
 	field := service.GetKey()
-	r.untrackHeartbeat(key, field)
+	r.stopHeartbeat(key, field)
 	return r.client().HDel(ctx, key, field).Err()
 }
 
@@ -106,31 +112,22 @@ func (r *Registry) Search(ctx context.Context, in gsvc.SearchInput) ([]gsvc.Serv
 
 // Watch watches for service changes via polling.
 func (r *Registry) Watch(ctx context.Context, key string) (gsvc.Watcher, error) {
-	w := &watcher{
-		registry: r,
-		name:     key,
-		stopCh:   make(chan struct{}),
-	}
-	return w, nil
+	return &watcher{registry: r, name: key}, nil
 }
 
-// Type returns the registry type name.
-func (r *Registry) Type() string {
-	return "redis"
-}
-
-// ---- heartbeat ----
-
-// setFieldTTL sets field-level TTL on the hash field (Redis 7.4+ HEXPIRE).
-func (r *Registry) setFieldTTL(ctx context.Context, key, field string) {
-	ttl := int(defaultFieldTTL.Seconds())
-	if err := r.client().Do(ctx, "HEXPIRE", key, ttl, "FIELDS", 1, field).Err(); err != nil {
-		gxylog.Warn(context.Background(), "redis set field ttl failed",
-			gxylog.Str("key", key), gxylog.Str("field", field), gxylog.Err(err))
+// setFieldsTTL 给给定字段设置字段级 TTL(Redis 7.4+ HEXPIRE)。
+func (r *Registry) setFieldsTTL(ctx context.Context, key string, fields ...string) {
+	if err := r.client().HExpire(ctx, key, defaultFieldTTL, fields...).Err(); err != nil {
+		gxylog.Warn(ctx, "redis set field ttl failed",
+			gxylog.Str("key", key), gxylog.Err(err))
 	}
 }
 
-func (r *Registry) trackHeartbeat(key, field string) {
+// startHeartbeat 开始为字段续期:设置初始 TTL,并纳入周期续期列表。
+// 首次调用会启动续期协程。
+func (r *Registry) startHeartbeat(ctx context.Context, key, field string) {
+	r.setFieldsTTL(ctx, key, field)
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -145,7 +142,8 @@ func (r *Registry) trackHeartbeat(key, field string) {
 	}
 }
 
-func (r *Registry) untrackHeartbeat(key, field string) {
+// stopHeartbeat 把字段移出续期列表。
+func (r *Registry) stopHeartbeat(key, field string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -160,97 +158,53 @@ func (r *Registry) untrackHeartbeat(key, field string) {
 func (r *Registry) heartbeatLoop() {
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
+	ctx := context.Background()
 
 	for {
 		select {
 		case <-ticker.C:
-			r.renewHeartbeats()
+			r.renewHeartbeats(ctx)
 		case <-r.stopCh:
 			return
 		}
 	}
 }
 
-func (r *Registry) renewHeartbeats() {
+// renewHeartbeats 批量续期。先在锁内快照键与字段,再在锁外发 HEXPIRE,
+// 避免 redis 慢查询阻塞 Register/Deregister 路径。
+func (r *Registry) renewHeartbeats(ctx context.Context) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	ttl := int(defaultFieldTTL.Seconds())
+	type target struct {
+		key    string
+		fields []string
+	}
+	targets := make([]target, 0, len(r.heartbeats))
 	for key, fields := range r.heartbeats {
 		if len(fields) == 0 {
 			continue
 		}
-		fieldSlice := make([]string, 0, len(fields))
-		for f := range fields {
-			fieldSlice = append(fieldSlice, f)
-		}
-		args := make([]any, 5+len(fieldSlice))
-		args[0] = "HEXPIRE"
-		args[1] = key
-		args[2] = ttl
-		args[3] = "FIELDS"
-		args[4] = len(fieldSlice)
-		for i, f := range fieldSlice {
-			args[5+i] = f
-		}
-		if err := r.client().Do(context.Background(), args...).Err(); err != nil {
-			gxylog.Warn(context.Background(), "redis heartbeat renew failed",
-				gxylog.Str("key", key), gxylog.Err(err))
-		}
+		targets = append(targets, target{key: key, fields: slices.Collect(maps.Keys(fields))})
+	}
+	r.mu.Unlock()
+
+	for _, t := range targets {
+		r.setFieldsTTL(ctx, t.key, t.fields...)
 	}
 }
 
 // ---- service adapter ----
 
-// serviceData is the JSON structure stored in Redis (matching gxyregistery.ServiceData).
-type serviceData struct {
-	Name     string `json:"Name"`
-	NodeName string `json:"NodeName"`
-	Version  string `json:"Version"`
-	Weight   int    `json:"Weight"`
-	NodeHost string `json:"NodeHost"`
-}
-
-// redisService adapts serviceData to the gsvc.Service interface.
-type redisService struct {
-	serviceData
-	jsonStr string
-	key     string
-}
-
-func (s *redisService) GetName() string            { return s.Name }
-func (s *redisService) GetVersion() string         { return s.Version }
-func (s *redisService) GetKey() string             { return s.key }
-func (s *redisService) GetValue() string           { return s.jsonStr }
-func (s *redisService) GetPrefix() string          { return gsvc.DefaultSeparator + s.Name }
-func (s *redisService) GetMetadata() gsvc.Metadata { return nil }
-func (s *redisService) GetEndpoints() gsvc.Endpoints {
-	return gsvc.NewEndpoints(s.NodeHost)
-}
-
-// ---- helper ----
-
+// serviceFromJSON 从存储值还原服务描述符。
+// NodeHost 在注册时已通过 POD_IP 写成真实地址,无需额外 DNS 解析。
 func serviceFromJSON(jsonStr string) (gsvc.Service, error) {
-	var data serviceData
-	if err := gjson.Unmarshal([]byte(jsonStr), &data); err != nil {
+	svc, err := types.NewServiceFromBytes([]byte(jsonStr))
+	if err != nil {
 		return nil, err
 	}
-
-	if data.NodeName == "" {
+	if svc.NodeName == "" {
 		return nil, gerror.New("empty node name in service data")
 	}
-
-	// data.NodeHost already contains the correct pod IP (set during registration via POD_IP),
-	// no need for extra DNS resolution.
-	return &redisService{
-		serviceData: data,
-		jsonStr:     jsonStr,
-		key:         buildServiceKey(data.Name, data.NodeName, data.NodeHost),
-	}, nil
-}
-
-func buildServiceKey(name, nodeName, nodeHost string) string {
-	return fmt.Sprintf("gserver-%s-%s:%s", nodeName, name, nodeHost)
+	return svc, nil
 }
 
 // ---- watcher ----
@@ -258,53 +212,19 @@ func buildServiceKey(name, nodeName, nodeHost string) string {
 type watcher struct {
 	registry *Registry
 	name     string
-	stopCh   chan struct{}
-	mu       sync.Mutex
-	lastHash string
 }
 
+// Proceed 轮询一次并返回当前成员。
+// 变化判定由调用方 registery.StartWatch 的 compareServiceInfos 负责,这里不重复实现。
 func (w *watcher) Proceed() ([]gsvc.Service, error) {
 	ticker := time.NewTicker(w.registry.interval)
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			services, hash, err := w.fetchWithHash()
-			if err != nil {
-				gxylog.Warn(context.Background(), "redis watcher fetch error", gxylog.Err(err))
-				continue
-			}
-			w.mu.Lock()
-			changed := hash != w.lastHash
-			if changed {
-				w.lastHash = hash
-			}
-			w.mu.Unlock()
-			if changed {
-				return services, nil
-			}
-		case <-w.stopCh:
-			return nil, gerror.New("watcher stopped")
-		}
-	}
+	// 等一拍再查:先等 ticker 保证两次查询之间有间隔
+	<-ticker.C
+	return w.registry.Search(context.Background(), gsvc.SearchInput{Name: w.name})
 }
 
-func (w *watcher) Close() error {
-	close(w.stopCh)
-	return nil
-}
-
-func (w *watcher) fetchWithHash() ([]gsvc.Service, string, error) {
-	services, err := w.registry.Search(context.Background(), gsvc.SearchInput{Name: w.name})
-	if err != nil {
-		return nil, "", err
-	}
-	var hash strings.Builder
-	fmt.Fprintf(&hash, "%d", len(services))
-	for _, s := range services {
-		hash.WriteString(s.GetKey())
-		hash.WriteString(s.GetValue())
-	}
-	return services, hash.String(), nil
-}
+// Close 由 gsvc.Watcher 接口要求。轮询由 Proceed 的调用方驱动,
+// 本类型没有独立后台资源,故为空实现。
+func (w *watcher) Close() error { return nil }

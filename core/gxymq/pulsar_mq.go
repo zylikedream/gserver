@@ -2,6 +2,8 @@ package gxymq
 
 import (
 	"context"
+	"sync"
+
 	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
 
@@ -10,8 +12,6 @@ import (
 	"github.com/gogf/gf/v2/os/gcfg"
 )
 
-var client pulsar.Client
-
 // PulsarMQ pulsar消息队列实现
 type PulsarMQ struct {
 	// Pulsar客户端
@@ -19,6 +19,10 @@ type PulsarMQ struct {
 	client pulsar.Client
 	// 停止通道
 	stopCh chan struct{}
+
+	// producers 按 topic 缓存生产者,避免每条消息创建/关闭长连接
+	mu        sync.Mutex
+	producers map[string]pulsar.Producer
 }
 
 type pulsarMQConfig struct {
@@ -33,22 +37,18 @@ func NewPulsarMQ(cfg *gcfg.Config) (*PulsarMQ, error) {
 		return nil, err
 	}
 	return &PulsarMQ{
-		config: conf,
-		stopCh: make(chan struct{}),
+		config:    conf,
+		stopCh:    make(chan struct{}),
+		producers: make(map[string]pulsar.Producer),
 	}, nil
 }
 
 func (p *PulsarMQ) Start(ctx context.Context) error {
-	clientOptions := pulsar.ClientOptions{
+	client, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: p.config.URL,
-	}
-
-	var err error
-	if client != nil {
-		client, err = pulsar.NewClient(clientOptions)
-		if err != nil {
-			return gerror.Wrap(err, "Pulsar client Start failed")
-		}
+	})
+	if err != nil {
+		return gerror.Wrap(err, "Pulsar client Start failed")
 	}
 	p.client = client
 	return nil
@@ -56,26 +56,38 @@ func (p *PulsarMQ) Start(ctx context.Context) error {
 
 // Publish 发布消息到指定主题
 func (p *PulsarMQ) Publish(ctx context.Context, topic string, msg string) error {
-	// 创建生产者
-	producer, err := p.client.CreateProducer(pulsar.ProducerOptions{
-		Topic: topic,
-	})
+	producer, err := p.producerOf(topic)
 	if err != nil {
 		gxylog.Error(ctx, "Create pulsar producer failed", gxylog.Str("topic", topic), gxylog.Err(err))
 		return err
 	}
-	defer producer.Close()
 
-	// 发送消息
-	_, err = producer.Send(ctx, &pulsar.ProducerMessage{
+	if _, err = producer.Send(ctx, &pulsar.ProducerMessage{
 		Payload: []byte(msg),
-	})
-	if err != nil {
+	}); err != nil {
 		gxylog.Error(ctx, "Pulsar publish message failed", gxylog.Str("topic", topic), gxylog.Err(err))
 		return err
 	}
 
 	return nil
+}
+
+// producerOf 取该 topic 的 producer,首次使用时创建并缓存。
+// producer 是有状态的长连接(建分区队列、与 broker 握手),每条消息创建再关闭
+// 开销远大于发送本身;复用后由 Close 统一释放。
+func (p *PulsarMQ) producerOf(topic string) (pulsar.Producer, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if producer, ok := p.producers[topic]; ok {
+		return producer, nil
+	}
+	producer, err := p.client.CreateProducer(pulsar.ProducerOptions{Topic: topic})
+	if err != nil {
+		return nil, err
+	}
+	p.producers[topic] = producer
+	return producer, nil
 }
 
 // Subscribe 订阅指定主题
@@ -130,9 +142,15 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 
 // Close 关闭消息队列，释放所有资源
 func (p *PulsarMQ) Close(ctx context.Context) error {
-	// 关闭Pulsar客户端
+	// 先释放缓存的生产者,再关客户端:顺序反了会在已关闭的客户端上关 producer
+	p.mu.Lock()
+	for topic, producer := range p.producers {
+		producer.Close()
+		delete(p.producers, topic)
+	}
+	p.mu.Unlock()
+
 	p.client.Close()
-	// 关闭停止通道
 	close(p.stopCh)
 	gxylog.Info(ctx, "Pulsar message queue closed")
 	return nil

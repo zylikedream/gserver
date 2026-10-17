@@ -25,7 +25,7 @@ func main() {
 
 func run() {
 	ctx := context.Background()
-	gate := gcmd.Command{
+	cmd := gcmd.Command{
 		Name:  "main",
 		Usage: "main",
 		Brief: "game server",
@@ -47,7 +47,7 @@ func run() {
 			return nil
 		},
 	}
-	gate.Run(ctx)
+	cmd.Run(ctx)
 	gproc.AddSigHandlerShutdown(OnMainClose)
 	gproc.Listen()
 }

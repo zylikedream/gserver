@@ -7,6 +7,7 @@ import (
 
 	"gserver/core/gxylog"
 	"gserver/core/gxymetrics"
+	"gserver/core/gxytrace"
 	"gserver/protocol/pb"
 
 	"ergo.services/ergo/act"
@@ -25,10 +26,10 @@ import (
 // 编排也归这里:同步段与异步段的衔接、分派目标的注册时机、监视通知的翻译。
 // 业务只声明"异步段做什么",不负责"什么时候做"。
 type runtimeActor struct {
-	act.Actor
+	act.Actor // ergoactor
 
-	base *Actor
-	biz  Business
+	base     *BaseActor
+	behavior ActorBehavior
 }
 
 // ActorFactory 把业务构造器适配成运行时的进程工厂。
@@ -42,18 +43,27 @@ type runtimeActor struct {
 //
 // 同时按 kind 建立日志上下文:此后本 actor 的每条日志都带该字段。
 // 无条件重建是刻意的——构造器给的空标签没有信息,不该留着。
-func ActorFactory(kind string, ctor func() Business) gen.ProcessFactory {
+func ActorFactory(kind string, ctor ActorConstructor) gen.ProcessFactory {
 	return func() gen.ProcessBehavior {
-		biz := ctor()
-		base := biz.actorBase()
+		behavior := ctor()
+		base := behavior.base()
 		base.kind = kind
 		base.Ctx = gxylog.NewContext(context.Background(), kind)
-		return newRuntimeActor(base, biz)
+		return newRuntimeActor(base, behavior)
 	}
 }
 
-func newRuntimeActor(base *Actor, biz Business) *runtimeActor {
-	return &runtimeActor{base: base, biz: biz}
+func newRuntimeActor(base *BaseActor, behavior ActorBehavior) *runtimeActor {
+	return &runtimeActor{base: base, behavior: behavior}
+}
+
+// messageCtx 派生**本条消息**的 ctx:父是本 actor 的 ctx(带 kind 等常量字段),
+// 再挂上运行时刚为这条消息激活的链路标识(见 gxytrace.ContextWithErgoTrace)。
+//
+// 于是业务入口拿到的是消息级 ctx:日志自动带该链路的 trace_id,而 actor 级字段
+// 仍留在 base.Ctx 里;没有入站消息的入口(Init/Terminate)用 base.Ctx。
+func (r *runtimeActor) messageCtx() context.Context {
+	return gxytrace.ContextWithErgoTrace(r.base.Ctx, r.PropagatingTrace())
 }
 
 // ===== 运行时回调:只出现在本类型上 =====
@@ -64,22 +74,21 @@ func newRuntimeActor(base *Actor, biz Business) *runtimeActor {
 // 同步段必须够快且不碰数据库——耗时加载属于异步段。
 func (r *runtimeActor) Init(args ...any) error {
 	r.base.rt = r
-	r.base.self = pidFromLocal(r.PID())
+	r.base.pid = pidFromLocal(r.PID())
 	r.base.initArgs = args
 	r.base.startup()
 
-	if s, ok := r.biz.(initializer); ok {
-		if err := s.Init(args...); err != nil {
-			return err
-		}
+	// 同步段没有入站消息,用 actor 级 ctx(运行时不在此阶段开链路)。
+	if err := r.behavior.Init(r.base.Ctx, args...); err != nil {
+		return err
 	}
 
 	// 分派目标是业务对象自身,必须在处理任何消息之前注册。
 	// 任何 actor 都可按消息类型分派,与是否承载实体无关。
-	r.base.msgHandler.AddHandler(r.biz)
+	r.base.msgHandler.AddHandler(r.behavior)
 
 	// 实体层在同步段取归属:此时尚未处理任何业务消息(不变量 #3)。
-	if e := entityOf(r.biz); e != nil {
+	if e := entityOf(r.behavior); e != nil {
 		if _, err := e.acquireOwnership(); err != nil {
 			return err
 		}
@@ -87,10 +96,7 @@ func (r *runtimeActor) Init(args ...any) error {
 
 	// 编排归门面:业务只声明异步段做什么,不必自己发消息。
 	// 在此投递,邮箱为空,因此它必然先于任何外部业务消息被处理。
-	if _, ok := r.biz.(asyncInitializer); ok {
-		return r.SendPID(r.PID(), actorInitMsg{})
-	}
-	return nil
+	return r.SendPID(r.PID(), actorInitMsg{})
 }
 
 // HandleMessage 是运行时回调(异步)。**业务不覆写本方法**——它看不到本类型。
@@ -102,11 +108,10 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 	// 机制分流:这些消息业务看不到,也不该看到。
 	switch msg := message.(type) {
 	case actorInitMsg:
-		if s, ok := r.biz.(asyncInitializer); ok {
-			if err := s.AsyncInit(); err != nil {
-				gxylog.Error(r.base.Ctx, "async init failed", gxylog.Err(err))
-				return err
-			}
+		ctx := r.messageCtx()
+		if err := r.behavior.AsyncInit(ctx); err != nil {
+			gxylog.Error(ctx, "async init failed", gxylog.Err(err))
+			return err
 		}
 		return nil
 	case ActorTimerMsg:
@@ -131,25 +136,26 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 		return r.base.stopReason()
 	case gen.MessageDownPID:
 		// 监视通知翻译成门面身份后交给业务:业务侧不出现运行时消息类型。
-		if h, ok := r.biz.(downHandler); ok {
-			h.HandleDown(PidFromRuntime(msg.PID))
-		}
+		r.behavior.HandleDown(r.messageCtx(), PidFromRuntime(msg.PID))
 		return r.base.stopReason()
 	}
+
+	// 本条消息的 ctx:业务入口与门面日志共用它,日志因此带上当前链路的 trace_id。
+	ctx := r.messageCtx()
 
 	r.base.sender = pidFromLocal(from)
 	decoded, err := UnwrapWire(message)
 	if err != nil {
 		// 报文不合法不足以让 actor 死掉:丢掉这一条,继续服务。
-		gxylog.Error(r.base.Ctx, "decode wire message failed", gxylog.Err(err))
+		gxylog.Error(ctx, "decode wire message failed", gxylog.Err(err))
 		return nil
 	}
 
 	// 断言必然成立:业务对象经内嵌基类获得默认入口(见 Actor.HandleMessage)。
-	rsp, err := r.biz.(messageHandler).HandleMessage(decoded)
+	rsp, err := r.behavior.HandleMessage(ctx, decoded)
 	gxymetrics.ActorMessages.WithLabelValues(r.base.kind).Inc()
 	if err != nil {
-		gxylog.Error(r.base.Ctx, "handle msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
+		gxylog.Error(ctx, "handle msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
 		return err
 	}
 	// 异步消息的应答是处理函数的返回值;没有返回值表示不需要应答。
@@ -164,22 +170,31 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 // 业务错误走响应通道而不作终止原因:运行时的契约是"回调返回非 nil error 即终止
 // 本进程",而业务失败不应终止进程(见 invariants #9)。
 func (r *runtimeActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, error) {
+	// 本条消息的 ctx:业务入口与门面日志共用它。
+	ctx := r.messageCtx()
+
 	r.base.sender = pidFromLocal(from)
 	decoded, err := UnwrapWire(request)
 	if err != nil {
 		return nil, err
 	}
 
-	// 断言必然成立:业务对象经内嵌基类获得默认入口(见 Actor.HandleCall)。
-	rsp, err := r.biz.(callHandler).HandleCall(decoded)
+	// 业务入口经内嵌基类获得默认实现(见 Actor.HandleCall),此处直接调用。
+	rsp, err := r.behavior.HandleCall(ctx, decoded)
 	gxymetrics.ActorMessages.WithLabelValues(r.base.kind).Inc()
-	if err != nil {
-		gxylog.Error(r.base.Ctx, "handle rpc msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
+	switch {
+	case err != nil:
+		gxylog.Error(ctx, "handle rpc msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
 		r.base.sendResponse(from, ref, &pb.ActorError{Reason: err.Error()})
-	} else if rsp != nil {
+	case rsp == nil:
+		// 同步请求必须给出应答:业务既没有返回结果,也没有导出的能力自行回复
+		// (sendResponse/sendReply 都是包内方法)。走到这里说明某个 handler 漏写了
+		// 应答——静默不发会让调用方一直等到超时,把这个 bug 藏起来。
+		gxylog.Error(ctx, "handle rpc msg returned no response", gxylog.Any("payload", decoded))
+		r.base.sendResponse(from, ref, &pb.ActorError{Reason: "no response for sync request"})
+	default:
 		r.base.sendResponse(from, ref, rsp)
 	}
-	// (nil, nil) 表示已自行回复。
 	return nil, r.base.stopReason()
 }
 
@@ -188,10 +203,9 @@ func (r *runtimeActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, 
 // 顺序即语义:先让业务完成最终落盘,再由实体层释放归属(不变量 #4),最后收拾
 // 运行环境。颠倒会让新持有者推进世代,使本次落盘被拒。
 func (r *runtimeActor) Terminate(reason error) {
-	if t, ok := r.biz.(terminator); ok {
-		t.Terminate(reason)
-	}
-	if e := entityOf(r.biz); e != nil {
+	// 终止路径没有入站消息:业务终止与归属释放共用 actor 级 ctx。
+	r.behavior.Terminate(r.base.Ctx, reason)
+	if e := entityOf(r.behavior); e != nil {
 		e.dropOwnership(r.base.Ctx)
 	}
 	r.base.shutdown()

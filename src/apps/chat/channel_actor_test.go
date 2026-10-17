@@ -86,7 +86,7 @@ func TestChannelActor_Init_Valid(t *testing.T) {
 // 为什么需要:见 Init 首段注释——先占一份归属再回滚,会让一次注定失败的创建把所有权协调层搅进去。
 func TestChannelActor_Init_NoArgs(t *testing.T) {
 	a := NewChannelActor()
-	if err := a.Init(); err == nil {
+	if err := a.Init(t.Context()); err == nil {
 		t.Fatal("expected error for missing args")
 	}
 }
@@ -95,7 +95,7 @@ func TestChannelActor_Init_NoArgs(t *testing.T) {
 // 为什么需要:放过它就会把一个 kind/id 全零的坏 actor 注册进集群,此后消息静默投递到"频道 0_0"。
 func TestChannelActor_Init_InvalidFormat(t *testing.T) {
 	a := NewChannelActor()
-	if err := a.Init("abc"); err == nil {
+	if err := a.Init(t.Context(), "abc"); err == nil {
 		t.Fatal("expected error for invalid id format")
 	}
 }
@@ -104,7 +104,7 @@ func TestChannelActor_Init_InvalidFormat(t *testing.T) {
 // 为什么需要:GetChannel 返回 !ok 时若继续执行,buffer 会挂在一个不存在的频道上,首次发消息就在 CanWrite 上空指针。
 func TestChannelActor_Init_UnknownChannelType(t *testing.T) {
 	a := NewChannelActor()
-	if err := a.Init("99_1"); err == nil {
+	if err := a.Init(t.Context(), "99_1"); err == nil {
 		t.Fatal("expected error for unknown channel type")
 	}
 }
@@ -115,7 +115,7 @@ func TestChannelActor_Init_UnknownChannelType(t *testing.T) {
 // 为什么需要:members 就是 handleChannelSend 的广播名单,漏记则该玩家永远收不到频道推送,且没有任何报错。
 func TestChannelActor_Register_AddsMember(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	_, err := a.HandleMessage(&pb.ChannelRegisterMsg{
+	_, err := a.HandleMessage(t.Context(), &pb.ChannelRegisterMsg{
 		RoleId: 5,
 		Pid:    &pb.ActorPid{Address: "addr1", Name: "pid5"},
 	})
@@ -139,10 +139,10 @@ func TestChannelActor_Register_AddsMember(t *testing.T) {
 func TestChannelActor_Register_OverwriteExisting(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	msg := &pb.ChannelRegisterMsg{RoleId: 5, Pid: &pb.ActorPid{Name: "pid_old"}}
-	if _, err := a.HandleMessage(msg); err != nil {
+	if _, err := a.HandleMessage(t.Context(), msg); err != nil {
 		t.Fatalf("first register: %v", err)
 	}
-	if _, err := a.HandleMessage(msg); err != nil {
+	if _, err := a.HandleMessage(t.Context(), msg); err != nil {
 		t.Fatalf("second register: %v", err)
 	}
 	if len(a.members) != 1 {
@@ -159,7 +159,7 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	reg := func(id int64) {
 		t.Helper()
-		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
+		if _, err := a.HandleMessage(t.Context(), &pb.ChannelRegisterMsg{
 			RoleId: id, Pid: &pb.ActorPid{Name: "p" + string(rune(id))},
 		}); err != nil {
 			t.Fatalf("register %d: %v", id, err)
@@ -167,7 +167,7 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 	}
 	reg(5)
 	reg(6)
-	if _, err := a.HandleMessage(&pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
+	if _, err := a.HandleMessage(t.Context(), &pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
 		t.Fatalf("unregister: %v", err)
 	}
 	if len(a.members) != 1 {
@@ -182,12 +182,12 @@ func TestChannelActor_Unregister_RemovesMember(t *testing.T) {
 // 为什么需要:这段分支跑在注销请求的同步栈上;panic 会带走整个 actor 及其内存 buffer,频道历史永久丢失。
 func TestChannelActor_Unregister_LastMemberNoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{
+	if _, err := a.HandleMessage(t.Context(), &pb.ChannelRegisterMsg{
 		RoleId: 5, Pid: &pb.ActorPid{Name: "pid5"},
 	}); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if _, err := a.HandleMessage(&pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
+	if _, err := a.HandleMessage(t.Context(), &pb.ChannelUnregisterMsg{RoleId: 5}); err != nil {
 		t.Fatalf("unregister: %v", err)
 	}
 	if len(a.members) != 0 {
@@ -201,7 +201,7 @@ func TestChannelActor_Unregister_LastMemberNoPanic(t *testing.T) {
 // 为什么需要:拒绝要按 invariants #9 走错误载荷应答;若漏判,空消息会被存盘并广播给全体成员。
 func TestChannelActor_Send_EmptyContentRejected(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	_, err := a.HandleMessage(&pb.ReqChannelSend{
+	_, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "",
 	})
 	if err != nil {
@@ -216,7 +216,7 @@ func TestChannelActor_Send_EmptyContentRejected(t *testing.T) {
 // 为什么需要:Timestamp 由 actor 现场填充并作为落库排序依据,为 0 会让历史消息乱序。
 func TestChannelActor_Send_AppendsToBuffer(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	_, err := a.HandleMessage(&pb.ReqChannelSend{
+	_, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "hello",
 	})
 	if err != nil {
@@ -239,12 +239,12 @@ func TestChannelActor_Send_WithMembersNoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	const members = 2
 	for _, id := range []int64{11, 22} {
-		if _, err := a.HandleMessage(&pb.ChannelRegisterMsg{RoleId: id}); err != nil {
+		if _, err := a.HandleMessage(t.Context(), &pb.ChannelRegisterMsg{RoleId: id}); err != nil {
 			t.Fatalf("register %d: %v", id, err)
 		}
 	}
 	before := notifyPublishCount("offline")
-	if _, err := a.HandleMessage(&pb.ReqChannelSend{
+	if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "hi",
 	}); err != nil {
 		t.Fatalf("HandleMessage: %v", err)
@@ -275,7 +275,7 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	send := func(content string) {
 		t.Helper()
-		if _, err := a.HandleMessage(&pb.ReqChannelSend{
+		if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 			ChannelType: 1, ChannelId: 100, SenderId: 5, Content: content,
 		}); err != nil {
 			t.Fatalf("send %q: %v", content, err)
@@ -286,7 +286,7 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 	send("m3")
 
 	// HandleCall 才是该请求的入口;返回值即客户端看到的响应载荷。
-	rsp, err := a.HandleCall(&pb.ReqChatChannelHistory{
+	rsp, err := a.HandleCall(t.Context(), &pb.ReqChatChannelHistory{
 		ChannelType: 1, ChannelId: 100, Count: 2,
 	})
 	if err != nil {
@@ -311,13 +311,13 @@ func TestChannelActor_History_ReturnsBuffered(t *testing.T) {
 // 是"把越界 count 挡在进 Recent 之前",当前无可观测差异。
 func TestChannelActor_History_CountClamped(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	if _, err := a.HandleMessage(&pb.ReqChannelSend{
+	if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "x",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	for _, c := range []int32{0, -1, 100000} {
-		rsp, err := a.HandleCall(&pb.ReqChatChannelHistory{
+		rsp, err := a.HandleCall(t.Context(), &pb.ReqChatChannelHistory{
 			ChannelType: 1, ChannelId: 100, Count: c,
 		})
 		if err != nil {
@@ -346,7 +346,7 @@ func TestChannelActor_Save_PersistsNewMessages(t *testing.T) {
 		expectChannelInsert(mock)
 	}
 	for _, c := range []string{"a", "b"} {
-		if _, err := a.HandleMessage(&pb.ReqChannelSend{
+		if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 			ChannelType: 4, ChannelId: 7, SenderId: 5, Content: c,
 		}); err != nil {
 			t.Fatalf("send: %v", err)
@@ -369,7 +369,7 @@ func TestChannelActor_Save_NoNewMessagesSkipsWrite(t *testing.T) {
 	a.db = db
 
 	expectChannelInsert(mock)
-	if _, err := a.HandleMessage(&pb.ReqChannelSend{
+	if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 4, ChannelId: 7, SenderId: 5, Content: "x",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -386,7 +386,7 @@ func TestChannelActor_Save_DisabledChannelSkips(t *testing.T) {
 	db, mock := newGormDB(t)
 	a := newTestChannelActor(t, WorldChannel{})
 	a.db = db
-	if _, err := a.HandleMessage(&pb.ReqChannelSend{
+	if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "x",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -429,7 +429,7 @@ func TestChannelActor_Init_WithoutSaveInterval(t *testing.T) {
 // 一并销毁)也必须安全返回。panic 会让停机变成进程崩溃,而不是干净的模块停机。
 func TestChannelActor_Terminate_NoPanic(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
-	a.Terminate(nil)
+	a.Terminate(t.Context(), nil)
 }
 
 // TestChannelActor_Terminate_PersistsPending SaveInterval>0 时 Terminate 落盘。
@@ -438,12 +438,12 @@ func TestChannelActor_Terminate_PersistsPending(t *testing.T) {
 	a := newTestChannelActor(t, GuildChannel{})
 	a.db = db
 	expectChannelInsert(mock)
-	if _, err := a.HandleMessage(&pb.ReqChannelSend{
+	if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 4, ChannelId: 7, SenderId: 5, Content: "bye",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
-	a.Terminate(nil)
+	a.Terminate(t.Context(), nil)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("terminate save not met: %v", err)
 	}
@@ -453,7 +453,7 @@ func TestChannelActor_Terminate_PersistsPending(t *testing.T) {
 func TestChannelActor_RingBuffer_Eviction(t *testing.T) {
 	a := newTestChannelActor(t, WorldChannel{})
 	for i := range 205 {
-		if _, err := a.HandleMessage(&pb.ReqChannelSend{
+		if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 			ChannelType: 1, ChannelId: 100, SenderId: 5, Content: "m",
 		}); err != nil {
 			t.Fatalf("send %d: %v", i, err)
@@ -569,7 +569,7 @@ func TestChannelActor_Send_PersistsSenderID(t *testing.T) {
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
 
-	if _, err := a.HandleMessage(&pb.ReqChannelSend{
+	if _, err := a.HandleMessage(t.Context(), &pb.ReqChannelSend{
 		ChannelType: 4, ChannelId: 7, SenderId: 5, Content: "hi",
 	}); err != nil {
 		t.Fatalf("send: %v", err)

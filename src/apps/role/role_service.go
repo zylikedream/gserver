@@ -25,7 +25,7 @@ func (r *roleService) Weight() int {
 }
 
 func (r *roleService) OnModStart(ctx context.Context) error {
-	if err := gxyactor.RegisterActorKind(r.ServiceName(), func() gxyactor.Business {
+	if err := gxyactor.RegisterActorKind(r.ServiceName(), func() gxyactor.ActorBehavior {
 		return logic.NewRoleMain()
 	}); err != nil {
 		return err

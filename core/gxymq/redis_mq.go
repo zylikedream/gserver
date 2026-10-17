@@ -7,6 +7,7 @@ import (
 	"gserver/core/gxyredis"
 
 	"github.com/gogf/gf/v2/os/gcfg"
+	"github.com/redis/go-redis/v9"
 )
 
 // 移除了消息级优先级相关结构体
@@ -52,23 +53,29 @@ func (mq *RedisMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 			}
 			gxylog.Info(ctx, "Redis subscriber closed", gxylog.Str("topic", topic))
 		}()
-
-		for {
-			select {
-			case <-mq.stopCh:
-				return
-			case msg := <-subscriber.Channel():
-				if msg == nil {
-					continue
-				}
-				// 发送消息到通道
-				if err := handler(ctx, msg.Payload); err != nil {
-					gxylog.Error(ctx, "Failed to handle message", gxylog.Str("topic", topic), gxylog.Err(err))
-				}
-			}
-		}
+		mq.consume(ctx, topic, subscriber.Channel(), handler)
 	}()
 	return nil
+}
+
+// consume 把收到的消息交给 handler,在停机或消息通道关闭时返回。
+// 通道关闭必须当成终止条件:go-redis 在连接池关闭时会 close 通道,继续 receive
+// 只会立刻拿到零值 —— 若按"空消息"跳过就是 100% CPU 忙等。
+func (mq *RedisMQ) consume(ctx context.Context, topic string, ch <-chan *redis.Message, handler TopicHandler) {
+	for {
+		select {
+		case <-mq.stopCh:
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				gxylog.Info(ctx, "Redis subscriber channel closed", gxylog.Str("topic", topic))
+				return
+			}
+			if err := handler(ctx, msg.Payload); err != nil {
+				gxylog.Error(ctx, "Failed to handle message", gxylog.Str("topic", topic), gxylog.Err(err))
+			}
+		}
+	}
 }
 
 func (mq *RedisMQ) Close(ctx context.Context) error {
