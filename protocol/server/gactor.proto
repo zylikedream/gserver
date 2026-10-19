@@ -28,7 +28,11 @@ message ActorActive {
     bool allow_spawn = 3;
 }
 
+// ActorLocateRetry 是激活协调层"让调用方重新定位"的应答。
+// reason 说明为什么(记录移到了别的节点、刚被释放、创建竞争等):
+// 不带原因会让跨节点这一段的重试变成不可诊断,调用方只能看到"重来"。
 message ActorLocateRetry {
+    string reason = 1;
 }
 
 message ActorStop {

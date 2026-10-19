@@ -33,6 +33,30 @@ var (
 	ErrNotOwner = errors.New("actor ownership not acquired")
 )
 
+// errLocateRetry 是"这一轮没有形成结论,重读记录再来"的唯一标记。
+//
+// 只有三类错误会被包成它 —— 全部是"记录/实例的状态刚变过",不是失败:
+//  1. 陈旧记录刚被本节点条件释放      (resolveLocal)
+//  2. 同名实例正在创建(ErrTaken)      (spawnLocal)
+//  3. 归属被别的节点抢走(ErrNotOwner)  (actor 的同步初始化段)
+//
+// 其余错误一律不重试:未登记的 kind、Init 的确定性失败、目录/Redis 不可用——
+// 重试只会把它们磨成"重试耗尽",盖掉真正的原因。
+//
+// 新增重试来源时只改这里:grep locateRetry( 就是全部需要重试的地方
+// (本构造器 + 三个包装点 + 一个判断),不存在第四处。
+//
+// 原因必须随信号一起走,而不是靠"返回前记得打日志"的约定:
+//   - 本进程内:原因就是错误消息本身(errors.Mark 只附加标记,不改文本);
+//   - 跨节点:原因经 pb.ActorLocateRetry.Reason 带回,调用方原样记录。
+var errLocateRetry = errors.New("actor locate retry")
+
+// locateRetry 构造"这一轮没有形成结论"的错误。reason 是给人与日志看的原因,
+// 它会作为错误文本一路带到重试日志与"重试耗尽"的错误消息里。
+func locateRetry(reason string) error {
+	return errors.Mark(errors.New(reason), errLocateRetry)
+}
+
 // actorKey 是一个 actor 实例的逻辑身份:能力名 + 实例标识。
 //
 // 这两者的全部用途就是派生出该身份的各种表示——注册名、所有权记录的键、
@@ -278,8 +302,8 @@ func (g *activatorManager) GetLocalActorAll(kind string) []PID {
 // requestActor 向目标节点发起激活请求。
 // node 是运行时节点名(不是主机地址):跨节点寻址必须先由注册信息把节点名
 // 解析为可达地址(ADR 0011)。
-// 返回 retry=true 表示需要换节点重新定位。
-func (g *activatorManager) requestActor(ctx context.Context, node string, k actorKey, allowSpawn bool) (PID, bool, error) {
+// 返回 errLocateRetry 表示对端要求重新定位(记录指向别处,或刚被释放)。
+func (g *activatorManager) requestActor(ctx context.Context, node string, k actorKey, allowSpawn bool) (PID, error) {
 	gxylog.Debug(ctx, "request actor",
 		gxylog.Str("actor", k.String()),
 		gxylog.Str("node", node), gxylog.Bool("allow_spawn", allowSpawn))
@@ -291,78 +315,77 @@ func (g *activatorManager) requestActor(ctx context.Context, node string, k acto
 		AllowSpawn: allowSpawn,
 	})
 	if err != nil {
-		return PID{}, false, err
+		return PID{}, err
 	}
 	switch rsp := rsp.(type) {
 	case *pb.ActorLocateRetry:
-		return PID{}, true, nil
+		reason := rsp.GetReason()
+		if reason == "" {
+			reason = "no reason given"
+		}
+		return PID{}, locateRetry(fmt.Sprintf("node %s: %s", node, reason))
 	case *pb.ActorError:
-		return PID{}, false, gerror.New(rsp.Reason)
+		return PID{}, gerror.New(rsp.Reason)
 	case *pb.ActorPid:
 		// 激活成功:用对端回报的地址,不按本地的 kind/id 重新拼一遍——
 		// 该实例在对端节点上,对端才是权威。
-		return PBToPid(rsp), false, nil
+		return PBToPid(rsp), nil
 	default:
-		return PID{}, false, errors.Newf("unexpected actor activation response: %T", rsp)
+		return PID{}, errors.Newf("unexpected actor activation response: %T", rsp)
 	}
 }
 
-// resolveLocal 在本地解析实例:有实例则返回,没有则条件释放陈旧记录并重试。
+// resolveLocal 在本地解析实例:有实例则返回;没有则条件释放陈旧记录,下一轮重新定位。
 //
 // 这是陈旧记录的自愈路径:所有权记录指向本节点但本节点已无实例时
 // (例如释放时 Redis 失败留下残留),必须在这里清理,否则后续激活会
 // 一直命中同一条记录而不收敛(见 invariants.md #8)。
-func (g *activatorManager) resolveLocal(ctx context.Context, k actorKey, owner ActorOwner) (PID, bool, error) {
+func (g *activatorManager) resolveLocal(ctx context.Context, k actorKey, owner ActorOwner) (PID, error) {
 	if pid := g.lookupLocal(k); !PIDIsZero(pid) {
-		return pid, false, nil
+		return pid, nil
 	}
-	// 本节点已是持有者但本地无实例:清理陈旧记录后重试。
+	// 本节点已是持有者但本地无实例:清理陈旧记录,下一轮重新定位。
 	released, err := g.store.Release(ctx, k.kind, k.id, owner)
 	if err != nil {
-		return ZeroPID, false, errors.Wrap(err, "release stale actor owner")
+		return ZeroPID, errors.Wrap(err, "release stale actor owner")
 	}
 	gxylog.Info(ctx, "released stale actor owner",
 		gxylog.Str("actor", k.String()), gxylog.Bool("released", released))
-	return ZeroPID, true, nil
+	return ZeroPID, locateRetry(fmt.Sprintf("released stale owner of %s", k))
 }
 
 // getActor 处理"记录已指向某个所有者"的情形:把解析交给所有者。
 //
 // 不得直接按名投递:必须经所有者节点校验它自己的本地实例,否则陈旧记录永远
 // 不会被清理(见 invariants.md #8)。owner 指向本节点时走本地自愈路径。
-// 返回 retry=true 表示记录刚被清理,调用方应重新定位。
-func (g *activatorManager) getActor(ctx context.Context, k actorKey, owner ActorOwner) (PID, bool, error) {
+func (g *activatorManager) getActor(ctx context.Context, k actorKey, owner ActorOwner) (PID, error) {
 	if owner.NodeID == g.nodeID {
-		pid, retry, err := g.resolveLocal(ctx, k, owner)
-		return pid, retry, err
-	} else {
-		pid, retry, err := g.requestActor(ctx, owner.NodeID, k, false)
-		return pid, retry, err
+		return g.resolveLocal(ctx, k, owner)
 	}
+	return g.requestActor(ctx, owner.NodeID, k, false)
 }
 
 // spawnActor 处理"尚无任何所有者"的情形:决定由谁创建,并把创建请求送达。
 //
 // allowSpawn=false 表示调用方只查询、不创建,此时按不存在处理。候选节点由能力
 // 目录的一致性哈希选出;候选就是本节点则直接创建,否则交给对方——实例在对端
-// 节点上,对端才是权威。返回 retry=true 表示本次没能创建(竞争落败或依赖不可用),
-// 调用方应重新定位——本节点与对端两个分支都遵守这条语义。
-func (g *activatorManager) spawnActor(ctx context.Context, k actorKey, allowSpawn bool) (PID, bool, error) {
+// 节点上,对端才是权威。
+func (g *activatorManager) spawnActor(ctx context.Context, k actorKey, allowSpawn bool) (PID, error) {
 	if !allowSpawn {
-		return ZeroPID, false, gerror.Newf("actor %s not found", k)
+		return ZeroPID, gerror.Newf("actor %s not found", k)
 	}
 
 	serviceInfo := g.serviceLookup.GetServiceInfo(ctx, k.kind, k.locateKey(), gxyregistery.ConsistentHashSelector())
 	if serviceInfo == nil || serviceInfo.NodeHost == "" {
-		return ZeroPID, false, gerror.Newf("find actor node failed, actor: %s", k)
+		return ZeroPID, gerror.Newf("find actor node failed, actor: %s", k)
 	}
 	// 候选节点就是本节点:直接创建,所有权由 actor 在同步初始化段获取。
 	if serviceInfo.NodeName == g.nodeID {
 		pid, err := g.spawnLocal(ctx, k)
 		if isRaceLost(err) {
-			return ZeroPID, true, err
+			return ZeroPID, locateRetry(fmt.Sprintf("instance of %s already spawning: %s", k, err))
 		}
-		return pid, false, err
+		return pid, err
 	}
 	return g.requestActor(ctx, serviceInfo.NodeName, k, allowSpawn)
 }
@@ -381,40 +404,49 @@ func isRaceLost(err error) bool {
 // activateActor 是激活的统一入口:反复定位直到拿到实例,或重试耗尽。
 //
 // 每轮都重新 Locate —— 上一轮可能刚清理掉一条陈旧记录,或归属刚被别的节点接管,
-// 只有重读才知道当前事实。重试与失败处置只在这里发生一次,被调用的函数只回答
-// "要不要重试"。spawn 表示调用方是否允许创建。
+// 只有重读才知道当前事实。重试与失败处置只在这里发生一次:被调函数只回答
+// "这一轮有没有形成结论",判据是 errLocateRetry(定义处列了三类来源)。
+//
+// 为什么不把所有失败都重试:确定性失败(kind 未登记、Init 因坏数据必然失败、
+// 目录/Redis 不可用)重试 N 次也不会好,只会把真因磨成"重试耗尽"并放大 3×
+// 的 Redis/RPC 负载。spawn 表示调用方是否允许创建。
 func (g *activatorManager) activateActor(ctx context.Context, k actorKey, spawn bool) (PID, error) {
 	result := "error"
 	defer func() {
 		gxymetrics.ActorLocate.WithLabelValues(k.kind, result).Inc()
 	}()
 
+	var lastRetry error
 	for range actorLocateMaxAttempts {
 		owner, err := g.store.Locate(ctx, k.kind, k.id)
 		if err != nil {
 			return ZeroPID, err
 		}
 
-		var retry bool
 		var pid PID
-		if !owner.IsZero() { // 有owner了
+		if !owner.IsZero() {
 			result = "get"
-			pid, retry, err = g.getActor(ctx, k, owner)
+			pid, err = g.getActor(ctx, k, owner)
 		} else {
 			result = "spawn"
-			pid, retry, err = g.spawnActor(ctx, k, spawn)
+			pid, err = g.spawnActor(ctx, k, spawn)
 		}
-		if retry {
-			continue
+		if err == nil {
+			return pid, nil
 		}
-		if err != nil {
+		if !errors.Is(err, errLocateRetry) {
 			result = "error"
 			return ZeroPID, err
 		}
-		return pid, nil
+		lastRetry = err
+		gxylog.Debug(ctx, "actor locate retry", gxylog.Str("actor", k.String()), gxylog.Err(err))
 	}
 	result = "error"
-	return ZeroPID, errActorLocateRetryExhausted
+	// 原因放进消息里(日志才看得到),同时保留"重试耗尽"的判定。
+	return ZeroPID, errors.Mark(
+		errors.Wrapf(lastRetry, "actor locate retry exhausted after %d attempts", actorLocateMaxAttempts),
+		errActorLocateRetryExhausted,
+	)
 }
 
 // spawnLocal 在本节点创建实例。初始化失败(含所有权未取得)时返回错误。
@@ -460,7 +492,9 @@ func (a *activatorActor) HandleCall(ctx context.Context, msg any) (any, error) {
 // handleActive 处理一次激活请求:
 //   - 本地已有实例 → 返回该实例的节点信息
 //   - 本节点持有所有权但无实例 → 条件释放陈旧记录,让调用方重试
-//   - 允许创建且无权属 → 创建;创建失败(含所有权竞争落败)让调用方重试
+//   - 记录指向其他节点 → 让调用方重新定位
+//   - 无记录 → 也让调用方重新定位(能不能创建由它的 spawn 标志决定)
+//   - 允许创建且无权属 → 创建;竞争落败让调用方重试,确定性失败回业务错误
 //
 // 返回值即应答;返回 error 由门面转成业务错误响应交给调用方。
 func (a *activatorActor) handleActive(ctx context.Context, req *pb.ActorActive) (any, error) {
@@ -474,32 +508,39 @@ func (a *activatorActor) handleActive(ctx context.Context, req *pb.ActorActive) 
 
 	// 记录指向本节点:以本地实例为准。
 	if owner.NodeID == mgr.nodeID {
-		_, retry, err := mgr.resolveLocal(ctx, k, owner)
-		if err != nil {
+		if _, err := mgr.resolveLocal(ctx, k, owner); err != nil {
+			if errors.Is(err, errLocateRetry) {
+				// 原因随应答带回调用方,不需要"返回前记得打日志"。
+				return &pb.ActorLocateRetry{Reason: err.Error()}, nil
+			}
 			return nil, err
-		}
-		if retry {
-			return &pb.ActorLocateRetry{}, nil
 		}
 		return k.actorPid(mgr.nodeID), nil
 	}
 
 	// 记录指向其他节点:本节点不能创建,让调用方重新定位。
 	if !owner.IsZero() {
-		return &pb.ActorLocateRetry{}, nil
+		return &pb.ActorLocateRetry{
+			Reason: fmt.Sprintf("record owned by %s", owner.NodeID),
+		}, nil
 	}
 
-	// 无所有者且不允许创建:视为不存在。
+	// 无所有者:能不能创建由调用方决定,本节点不替它拒绝——
+	// 让它重新定位,由它自己的 spawn 标志决定"不存在"还是"创建"。
 	if !req.GetAllowSpawn() {
-		return nil, errors.New("actor not found and spawn not allowed")
+		return &pb.ActorLocateRetry{Reason: "record disappeared"}, nil
 	}
 
 	// 创建。所有权由 actor 在同步初始化段自行获取(ADR 0012)。
 	if _, err := mgr.spawnLocal(ctx, k); err != nil {
-		// 竞争落败或依赖不可用:让调用方换节点重试,而非当作硬失败。
-		gxylog.Debug(ctx, "spawn actor failed, ask caller to retry",
-			gxylog.Str("actor", k.String()), gxylog.Err(err))
-		return &pb.ActorLocateRetry{}, nil
+		if isRaceLost(err) {
+			return &pb.ActorLocateRetry{
+				Reason: fmt.Sprintf("creation raced: %s", err),
+			}, nil
+		}
+		// 确定性失败走业务错误通道:调用方拿到真因,且不会白白重试——
+		// 重试只会把它磨成"重试耗尽",盖掉真正的原因。
+		return nil, err
 	}
 	return k.actorPid(mgr.nodeID), nil
 }
