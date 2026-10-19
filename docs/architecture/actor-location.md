@@ -147,6 +147,12 @@ Claim 成功
 actor terminate（正常退出）
   → compare-and-delete 当前 node + epoch + token
 
+node 停机（优雅）
+  → 先停节点：等所有 actor 的终止回调返回（最终落库 + compare-and-delete 归属）
+  → 再停 heartbeat 并释放 node lease
+  → 顺序反过来（先交还租约）会让其他节点在最终落库之前就能接管，
+    旧实例的存盘随即被 fence 拒绝，静默丢数据
+
 进程崩溃或 self-fence
   → heartbeat 停止，node lease 过期
   → owner key 可能残留，但 token 不匹配或 lease 缺失时不再有效
