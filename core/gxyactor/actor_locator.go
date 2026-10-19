@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -66,12 +65,13 @@ const (
 // actorLocatorClaimScript 在一次 Redis Lua 调用内完成候选节点校验和 owner 仲裁。
 // 返回值为 {状态, owner值}; 状态由 claimResult 及 invalid_lease 分支解释。
 const actorLocatorClaimScript = `
--- KEYS: 玩家 owner、候选节点 lease、全局 epoch；ARGV: 候选节点和 lease token。
+-- KEYS: 玩家 owner、候选节点 lease、全局 epoch；ARGV: 候选节点、lease token、租约键前缀。
 local ownerKey = KEYS[1]
 local candidateLeaseKey = KEYS[2]
 local epochKey = KEYS[3]
 local candidateNode = ARGV[1]
 local candidateToken = ARGV[2]
+local leasePrefix = ARGV[3]
 
 -- 候选节点无法证明自己仍持有 lease 时必须 fail closed，禁止抢占。
 if redis.call("GET", candidateLeaseKey) ~= candidateToken then
@@ -82,7 +82,7 @@ local current = redis.call("GET", ownerKey)
 if current then
     local currentNode, _, currentToken = string.match(current, "^([^|]+)|([0-9]+)|(.+)$")
     if currentNode then
-        local currentLease = redis.call("GET", "gserver:locate:node:lease:" .. currentNode)
+        local currentLease = redis.call("GET", leasePrefix .. currentNode)
         -- 只有 owner 节点 lease 仍与 owner 中的 token 匹配，才算活跃 owner。
         if currentLease == currentToken then
             if currentNode == candidateNode then
@@ -137,7 +137,7 @@ local node, _, token = string.match(owner, "^([^|]+)|([0-9]+)|(.+)$")
 if not node then
     return ""
 end
-if redis.call("GET", "gserver:locate:node:lease:" .. node) ~= token then
+if redis.call("GET", ARGV[1] .. node) ~= token then
     return ""
 end
 return owner
@@ -167,8 +167,17 @@ func newLeaseToken() string {
 	return hex.EncodeToString(buf[:])
 }
 
+// actorLocatorLeaseKeyPrefix 是节点租约键的前缀。
+//
+// 键的形状只在这里定义:Lua 脚本需要拼"owner 节点的租约键",由调用方把本前缀
+// 作为参数传入,脚本里不再重复一份字面量——否则改前缀时脚本会去读一个不存在的
+// 键,所有 owner 都被判为失效(批量接管)。
+func actorLocatorLeaseKeyPrefix() string {
+	return redisLocatePrefix + ":lease:"
+}
+
 func actorLocatorLeaseKey(nodeID string) string {
-	return fmt.Sprintf("%s:lease:%s", redisLocatePrefix, nodeID)
+	return actorLocatorLeaseKeyPrefix() + nodeID
 }
 
 func actorLocatorEpochKey() string {
@@ -247,7 +256,7 @@ func (l *actorLocator) Claim(ctx context.Context, kind string, id string) (Actor
 		k.locateKey(),
 		actorLocatorLeaseKey(l.nodeID),
 		actorLocatorEpochKey(),
-	}, l.nodeID, l.leaseToken).Result()
+	}, l.nodeID, l.leaseToken, actorLocatorLeaseKeyPrefix()).Result()
 	if err != nil {
 		return ZeroActorOwner, errors.Wrap(err, "claim actor owner")
 	}
@@ -303,7 +312,7 @@ func (l *actorLocator) Locate(ctx context.Context, kind string, id string) (Acto
 	if err := l.ensureClient(); err != nil {
 		return ZeroActorOwner, err
 	}
-	value, err := l.redis.Eval(ctx, actorLocatorLocateScript, []string{k.locateKey()}).Result()
+	value, err := l.redis.Eval(ctx, actorLocatorLocateScript, []string{k.locateKey()}, actorLocatorLeaseKeyPrefix()).Result()
 	if err != nil {
 		return ZeroActorOwner, errors.Wrap(err, "locate actor owner")
 	}

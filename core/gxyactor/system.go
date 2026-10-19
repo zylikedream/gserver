@@ -132,17 +132,24 @@ func (a *actorApp) OnModStart(ctx context.Context) error {
 
 // OnModStop 优雅停止节点。
 //
+// **顺序即语义:先等所有 actor 终止,再交还节点租约。** 终止回调里包含最终落库
+// 与归属释放;租约是整台节点"有权持有"的判据,提前交还等于让其他节点在最终
+// 落库之前就能接管——旧实例的存盘随即被 fence 拒绝,静默丢数据(不变量 #4)。
+//
 // 必须用优雅停止:它会等待所有进程的终止回调返回,而终止回调里包含最终落库
 // 与所有权释放。强制停止会跳过该等待,导致每次停机静默丢失最后一次存盘
 // (见 invariants.md #10)。
+//
+// 心跳要活到 node.Stop 返回:停机可能长于租约 TTL,期间必须一直续着,
+// 否则租约会在 actor 终止中途过期——与提前交还的后果相同。
 func (a *actorApp) OnModStop(ctx context.Context) error {
+	if a.node != nil {
+		a.node.Stop()
+	}
 	if a.activator != nil {
 		if err := a.activator.OnModStop(ctx); err != nil {
 			gxylog.Error(ctx, "stop activator failed", gxylog.Err(err))
 		}
-	}
-	if a.node != nil {
-		a.node.Stop()
 	}
 	gxylog.Info(ctx, "actor system stopped", gxylog.Str("address", a.Address()))
 	return nil
