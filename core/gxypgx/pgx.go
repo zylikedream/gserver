@@ -60,7 +60,8 @@ func (p *PGXApp) OnModInit(ctx context.Context) error {
 	p.conf = conf
 
 	db, err := gorm.Open(postgres.Open(conf.URL), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Error),
+		// 错误日志走 gxylog(结构化 + trace_id),不写 stdout;级别与之前一致。
+		Logger: gormLogger{level: logger.Error},
 	})
 	if err != nil {
 		return err
@@ -84,8 +85,11 @@ func (p *PGXApp) OnModStart(ctx context.Context) error {
 	sqlDB.SetMaxIdleConns(p.conf.MaxIdleConns)
 	sqlDB.SetConnMaxLifetime(time.Duration(p.conf.ConnMaxLifetime) * time.Minute)
 
-	// 探活失败交给模块树上抛:main.go 统一记栈并终止,Fatal 会跳过已启动模块的停机
-	if err := sqlDB.PingContext(ctx); err != nil {
+	// 探活失败交给模块树上抛:main.go 统一记栈并终止,Fatal 会跳过已启动模块的停机。
+	// 必须带超时:ctx 是模块启动的 background,DB 被黑洞时会挂到 OS 的 TCP 超时。
+	pingCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if err := sqlDB.PingContext(pingCtx); err != nil {
 		return errors.WithStack(err)
 	}
 	gxylog.Info(ctx, "postgres(gorm) start success", gxylog.Str("url", p.conf.URL))
