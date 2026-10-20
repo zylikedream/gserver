@@ -133,13 +133,14 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 					continue
 				}
 
-				// 处理消息
+				// handler 是 app 层的入队闭包,不是业务处理:它返回错误只可能是
+				// 入队失败(实际不可达),所以 Nack 这条分支目前走不到。
 				if err := handler(ctx, string(msg.Payload())); err != nil {
 					gxylog.Error(ctx, "Failed to handle message", gxylog.Str("topic", topic), gxylog.Err(err))
-					// 处理失败，重试
 					consumer.Nack(msg)
 				} else {
-					// 处理成功，确认消息
+					// 入队成功即确认:这是"已入队",不是"已处理";业务处理在 worker
+					// 里、晚于本次 Ack(投递语义见 IMessageQueue 的注释)。
 					_ = consumer.Ack(msg)
 				}
 			}

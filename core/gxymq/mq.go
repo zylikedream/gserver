@@ -28,6 +28,16 @@ const (
 	MQTypeRedis MessageQueueType = "redis"
 )
 
+// IMessageQueue 是消息队列后端。
+//
+// **投递语义是 at-most-once**,两个后端都如此,原因不同:
+//   - redis:pub/sub 没有确认与重投,错过即丢;
+//   - pulsar:app 层传给后端的回调只负责入队,入队成功即 Ack(pulsar_mq.go),
+//     真正的业务处理在其后的 worker 里 —— 崩溃或处理失败都不会重投。
+//
+// 因此 handler 失败只记 mq_handler_errors_total 并打日志(见 processMessages),
+// 停机时 worker 直接退出、不保证排空 msgCh。需要"不丢"的消息不要依赖本模块的
+// 重试,应在业务侧持久化 + 幂等重放。
 type IMessageQueue interface {
 	Publish(ctx context.Context, topic string, msg string) error
 	Subscribe(ctx context.Context, topic string, handler TopicHandler) error
