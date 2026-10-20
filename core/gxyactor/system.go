@@ -284,6 +284,10 @@ func (a *actorApp) NodeInstanceName() string {
 //
 // 服务注册需要该地址:其它节点据此建立连接。不能用运行时节点名——它的格式
 // 是 name@host,不含端口(见 ADR 0011)。
+//
+// 取的是运行时的实际监听信息(acceptor 的 Interface),不按配置拼装:
+// 注册值与监听值因此不可能不一致——这就是"节点名不能替代它"的理由,
+// 也是注册适配器要回查注册表、而不是解析节点名的原因(见 serviceRegistrar.Resolve)。
 func (a *actorApp) Address() string {
 	if a.node == nil {
 		return ""

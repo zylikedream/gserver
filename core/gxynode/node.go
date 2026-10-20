@@ -62,6 +62,8 @@ func (n *node) OnModInit(ctx context.Context) error {
 	// 节点身份必须是稳定的、可寻址的名字(ADR 0010):
 	// 它同时用于服务注册、跨节点按名寻址与运行时节点名,三者必须一致。
 	// 实例唯一性不由此处承担,而由租约令牌(每实例随机)与世代承担。
+	// 格式**刻意不含端口**:身份回答"是谁",地址(host:port)由服务注册登记、
+	// 取自实际监听,不从这里拼(见 ADR 0011、actorApp.Address)。
 	n.NodeInstanceName = fmt.Sprintf("%s@%s", podName, n.Host)
 	if n.Name == "" {
 		return gerror.New("no node name '")
