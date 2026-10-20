@@ -42,6 +42,22 @@ var (
 		Help: "Redis command errors",
 	}, []string{"cmd"})
 
+	// MQQueueDepth 是待处理消息数(消息到达与出队时更新,不在抓取时计算)。
+	MQQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "mq_queue_depth",
+		Help: "Messages waiting for mq workers",
+	})
+	MQQueueCapacity = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "mq_queue_capacity",
+		Help: "mq worker queue capacity (depth/capacity is the saturation ratio)",
+	})
+	// MQHandlerErrors 只计数不分主题:主题里含节点实例名(roleNotifyTopic),
+	// 作为标签会让序列基数随实例数无限增长。
+	MQHandlerErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mq_handler_errors_total",
+		Help: "Message handlers that returned an error (message dropped, no retry)",
+	})
+
 	OnlinePlayers = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "online_players",
 		Help: "Current online players on this node",

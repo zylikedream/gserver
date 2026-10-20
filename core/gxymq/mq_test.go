@@ -41,21 +41,31 @@ func TestSubscribe_MultipleTopics(t *testing.T) {
 	}
 }
 
-func TestSubscribe_Overwrite(t *testing.T) {
+// TestSubscribe_RejectsDuplicate 重复订阅必须报错,而不是静默覆盖或重复建立。
+// 为什么需要:redis 下重复订阅会让同一条消息被处理两次;pulsar 下第二次订阅会成为
+// 同一共享订阅的第二个成员,把原消费者的一半消息抢走 —— 两者都不报错。
+func TestSubscribe_RejectsDuplicate(t *testing.T) {
+	ctx := context.Background()
 	mq := NewMessageQueueApp()
-	handler1 := func(ctx context.Context, msg string) error { return nil }
-	handler2 := func(ctx context.Context, msg string) error { return errors.New("v2") }
-	if err := mq.Subscribe(context.Background(), "t1", handler1); err != nil {
-		t.Fatal(err)
+	if err := mq.Subscribe(ctx, "dup", noopHandler); err != nil {
+		t.Fatalf("首次订阅: %v", err)
 	}
-	if err := mq.Subscribe(context.Background(), "t1", handler2); err != nil {
-		t.Fatal(err)
+	if err := mq.Subscribe(ctx, "dup", noopHandler); err == nil {
+		t.Fatal("重复订阅必须报错")
 	}
-	sub := mq.subs["t1"]
-	// Verify the handler was replaced
-	err := sub.Handler(context.Background(), "test")
-	if err == nil || err.Error() != "v2" {
-		t.Fatal("handler should be overwritten")
+
+	// 启动后的路径同样拒绝,且不会重复调用后端。
+	q := &countingQueue{}
+	mq.queue = q
+	mq.started.Store(true)
+	if err := mq.Subscribe(ctx, "late", noopHandler); err != nil {
+		t.Fatalf("启动后首次订阅: %v", err)
+	}
+	if err := mq.Subscribe(ctx, "late", noopHandler); err == nil {
+		t.Fatal("启动后重复订阅必须报错")
+	}
+	if q.subs != 1 {
+		t.Fatalf("后端 Subscribe 调用 %d 次, want 1", q.subs)
 	}
 }
 
@@ -244,10 +254,11 @@ func TestPulsarStartCreatesClient(t *testing.T) {
 // reflect.Select 上——模块已"停止"却仍在消费,停机后到达的消息还会被处理。
 func TestOnModStopBeforeStopsConsumers(t *testing.T) {
 	mq := &messageQueueApp{
-		queue:  &countingQueue{},
-		subs:   map[string]*SubInfo{},
-		config: &messageQueueConfig{WorkerCount: 1},
-		stopCh: make(chan struct{}),
+		queue:      &countingQueue{},
+		subs:       map[string]*SubInfo{},
+		subscribed: map[string]struct{}{},
+		config:     &messageQueueConfig{WorkerCount: 1},
+		stopCh:     make(chan struct{}),
 	}
 
 	var wg sync.WaitGroup
@@ -273,10 +284,11 @@ func TestOnModStopBeforeStopsConsumers(t *testing.T) {
 func TestSubscribeAfterStartTakesEffect(t *testing.T) {
 	q := &countingQueue{}
 	mq := &messageQueueApp{
-		queue:  q,
-		subs:   map[string]*SubInfo{},
-		config: &messageQueueConfig{WorkerCount: 0},
-		stopCh: make(chan struct{}),
+		queue:      q,
+		subs:       map[string]*SubInfo{},
+		subscribed: map[string]struct{}{},
+		config:     &messageQueueConfig{WorkerCount: 0},
+		stopCh:     make(chan struct{}),
 	}
 	mq.started.Store(true) // 模拟 OnModStartAfter 已跑完
 
@@ -296,10 +308,11 @@ func TestSubscribeAfterStartTakesEffect(t *testing.T) {
 func TestSubscribeBeforeStartDefersToStartSubscribe(t *testing.T) {
 	q := &countingQueue{}
 	mq := &messageQueueApp{
-		queue:  q,
-		subs:   map[string]*SubInfo{},
-		config: &messageQueueConfig{WorkerCount: 0},
-		stopCh: make(chan struct{}),
+		queue:      q,
+		subs:       map[string]*SubInfo{},
+		subscribed: map[string]struct{}{},
+		config:     &messageQueueConfig{WorkerCount: 0},
+		stopCh:     make(chan struct{}),
 	}
 
 	if err := mq.Subscribe(context.Background(), "early", noopHandler); err != nil {
