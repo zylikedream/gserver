@@ -6,6 +6,7 @@ import (
 	"gserver/core/gxylog"
 	"gserver/core/gxyredis"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/os/gcfg"
 	"github.com/redis/go-redis/v9"
 )
@@ -30,6 +31,10 @@ func NewRedisMQ(_ *gcfg.Config) (*RedisMQ, error) {
 func (mq *RedisMQ) Start(ctx context.Context) error {
 	// 初始化Redis客户端
 	mq.client = gxyredis.Redis()
+	if mq.client == nil {
+		// 配置缺失时让模块启动失败,而不是留一个 nil 客户端到第一次 Publish 才 panic。
+		return errors.New("redis mq backend requires a configured redis client")
+	}
 	return nil
 }
 

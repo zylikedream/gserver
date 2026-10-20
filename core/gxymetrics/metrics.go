@@ -89,6 +89,7 @@ func (m *metricsApp) OnModInit(ctx context.Context) error {
 		ActorMessageDuration,
 		DBQueryDuration,
 		RedisRequestDuration,
+		RedisErrors,
 		OnlinePlayers,
 		ClientRequests,
 		ClientRequestDuration,

@@ -36,6 +36,12 @@ var (
 		Buckets: prometheus.DefBuckets,
 	}, []string{"cmd"})
 
+	// RedisErrors 与耗时分开计数:耗时直方图里混着成功与失败,单看它算不出失败率。
+	RedisErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "redis_errors_total",
+		Help: "Redis command errors",
+	}, []string{"cmd"})
+
 	OnlinePlayers = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "online_players",
 		Help: "Current online players on this node",

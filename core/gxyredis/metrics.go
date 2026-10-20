@@ -2,6 +2,7 @@ package gxyredis
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"gserver/core/gxymetrics"
@@ -18,6 +19,10 @@ func (h metricsHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 		start := time.Now()
 		err := next(ctx, cmd)
 		gxymetrics.RedisRequestDuration.WithLabelValues(cmd.FullName()).Observe(time.Since(start).Seconds())
+		if err != nil && !errors.Is(err, redis.Nil) {
+			// redis.Nil 是"键不存在"这种正常结果,不是故障。
+			gxymetrics.RedisErrors.WithLabelValues(cmd.FullName()).Inc()
+		}
 		return err
 	}
 }
@@ -27,6 +32,9 @@ func (h metricsHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.P
 		start := time.Now()
 		err := next(ctx, cmds)
 		gxymetrics.RedisRequestDuration.WithLabelValues("pipeline").Observe(time.Since(start).Seconds())
+		if err != nil {
+			gxymetrics.RedisErrors.WithLabelValues("pipeline").Inc()
+		}
 		return err
 	}
 }
