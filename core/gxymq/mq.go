@@ -38,6 +38,9 @@ const (
 // 因此 handler 失败只记 mq_handler_errors_total 并打日志(见 processMessages),
 // 停机时 worker 直接退出、不保证排空 msgCh。需要"不丢"的消息不要依赖本模块的
 // 重试,应在业务侧持久化 + 幂等重放。
+//
+// Publish 返回 nil 只表示"已交给后端",**不表示送达**:对端不在线、订阅未建立
+// 都不会报错。本模块的定位就是承载允许丢失的推送通知。
 type IMessageQueue interface {
 	Publish(ctx context.Context, topic string, msg string) error
 	Subscribe(ctx context.Context, topic string, handler TopicHandler) error
