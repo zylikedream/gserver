@@ -60,8 +60,8 @@ gateway/role/chat/friend/guild
 ## 分桶与 exemplar
 
 - `actor_message_duration_seconds`、`db_query_duration_seconds`、`redis_request_duration_seconds` 使用**亚毫秒分桶**（0.1ms ~ 5s）。`prometheus.DefBuckets` 从 5ms 起步，这三类样本会几乎全部落进第一个桶，做延迟优化时没有分辨率。
-- `actor_message_duration_seconds` 与 `client_request_duration_seconds` 通过 `gxymetrics.ObserveWithTrace` 附带 **exemplar**（`trace_id`），可从慢样本直接跳到对应 trace。需要在 Prometheus 侧开启 `exemplar-storage`。
-- `db_query_duration_seconds` 目前没有标签：分不出读写、也分不出归属 fencing 与业务查询（fencing 走裸 SQL，已由 Raw/Row 回调覆盖计数）。
+- `actor_message_duration_seconds`、`client_request_duration_seconds`、`db_query_duration_seconds`、`redis_request_duration_seconds` 通过 `gxymetrics.ObserveWithTrace` 附带 **exemplar**（`trace_id`），可从慢样本直接跳到对应 trace（DB 能看到具体 SQL、Redis 能看到是哪个脚本）。只在被采样的链路上有值；需要在 Prometheus 侧开启 `exemplar-storage`。
+- `db_query_duration_seconds` 目前没有标签：分不出读写、也分不出归属 fencing 与业务查询（fencing 走裸 SQL，已由 Raw/Row 回调覆盖计数）；定位单条慢查询依赖 exemplar。
 
 ## 标签约束
 

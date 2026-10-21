@@ -3,11 +3,15 @@ package gxyredis
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"gserver/core/gxymetrics"
+	"gserver/core/gxytrace"
 
+	"ergo.services/ergo/gen"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -42,5 +46,43 @@ func TestMetricsHookIgnoresRedisNil(t *testing.T) {
 
 	if got := testutil.ToFloat64(gxymetrics.RedisErrors.WithLabelValues(label)); got != before {
 		t.Fatalf("redis.Nil 不应计入错误: %v -> %v", before, got)
+	}
+}
+
+// TestProcessHookAttachesExemplar Redis 指标的标签只有命令名(eval 混着归属仲裁的
+// 5 个脚本):慢样本必须带 trace_id,才能定位到具体 trace。
+func TestProcessHookAttachesExemplar(t *testing.T) {
+	ctx := gxytrace.ContextWithErgoTrace(context.Background(),
+		gen.Tracing{ID: [2]uint64{0x3333, 0x4444}, SpanID: 5})
+	want := gxymetrics.TraceIDFromContext(ctx)
+	if want == "" {
+		t.Fatal("测试上下文必须带 trace_id")
+	}
+
+	cmd := redis.NewStringCmd(context.Background(), "SMOKE_EXEMPLAR")
+	hook := metricsHook{}
+	next := func(context.Context, redis.Cmder) error { return nil }
+	if err := hook.ProcessHook(next)(ctx, cmd); err != nil {
+		t.Fatalf("hook: %v", err)
+	}
+
+	var value dto.Metric
+	if err := gxymetrics.RedisRequestDuration.WithLabelValues(cmd.FullName()).(interface {
+		Write(*dto.Metric) error
+	}).Write(&value); err != nil {
+		t.Fatalf("write redis histogram: %v", err)
+	}
+	var ids []string
+	for _, bucket := range value.GetHistogram().GetBucket() {
+		if exemplar := bucket.GetExemplar(); exemplar != nil {
+			for _, label := range exemplar.GetLabel() {
+				if label.GetName() == "trace_id" {
+					ids = append(ids, label.GetValue())
+				}
+			}
+		}
+	}
+	if !slices.Contains(ids, want) {
+		t.Fatalf("样本未带 exemplar trace_id=%s(实际 %v)", want, ids)
 	}
 }

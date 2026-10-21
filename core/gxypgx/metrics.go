@@ -67,5 +67,7 @@ func afterQuery(db *gorm.DB) {
 	if !ok {
 		return
 	}
-	gxymetrics.DBQueryDuration.Observe(time.Since(start.(time.Time)).Seconds())
+	// 带 exemplar:DB 指标没有标签,exemplar 是唯一能把"这条慢查询"定位到具体
+	// trace(进而看到 SQL 与调用方)的线索。ctx 里没有采样中的 span 时退化为普通观测。
+	gxymetrics.ObserveWithTrace(db.Statement.Context, gxymetrics.DBQueryDuration, time.Since(start.(time.Time)).Seconds())
 }
