@@ -63,6 +63,13 @@ gateway/role/chat/friend/guild
 - `actor_message_duration_seconds`、`client_request_duration_seconds`、`db_query_duration_seconds`、`redis_request_duration_seconds` 通过 `gxymetrics.ObserveWithTrace` 附带 **exemplar**（`trace_id`），可从慢样本直接跳到对应 trace（DB 能看到具体 SQL、Redis 能看到是哪个脚本）。只在被采样的链路上有值；需要在 Prometheus 侧开启 `exemplar-storage`。
 - `db_query_duration_seconds` 目前没有标签：分不出读写、也分不出归属 fencing 与业务查询（fencing 走裸 SQL，已由 Raw/Row 回调覆盖计数）；定位单条慢查询依赖 exemplar。
 
+## 追踪与指标的边界
+
+- **聚合看指标**：调用次数、延迟分位、失败率（Redis 按命令名；DB 目前总量）。
+- **单请求分解看 span**：DB 每次查询、Redis 每条命令各一个 Client span（`postgres.query` / `redis.<cmd>`），只在**被采样的链路**里产生；没有采样中的父 span 时不会新开 trace——心跳续约、启动探活、定时任务因此不会各自变成一条单 span 的 trace。
+- **span 预算**：一条链路通常 ≤10 个（DB 1~5、Redis 0~3）。出现"逐项循环"时用 `gxytrace.WithoutClientSpans(ctx)` 抑制逐条 span，用一个阶段 span + 属性记数量（如 `items=N`），明细交给指标。
+- **不记录原始 SQL 与参数值**：只记 `db.system`、`db.operation`（SELECT/INSERT…）、`db.sql.table`；`redis.Nil` 与 `ErrRecordNotFound` 不算错误。
+
 ## 标签约束
 
 - 标签必须是稳定、低基数字符串
