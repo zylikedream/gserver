@@ -2,8 +2,8 @@
 //
 // 字段命名约定(违反会在 JSON 中产生重复 key 或字段被防御性拦截):
 //   - 消息载荷/内容类字段统一用 payload,禁止用 msg(与日志消息主体冲突)
-//   - 禁止使用内置 key:ts/level/caller/msg/stacktrace/trace_id/ctx_id
-//     (trace_id/ctx_id 由 ctx 自动注入,业务无需也不应显式传)
+//   - 禁止使用内置 key:ts/level/caller/msg/stacktrace/trace_id/span_id/ctx_id
+//     (trace_id/span_id/ctx_id 由 ctx 自动注入,业务无需也不应显式传)
 //   - 业务字段通过 Str/Num/Bool/Err/Any 构造,随日志调用传入
 package gxylog
 
@@ -151,14 +151,14 @@ func parseLevel(l string) zapcore.Level {
 }
 
 // reservedKeys 与 JSON encoder 固有键冲突的字段名,跳过避免 JSON 重复键。
-// 业务侧已约定:消息载荷用 payload,显式 trace_id 由自动注入替代;
-// 此处保留 msg/trace_id 为防御性拦截,防止未来调用点误用回归重复键。
+// 业务侧已约定:消息载荷用 payload,显式 trace_id/span_id 由自动注入替代;
+// 此处保留它们为防御性拦截,防止未来调用点误用回归重复键。
 var reservedKeys = map[string]struct{}{
 	"ts": {}, "level": {}, "caller": {}, "msg": {}, "stacktrace": {},
-	"trace_id": {}, "ctx_id": {},
+	"trace_id": {}, "span_id": {}, "ctx_id": {},
 }
 
-// toZapFields 转换业务字段并注入 ctx 字段(mod/roleID/trace_id 或 ctx_id)
+// toZapFields 转换业务字段并注入 ctx 字段(mod/roleID/trace_id+span_id 或 ctx_id)
 func toZapFields(ctx context.Context, fields []Field) []zap.Field {
 	zs := make([]zap.Field, 0, len(fields)+3)
 	for _, f := range fields {
@@ -173,10 +173,14 @@ func toZapFields(ctx context.Context, fields []Field) []zap.Field {
 	if rid := ctxValue(ctx, CONTEXT_KEY_ROLE_ID); rid != "" {
 		zs = append(zs, zap.String(CONTEXT_KEY_ROLE_ID, rid))
 	}
-	// traceID:仅当 span 被采样时注入(未采样的 span 无对应 trace,打了会导致跳转 404);
+	// trace_id/span_id:仅当 span 被采样时注入(未采样的 span 无对应 trace,打了会导致跳转 404)。
+	// span_id 指向"本次处理"(门面为每条消息装的 processed span),不是调用方那一段。
 	// 无有效 span 时兜底 goframe CtxId
 	if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() && sc.IsSampled() && sc.TraceID().IsValid() {
-		zs = append(zs, zap.String("trace_id", sc.TraceID().String()))
+		zs = append(zs,
+			zap.String("trace_id", sc.TraceID().String()),
+			zap.String("span_id", sc.SpanID().String()),
+		)
 	} else if cid := gctx.CtxId(ctx); cid != "" {
 		zs = append(zs, zap.String("ctx_id", cid))
 	}

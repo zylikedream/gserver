@@ -49,29 +49,25 @@ func spanIDFromErgo(id uint64) trace.SpanID {
 	return out
 }
 
-// ContextWithErgoTrace 把运行时在消息处理期间维护的链路标识装进 ctx,
-// 使该 ctx 上的日志自动带上 trace_id(见 gxylog 的注入逻辑)。
+// ContextWithErgoTrace 把**当前处理这一段**的链路标识装进 ctx,
+// 使该 ctx 上的日志带上 trace_id 与 span_id(见 gxylog 的注入逻辑)。
+//
+// 装的是 processed 观测的 span(与导出器用同一条派生规则),不是调用方那一段:
+// 这样日志里的 span_id 指向"本次处理",而不是把日志错误地归到调用方的 span 上。
+// 父关系不进 ctx(OTel 只在建子 span 时使用它),这里只保证 trace_id/span_id
+// 正确且已采样。
 //
 // 标识取自运行时的"当前传播链路":它在消息带链路时被激活、处理结束即恢复
 // (见 act.Actor),因此**非零即表示本条消息在被追踪的链路上**。零值原样返回,
 // 日志会退化成 ctx_id —— 与"未采样不打 trace_id"的既有判断一致。
-//
-// 装入的是**远端 span 上下文**(调用方在链路中的位置),与导出器同一做法:
-// 运行时的 SpanID 是发送方那一段的标识;链路起点没有它时补一个合法标识,
-// 否则 SpanContext 不合法,日志依旧拿不到 trace_id。
 func ContextWithErgoTrace(ctx context.Context, t gen.Tracing) context.Context {
 	if t.ID == [2]uint64{} {
 		return ctx
 	}
-	spanID := spanIDFromErgo(t.SpanID)
-	if !spanID.IsValid() {
-		spanID = randomSpanID()
-	}
-	return trace.ContextWithRemoteSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
+	return trace.ContextWithSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID:    traceIDFromErgo(t.ID),
-		SpanID:     spanID,
+		SpanID:     derivedSpanID(t.SpanID, gen.TracingPointProcessed),
 		TraceFlags: trace.FlagsSampled,
-		Remote:     true,
 	}))
 }
 

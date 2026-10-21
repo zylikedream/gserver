@@ -157,6 +157,15 @@ func TestContextWithErgoTrace(t *testing.T) {
 	if sc.TraceID() != want {
 		t.Fatalf("trace id = %s, want %s", sc.TraceID(), want)
 	}
+	// span_id 必须是"本次处理"那一段(与导出器 processed 的派生规则一致),
+	// 不能是调用方 hop 的标识 —— 否则日志会指向调用方的 span。
+	if sc.SpanID() != derivedSpanID(0x1234, gen.TracingPointProcessed) {
+		t.Fatalf("span id = %s, want %s(processed)", sc.SpanID(),
+			derivedSpanID(0x1234, gen.TracingPointProcessed))
+	}
+	if sc.SpanID() == spanIDFromErgo(0x1234) {
+		t.Fatal("span id 不能等于调用方 hop 的标识")
+	}
 
 	// 链路起点没有 span id:仍须给出合法标识,否则 IsValid 为假、日志静默退化。
 	root := trace.SpanFromContext(
