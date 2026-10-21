@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"ergo.services/ergo"
+	"ergo.services/ergo/act"
 	"ergo.services/ergo/gen"
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -44,7 +46,7 @@ func TestErgoExporterPreservesTraceIdentity(t *testing.T) {
 		TraceID:      traceID,
 		SpanID:       spanID,
 		ParentSpanID: parentSpanID,
-		Point:        gen.TracingPointProcessed,
+		Point:        gen.TracingPointSent,
 		Kind:         gen.TracingKindRequest,
 		Timestamp:    time.Now().UnixNano(),
 		Node:         "game@127.0.0.1",
@@ -167,5 +169,103 @@ func TestContextWithErgoTrace(t *testing.T) {
 	if trace.SpanFromContext(
 		ContextWithErgoTrace(context.Background(), gen.Tracing{})).SpanContext().IsValid() {
 		t.Fatal("零值不应产生 span context")
+	}
+}
+
+// TestErgoExporterSeparatesHopObservationPoints 同一 hop 的 sent/delivered/processed
+// 必须映射成三个不同的 span id,且后两者挂在该 hop 的 sent 下。
+// 为什么需要:运行时给这三个观测点**同一个 SpanID**(见下一个测试的真实节点验证),
+// 原样映射会让三个 span 在后端按 (trace_id, span_id) 互相覆盖 ——
+// processed 上的业务属性与真实处理耗时都会丢。
+func TestErgoExporterSeparatesHopObservationPoints(t *testing.T) {
+	exp := withRecordingProvider(t)
+	traceID := [2]uint64{0xAAAA000000000000, 0xBBBB000000000000}
+	const hop uint64 = 0x1234
+	const parent uint64 = 0x9999
+
+	e := NewErgoExporter()
+	for _, p := range []gen.TracingPoint{
+		gen.TracingPointSent, gen.TracingPointDelivered, gen.TracingPointProcessed,
+	} {
+		e.HandleSpan(gen.TracingSpan{
+			TraceID: traceID, SpanID: hop, ParentSpanID: parent, Point: p,
+			Timestamp: time.Now().UnixNano(),
+		})
+	}
+
+	spans := exp.GetSpans()
+	if len(spans) != 3 {
+		t.Fatalf("导出 span 数 = %d, want 3", len(spans))
+	}
+	sentID := spanIDFromErgo(hop)
+	seen := make(map[string]bool, len(spans))
+	for i, sp := range spans {
+		sid := sp.SpanContext.SpanID().String()
+		if seen[sid] {
+			t.Fatalf("span id %s 重复:同 hop 的不同观测点必须可区分", sid)
+		}
+		seen[sid] = true
+
+		if i == 0 { // sent 保留运行时 id,父为该 hop 的 ParentSpanID
+			if sp.SpanContext.SpanID() != sentID {
+				t.Fatalf("sent 的 span id = %s, want %s", sp.SpanContext.SpanID(), sentID)
+			}
+			if sp.Parent.SpanID() != spanIDFromErgo(parent) {
+				t.Fatalf("sent 的父 = %s, want %s", sp.Parent.SpanID(), spanIDFromErgo(parent))
+			}
+			continue
+		}
+		if sp.Parent.SpanID() != sentID {
+			t.Fatalf("第 %d 个观测的父 = %s, want 本 hop 的 sent(%s)", i, sp.Parent.SpanID(), sentID)
+		}
+	}
+}
+
+// TestErgoExporterRealHopSpanIDs 用真实节点验证上面测试的前提:运行时的三个观测点
+// 确实带同一个 SpanID。若将来运行时改为每点独立 id,本测试会红,提示重审映射。
+type probeActor struct{ act.Actor }
+
+func (a *probeActor) Init(_ ...any) error { return nil }
+
+func TestErgoExporterRealHopSpanIDs(t *testing.T) {
+	exp := withRecordingProvider(t)
+
+	node, err := ergo.StartNode("spanid_probe@localhost", gen.NodeOptions{})
+	if err != nil {
+		t.Fatalf("start node: %v", err)
+	}
+	t.Cleanup(func() { node.Stop() })
+	if err := node.TracingExporterAdd("probe", NewErgoExporter(),
+		gen.TracingFlagSend|gen.TracingFlagReceive); err != nil {
+		t.Fatalf("add exporter: %v", err)
+	}
+	if err := node.SetTracingSampler(gen.TracingSamplerRatio(1)); err != nil {
+		t.Fatalf("sampler: %v", err)
+	}
+
+	pid, err := node.Spawn(func() gen.ProcessBehavior { return &probeActor{} }, gen.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	if err := node.Send(pid, "hello"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for len(exp.GetSpans()) < 3 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	spans := exp.GetSpans()
+	if len(spans) < 3 {
+		t.Fatalf("导出 span 数 = %d, want 3(sent/delivered/processed)", len(spans))
+	}
+
+	// 运行时三个观测共用一个 hop id -> 我们的映射必须让导出后的 id 互不相同。
+	ids := make(map[string]bool, len(spans))
+	for _, sp := range spans {
+		if ids[sp.SpanContext.SpanID().String()] {
+			t.Fatalf("导出后仍有重复 span id: %v", sp.SpanContext.SpanID())
+		}
+		ids[sp.SpanContext.SpanID().String()] = true
 	}
 }

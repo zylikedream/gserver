@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math/rand/v2"
 	"time"
 
@@ -115,6 +116,20 @@ func randomSpanID() trace.SpanID {
 	}
 }
 
+// derivedSpanID 由 hop id 与观测点派生稳定标识。
+//
+// 同一 hop 的重复导出(重放、多个导出器)会得到同一个 id,便于后端去重;
+// 不同观测点必须不同,否则 OTel 中 (trace_id, span_id) 重复的 span 会互相覆盖。
+func derivedSpanID(hopID uint64, point gen.TracingPoint) trace.SpanID {
+	h := fnv.New64a()
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], hopID)
+	h.Write(buf[:])
+	binary.BigEndian.PutUint64(buf[:], uint64(point))
+	h.Write(buf[:])
+	return spanIDFromErgo(h.Sum64())
+}
+
 // ErgoExporter 把运行时的追踪观测转成 OTel span。
 //
 // 运行时的每次观测(sent/delivered/processed/业务区间)各对应一个 span:
@@ -130,6 +145,15 @@ func NewErgoExporter() *ErgoExporter {
 }
 
 // HandleSpan 处理一次观测。由运行时在专用 worker 上串行调用。
+//
+// 标识映射(与运行时的观测模型对齐):
+//   - 运行时用**同一个 SpanID** 标记一条消息 hop 的三个观测点
+//     (sent / delivered / processed)。OTel 要求 (trace_id, span_id) 唯一,
+//     三个 span 共用一个 id 会在后端互相覆盖——processed 上的业务属性
+//     (SetTracingSpanAttribute)与真实处理耗时都会丢。
+//   - 因此:hop 的 sent 保留运行时 id;delivered 与 processed 用由它派生的
+//     稳定 id,并把该 hop 的 sent 作为父。一条消息的生命周期因此是
+//     sent ← {delivered, processed},跨 hop 的父子关系仍由 ParentSpanID 承担。
 func (e *ErgoExporter) HandleSpan(s gen.TracingSpan) {
 	start := time.Unix(0, s.Timestamp)
 	end := start
@@ -137,19 +161,30 @@ func (e *ErgoExporter) HandleSpan(s gen.TracingSpan) {
 		end = time.Unix(0, s.EndTimestamp)
 	}
 
+	spanID := spanIDFromErgo(s.SpanID)
+	parentID := spanIDFromErgo(s.ParentSpanID)
+	switch s.Point {
+	case gen.TracingPointDelivered, gen.TracingPointProcessed:
+		parentID = spanID
+		spanID = derivedSpanID(s.SpanID, s.Point)
+	}
+	if !spanID.IsValid() {
+		spanID = randomSpanID()
+	}
+
 	ctx := context.Background()
 	// 父观测的标识即 OTel 意义上的父 span——两边标识同源(见上),直接对应。
-	if s.ParentSpanID != 0 {
+	if parentID.IsValid() {
 		ctx = trace.ContextWithRemoteSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID:    traceIDFromErgo(s.TraceID),
-			SpanID:     spanIDFromErgo(s.ParentSpanID),
+			SpanID:     parentID,
 			TraceFlags: trace.FlagsSampled,
 			Remote:     true,
 		}))
 	}
 	ctx = context.WithValue(ctx, ergoIDsKey{}, ergoIDs{
 		traceID: traceIDFromErgo(s.TraceID),
-		spanID:  spanIDFromErgo(s.SpanID),
+		spanID:  spanID,
 	})
 
 	// 派生出的 ctx 不再往下传:本函数只处理这一条观测,span 在末尾显式结束。

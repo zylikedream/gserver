@@ -275,6 +275,7 @@ mailbox 四队列初始化
 | 自动追踪：Send/Call/Response 的 sent/delivered/processed（Response 无 processed）、Spawn 的 sent/processed、Terminate 的 processed。**`SendExit`（控制面）、`SendEvent`（事件）、`SendAfter`（延迟消息）不携带 trace context，不被自动追踪** | `docs/advanced/distributed-tracing.md:129-178` |
 | 采样器：`Always` / `Ratio(rate)` / `RateLimit(perSecond)` / `Disable`；**仅在没有 active trace 时咨询**，有活动 trace 时所有出站消息继承；Init 阶段不创建新 trace | `gen/tracing_sampler.go:8-68`；`node/process.go:631-647` |
 | 采样级别**运行期可改**：`node.SetTracingSampler`、`node.SetProcessTracingSampler`；`process.SetTracingSampler` 要求 init/running | `node/node.go:2682-2712`；`node/process.go:603-613` |
+| **同一 hop 的三个观测共用 SpanID**：发送时分配新 id（`atomic.AddUint64(&n.spanID,1)`）写入 `options.Tracing.SpanID` / `qm.Tracing.SpanID`，`sent`、`delivered`、`processed` 都带这个 id，`ParentSpanID` 指向上一 hop。OTel 要求 (trace_id, span_id) 唯一，原样映射会让三个 span 在后端互相覆盖（`processed` 上的业务属性与真实耗时丢失）。项目的映射：`sent` 保留运行时 id，`delivered`/`processed` 用派生稳定 id 并挂在该 hop 的 `sent` 下 | 实测 `gxytrace/ergo_test.go` 的 `TestErgoExporterRealHopSpanIDs`；`node/core.go:45,94,122-133`；`act/actor.go:416-430` |
 | 业务侧：`SetTracingSpanAttribute` 是 one-shot（handler 返回后清除），`SetTracingAttribute` 是持久属性，`ergo.` 前缀被忽略；`StartTracingSpan`/`End`/`EndError` 可建业务区间，未结束的 handler 自动以 `ergo.span.unended=true` 关闭 | `gen/process.go:924-934`；`node/process.go:2021-2185` |
 
 ### 指标与 inspect
