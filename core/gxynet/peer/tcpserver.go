@@ -97,6 +97,7 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 	for {
 		msg, pkgLen, err := endPoint.DecodeMsg(data)
 		if err != nil {
+			gxymetrics.GatewayPackets.WithLabelValues("frame", "error").Inc()
 			gxylog.Error(context.Background(), "decode msg failed", gxylog.Err(err), gxylog.Any("rawData", data))
 			return gnet.Close
 		}
@@ -105,6 +106,7 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 			break
 		}
 		if pkgLen <= 0 || pkgLen > len(data) {
+			gxymetrics.GatewayPackets.WithLabelValues("frame", "error").Inc()
 			gxylog.Error(context.Background(), "invalid decoded package length",
 				gxylog.Num("pkgLen", pkgLen),
 				gxylog.Num("dataLen", len(data)),
@@ -114,7 +116,10 @@ func (t *TcpServer) OnTraffic(c gnet.Conn) gnet.Action {
 		dataLen += pkgLen
 		data = data[pkgLen:]
 		if err := t.Handler.OnMessage(endPoint, msg); err != nil {
+			gxymetrics.GatewayPackets.WithLabelValues("message", "error").Inc()
 			gxylog.Error(ctx, "handler onMessage failed", gxylog.Err(err))
+		} else {
+			gxymetrics.GatewayPackets.WithLabelValues("message", "ok").Inc()
 		}
 	}
 	if dataLen > 0 {

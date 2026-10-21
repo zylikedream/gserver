@@ -2,6 +2,7 @@ package gxyactor
 
 import (
 	"context"
+	"time"
 
 	"github.com/cockroachdb/errors"
 
@@ -152,8 +153,11 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 	}
 
 	// 断言必然成立:业务对象经内嵌基类获得默认入口(见 Actor.HandleMessage)。
+	start := time.Now()
 	rsp, err := r.behavior.HandleMessage(ctx, decoded)
 	gxymetrics.ActorMessages.WithLabelValues(r.base.kind).Inc()
+	// 带上 exemplar:从慢样本能直接跳到对应 trace。
+	gxymetrics.ObserveWithTrace(ctx, gxymetrics.ActorMessageDuration.WithLabelValues(r.base.kind), time.Since(start).Seconds())
 	if err != nil {
 		gxylog.Error(ctx, "handle msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))
 		return err
@@ -180,8 +184,10 @@ func (r *runtimeActor) HandleCall(from gen.PID, ref gen.Ref, request any) (any, 
 	}
 
 	// 业务入口经内嵌基类获得默认实现(见 Actor.HandleCall),此处直接调用。
+	start := time.Now()
 	rsp, err := r.behavior.HandleCall(ctx, decoded)
 	gxymetrics.ActorMessages.WithLabelValues(r.base.kind).Inc()
+	gxymetrics.ObserveWithTrace(ctx, gxymetrics.ActorMessageDuration.WithLabelValues(r.base.kind), time.Since(start).Seconds())
 	switch {
 	case err != nil:
 		gxylog.Error(ctx, "handle rpc msg failed", gxylog.Any("payload", decoded), gxylog.Err(err))

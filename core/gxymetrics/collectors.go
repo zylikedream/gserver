@@ -2,6 +2,14 @@ package gxymetrics
 
 import "github.com/prometheus/client_golang/prometheus"
 
+// latencyBuckets 用于亚毫秒路径(actor 处理、Redis 命令、DB 查询)。
+//
+// prometheus.DefBuckets 从 5ms 起步,这三类样本的绝大多数会全落进第一个桶,
+// 做延迟优化时没有分辨率;这里从 0.1ms 起,覆盖到 5s。
+var latencyBuckets = []float64{
+	.0001, .00025, .0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5,
+}
+
 var (
 	TcpConnections = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tcp_connections",
@@ -21,19 +29,19 @@ var (
 	ActorMessageDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "actor_message_duration_seconds",
 		Help:    "Actor message processing duration",
-		Buckets: prometheus.DefBuckets,
+		Buckets: latencyBuckets,
 	}, []string{"kind"})
 
 	DBQueryDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "db_query_duration_seconds",
 		Help:    "Database query duration",
-		Buckets: prometheus.DefBuckets,
+		Buckets: latencyBuckets,
 	})
 
 	RedisRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "redis_request_duration_seconds",
 		Help:    "Redis request duration",
-		Buckets: prometheus.DefBuckets,
+		Buckets: latencyBuckets,
 	}, []string{"cmd"})
 
 	// RedisErrors 与耗时分开计数:耗时直方图里混着成功与失败,单看它算不出失败率。
@@ -84,9 +92,12 @@ var (
 		Help: "Whether a Role business module is disabled by startup policy",
 	}, []string{"module"})
 
+	// GatewayPackets 的 type 表示"哪一层":message 是解码成功、进入处理;
+	// frame 是帧层失败(解码失败或长度非法)。result 是 ok/error。
+	// 一条成功投递的消息只记一次(message/ok 或 message/error),帧层失败单独记。
 	GatewayPackets = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "gateway_packets_total",
-		Help: "Total gateway packets received by type and result",
+		Help: "Total gateway inbox items by layer (message/frame) and result",
 	}, []string{"type", "result"})
 
 	SessionDisconnects = prometheus.NewCounterVec(prometheus.CounterOpts{
