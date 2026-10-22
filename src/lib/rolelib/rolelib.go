@@ -11,6 +11,7 @@ import (
 	"gserver/core/gxymetrics"
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
+	"gserver/core/gxytrace"
 	"gserver/src/lib"
 
 	"github.com/cockroachdb/errors"
@@ -27,6 +28,9 @@ type roleNotifyMsg struct {
 	TargetRoleID int64      `json:"target_role_id"`
 	Msg          *anypb.Any `json:"msg"`
 	CreatedAt    int64      `json:"created_at"`
+	// Traceparent 是生产者的 W3C 链路上下文:消费者据此**继续**同一条 trace
+	// (点对点通知是 1:1)。没有在追踪时为空。
+	Traceparent string `json:"traceparent,omitempty"`
 }
 
 type OnRoleNotifyMsg struct {
@@ -61,6 +65,9 @@ func (r *RoleNotify) handleNotify(ctx context.Context, raw string) error {
 	if err := json.Unmarshal([]byte(raw), msg); err != nil {
 		return errors.Wrap(err, "role notify unmarshal")
 	}
+	// 继续生产者的 trace:消费者日志与后续 I/O 都归属那条链路。
+	// 跨到 actor 的那一跳由运行时按节点级采样另行决定,不继承这里。
+	ctx = gxytrace.ContextWithTraceparent(ctx, msg.Traceparent)
 	if msg.TargetRoleID <= 0 || msg.Msg == nil {
 		return errors.Newf("role notify invalid payload, target: %d", msg.TargetRoleID)
 	}
@@ -119,6 +126,7 @@ func PublishRoleNotify(ctx context.Context, targetRoleID int64, msg proto.Messag
 		TargetRoleID: targetRoleID,
 		Msg:          anyMsg,
 		CreatedAt:    time.Now().Unix(),
+		Traceparent:  gxytrace.TraceparentFromContext(ctx),
 	})
 	if err != nil {
 		gxymetrics.RoleNotifyPublish.WithLabelValues(msgType, "error", "remote").Inc()

@@ -69,6 +69,7 @@ gateway/role/chat/friend/guild
 - **单请求分解看 span**：DB 每次查询、Redis 每条命令各一个 Client span（`postgres.query` / `redis.<cmd>`），只在**被采样的链路**里产生；没有采样中的父 span 时不会新开 trace——心跳续约、启动探活、定时任务因此不会各自变成一条单 span 的 trace。
 - **span 预算**：一条链路通常 ≤10 个（DB 1~5、Redis 0~3）。出现"逐项循环"时用 `gxytrace.WithoutClientSpans(ctx)` 抑制逐条 span，用一个阶段 span + 属性记数量（如 `items=N`），明细交给指标。
 - **不记录原始 SQL 与参数值**：只记 `db.system`、`db.operation`（SELECT/INSERT…）、`db.sql.table`；`redis.Nil` 与 `ErrRecordNotFound` 不算错误。
+- **MQ**：消息 payload 带 `traceparent`。点对点通知（1:1，`PublishRoleNotify`）消费端以它为**远端父**继续链路；广播（1:N，`Publish`/`PublishToAll`）消费端开独立 trace 并用 **link** 指回生产者，避免单条 trace 的分支数随节点数膨胀。
 
 ## 标签约束
 
