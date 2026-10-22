@@ -20,8 +20,6 @@ type IMessageCodec interface {
 const (
 	MESSAGE_JSON     = "json"
 	MESSAGE_PROTOBUF = "protobuf"
-	MESSAGE_MSGPACK  = "msgpack"
-	MESSAGE_RAW      = "raw"
 )
 
 func NewMessageCodec(t string) (IMessageCodec, error) {

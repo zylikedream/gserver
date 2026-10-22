@@ -51,14 +51,7 @@ func (t *TcpConnector) Start(ctx context.Context, h endpoint.EventHandler) error
 		return err
 	}
 	_, err = cli.Dial("tcp", t.conf.Addr)
-	if err != nil {
-		return err
-	}
-	err = cli.Start()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (t *TcpConnector) Type() string {
@@ -86,16 +79,20 @@ func (t *TcpConnector) OnOpen(c gnet.Conn) ([]byte, gnet.Action) {
 
 func (t *TcpConnector) OnTraffic(c gnet.Conn) gnet.Action {
 	endPoint := c.Context().(*endpoint.TcpEndpoint)
-	data, err := c.Next(-1)
+	// Peek 不消费:半包留在缓冲区,消费统一由末尾 Discard(dataLen) 完成(与服务端一致)。
+	data, err := c.Peek(-1)
 	if err != nil {
-		gxylog.Error(context.Background(), "get traffic data failed", gxylog.Err(err))
+		gxylog.Error(context.Background(), "get traffic data failed",
+			gxylog.Str("addr", c.RemoteAddr().String()), gxylog.Err(err))
 		return gnet.Close
 	}
 	dataLen := 0
 	for {
 		msg, pkgLen, err := endPoint.DecodeMsg(data)
 		if err != nil {
-			gxylog.Error(context.Background(), "decode msg failed", gxylog.Err(err), gxylog.Any("rawData", data))
+			gxylog.Error(context.Background(), "decode msg failed",
+				gxylog.Str("addr", c.RemoteAddr().String()),
+				gxylog.Err(err), gxylog.Any("rawData", data))
 			return gnet.Close
 		}
 		if msg == nil {
