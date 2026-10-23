@@ -2,7 +2,11 @@ package gxymq
 
 import (
 	"context"
+	"os"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"gserver/core/gxylog"
 	"gserver/core/gxyutil"
@@ -19,6 +23,10 @@ type PulsarMQ struct {
 	client pulsar.Client
 	// 停止通道
 	stopCh chan struct{}
+
+	// instance 是本进程实例的订阅后缀,进程启动时生成一次。
+	// 用途见 subscriptionName。
+	instance string
 
 	// producers 按 topic 缓存生产者,避免每条消息创建/关闭长连接
 	mu        sync.Mutex
@@ -39,6 +47,7 @@ func NewPulsarMQ(cfg *gcfg.Config) (*PulsarMQ, error) {
 	return &PulsarMQ{
 		config:    conf,
 		stopCh:    make(chan struct{}),
+		instance:  strconv.FormatInt(time.Now().UnixNano(), 36) + "-" + strconv.Itoa(os.Getpid()),
 		producers: make(map[string]pulsar.Producer),
 	}, nil
 }
@@ -95,7 +104,7 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 	// 创建消费者
 	consumer, err := p.client.Subscribe(pulsar.ConsumerOptions{
 		Topic:            topic,
-		SubscriptionName: "sub-" + topic,
+		SubscriptionName: p.subscriptionName(topic),
 	})
 	if err != nil {
 		gxylog.Error(ctx, "Pulsar subscribe failed", gxylog.Str("topic", topic), gxylog.Err(err))
@@ -124,13 +133,14 @@ func (p *PulsarMQ) Subscribe(ctx context.Context, topic string, handler TopicHan
 					continue
 				}
 
-				// 处理消息
+				// handler 是 app 层的入队闭包,不是业务处理:它返回错误只可能是
+				// 入队失败(实际不可达),所以 Nack 这条分支目前走不到。
 				if err := handler(ctx, string(msg.Payload())); err != nil {
 					gxylog.Error(ctx, "Failed to handle message", gxylog.Str("topic", topic), gxylog.Err(err))
-					// 处理失败，重试
 					consumer.Nack(msg)
 				} else {
-					// 处理成功，确认消息
+					// 入队成功即确认:这是"已入队",不是"已处理";业务处理在 worker
+					// 里、晚于本次 Ack(投递语义见 IMessageQueue 的注释)。
 					_ = consumer.Ack(msg)
 				}
 			}
@@ -152,6 +162,35 @@ func (p *PulsarMQ) Close(ctx context.Context) error {
 
 	p.client.Close()
 	close(p.stopCh)
-	gxylog.Info(ctx, "Pulsar message queue closed")
+	gxylog.Info(ctx, "pulsar message queue closed")
 	return nil
+}
+
+// subscriptionName 为每个进程实例生成独立的订阅名。
+//
+// Pulsar 的订阅是**消费组**:同名订阅的多个消费者均分消息。而本模块的语义是
+// "每个订阅者都处理每一条"(broadcast topic 靠 fan-out,见 lib/broadcast.go)。
+// 若所有节点共用 "sub-<topic>",多节点部署时一条广播只会被其中一个节点处理 ——
+// 与 redis pub/sub 的行为完全不同。因此订阅名必须带本实例后缀。
+//
+// 名字只保留 [a-zA-Z0-9_-]:topic 里可能有 ':'(如 global:all:broadcast)。
+// 后缀在进程启动时生成一次,重启后是新订阅,不会收到停机期间的积压(与 redis
+// 的"错过即丢"一致)。代价是旧订阅会残留在 broker 上,需要运维侧配置
+// subscriptionExpirationTime 清理。
+func (p *PulsarMQ) subscriptionName(topic string) string {
+	return "sub-" + sanitizeSubscription(topic) + "-" + p.instance
+}
+
+func sanitizeSubscription(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	return b.String()
 }

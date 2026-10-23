@@ -98,7 +98,7 @@ func BenchmarkActorLocateLookup(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for b.Loop() {
-				if _, err := client.Eval(ctx, actorLocatorLocateScript, []string{currentData.keyPrefix + scenario.roleID}).Result(); err != nil {
+				if _, err := client.Eval(ctx, actorLocatorLocateScript, []string{currentData.keyPrefix + scenario.roleID}, actorLocatorLeaseKeyPrefix()).Result(); err != nil {
 					b.Fatalf("current lookup error = %v", err)
 				}
 			}
@@ -349,7 +349,7 @@ func TestActorLocateConcurrentLoad(t *testing.T) {
 			populateCurrentLocateBenchData(t, ctx, client, config, data)
 			t.Logf("layout=%s dataset_setup=%s", layout, time.Since(start))
 			lookup = func(ctx context.Context, roleID string) error {
-				_, err := client.Eval(ctx, actorLocatorLocateScript, []string{data.keyPrefix + roleID}).Result()
+				_, err := client.Eval(ctx, actorLocatorLocateScript, []string{data.keyPrefix + roleID}, actorLocatorLeaseKeyPrefix()).Result()
 				return err
 			}
 		}

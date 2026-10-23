@@ -20,6 +20,9 @@ import (
 //
 // 本适配器不额外写任何注册记录 —— 节点地址已由服务组件写入注册中心
 // （见 ADR 0011）。
+//
+// 为什么不直接解析节点名：见 Resolve 的注释（节点名不含端口，地址只从实际
+// 监听派生）。
 type serviceRegistrar struct {
 	// handshake/proto 版本取自本节点自身的路由信息。
 	// 解析接口返回的路由没有"缺省补全"这一步，必须显式带上。
@@ -56,6 +59,12 @@ func (r *serviceRegistrar) Resolver() gen.Resolver { return r }
 // 地址取自节点级服务记录(见 ActorNodeService):运行时的入口只给节点名,
 // 而一个节点可以承载多种能力、也可以一种都不承载,因此按能力名反推地址
 // 不成立。
+//
+// 为什么不直接从节点名拼出地址:节点名是 podName@host,**不含端口**;而这里
+// 要的是运行时自报的监听地址(ActorService.Host → actorApp.Address)。拼装在
+// 端口变更、端口映射、通配监听时都会与事实不符——ADR 0011 的要求是"地址由谁
+// 分配都不会出现登记值与监听值不一致"。节点名里的 host 只在注册值为通配地址
+// (0.0.0.0)时作兜底,见下方 h == "" 的分支。
 func (r *serviceRegistrar) Resolve(node gen.Atom) ([]gen.Route, error) {
 	name := string(node)
 	_, host, ok := splitNodeName(name)

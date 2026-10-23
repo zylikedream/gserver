@@ -58,10 +58,11 @@ gxylog.Error(ctx, "load role failed", gxylog.Str("error", err.Error()))
 ```go
 ctx := gxylog.NewContext(ctx, "role")          // 模块名
 ctx = gxylog.WithValue(ctx, gxylog.CONTEXT_KEY_ROLE_ID, roleID)  // 业务字段
-gxylog.Info(ctx, "...")                        // 自动带 mod/roleID/trace_id
+gxylog.Info(ctx, "...")                        // 自动带 mod/roleID/trace_id/span_id
 ```
 
 - 所有日志函数第一个参数是 `ctx`,从请求链一路传
+- actor 内的 ctx 由门面按**消息**派生:`trace_id` 定位整条链路,`span_id` 定位本次处理(即 Tempo 里的 processed span);未采样的链路上两者都退化,只带 `ctx_id`
 - **不要**在日志字段里重复打 ctx 已有的 key(去重机制:reservedKeys)
 
 ## 日志边界
@@ -107,7 +108,7 @@ gxylog.Error(ctx, "handle client protocol failed", gxylog.Err(err))
 - [ ] 级别选择正确(Debug/Info/Warn/Error)?
 - [ ] 字段化,无字符串拼接?
 - [ ] 错误日志用 `gxylog.Err(err)` 而非 `Str("error", err.Error())`?
-- [ ] ctx 传递正确(带 mod/roleID/trace_id)?
+- [ ] ctx 传递正确(带 mod/roleID/trace_id/span_id)?
 - [ ] 打印点在最终处理处,无中途重复?
 - [ ] 客户端预期拒绝是否按拒绝登记(不带栈),而非 error?
 - [ ] 无敏感信息(密码/token)?

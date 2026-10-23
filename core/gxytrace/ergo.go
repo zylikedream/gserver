@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math/rand/v2"
 	"time"
 
@@ -48,29 +49,25 @@ func spanIDFromErgo(id uint64) trace.SpanID {
 	return out
 }
 
-// ContextWithErgoTrace 把运行时在消息处理期间维护的链路标识装进 ctx,
-// 使该 ctx 上的日志自动带上 trace_id(见 gxylog 的注入逻辑)。
+// ContextWithErgoTrace 把**当前处理这一段**的链路标识装进 ctx,
+// 使该 ctx 上的日志带上 trace_id 与 span_id(见 gxylog 的注入逻辑)。
+//
+// 装的是 processed 观测的 span(与导出器用同一条派生规则),不是调用方那一段:
+// 这样日志里的 span_id 指向"本次处理",而不是把日志错误地归到调用方的 span 上。
+// 父关系不进 ctx(OTel 只在建子 span 时使用它),这里只保证 trace_id/span_id
+// 正确且已采样。
 //
 // 标识取自运行时的"当前传播链路":它在消息带链路时被激活、处理结束即恢复
 // (见 act.Actor),因此**非零即表示本条消息在被追踪的链路上**。零值原样返回,
 // 日志会退化成 ctx_id —— 与"未采样不打 trace_id"的既有判断一致。
-//
-// 装入的是**远端 span 上下文**(调用方在链路中的位置),与导出器同一做法:
-// 运行时的 SpanID 是发送方那一段的标识;链路起点没有它时补一个合法标识,
-// 否则 SpanContext 不合法,日志依旧拿不到 trace_id。
 func ContextWithErgoTrace(ctx context.Context, t gen.Tracing) context.Context {
 	if t.ID == [2]uint64{} {
 		return ctx
 	}
-	spanID := spanIDFromErgo(t.SpanID)
-	if !spanID.IsValid() {
-		spanID = randomSpanID()
-	}
-	return trace.ContextWithRemoteSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
+	return trace.ContextWithSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID:    traceIDFromErgo(t.ID),
-		SpanID:     spanID,
+		SpanID:     derivedSpanID(t.SpanID, gen.TracingPointProcessed),
 		TraceFlags: trace.FlagsSampled,
-		Remote:     true,
 	}))
 }
 
@@ -115,6 +112,20 @@ func randomSpanID() trace.SpanID {
 	}
 }
 
+// derivedSpanID 由 hop id 与观测点派生稳定标识。
+//
+// 同一 hop 的重复导出(重放、多个导出器)会得到同一个 id,便于后端去重;
+// 不同观测点必须不同,否则 OTel 中 (trace_id, span_id) 重复的 span 会互相覆盖。
+func derivedSpanID(hopID uint64, point gen.TracingPoint) trace.SpanID {
+	h := fnv.New64a()
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], hopID)
+	h.Write(buf[:])
+	binary.BigEndian.PutUint64(buf[:], uint64(point))
+	h.Write(buf[:])
+	return spanIDFromErgo(h.Sum64())
+}
+
 // ErgoExporter 把运行时的追踪观测转成 OTel span。
 //
 // 运行时的每次观测(sent/delivered/processed/业务区间)各对应一个 span:
@@ -130,6 +141,15 @@ func NewErgoExporter() *ErgoExporter {
 }
 
 // HandleSpan 处理一次观测。由运行时在专用 worker 上串行调用。
+//
+// 标识映射(与运行时的观测模型对齐):
+//   - 运行时用**同一个 SpanID** 标记一条消息 hop 的三个观测点
+//     (sent / delivered / processed)。OTel 要求 (trace_id, span_id) 唯一,
+//     三个 span 共用一个 id 会在后端互相覆盖——processed 上的业务属性
+//     (SetTracingSpanAttribute)与真实处理耗时都会丢。
+//   - 因此:hop 的 sent 保留运行时 id;delivered 与 processed 用由它派生的
+//     稳定 id,并把该 hop 的 sent 作为父。一条消息的生命周期因此是
+//     sent ← {delivered, processed},跨 hop 的父子关系仍由 ParentSpanID 承担。
 func (e *ErgoExporter) HandleSpan(s gen.TracingSpan) {
 	start := time.Unix(0, s.Timestamp)
 	end := start
@@ -137,19 +157,30 @@ func (e *ErgoExporter) HandleSpan(s gen.TracingSpan) {
 		end = time.Unix(0, s.EndTimestamp)
 	}
 
+	spanID := spanIDFromErgo(s.SpanID)
+	parentID := spanIDFromErgo(s.ParentSpanID)
+	switch s.Point {
+	case gen.TracingPointDelivered, gen.TracingPointProcessed:
+		parentID = spanID
+		spanID = derivedSpanID(s.SpanID, s.Point)
+	}
+	if !spanID.IsValid() {
+		spanID = randomSpanID()
+	}
+
 	ctx := context.Background()
 	// 父观测的标识即 OTel 意义上的父 span——两边标识同源(见上),直接对应。
-	if s.ParentSpanID != 0 {
+	if parentID.IsValid() {
 		ctx = trace.ContextWithRemoteSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID:    traceIDFromErgo(s.TraceID),
-			SpanID:     spanIDFromErgo(s.ParentSpanID),
+			SpanID:     parentID,
 			TraceFlags: trace.FlagsSampled,
 			Remote:     true,
 		}))
 	}
 	ctx = context.WithValue(ctx, ergoIDsKey{}, ergoIDs{
 		traceID: traceIDFromErgo(s.TraceID),
-		spanID:  spanIDFromErgo(s.SpanID),
+		spanID:  spanID,
 	})
 
 	// 派生出的 ctx 不再往下传:本函数只处理这一条观测,span 在末尾显式结束。

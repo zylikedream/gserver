@@ -79,52 +79,56 @@ Service Key：`gserver-{nodeName}-{serviceName}`
 
 ## 核心流程
 
-### GetActor（定位 actor）
+### 定位与激活（`activateActor`）
 
 ```
-GetRoleActor(roleID)
-  → ActivateActor("role", roleID, spawn=false)
-    → getActor("role", roleID, spawn=false)
+GetRoleActor(roleID)            spawn=false，只查
+ActivateRole(roleID)            spawn=true，不存在时创建
+  → gxyactor.ActivateActor(kind, id, spawn)
+    → activateActor：最多 3 轮，每轮重新 Locate（事实可能已变）
       │
-      ├─ Redis direct lookup
-      │   GET key → owner {nodeInstanceName, epoch, leaseToken}
-      │   ↓
-      │   命中 → Consul 解析完整 nodeInstanceName 地址
-      │         ├── 地址缺失 → fail closed，不接管仍有有效 lease 的 owner
-      │         └── 请求 owner Activator（allow_spawn=false）
-      │              ├── 本地 ActorMgr 命中 → 返回 PID
-      │              └── 本地 activation 缺失 → 条件删除 owner，返回 RetryLocate
+      ├─ 有 owner
+      │   ├─ owner 是本节点 → resolveLocal
+      │   │     ├─ 本地有实例（按注册名查，O(1)）→ 返回
+      │   │     └─ 本地无实例 → 条件删除陈旧 owner → 重试
+      │   └─ owner 是其他节点 → Call 该节点的 activator/router（allowSpawn=false）
+      │         ├─ ActorPid → 返回（地址由对端给出，本地不重拼）
+      │         └─ ActorLocateRetry → 重试
       │
-      └─ 未命中且 spawn=true（由 ActivateRole 进入）
-          → ConsistentHash 选择候选节点
-          → 请求候选 Activator（allow_spawn=true）
-               ├── acquired → SpawnNamed → Touch 成功后返回 PID
-               └── owned_by_other → 返回 RetryLocate，重新读取 directory
+      └─ 无 owner
+          ├─ spawn=false → 不存在
+          └─ 一致性哈希选候选节点
+                ├─ 候选是其他节点 → Call 对方 router（allowSpawn=true）
+                └─ 候选是本节点 → SpawnNamed
+                      ├─ 竞争落败（ErrTaken / ErrNotOwner）→ 重试
+                      └─ 成功 → 返回
 ```
 
-`allowSpawn` 只控制 Claim 成功后的 `SpawnNamed` 权限，并不跳过 Claim。已有 owner 的查找请求即使是 `allowSpawn=false`，仍需在 owner 节点重新校验 lease 和 epoch，避免 Redis 定位结果与远程处理之间的竞态；只有没有 owner 且调用方明确允许创建时，才会选择候选节点并执行 spawn。
+`allowSpawn` 只控制"无 owner 时能不能创建"，并不跳过校验：已有 owner 的查询也必须经 owner 节点重新校验它自己的本地实例，避免 Redis 定位结果与远端处理之间的竞态。
+
+重试只发生在 `activateActor` 一层——被调函数只回答"这一轮有没有形成结论"（`errLocateRetry`），自己从不重试。需要重试的只有三类：**陈旧记录刚被释放**、**同名实例正在创建**、**远端要求重新定位**；其它错误直接上抛，否则会被磨成"重试耗尽"，盖掉真正的原因。
 
 ### Claim 与 Release
 
 ```
 节点启动
-  → SET node lease(token) EX TTL
+  → SET node lease(token) NX EX TTL（获取失败即启动失败，不静默接管旧实例）
   → heartbeat 只刷新 token 相同的 lease
 
-ActorActive 到达候选节点
-  → Claim 验证候选 lease
-  → 检查现有 owner lease
-  → owner 失效时 INCR epoch 并写入新 owner
-  → Claim 失败不得创建 actor
+ActorActive 到达候选节点（无 owner 且 allowSpawn）
+  → SpawnNamed（注册名 = <kind>/<id>）
+  → actor 同步初始化段：Claim 验证候选 lease → 检查现任 owner lease
+  → 现任失效 → INCR epoch 写入新 owner；现任活跃 → Claim 失败（ErrNotOwner）
+  → Claim 失败 → Init 报错 → 进程终止，实例不成立；调用方按竞争落败重试
 
-actor terminate / Touch 失败
-  → compare-and-delete(nodeInstanceName, epoch, token)
+actor terminate（正常退出）
+  → 业务最终落库之后：compare-and-delete(nodeInstanceName, epoch, token)
   → 不匹配时保持当前 owner
 ```
 
 关键点：
-- 正常 locate 是一次 O(1) Redis direct lookup，不扫描节点 Set。
-- `Claim` 在 `SpawnNamed` 之前执行，避免两台节点先创建 actor 再互相覆盖 owner。
+- 正常 locate 是一次 O(1) Redis direct lookup + 一次常量时间的名字查找，不扫描进程表。
+- `Claim` 在 actor 的**同步初始化段**执行（`SpawnNamed` 之后、消息处理与状态加载之前）：注册名占用先把同节点的并发创建收敛成一个（`ErrTaken`），Redis 仲裁再保证跨节点单写者（`ErrNotOwner`）；两者在激活层都被归为"竞争落败"并重试（不变量 #3）。
 - `epoch` 必须传入 Role 保存等持久化路径；旧 epoch 的副作用被拒绝。
 - Redis 错误与 owner miss 分开处理；Redis 错误不进入本地 fallback 创建。
 
@@ -139,13 +143,19 @@ node 启动
   → deadline 到期仍无法确认续租时终止进程
   → serviceApp 以 nodeInstanceName 注册 Consul
 
-Claim 成功
-  → SpawnNamed(props, id, id, ActorOwner{NodeID, Epoch})
-  → pending 状态合并同 ID 并发请求
-  → Touch 确认 Init 成功后才发布到本地 ActorMgr
+实例创建
+  → SpawnNamed（注册名 = <kind>/<id>，首个 Init 参数 = id）
+  → 同步初始化段：业务绑标识 → 门面 Claim（失败即进程终止，调用方视为竞争落败）
+  → 门面自投异步初始化消息 → 业务异步加载 → 消息循环
 
 actor terminate（正常退出）
   → compare-and-delete 当前 node + epoch + token
+
+node 停机（优雅）
+  → 先停节点：等所有 actor 的终止回调返回（最终落库 + compare-and-delete 归属）
+  → 再停 heartbeat 并释放 node lease
+  → 顺序反过来（先交还租约）会让其他节点在最终落库之前就能接管，
+    旧实例的存盘随即被 fence 拒绝，静默丢数据
 
 进程崩溃或 self-fence
   → heartbeat 停止，node lease 过期
@@ -179,7 +189,8 @@ Consul 负责节点服务发现；Redis lease、token 和 epoch 负责 directory
 |------|------|
 | `core/gxynode/node.go` | 生成 `NodeInstanceName`，传入 actorApp 和 serviceApp |
 | `core/gxyactor/actor_locator.go` | ActorOwner、node lease deadline、Claim、Release、epoch 和 self-fence |
-| `core/gxyactor/activator_manager.go` | owner Activator 验活、pending Touch、RetryLocate、条件 Release |
+| `core/gxyactor/actor_locator_scripts.go` + `core/gxyactor/lua/*.lua` | 归属与租约的 Lua 脚本（//go:embed 嵌入；公共函数在构建期拼到每个脚本前） |
+| `core/gxyactor/activator_manager.go` | 定位入口 `activateActor`（重试单点）、owner 节点验活、条件 Release、SpawnNamed |
 | `core/gxyactor/system.go` | actorApp 启动 remote、activatorManager 生命周期和 owner 查询 |
 | `core/gxyservice/service_app.go` | 以 `nodeInstanceName` 注册 Consul，`GetAddressByNodeName` |
 | `core/gxyregistery/types.go` | ServiceInfo 结构体 |
@@ -192,10 +203,10 @@ Consul 负责节点服务发现；Redis lease、token 和 epoch 负责 directory
 | 决策 | 选择 | 理由 |
 |------|------|------|
 | Redis 存什么 | `nodeInstanceName + epoch + leaseToken` | 直接 O(1) 定位；epoch 防止旧 owner 副作用 |
-| Actor owner 注册 | Claim Lua | 在 SpawnNamed 前原子检查和抢占，避免双创建 |
+| Actor owner 注册 | Claim Lua | 在 actor 同步初始化段原子仲裁；双创建由注册名占用（`ErrTaken`）与 Claim（`ErrNotOwner`）双重收敛 |
 | Node lease | 每节点一个 TTL lease | 续约责任集中在节点，不为每个 actor 续约 |
 | owner TTL | 不设置 | 防止长生命周期 actor 的 owner key 过期；残留记录由 lease 判定失效并在下一次 Claim 时覆盖 |
-| Redis 命中后行为 | 请求 owner Activator | 只有 owner 节点本地 ActorMgr 能确认 activation 存在；残留 owner 条件删除后重试 |
+| Redis 命中后行为 | 请求 owner 节点 | 只有 owner 节点能确认本地实例是否存在（按注册名查，O(1)）；残留 owner 由它条件删除后重试 |
 | 接管规则 | lease 失效或 token 不匹配后递增 epoch | 新 owner 版本高于旧 owner |
 | 注销方式 | compare-and-delete(node, epoch, token) | 延迟旧清理不能删除新 owner |
 | 持久化校验 | PostgreSQL 事务锁定 exact node + epoch | Redis 预查存在 TOCTOU；旧 actor 的整个保存事务必须被拒绝 |
@@ -206,5 +217,6 @@ Consul 负责节点服务发现；Redis lease、token 和 epoch 负责 directory
 
 | 日期 | 变更 | 说明 |
 |------|------|------|
+| 2026-10-19 | 文档对齐实现 | 激活流程改写为 `activateActor` 的真实分支；删除不存在的 pending/Touch/ActorMgr 步骤；修正 Claim 与 SpawnNamed 的先后；补 Lua 脚本位置 |
 | 2026-09-03 | owner fencing 改造 | direct lookup 保留性能，增加节点 lease、原子 Claim/Release 和 epoch |
 | 2026-05-02 | v2 重构 | 以 `nodeInstanceName` 代替 `address:port`，去掉续约，去掉 gxylocator |

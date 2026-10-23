@@ -2,6 +2,7 @@ package gxymq
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
@@ -122,5 +123,29 @@ func TestPulsarCloseReleasesProducers(t *testing.T) {
 	}
 	if len(mq.producers) != 0 {
 		t.Fatalf("Close 后 producers = %d, want 0", len(mq.producers))
+	}
+}
+
+// TestPulsarSubscriptionNameIsPerInstance 订阅名必须带实例后缀。
+// 为什么需要:Pulsar 的订阅是消费组,同名订阅的多个消费者均分消息;若所有节点
+// 共用 "sub-<topic>",多节点部署时一条广播只会被一个节点处理 —— 与 redis
+// pub/sub 的 fan-out 语义不同,且不报错。
+func TestPulsarSubscriptionNameIsPerInstance(t *testing.T) {
+	a := &PulsarMQ{instance: "inst-a"}
+	b := &PulsarMQ{instance: "inst-b"}
+	const topic = "global:all:broadcast"
+
+	if a.subscriptionName(topic) == b.subscriptionName(topic) {
+		t.Fatal("不同实例必须使用不同订阅名,否则广播会被共享订阅均分")
+	}
+	if got, again := a.subscriptionName(topic), a.subscriptionName(topic); got != again {
+		t.Fatalf("同一实例的订阅名必须稳定: %q vs %q", got, again)
+	}
+	got := a.subscriptionName(topic)
+	if strings.ContainsAny(got, ":") {
+		t.Fatalf("订阅名不得含 ':'(只允许 [a-zA-Z0-9_-]): %q", got)
+	}
+	if !strings.HasSuffix(got, "-inst-a") {
+		t.Fatalf("订阅名必须以实例后缀结尾: %q", got)
 	}
 }

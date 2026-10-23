@@ -274,8 +274,12 @@ func (x *ActorActive) GetAllowSpawn() bool {
 	return false
 }
 
+// ActorLocateRetry 是激活协调层"让调用方重新定位"的应答。
+// reason 说明为什么(记录移到了别的节点、刚被释放、创建竞争等):
+// 不带原因会让跨节点这一段的重试变成不可诊断,调用方只能看到"重来"。
 type ActorLocateRetry struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Reason        string                 `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -308,6 +312,13 @@ func (x *ActorLocateRetry) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ActorLocateRetry.ProtoReflect.Descriptor instead.
 func (*ActorLocateRetry) Descriptor() ([]byte, []int) {
 	return file_gactor_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ActorLocateRetry) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
 }
 
 type ActorStop struct {
@@ -446,8 +457,9 @@ const file_gactor_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x1f\n" +
 	"\vallow_spawn\x18\x03 \x01(\bR\n" +
-	"allowSpawn\"\x12\n" +
-	"\x10ActorLocateRetry\"#\n" +
+	"allowSpawn\"*\n" +
+	"\x10ActorLocateRetry\x12\x16\n" +
+	"\x06reason\x18\x01 \x01(\tR\x06reason\"#\n" +
 	"\tActorStop\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\"f\n" +
 	"\bActorPid\x12\x18\n" +

@@ -5,9 +5,11 @@ import (
 
 	"gserver/core/gxymodule"
 	"gserver/core/gxymq"
+	"gserver/core/gxytrace"
 
 	"github.com/cockroachdb/errors"
 	"github.com/gogf/gf/v2/encoding/gjson"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -19,6 +21,10 @@ const (
 type BroadcastMsg struct {
 	MsgType string
 	Data    string
+	// Traceparent 是生产者的 W3C 链路上下文:消费端用它作为 **link**(一对多,
+	// 不继续生产者的 trace,避免单条 trace 的分支数随节点数膨胀)。
+	// 业务处理函数不需要读写本字段。
+	Traceparent string `json:"traceparent,omitempty"`
 }
 
 // IBroadcastHandler 广播消息处理接口，嵌入方需实现
@@ -69,8 +75,12 @@ func (b *Broadcast) OnModStart(ctx context.Context) error {
 			if err := gjson.Unmarshal([]byte(msg), bMsg); err != nil {
 				return errors.Wrap(err, "broadcast msg json scan error")
 			}
+			// 广播是 1:N:消费端开独立 trace,用 link 指回生产者的 span。
+			hctx, span := gxytrace.StartLinkedConsumerSpan(ctx, "mq.consume", bMsg.Traceparent,
+				attribute.String("messaging.destination", t))
+			defer span.End()
 			for _, handler := range b.handlers {
-				bMsg = handler(ctx, t, bMsg)
+				bMsg = handler(hctx, t, bMsg)
 				if bMsg == nil {
 					break
 				}
@@ -85,7 +95,9 @@ func (b *Broadcast) OnModStart(ctx context.Context) error {
 
 // Publish 向本服务的广播 topic 发送消息
 func Publish(ctx context.Context, serviceName string, msg *BroadcastMsg) error {
-	msgStr, err := gjson.EncodeString(msg)
+	out := *msg
+	out.Traceparent = gxytrace.TraceparentFromContext(ctx)
+	msgStr, err := gjson.EncodeString(&out)
 	if err != nil {
 		return errors.Wrap(err, "broadcast msg json scan error")
 	}
@@ -94,7 +106,9 @@ func Publish(ctx context.Context, serviceName string, msg *BroadcastMsg) error {
 
 // PublishToAll 向全局广播 topic 发送消息（所有服务都会收到）
 func PublishToAll(ctx context.Context, msg *BroadcastMsg) error {
-	msgStr, err := gjson.EncodeString(msg)
+	out := *msg
+	out.Traceparent = gxytrace.TraceparentFromContext(ctx)
+	msgStr, err := gjson.EncodeString(&out)
 	if err != nil {
 		return errors.Wrap(err, "broadcast msg json scan error")
 	}

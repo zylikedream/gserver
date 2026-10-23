@@ -132,17 +132,24 @@ func (a *actorApp) OnModStart(ctx context.Context) error {
 
 // OnModStop 优雅停止节点。
 //
+// **顺序即语义:先等所有 actor 终止,再交还节点租约。** 终止回调里包含最终落库
+// 与归属释放;租约是整台节点"有权持有"的判据,提前交还等于让其他节点在最终
+// 落库之前就能接管——旧实例的存盘随即被 fence 拒绝,静默丢数据(不变量 #4)。
+//
 // 必须用优雅停止:它会等待所有进程的终止回调返回,而终止回调里包含最终落库
 // 与所有权释放。强制停止会跳过该等待,导致每次停机静默丢失最后一次存盘
 // (见 invariants.md #10)。
+//
+// 心跳要活到 node.Stop 返回:停机可能长于租约 TTL,期间必须一直续着,
+// 否则租约会在 actor 终止中途过期——与提前交还的后果相同。
 func (a *actorApp) OnModStop(ctx context.Context) error {
+	if a.node != nil {
+		a.node.Stop()
+	}
 	if a.activator != nil {
 		if err := a.activator.OnModStop(ctx); err != nil {
 			gxylog.Error(ctx, "stop activator failed", gxylog.Err(err))
 		}
-	}
-	if a.node != nil {
-		a.node.Stop()
 	}
 	gxylog.Info(ctx, "actor system stopped", gxylog.Str("address", a.Address()))
 	return nil
@@ -277,6 +284,10 @@ func (a *actorApp) NodeInstanceName() string {
 //
 // 服务注册需要该地址:其它节点据此建立连接。不能用运行时节点名——它的格式
 // 是 name@host,不含端口(见 ADR 0011)。
+//
+// 取的是运行时的实际监听信息(acceptor 的 Interface),不按配置拼装:
+// 注册值与监听值因此不可能不一致——这就是"节点名不能替代它"的理由,
+// 也是注册适配器要回查注册表、而不是解析节点名的原因(见 serviceRegistrar.Resolve)。
 func (a *actorApp) Address() string {
 	if a.node == nil {
 		return ""

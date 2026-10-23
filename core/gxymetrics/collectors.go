@@ -2,6 +2,14 @@ package gxymetrics
 
 import "github.com/prometheus/client_golang/prometheus"
 
+// latencyBuckets 用于亚毫秒路径(actor 处理、Redis 命令、DB 查询)。
+//
+// prometheus.DefBuckets 从 5ms 起步,这三类样本的绝大多数会全落进第一个桶,
+// 做延迟优化时没有分辨率;这里从 0.1ms 起,覆盖到 5s。
+var latencyBuckets = []float64{
+	.0001, .00025, .0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5,
+}
+
 var (
 	TcpConnections = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tcp_connections",
@@ -21,20 +29,42 @@ var (
 	ActorMessageDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "actor_message_duration_seconds",
 		Help:    "Actor message processing duration",
-		Buckets: prometheus.DefBuckets,
+		Buckets: latencyBuckets,
 	}, []string{"kind"})
 
 	DBQueryDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
 		Name:    "db_query_duration_seconds",
 		Help:    "Database query duration",
-		Buckets: prometheus.DefBuckets,
+		Buckets: latencyBuckets,
 	})
 
 	RedisRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "redis_request_duration_seconds",
 		Help:    "Redis request duration",
-		Buckets: prometheus.DefBuckets,
+		Buckets: latencyBuckets,
 	}, []string{"cmd"})
+
+	// RedisErrors 与耗时分开计数:耗时直方图里混着成功与失败,单看它算不出失败率。
+	RedisErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "redis_errors_total",
+		Help: "Redis command errors",
+	}, []string{"cmd"})
+
+	// MQQueueDepth 是待处理消息数(消息到达与出队时更新,不在抓取时计算)。
+	MQQueueDepth = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "mq_queue_depth",
+		Help: "Messages waiting for mq workers",
+	})
+	MQQueueCapacity = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "mq_queue_capacity",
+		Help: "mq worker queue capacity (depth/capacity is the saturation ratio)",
+	})
+	// MQHandlerErrors 只计数不分主题:主题里含节点实例名(roleNotifyTopic),
+	// 作为标签会让序列基数随实例数无限增长。
+	MQHandlerErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "mq_handler_errors_total",
+		Help: "Message handlers that returned an error (message dropped, no retry)",
+	})
 
 	OnlinePlayers = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "online_players",
@@ -62,9 +92,12 @@ var (
 		Help: "Whether a Role business module is disabled by startup policy",
 	}, []string{"module"})
 
+	// GatewayPackets 的 type 表示"哪一层":message 是解码成功、进入处理;
+	// frame 是帧层失败(解码失败或长度非法)。result 是 ok/error。
+	// 一条成功投递的消息只记一次(message/ok 或 message/error),帧层失败单独记。
 	GatewayPackets = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "gateway_packets_total",
-		Help: "Total gateway packets received by type and result",
+		Help: "Total gateway inbox items by layer (message/frame) and result",
 	}, []string{"type", "result"})
 
 	SessionDisconnects = prometheus.NewCounterVec(prometheus.CounterOpts{
