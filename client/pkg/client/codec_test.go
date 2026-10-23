@@ -1,6 +1,8 @@
 package client
 
 import (
+	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -104,5 +106,46 @@ func TestEncodeDecodeDataPacket(t *testing.T) {
 	}
 	if decoded.Path != "21001" {
 		t.Errorf("path: got %s, want 21001", decoded.Path)
+	}
+}
+
+// TestLTIVGoldenFrame 与服务端 core/gxynet/packet/packet_test.go 的 TestLtiv_GoldenFrame
+// 共享同一组字节字面量,任一侧改动帧布局都会在自己的测试里变红。
+func TestLTIVGoldenFrame(t *testing.T) {
+	codec := NewLTIVCodec()
+	// ReqChatSendChannel{channel_type:1, content:"hello-trace"}
+	payload := []byte("\x08\x01\x12\x0bhello-trace")
+	data, err := codec.Encode(&Message{Type: 1, Path: "28020", Payload: payload})
+	if err != nil {
+		t.Fatalf("encode failed: %v", err)
+	}
+	want := []byte{
+		0x12, 0x00, // size = 18
+		0x01,       // type
+		0x74, 0x6d, // msg id 28020, 小端
+		0x08, 0x01, 0x12, 0x0b, 'h', 'e', 'l', 'l', 'o', '-', 't', 'r', 'a', 'c', 'e',
+	}
+	if !bytes.Equal(data, want) {
+		t.Fatalf("frame mismatch:\n got % x\nwant % x", data, want)
+	}
+
+	consumed, msg, err := codec.Decode(want)
+	if err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if consumed != len(want) {
+		t.Fatalf("consumed = %d, want %d", consumed, len(want))
+	}
+	if msg.Type != 1 || msg.Path != "28020" || !bytes.Equal(msg.Payload, payload) {
+		t.Fatalf("decoded mismatch: type=%d path=%s payload=% x", msg.Type, msg.Path, msg.Payload)
+	}
+}
+
+// TestEncodeTooBig: 超过 2B 长度字段上限必须在本地报错,不能 uint16 截断成损坏帧。
+func TestEncodeTooBig(t *testing.T) {
+	codec := NewLTIVCodec()
+	_, err := codec.Encode(&Message{Type: 1, Path: "1", Payload: make([]byte, maxSize)})
+	if !errors.Is(err, ErrPacketTooBig) {
+		t.Fatalf("expected ErrPacketTooBig, got %v", err)
 	}
 }

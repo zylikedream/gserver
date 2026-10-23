@@ -263,7 +263,7 @@ func (s *Session) HandleDown(ctx context.Context, pid gxyactor.PID) {
 func (s *Session) OnHandleClientMessage(ctx context.Context, msg *message.Message, from gxyactor.PID) error {
 	s.updateClientLastActive()
 	switch msg.Type {
-	case message.MESSGE_TYPE_FIRST_PACKET:
+	case message.MESSAGE_TYPE_FIRST_PACKET:
 		if err := s.handleHandshake(ctx, msg.Msg); err != nil {
 			if isLoginAdmissionRejection(err) {
 				s.Stop(err)

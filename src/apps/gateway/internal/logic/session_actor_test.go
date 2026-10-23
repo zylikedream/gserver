@@ -328,7 +328,7 @@ func TestSession_LoginAdmission_Rejections(t *testing.T) {
 			t.Setenv(gateMaintenanceEnv, "")
 
 			msg := &message.Message{
-				Type: message.MESSGE_TYPE_FIRST_PACKET,
+				Type: message.MESSAGE_TYPE_FIRST_PACKET,
 				Msg:  &pb.ReqHandShake{GateToken: "ok"},
 			}
 			if err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{}); err != nil {
@@ -422,7 +422,7 @@ func TestSession_LoginAdmission_UnconfiguredPropagates(t *testing.T) {
 	t.Setenv(gateMaintenanceEnv, "")
 
 	msg := &message.Message{
-		Type: message.MESSGE_TYPE_FIRST_PACKET,
+		Type: message.MESSAGE_TYPE_FIRST_PACKET,
 		Msg:  &pb.ReqHandShake{GateToken: "ok"},
 	}
 	err := s.OnHandleClientMessage(context.Background(), msg, gxyactor.PID{})

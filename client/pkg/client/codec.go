@@ -5,11 +5,16 @@ import (
 	"errors"
 )
 
+// 线上契约:与 config/gate.toml 的 [packet.ltiv] 保持一致
+// (size_length=2 / type_length=1 / id_length=2 / byte_order=little / max_size=65535)。
+// client 模块被门禁禁止 import 服务端实现,两侧靠 packet_test.go 与 codec_test.go
+// 里相同的黄金帧字面量互相锁定。
 const (
 	sizeLen = 2
 	typeLen = 1
 	idLen   = 2
-	maxSize = 3 * 1024 * 1024 // 3MB
+	// 2B 长度字段上限,与 [packet.ltiv] max_size 一致;超出必须编码前拦截。
+	maxSize = 65535
 )
 
 var (
@@ -40,6 +45,9 @@ func (c *LTIVCodec) Encode(msg *Message) ([]byte, error) {
 	binary.LittleEndian.PutUint16(idBuf, pathNum)
 	body = append(body, idBuf...)
 	body = append(body, msg.Payload...)
+	if len(body) > maxSize {
+		return nil, ErrPacketTooBig
+	}
 
 	// packet = Size(2B) + body
 	sizeBuf := make([]byte, 2)

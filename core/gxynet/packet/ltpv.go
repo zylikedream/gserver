@@ -89,34 +89,32 @@ func (l *ltpv) Decode(data []byte) (uint64, *message.Message, error) {
 }
 
 func (l *ltpv) Encode(m *message.Message) ([]byte, error) {
-	payload := &bytes.Buffer{}
-	// 消息长度
+	body := &bytes.Buffer{}
 	// 消息类型+消息path+消息内容
-	if err := binary.Write(payload, l.byteOrder, convertUint(uint64(m.Type), l.conf.TypeLength)); err != nil {
+	if err := binary.Write(body, l.byteOrder, convertUint(uint64(m.Type), l.conf.TypeLength)); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	pathLen := len(m.Path)
-	if err := binary.Write(payload, l.byteOrder, convertUint(gconv.Uint64(pathLen), l.conf.PathLength)); err != nil {
+	if err := binary.Write(body, l.byteOrder, convertUint(gconv.Uint64(pathLen), l.conf.PathLength)); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if _, err := payload.Write(gconv.Bytes(m.Path)); err != nil {
+	if _, err := body.Write(gconv.Bytes(m.Path)); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if _, err := payload.Write(m.Payload); err != nil {
+	if _, err := body.Write(m.Payload); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	m.Payload = payload.Bytes()
-	buf := &bytes.Buffer{}
-	payloadLen := len(m.Payload)
+	bodyLen := body.Len()
 	// 长度字段按 SizeLength 编码: 超过 MaxSize 会静默截断(uint16 mod),
 	// 产生损坏包导致对端流错位, 必须在打包前拦截。
-	if payloadLen > l.conf.MaxSize {
-		return nil, errors.Newf("packet too big, %d(max %d)", payloadLen, l.conf.MaxSize)
+	if bodyLen > l.conf.MaxSize {
+		return nil, errors.Newf("packet too big, %d(max %d)", bodyLen, l.conf.MaxSize)
 	}
-	if err := binary.Write(buf, l.byteOrder, convertUint(uint64(payloadLen), l.conf.SizeLength)); err != nil {
+	buf := &bytes.Buffer{}
+	if err := binary.Write(buf, l.byteOrder, convertUint(uint64(bodyLen), l.conf.SizeLength)); err != nil {
 		return nil, errors.WithStack(err)
 	}
-	if _, err := buf.Write(m.Payload); err != nil {
+	if _, err := buf.Write(body.Bytes()); err != nil {
 		return nil, errors.WithStack(err)
 	}
 	return buf.Bytes(), nil

@@ -13,7 +13,6 @@ import (
 )
 
 type Endpoint interface {
-	SendData(data []byte, path string) error
 	SendMsg(msg any) error
 	Conn() net.Conn
 	Close()

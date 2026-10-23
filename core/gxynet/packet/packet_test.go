@@ -3,6 +3,7 @@ package packet
 // LTIV/LTPV 编解码器测试:纯函数级,构造结构体直接测,覆盖编解码往返与边界条件。
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"strings"
@@ -202,5 +203,38 @@ func TestLtpv_Encode_TooBig(t *testing.T) {
 	_, err := l.Encode(msg)
 	if err == nil || !strings.Contains(err.Error(), "packet too big") {
 		t.Fatalf("expected packet too big error, got %v", err)
+	}
+}
+
+// TestLtiv_GoldenFrame 锁定线上帧字节:与客户端 client/pkg/client/codec_test.go 的
+// TestLTIVGoldenFrame 使用同一组字面量。client 模块被门禁禁止 import 服务端实现,
+// 任一侧改动帧布局都必须在本文件的字面量里同步,否则只剩联调能发现。
+func TestLtiv_GoldenFrame(t *testing.T) {
+	l := newLtivForTest(binary.LittleEndian)
+	// ReqChatSendChannel{channel_type:1, content:"hello-trace"}
+	payload := []byte("\x08\x01\x12\x0bhello-trace")
+	got, err := l.Encode(&message.Message{Type: 1, Path: "28020", Payload: payload})
+	if err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	want := []byte{
+		0x12, 0x00, // size = 18 (type 1 + id 2 + payload 15)
+		0x01,       // type
+		0x74, 0x6d, // msg id 28020, 小端
+		0x08, 0x01, 0x12, 0x0b, 'h', 'e', 'l', 'l', 'o', '-', 't', 'r', 'a', 'c', 'e',
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("frame mismatch:\n got % x\nwant % x", got, want)
+	}
+
+	n, msg, err := l.Decode(want)
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if n != uint64(len(want)) {
+		t.Fatalf("consumed = %d, want %d", n, len(want))
+	}
+	if msg.Type != 1 || msg.Path != "28020" || !bytes.Equal(msg.Payload, payload) {
+		t.Fatalf("decoded mismatch: type=%d path=%s payload=% x", msg.Type, msg.Path, msg.Payload)
 	}
 }

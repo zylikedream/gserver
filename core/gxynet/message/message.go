@@ -1,7 +1,7 @@
 package message
 
 const (
-	MESSGE_TYPE_FIRST_PACKET = iota
+	MESSAGE_TYPE_FIRST_PACKET = iota
 	MESSAGE_TYPE_DATA_PACKET
 )
 
