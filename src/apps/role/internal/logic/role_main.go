@@ -483,15 +483,38 @@ func (r *RoleMain) TickSave(ctx context.Context) {
 	}
 }
 
-func saveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) error {
+// persistResult 把一次落盘结果映射成指标标签。
+// fence_lost 单独成标签:它是"旧世代写入被拒"(不变量 #2 生效),不是存储故障;
+// 告警与排障的处置完全不同,不能混在 error 里。
+func persistResult(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, errRoleActorOwnershipLost):
+		return "fence_lost"
+	default:
+		return "error"
+	}
+}
+
+// observePersist 记录一次落盘的结果与耗时。
+func observePersist(start time.Time, err error) {
+	gxymetrics.RolePersistTotal.WithLabelValues(persistResult(err)).Inc()
+	gxymetrics.RolePersistDuration.Observe(time.Since(start).Seconds())
+}
+
+func saveRoleModule(r *RoleMain, ctx context.Context, rmod IRoleModule) (err error) {
 	modState := rmod.PersistState()
 	if modState == nil || !modState.IsDirty() {
 		return nil
 	}
+	start := time.Now()
+	defer func() { observePersist(start, err) }()
+
 	tableName := modState.(tabler).TableName()
 	gxylog.Debug(ctx, "save mod", gxylog.Str("table", tableName))
 
-	err := r.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = r.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockRoleActorFence(ctx, tx, r.RoleID, r.actorOwner); err != nil {
 			return err
 		}
@@ -532,14 +555,16 @@ func (r *RoleMain) saveRoleModuleState(_ context.Context, db *gorm.DB, rmod IRol
 	return &savedRoleModule{state: modState}, nil
 }
 
-func (r *RoleMain) save(ctx context.Context) error {
+func (r *RoleMain) save(ctx context.Context) (err error) {
 	dirtyMods := r.dirtyRoleModules()
 	if len(dirtyMods) == 0 {
 		return nil
 	}
+	start := time.Now()
+	defer func() { observePersist(start, err) }()
 
 	var savedMods []*savedRoleModule
-	err := r.DB().Transaction(func(tx *gorm.DB) error {
+	err = r.DB().Transaction(func(tx *gorm.DB) error {
 		if err := lockRoleActorFence(ctx, tx, r.RoleID, r.actorOwner); err != nil {
 			return err
 		}
@@ -677,11 +702,9 @@ func (r *RoleMain) OnRoleCreated(ctx context.Context) error {
 
 func (r *RoleMain) afterRoleLogin(ctx context.Context) error {
 	r.sessionActiveTime = time.Now()
+	// PUBLIC_UPDATE_TICK_NAME 已在 initTimer 注册(同名注册幂等),这里不重复。
 	r.Timer().AddTick(SESSION_ALIVE_CHECK_TICK_NAME, SESSION_ALIVE_INTERVAL, func(ctx context.Context) {
 		r.checkSessionAlive(ctx)
-	})
-	r.Timer().AddTick(PUBLIC_UPDATE_TICK_NAME, PUBLIC_UPDATE_INTERVAL, func(ctx context.Context) {
-		r.Public.UpdateRolePublic(ctx)
 	})
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
@@ -723,16 +746,18 @@ func (r *RoleMain) dologout(ctx context.Context, reason string) error {
 	r.Basic.LogoutTm = time.Now()
 	r.Public.IsOnline = false
 	r.Public.UpdateRolePublic(ctx)
-	if err := r.save(ctx); err != nil {
-		return err
-	}
+	// 先切状态并挂上兜底停止,再落盘:落盘失败时角色仍会在 single_alive 到期后
+	// 终止(终止路径会再落一次),不会停在"已清 session 但没有任何定时器"的中间态。
+	r.state = RoleStateLogout
 	r.Timer().AddOnce(SINGLE_ALIVE_ONCE_NAME, SINGLE_ALIVE_INTERVAL, func(ctx context.Context) {
 		r.Stop(errors.New("single alive timeout"))
 	})
-	r.state = RoleStateLogout
 	for _, mod := range r.Modules() {
 		rmod := mod.(IRoleModule)
 		rmod.BeforeLogout(ctx)
+	}
+	if err := r.save(ctx); err != nil {
+		return err
 	}
 	gxylog.Debug(ctx, "role logout", gxylog.Str("reason", reason))
 	return nil

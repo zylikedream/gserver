@@ -6,8 +6,10 @@ import (
 	"testing"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxymetrics"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 const advanceRoleActorFenceSQLPattern = `(?s)INSERT INTO role_actor_fence.*WHERE role_actor_fence\.epoch < EXCLUDED\.epoch.*role_actor_fence\.epoch = EXCLUDED\.epoch.*role_actor_fence\.node_id = EXCLUDED\.node_id`
@@ -147,5 +149,25 @@ func TestSaveRoleModuleLocksFenceBeforeWriting(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestLockRoleActorFenceRejectCountsMetric: fence 拒绝必须计入 role_fence_rejected_total{stage="lock"}。
+// 为什么需要:这是不变量 #2 生效的唯一信号。没有它,旧 owner 的写入被拒只能翻日志发现,
+// "两个节点同时以为自己持有同一个 role"这类事故不会触发任何告警。
+func TestLockRoleActorFenceRejectCountsMetric(t *testing.T) {
+	db, mock := newGormDBForRole(t)
+	mock.ExpectQuery(`(?s)SELECT role_id.*FROM role_actor_fence.*FOR UPDATE`).
+		WithArgs(int64(7), "role-1@node-a", uint64(3)).
+		WillReturnRows(sqlmock.NewRows([]string{"role_id"}))
+
+	before := testutil.ToFloat64(gxymetrics.RoleFenceRejected.WithLabelValues("lock"))
+	err := lockRoleActorFence(context.Background(), db, 7, gxyactor.ActorOwner{NodeID: "role-1@node-a", Epoch: 3})
+	if !errors.Is(err, errRoleActorOwnershipLost) {
+		t.Fatalf("lockRoleActorFence error = %v, want ownership lost", err)
+	}
+	after := testutil.ToFloat64(gxymetrics.RoleFenceRejected.WithLabelValues("lock"))
+	if after != before+1 {
+		t.Fatalf("fence rejected counter = %v, want %v", after, before+1)
 	}
 }

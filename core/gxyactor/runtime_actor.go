@@ -114,13 +114,15 @@ func (r *runtimeActor) HandleMessage(from gen.PID, message any) error {
 			gxylog.Error(ctx, "async init failed", gxylog.Err(err))
 			return err
 		}
-		return nil
+		return r.base.stopReason()
 	case ActorTimerMsg:
 		r.base.timer.Active(r.base.Ctx, msg)
-		return nil
+		// 回调里可能调用过 Stop:必须把终止原因交回运行时,
+		// 否则"回调返回后终止"的契约在定时路径上不成立(登出回收与落盘失败停止都会失效)。
+		return r.base.stopReason()
 	case gen.MessageCron:
 		r.base.timer.ActiveCron(r.base.Ctx, msg.Job)
-		return nil
+		return r.base.stopReason()
 	case *pb.ActorStop:
 		// 按消息请求停止:调用方(角色、网关)用它结束会话。
 		// 会话在本分支不承载实体,停止只是终止自身。
