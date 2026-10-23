@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gserver/core/gxyactor"
+	"gserver/core/gxymetrics"
 
 	"github.com/cockroachdb/errors"
 	"gorm.io/gorm"
@@ -25,6 +26,7 @@ func (RoleActorFence) TableName() string {
 
 func advanceRoleActorFence(ctx context.Context, db *gorm.DB, roleID int64, owner gxyactor.ActorOwner) error {
 	if db == nil || roleID == 0 || owner.NodeID == "" || owner.Epoch == 0 {
+		gxymetrics.RoleFenceRejected.WithLabelValues("advance").Inc()
 		return errRoleActorOwnershipLost
 	}
 	result := db.WithContext(ctx).Exec(`
@@ -41,6 +43,7 @@ WHERE role_actor_fence.epoch < EXCLUDED.epoch
 		return errors.Wrap(result.Error, "advance role actor fence")
 	}
 	if result.RowsAffected != 1 {
+		gxymetrics.RoleFenceRejected.WithLabelValues("advance").Inc()
 		return errRoleActorOwnershipLost
 	}
 	return nil
@@ -48,6 +51,7 @@ WHERE role_actor_fence.epoch < EXCLUDED.epoch
 
 func lockRoleActorFence(ctx context.Context, db *gorm.DB, roleID int64, owner gxyactor.ActorOwner) error {
 	if db == nil || roleID == 0 || owner.NodeID == "" || owner.Epoch == 0 {
+		gxymetrics.RoleFenceRejected.WithLabelValues("lock").Inc()
 		return errRoleActorOwnershipLost
 	}
 	var lockedRoleID int64
@@ -60,6 +64,7 @@ FOR UPDATE`, roleID, owner.NodeID, owner.Epoch).Scan(&lockedRoleID)
 		return errors.Wrap(result.Error, "lock role actor fence")
 	}
 	if result.RowsAffected != 1 || lockedRoleID != roleID {
+		gxymetrics.RoleFenceRejected.WithLabelValues("lock").Inc()
 		return errRoleActorOwnershipLost
 	}
 	return nil

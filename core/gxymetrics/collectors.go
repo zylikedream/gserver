@@ -132,9 +132,29 @@ var (
 	}, []string{"result"})
 
 	RoleLogouts = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "role_logout_total",
+		Name: "role_logouts_total",
 		Help: "Total role logouts by reason",
 	}, []string{"reason"})
+
+	// RolePersistTotal 记录角色落盘结果:ok / error / fence_lost。
+	// fence_lost 是不变量 #2 生效的信号(旧世代写入被拒),应与普通 DB 错误分开告警。
+	RolePersistTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "role_persist_total",
+		Help: "Total role persist attempts by result",
+	}, []string{"result"})
+
+	RolePersistDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "role_persist_duration_seconds",
+		Help:    "Role persist duration (dirty modules in one transaction)",
+		Buckets: prometheus.DefBuckets,
+	})
+
+	// RoleFenceRejected 记录写栅栏拒绝次数,按阶段区分:
+	// advance = 激活时推进世代;lock = 落盘事务内的 FOR UPDATE 校验。
+	RoleFenceRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "role_fence_rejected_total",
+		Help: "Total role writes rejected by the ownership fence",
+	}, []string{"stage"})
 
 	RoleNotifyPublish = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "role_notify_publish_total",
