@@ -58,6 +58,10 @@ func (p *processor) Decode(data []byte) (uint64, *message.Message, error) {
 	if errors.Is(err, packet.ErrPkgBodyNotEnough) || errors.Is(err, packet.ErrPkgHeadNotEnough) {
 		return 0, nil, nil
 	}
+	// 其余错误(如超长包)时 msg 为 nil,必须原样返回,不能继续解引用。
+	if err != nil {
+		return 0, nil, err
+	}
 	meta := codec.MessageMetaByID(msg.Path)
 	if meta == nil {
 		meta = codec.MessageMetaByName(msg.Path)
@@ -75,19 +79,21 @@ func (p *processor) Decode(data []byte) (uint64, *message.Message, error) {
 }
 
 func (p *processor) Encode(msg *message.Message) ([]byte, error) {
-	if len(msg.Payload) == 0 {
-		msg.Path = codec.MessageMetaByMsg(msg.Msg).ID
-		msg.Type = message.MESSAGE_TYPE_DATA_PACKET
-		var err error
-		msg.Payload, err = p.msgCodec.Encode(msg.Msg)
+	// 不改写入参:同一个 Message 可能被重复发送,回写会让第二次编码把
+	// 已带类型的载荷再包一层,拼出坏帧。
+	out := &message.Message{Type: msg.Type, Path: msg.Path, Payload: msg.Payload}
+	if len(out.Payload) == 0 {
+		meta := codec.MessageMetaByMsg(msg.Msg)
+		if meta == nil {
+			return nil, gerror.Newf("message %T is not registered in the protocol registry", msg.Msg)
+		}
+		out.Path = meta.ID
+		out.Type = message.MESSAGE_TYPE_DATA_PACKET
+		payload, err := p.msgCodec.Encode(msg.Msg)
 		if err != nil {
 			return nil, err
 		}
+		out.Payload = payload
 	}
-	data, err := p.pktCodec.Encode(msg)
-	if err != nil {
-		return nil, err
-	}
-	return data, err
-
+	return p.pktCodec.Encode(out)
 }

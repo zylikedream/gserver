@@ -1,6 +1,7 @@
 package peer
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -276,6 +277,29 @@ func TestTcpServerOnCloseNotifiesHandler(t *testing.T) {
 	s.OnClose(c, nil)
 	if h.closed != 1 {
 		t.Errorf("handler closed = %d, want 1", h.closed)
+	}
+}
+
+// TestTcpServerStart_BindFailure: 端口被占用时 Start 必须返回错误,
+// 而不是先报启动成功、再在后台 Fatal 退出进程(那会绕过模块停机)。
+func TestTcpServerStart_BindFailure(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer func() { _ = ln.Close() }()
+
+	s := &TcpServer{conf: &tcpServerConfig{Addr: "tcp://" + ln.Addr().String()}}
+	done := make(chan error, 1)
+	go func() { done <- s.Start(context.Background(), &endpoint.BaseEventHandler{}) }()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected bind error, got nil")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start did not return within 5s")
 	}
 }
 

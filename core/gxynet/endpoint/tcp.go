@@ -31,11 +31,6 @@ func (t *TcpEndpoint) DecodeMsg(data []byte) (*message.Message, int, error) {
 	return msg, int(pkgLen), nil
 }
 
-func (t *TcpEndpoint) SendData(data []byte, path string) error {
-	msg := message.NewMessage(data, path)
-	return t.sendRaw(msg)
-}
-
 func (t *TcpEndpoint) SendMsg(msg any) error {
 	return t.sendRaw(&message.Message{
 		Msg: msg,

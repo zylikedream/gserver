@@ -4,6 +4,7 @@ package processor
 // 验证 Encode→Decode 全链路(消息注册来自 codec 包 init 的 pb 全局注册)。
 
 import (
+	"bytes"
 	"encoding/binary"
 	"testing"
 
@@ -174,5 +175,44 @@ func TestProcessor_Decode_HalfPacket(t *testing.T) {
 	}
 	if consumed != 0 || msg != nil {
 		t.Fatalf("expected (0, nil), got (%d, %+v)", consumed, msg)
+	}
+}
+
+// errPacketCodec 返回非半包错误且 msg 为 nil,覆盖"错误原样返回、不得解引用"的分支。
+type errPacketCodec struct{ err error }
+
+func (c errPacketCodec) Type() string { return "test.err" }
+func (c errPacketCodec) Decode([]byte) (uint64, *message.Message, error) {
+	return 0, nil, c.err
+}
+func (c errPacketCodec) Encode(*message.Message) ([]byte, error) { return nil, c.err }
+
+func TestProcessor_Decode_CodecError(t *testing.T) {
+	want := errors.New("packet too big")
+	p := &processor{pktCodec: errPacketCodec{err: want}, msgCodec: &codec.ProtoBuf{}}
+	if _, _, err := p.Decode([]byte{0x00, 0x01}); !errors.Is(err, want) {
+		t.Fatalf("expected codec error, got %v", err)
+	}
+}
+
+// TestProcessor_Encode_DoesNotMutateMessage: 同一个 Message 编两次结果必须一致,
+// 且入参不被回写——回写会让第二次编码把已打包的载荷再包一层,拼出坏帧。
+func TestProcessor_Encode_DoesNotMutateMessage(t *testing.T) {
+	p := newTestProcessor()
+	msg := &message.Message{Msg: &pb.RspChatSendChannel{}}
+
+	first, err := p.Encode(msg)
+	if err != nil {
+		t.Fatalf("first encode: %v", err)
+	}
+	if msg.Path != "" || len(msg.Payload) != 0 {
+		t.Fatalf("Encode mutated input: path=%q payload=%d bytes", msg.Path, len(msg.Payload))
+	}
+	second, err := p.Encode(msg)
+	if err != nil {
+		t.Fatalf("second encode: %v", err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatalf("encode not idempotent: % x vs % x", first, second)
 	}
 }
